@@ -1,0 +1,42 @@
+import type { StoneId } from "./copy";
+
+/** Grid cell (x,y) for minimap rendering. */
+export interface MinimapCell {
+  x: number;
+  y: number;
+}
+
+/** Enemy marker on the minimap: position + threat tier (0-3). */
+export interface MinimapEnemy {
+  cell: MinimapCell;
+  tier: number;
+}
+
+/** Magic-stone quest pickup marker. */
+export interface MinimapStone {
+  cell: MinimapCell;
+  /** When true, the stone is already bound; renderer fades it. */
+  collected: boolean;
+  id: StoneId;
+}
+
+/**
+ * Read-only snapshot of world entities the minimap should render.
+ * Built by `DungeonWorld.getMinimapFeatures()` each frame.
+ */
+export interface MinimapFeatures {
+  /** Closed/open doorways — drawn as crossed bars. */
+  doors: MinimapCell[];
+  /** Wall torches, campfires, braziers — any active fire source. */
+  fires: MinimapCell[];
+  /** Live enemies (already-collected/defeated ones are filtered upstream). */
+  enemies: MinimapEnemy[];
+  /** The four magic-stone quest objectives. */
+  stones: MinimapStone[];
+  /** Resolve flasks that have not yet been picked up. */
+  pickups: MinimapCell[];
+  /** Special objective prop (reliquary altar / boss-shrine crystal), if any. */
+  relic?: MinimapCell;
+  /** Entrance / spawn marker (dungeon.spawn). */
+  spawn: MinimapCell;
+}

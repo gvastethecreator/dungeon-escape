@@ -1,0 +1,100 @@
+/** English UI copy for dungeon runtime and editor shell. */
+
+export const COPY = {
+  objective: {
+    label: "OBJECTIVE",
+    /** Run intro banner (fades after a few seconds). */
+    intro: "Find the four magic stones",
+    findStones: (found: number, total: number) => `Find the four magic stones (${found}/${total})`,
+    openPortal: "All stones bound. Reach the open portal",
+    escape: "Escape through the iron portal",
+  },
+  threat: {
+    clear: "NO PRESENCE NEARBY",
+    near: (distance: number) => `PRESENCE ${distance.toFixed(0)} m`,
+  },
+  pickup: {
+    small: "BOUND",
+    notice: "UPDATE",
+    /** Gothic body label — sentence case only. */
+    stone: (name: string) => name,
+    flask: "HEALTH RESTORED",
+  },
+  interaction: {
+    openChest: "OPEN CHEST",
+  },
+  stones: {
+    ember: "Ember core",
+    ash: "Ash vein",
+    crypt: "Crypt shard",
+    verdant: "Verdant heart",
+  } as const,
+  status: {
+    enter: "Click the scene to explore.",
+    enterPlay: "Click the scene to explore. ESC opens options.",
+    exploring: "WASD move · SPACE jump · E interact · ESC options.",
+    pointerReleased: "Paused. ESC or RESUME to continue.",
+    pointerFailed: "Could not capture the pointer. Click the scene to retry.",
+    pointerBlocked: "The browser blocked the pointer. Click the scene to retry.",
+    portalSealed: "The portal is sealed. Four magic stones are required.",
+    portalOpen: "The portal thrums open. Reach the special gate.",
+    stoneFound: (name: string, found: number, total: number) => `${name} bound · ${found}/${total}`,
+    won: "You escaped through the portal.",
+    dead: "Keep distance. Shadows strike on contact.",
+    hydrate: (seed: string) => `Hydrate backend · seed ${seed}`,
+    generation: (profile: string, mood: string) =>
+      `Profile ${profile} · mood ${mood}. Collect four stones. Avoid the presence.`,
+    forgeLoaded: "Dungeon creation loaded",
+    pushOk: "Params/seed pushed to backend (best-effort).",
+    pushOffline: "Backend offline: local sim only.",
+    authorityOnline: (active: string, count: number) =>
+      `Authority: ONLINE · active ${active} · ${count} runs`,
+    authorityError: (message: string) => `Authority: error ${message}`,
+  },
+  end: {
+    winKicker: "Portal escape",
+    winTitle: "The threshold yields",
+    winLead: "All four stones are bound. The exit is open.",
+    winCopy: (totalSec: number, stones: string) =>
+      `Escape in ${formatTime(totalSec)}. Stones: ${stones}`,
+    loseKicker: "The dungeon keeps its dead",
+    loseTitle: "You Died",
+    loseCopy: "Return to this layout or leave it for a new descent.",
+    retry: "Try again",
+    newDungeon: "New dungeon",
+    next: "Another run",
+  },
+  hud: {
+    map: "MAP",
+    mapExpand: "EXPAND",
+    mapShrink: "SHRINK",
+    enter: "ENTER",
+    escapeKey: "ESC",
+    mute: "AUDIO OFF",
+    audioOn: "AUDIO ON",
+    crtOn: "CRT ON",
+    crtOff: "CRT OFF",
+    registry: "RUN AUTHORITY",
+    seedDefault: "CAMPAIGN-17",
+  },
+  timer: {
+    run: "RUN",
+    stones: "STONES",
+  },
+} as const;
+
+export type StoneId = keyof typeof COPY.stones;
+
+export const STONE_ORDER: readonly StoneId[] = ["ember", "ash", "crypt", "verdant"];
+
+export function formatTime(seconds: number): string {
+  const safe = Math.max(0, seconds);
+  const m = Math.floor(safe / 60);
+  const s = Math.floor(safe % 60);
+  const cs = Math.floor((safe % 1) * 100);
+  return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}.${String(cs).padStart(2, "0")}`;
+}
+
+export function stoneLabel(id: StoneId): string {
+  return COPY.stones[id];
+}

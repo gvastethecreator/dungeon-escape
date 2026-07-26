@@ -1,0 +1,41 @@
+{
+  "version": 1,
+  "direction": "iron-ash",
+  "palette": ["#070809", "#121416", "#202327", "#34383b", "#505356", "#777873", "#b6b3a8"],
+  "sampling": "nearest",
+  "textures": {
+    "wall": { "src": "/assets/textures/iron-ash-wall.png", "repeat": [1, 1], "colorSpace": "srgb" },
+    "floor": {
+      "src": "/assets/textures/iron-ash-floor.png",
+      "repeat": [1, 1],
+      "colorSpace": "srgb"
+    },
+    "ceiling": {
+      "src": "/assets/textures/iron-ash-ceiling.png",
+      "repeat": [1, 1],
+      "colorSpace": "srgb"
+    }
+  },
+  "atlases": {
+    "enemies": {
+      "src": "/assets/sprites/iron-ash-enemies.png",
+      "size": [1744, 902],
+      "frames": {
+        "warden": { "x": 0, "y": 0, "w": 581, "h": 902, "pivot": [0.5, 0.02] },
+        "shroud": { "x": 581, "y": 0, "w": 582, "h": 902, "pivot": [0.5, 0.02] },
+        "gaoler": { "x": 1163, "y": 0, "w": 581, "h": 902, "pivot": [0.5, 0.02] }
+      }
+    },
+    "items": {
+      "src": "/assets/sprites/iron-ash-items.png",
+      "size": [1774, 887],
+      "frames": {
+        "skullSeal": { "x": 0, "y": 0, "w": 443, "h": 887, "pivot": [0.5, 0.1] },
+        "resolveFlask": { "x": 443, "y": 0, "w": 444, "h": 887, "pivot": [0.5, 0.1] },
+        "ironKey": { "x": 887, "y": 0, "w": 443, "h": 887, "pivot": [0.5, 0.1] },
+        "reliquary": { "x": 1330, "y": 0, "w": 444, "h": 887, "pivot": [0.5, 0.1] }
+      }
+    },
+    "viewmodel": { "src": "/assets/sprites/iron-ash-viewmodel.png", "size": [1536, 1024] }
+  }
+}
