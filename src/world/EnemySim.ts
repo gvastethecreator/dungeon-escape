@@ -1,0 +1,270 @@
+import { canOccupy, type WorldCollider } from "../dungeon/gridCollision";
+import type { DungeonData } from "../dungeon/types";
+import {
+  ENEMY_ARCHETYPES,
+  getEnemyMotion,
+  isHoverEnemy,
+  isLowProfileEnemy,
+  type EnemyKind,
+} from "./EnemyArchetypes";
+import { knockbackAwayFrom } from "./knockback";
+
+/** Simulation-only enemy body (no Three mesh references). */
+export interface EnemySimBody {
+  kind: EnemyKind;
+  position: { x: number; y: number; z: number };
+  hitCooldown: number;
+  attackPulse: number;
+  baseY: number;
+  baseScale: { x: number; y: number };
+  phase: number;
+  scaleX: number;
+  scaleY: number;
+  roll: number;
+  /** Last hidden-cycle relocation applied to this body. */
+  phaseEpoch: number;
+  /** 0 while phased out, 1 while fully present. */
+  phaseVisibility: number;
+  /** Horizontal travel in the current tick; presentation selects idle from it. */
+  moving: boolean;
+}
+
+export interface EnemySimResult {
+  damage: number;
+  nearestThreat: number;
+  knockX: number;
+  knockZ: number;
+  knockHits: number;
+  attacker: EnemySimBody | null;
+}
+
+export interface EnemySimContext {
+  delta: number;
+  elapsed: number;
+  player: { x: number; y: number; z: number };
+  dungeon: DungeonData | null;
+  solidColliders: readonly WorldCollider[];
+  tileSize: number;
+}
+
+// Enemy simulation runs every rendered frame. Reuse its temporary vectors so
+// busy rooms do not turn ordinary pursuit into garbage-collector work.
+const tempDir = { x: 0, z: 0 };
+const tempSide = { x: 0, z: 0 };
+const tempMove = { x: 0, z: 0 };
+const tempPos = { x: 0, y: 0, z: 0 };
+
+const PHASED_ENEMIES = new Set<EnemyKind>(["ghost", "white-eyed-shadow"]);
+
+export function isPhasingEnemy(kind: EnemyKind): boolean {
+  return PHASED_ENEMIES.has(kind);
+}
+
+function phaseDuration(kind: EnemyKind): number {
+  return kind === "ghost" ? 4.6 : 3.75;
+}
+
+/**
+ * Stable visibility envelope for spectral threats. Their phase offset keeps a
+ * room of ghosts from vanishing on the same frame.
+ */
+export function enemyPhaseVisibility(kind: EnemyKind, elapsed: number, phase: number): number {
+  if (!isPhasingEnemy(kind)) return 1;
+  const duration = phaseDuration(kind);
+  const local = (((elapsed + phase * 0.37) % duration) + duration) % duration;
+  const progress = local / duration;
+  if (progress < 0.46) return 1;
+  if (progress < 0.58) {
+    const fade = (progress - 0.46) / 0.12;
+    return 1 - fade * fade * (3 - 2 * fade);
+  }
+  if (progress < 0.78) return 0;
+  const fade = (progress - 0.78) / 0.22;
+  return fade * fade * (3 - 2 * fade);
+}
+
+export function spiderPounceHeight(distance: number, elapsed: number, phase: number): number {
+  if (distance <= ENEMY_ARCHETYPES.spider.attackRange * 0.9 || distance > 12) return 0;
+  const pulse = Math.max(0, Math.sin(elapsed * 3.45 + phase));
+  return Math.pow(pulse, 7) * 0.3;
+}
+
+export function impFlightOffset(distance: number, elapsed: number, phase: number): number {
+  const proximity = 0.58 + clampScalar((12 - distance) / 12, 0, 1) * 0.42;
+  const descent = (Math.sin(elapsed * 1.18 + phase) + 1) * 0.5;
+  return -(0.12 + descent * 0.86 * proximity);
+}
+
+function clampScalar(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value));
+}
+
+function enemyPhaseEpoch(kind: EnemyKind, elapsed: number, phase: number): number {
+  const duration = phaseDuration(kind);
+  return Math.floor((elapsed + phase * 0.37) / duration);
+}
+
+function relocatePhasedEnemy(
+  enemy: EnemySimBody,
+  player: EnemySimContext["player"],
+  dungeon: DungeonData,
+  solidColliders: readonly WorldCollider[],
+  tileSize: number,
+  distance: number,
+  epoch: number,
+): void {
+  const archetype = ENEMY_ARCHETYPES[enemy.kind];
+  if (distance <= archetype.attackRange + 0.9) return;
+  const towardX = (player.x - enemy.position.x) / Math.max(distance, 1e-4);
+  const towardZ = (player.z - enemy.position.z) / Math.max(distance, 1e-4);
+  const hash = Math.sin((enemy.phase + 1.7) * 12.9898 + epoch * 78.233);
+  const sideSign = hash >= 0 ? 1 : -1;
+  const lateral = (0.68 + Math.abs(hash) * 0.46) * sideSign;
+  const advance = Math.min(1.25, Math.max(0.72, distance - archetype.attackRange - 0.45));
+  const sideX = -towardZ;
+  const sideZ = towardX;
+
+  // Try the chosen flank, its mirror, then a shorter advance. This keeps the
+  // relocation inside authored corridors without adding per-frame allocations.
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const mirrored = attempt === 1 ? -1 : 1;
+    const attemptAdvance = attempt === 2 ? advance * 0.55 : advance;
+    const attemptLateral = attempt === 2 ? lateral * 0.35 : lateral * mirrored;
+    tempPos.x = enemy.position.x + towardX * attemptAdvance + sideX * attemptLateral;
+    tempPos.y = enemy.position.y;
+    tempPos.z = enemy.position.z + towardZ * attemptAdvance + sideZ * attemptLateral;
+    if (!canOccupy(dungeon, tempPos, tileSize, 0.2, undefined, solidColliders)) continue;
+    enemy.position.x = tempPos.x;
+    enemy.position.z = tempPos.z;
+    return;
+  }
+}
+
+/**
+ * Pure-ish combat + motion tick. Mutates enemy bodies in place.
+ * Presentation (instanced matrices) stays in DungeonWorld.
+ */
+export function tickEnemySim(
+  enemies: readonly EnemySimBody[],
+  ctx: EnemySimContext,
+): EnemySimResult {
+  let damage = 0;
+  let nearestThreat = Number.POSITIVE_INFINITY;
+  let knockX = 0;
+  let knockZ = 0;
+  let knockHits = 0;
+  let attacker: EnemySimBody | null = null;
+  let attackerDistance = Number.POSITIVE_INFINITY;
+  const { delta, elapsed, player, dungeon, solidColliders, tileSize } = ctx;
+  for (const enemy of enemies) {
+    const archetype = ENEMY_ARCHETYPES[enemy.kind];
+    enemy.hitCooldown = Math.max(0, enemy.hitCooldown - delta);
+    enemy.attackPulse = Math.max(0, enemy.attackPulse - delta * 3.8);
+    const dx = enemy.position.x - player.x;
+    const dz = enemy.position.z - player.z;
+    let distance = Math.hypot(dx, dz);
+    nearestThreat = Math.min(nearestThreat, distance);
+    enemy.phaseVisibility = enemyPhaseVisibility(enemy.kind, elapsed, enemy.phase);
+    if (isPhasingEnemy(enemy.kind) && dungeon && enemy.phaseVisibility <= 0.001) {
+      const epoch = enemyPhaseEpoch(enemy.kind, elapsed, enemy.phase);
+      if (enemy.phaseEpoch !== epoch) {
+        relocatePhasedEnemy(enemy, player, dungeon, solidColliders, tileSize, distance, epoch);
+        enemy.phaseEpoch = epoch;
+        distance = Math.hypot(enemy.position.x - player.x, enemy.position.z - player.z);
+        nearestThreat = Math.min(nearestThreat, distance);
+      }
+    }
+    let travelled = 0;
+    const motion = getEnemyMotion(enemy.kind, distance, elapsed, enemy.phase);
+    if (motion.speedMultiplier > 0 && dungeon) {
+      tempDir.x = player.x - enemy.position.x;
+      tempDir.z = player.z - enemy.position.z;
+      const len = Math.hypot(tempDir.x, tempDir.z);
+      if (len > 1e-4) {
+        tempDir.x /= len;
+        tempDir.z /= len;
+      }
+      tempSide.x = -tempDir.z;
+      tempSide.z = tempDir.x;
+      tempMove.x = tempDir.x * motion.forward + tempSide.x * motion.strafe;
+      tempMove.z = tempDir.z * motion.forward + tempSide.z * motion.strafe;
+      const mLen = Math.hypot(tempMove.x, tempMove.z);
+      if (mLen > 1e-4) {
+        tempMove.x /= mLen;
+        tempMove.z /= mLen;
+      }
+      const step = archetype.speed * motion.speedMultiplier * delta;
+      tempPos.x = enemy.position.x + tempMove.x * step;
+      tempPos.y = enemy.position.y;
+      tempPos.z = enemy.position.z + tempMove.z * step;
+      if (canOccupy(dungeon, tempPos, tileSize, 0.2, undefined, solidColliders)) {
+        enemy.position.x = tempPos.x;
+        enemy.position.z = tempPos.z;
+        travelled = step;
+      }
+    }
+
+    enemy.moving = travelled > 0.0001;
+    const breath = Math.sin(elapsed * 2.15 + enemy.phase);
+    const gait =
+      travelled > 0 ? Math.sin(elapsed * (6.5 + archetype.speed * 2.2) + enemy.phase) : 0;
+    const attack = Math.sin(enemy.attackPulse * Math.PI);
+    const crawl = isLowProfileEnemy(enemy.kind) ? Math.sin(elapsed * 10 + enemy.phase) : 0;
+    const hover =
+      isHoverEnemy(enemy.kind) && enemy.kind !== "imp"
+        ? Math.sin(elapsed * 2.8 + enemy.phase) * (enemy.kind === "ghost" ? 0.12 : 0.08)
+        : 0;
+    const pounce = enemy.kind === "spider" ? spiderPounceHeight(distance, elapsed, enemy.phase) : 0;
+    const flight = enemy.kind === "imp" ? impFlightOffset(distance, elapsed, enemy.phase) : 0;
+    const heavy =
+      enemy.kind === "zombie-orc" || enemy.kind === "husk" || enemy.kind === "bone-slime"
+        ? 0.55
+        : 1;
+    enemy.position.y =
+      enemy.baseY + Math.abs(gait) * 0.055 * heavy + attack * 0.08 + hover + pounce + flight;
+    enemy.scaleX =
+      enemy.baseScale.x *
+      (1 - breath * 0.018 + Math.abs(gait) * 0.025 + attack * 0.07 + Math.abs(crawl) * 0.035);
+    enemy.scaleY =
+      enemy.baseScale.y *
+      (1 + breath * 0.026 - Math.abs(gait) * 0.018 + attack * 0.04 - Math.abs(crawl) * 0.025);
+    const sway =
+      enemy.kind === "white-eyed-shadow"
+        ? 0.052
+        : enemy.kind === "ghost"
+          ? 0.025
+          : enemy.kind === "goblin" || enemy.kind === "spider"
+            ? 0.03
+            : 0.018;
+    const lowCrawl = isLowProfileEnemy(enemy.kind);
+    const shadowTwitch =
+      enemy.kind === "white-eyed-shadow"
+        ? Math.sin(elapsed * 9.4 + enemy.phase) * 0.022 +
+          Math.sin(elapsed * 4.1 + enemy.phase * 2.3) * 0.014
+        : 0;
+    enemy.roll =
+      Math.sin(elapsed * 2.2 + enemy.phase) * sway +
+      gait * (lowCrawl ? 0.028 : 0.012) +
+      shadowTwitch;
+
+    if (
+      distance < archetype.attackRange &&
+      enemy.hitCooldown === 0 &&
+      enemy.phaseVisibility >= 0.82
+    ) {
+      damage += archetype.damage;
+      enemy.hitCooldown = archetype.attackCooldown;
+      enemy.attackPulse = 1;
+      const push = knockbackAwayFrom(player.x, player.z, enemy.position.x, enemy.position.z);
+      knockX += push.x;
+      knockZ += push.z;
+      knockHits += 1;
+      if (distance < attackerDistance) {
+        attacker = enemy;
+        attackerDistance = distance;
+      }
+    }
+  }
+
+  return { damage, nearestThreat, knockX, knockZ, knockHits, attacker };
+}

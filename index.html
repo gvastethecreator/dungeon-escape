@@ -1,0 +1,656 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#070809" />
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath fill='%23c9c5b8' d='M7 1h2v5h5v2H9v7H7V8H2V6h5z'/%3E%3C/svg%3E"
+    />
+    <meta name="description" content="First-person procedural grimdark dungeon exploration." />
+    <title>Dungeon Escape</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Jacquard+12&family=Jacquard+24&family=Pixelify+Sans:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+  <body>
+    <main class="app-shell">
+      <canvas id="scene" tabindex="0" aria-label="First-person grimdark dungeon"></canvas>
+
+      <section
+        id="welcome-screen"
+        class="welcome-screen"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="welcome-title"
+      >
+        <img
+          class="welcome-art"
+          src="/assets/ui/dungeon-cover-v1.webp"
+          alt=""
+          width="1672"
+          height="941"
+          decoding="async"
+          fetchpriority="high"
+        />
+        <div class="welcome-card">
+          <small>DUNGEON ESCAPE</small>
+          <h1 id="welcome-title">Dungeon Escape</h1>
+          <p>Generate a dungeon, recover the four magic stones, and reach the exit.</p>
+          <div class="welcome-actions">
+            <button id="welcome-new" type="button">NEW GAME</button>
+            <button id="welcome-continue" type="button" disabled>CONTINUE</button>
+          </div>
+          <p id="welcome-status" class="welcome-status" role="status" aria-live="polite">
+            Checking saved run…
+          </p>
+        </div>
+      </section>
+
+      <!-- Play HUD: intro objective, health orb, stone sockets, minimap -->
+      <aside class="play-hud" aria-label="Play status">
+        <p id="play-objective" class="play-objective" role="status" aria-live="polite" hidden>
+          Find the four magic stones
+        </p>
+
+        <section class="play-vitals" aria-label="Health and magic stones">
+          <div
+            class="health-orb"
+            role="meter"
+            aria-label="Health"
+            aria-valuemin="0"
+            aria-valuemax="100"
+            aria-valuenow="100"
+            aria-valuetext="100 health"
+            style="--fill: 100%"
+          >
+            <div class="health-orb__mount" aria-hidden="true"></div>
+            <div class="health-orb__glass" aria-hidden="true">
+              <div class="health-orb__air"></div>
+              <div id="resolve-fill" class="health-orb__liquid">
+                <span class="health-orb__sheen"></span>
+                <span class="health-orb__bubbles"></span>
+              </div>
+              <div class="health-orb__meniscus">
+                <i></i>
+              </div>
+              <div class="health-orb__caustic"></div>
+              <div class="health-orb__specular"></div>
+              <div class="health-orb__specular health-orb__specular--edge"></div>
+              <div class="health-orb__fresnel"></div>
+              <div class="health-orb__glass-edge"></div>
+            </div>
+            <div class="health-orb__splatter" aria-hidden="true"></div>
+            <output id="resolve-value" class="health-orb__value">100</output>
+          </div>
+          <ul class="stone-sockets" aria-label="Magic stone sockets">
+            <li class="stone-socket" data-stone="ember" title="Ember Core" aria-pressed="false">
+              <span class="stone-socket__empty" aria-hidden="true"></span>
+              <span class="stone-socket__gem" aria-hidden="true"></span>
+            </li>
+            <li class="stone-socket" data-stone="ash" title="Ash Vein" aria-pressed="false">
+              <span class="stone-socket__empty" aria-hidden="true"></span>
+              <span class="stone-socket__gem" aria-hidden="true"></span>
+            </li>
+            <li class="stone-socket" data-stone="crypt" title="Crypt Shard" aria-pressed="false">
+              <span class="stone-socket__empty" aria-hidden="true"></span>
+              <span class="stone-socket__gem" aria-hidden="true"></span>
+            </li>
+            <li
+              class="stone-socket"
+              data-stone="verdant"
+              title="Verdant Heart"
+              aria-pressed="false"
+            >
+              <span class="stone-socket__empty" aria-hidden="true"></span>
+              <span class="stone-socket__gem" aria-hidden="true"></span>
+            </li>
+          </ul>
+          <strong id="stone-count" class="visually-hidden">0/4</strong>
+        </section>
+
+        <aside id="map-panel" class="map-panel" aria-label="Dungeon map">
+          <header class="map-head">
+            <span>MAP</span>
+            <kbd>M</kbd>
+            <button
+              id="map-toggle"
+              type="button"
+              aria-expanded="true"
+              aria-controls="minimap"
+              title="Expand map (M)"
+            >
+              EXPAND
+            </button>
+          </header>
+          <canvas
+            id="minimap"
+            role="img"
+            aria-label="Dungeon map, exit, stones and player"
+            width="196"
+            height="150"
+          ></canvas>
+        </aside>
+      </aside>
+
+      <!-- Feedback layers (not chrome) -->
+      <div id="damage-vignette" class="damage-vignette" aria-hidden="true"></div>
+      <div id="event-flash" class="event-flash" aria-hidden="true"></div>
+      <div
+        id="pickup-feedback"
+        class="pickup-feedback"
+        role="status"
+        aria-live="polite"
+        data-kind="stone"
+      >
+        <span class="pickup-mark" aria-hidden="true"></span>
+        <span class="pickup-copy"
+          ><small id="pickup-feedback-kicker">BOUND</small
+          ><strong id="pickup-feedback-text">Magic stone</strong></span
+        >
+      </div>
+      <div class="crt-overlay" aria-hidden="true"></div>
+      <div class="reticle" aria-hidden="true"><i></i></div>
+      <button
+        id="interaction-prompt"
+        class="interaction-prompt"
+        type="button"
+        aria-label="Open chest"
+        hidden
+      >
+        <kbd>E</kbd><span>OPEN CHEST</span>
+      </button>
+
+      <!-- ESC options / editor chrome -->
+      <section id="options-menu" class="options-menu" aria-label="Options and settings" hidden>
+        <div class="options-backdrop" data-options-dismiss tabindex="-1" aria-hidden="true"></div>
+        <div
+          id="options-card"
+          class="options-card"
+          role="region"
+          aria-labelledby="options-title"
+          data-ui-profile="workspace"
+        >
+          <header class="options-header">
+            <div>
+              <small>DUNGEON ESCAPE</small>
+              <strong id="options-title">Paused</strong>
+            </div>
+            <button id="options-resume" type="button">RESUME <kbd>ESC</kbd></button>
+          </header>
+
+          <nav class="mode-switcher" aria-label="Engine mode (shell: editor / debug / play)">
+            <button
+              type="button"
+              data-engine-mode="editor"
+              class="is-active"
+              title="Shell editor · key 1"
+            >
+              EDITOR
+            </button>
+            <button type="button" data-engine-mode="debug" title="Debug · key 2">DEBUG</button>
+            <button type="button" data-engine-mode="play" title="Shell play · key 3">PLAY</button>
+          </nav>
+
+          <fieldset class="options-fx">
+            <legend>DISPLAY</legend>
+            <button
+              id="audio-toggle"
+              class="is-active"
+              type="button"
+              aria-pressed="false"
+              title="Mute audio"
+            >
+              AUDIO ON
+            </button>
+            <button
+              id="crt-toggle"
+              class="is-active"
+              type="button"
+              aria-pressed="true"
+              title="Toggle soft CRT"
+            >
+              CRT ON
+            </button>
+          </fieldset>
+
+          <details class="record-panel">
+            <summary aria-label="Open run settings">
+              <span class="record-summary-mark" aria-hidden="true"></span><span>RUN AUTHORITY</span>
+            </summary>
+            <form id="generation-form" class="generation-form">
+              <details class="editor-fieldset">
+                <summary class="editor-fieldset__legend">AUTHORITY / RUN</summary>
+                <div class="editor-fieldset__body">
+                  <label class="is-stacked">
+                    <span>ACTIVE RUN</span>
+                    <select id="run-select" name="runSelect" aria-label="Select backend run">
+                      <option value="">local</option>
+                    </select>
+                  </label>
+                  <div class="record-actions">
+                    <button id="run-new" type="button">NEW RUN</button>
+                    <button id="run-refresh" type="button">SYNC RUNS</button>
+                  </div>
+                </div>
+              </details>
+
+              <details class="editor-fieldset">
+                <summary class="editor-fieldset__legend">PRESETS</summary>
+                <div class="editor-fieldset__body">
+                  <div class="record-actions preset-row">
+                    <button type="button" data-dungeon-preset="balanced">BALANCED</button>
+                    <button type="button" data-dungeon-preset="tight">TIGHT</button>
+                    <button type="button" data-dungeon-preset="sprawl">SPRAWL</button>
+                    <button type="button" data-dungeon-preset="gauntlet">GAUNTLET</button>
+                    <button type="button" data-dungeon-preset="crypt">CRYPT</button>
+                  </div>
+                </div>
+              </details>
+
+              <details class="editor-fieldset" open>
+                <summary class="editor-fieldset__legend">LAYOUT</summary>
+                <div class="editor-fieldset__body is-dual">
+                  <label class="is-stacked is-dual-span">
+                    <span>SEED</span>
+                    <input
+                      id="seed"
+                      name="seed"
+                      value="CAMPAIGN-17"
+                      autocomplete="off"
+                      spellcheck="false"
+                    />
+                  </label>
+                  <label>
+                    <span>ROOMS</span>
+                    <input
+                      id="room-count"
+                      name="roomCount"
+                      type="range"
+                      min="8"
+                      max="28"
+                      value="16"
+                      aria-label="Room count"
+                    />
+                    <output id="room-count-label" for="room-count">16</output>
+                  </label>
+                  <label>
+                    <span>LOOPS</span>
+                    <input
+                      id="loop-rate"
+                      name="loopRate"
+                      type="range"
+                      min="0"
+                      max="45"
+                      value="20"
+                      aria-label="Loop rate"
+                    />
+                    <output id="loop-rate-label" for="loop-rate">20%</output>
+                  </label>
+                  <label>
+                    <span title="Map width">W</span>
+                    <input
+                      id="map-width"
+                      name="mapWidth"
+                      type="range"
+                      min="41"
+                      max="99"
+                      step="2"
+                      value="73"
+                      aria-label="Map width"
+                    />
+                    <output id="map-width-label" for="map-width">73</output>
+                  </label>
+                  <label>
+                    <span title="Map height">H</span>
+                    <input
+                      id="map-height"
+                      name="mapHeight"
+                      type="range"
+                      min="41"
+                      max="99"
+                      step="2"
+                      value="73"
+                      aria-label="Map height"
+                    />
+                    <output id="map-height-label" for="map-height">73</output>
+                  </label>
+                  <label>
+                    <span title="Minimum room size">MIN</span>
+                    <input
+                      id="min-room"
+                      name="minRoomSize"
+                      type="range"
+                      min="3"
+                      max="12"
+                      value="5"
+                      aria-label="Minimum room size"
+                    />
+                    <output id="min-room-label" for="min-room">5</output>
+                  </label>
+                  <label>
+                    <span title="Maximum room size">MAX</span>
+                    <input
+                      id="max-room"
+                      name="maxRoomSize"
+                      type="range"
+                      min="4"
+                      max="16"
+                      value="9"
+                      aria-label="Maximum room size"
+                    />
+                    <output id="max-room-label" for="max-room">9</output>
+                  </label>
+                  <label>
+                    <span title="Corridor radius">COR R</span>
+                    <input
+                      id="corridor-radius"
+                      name="corridorRadius"
+                      type="range"
+                      min="0"
+                      max="2"
+                      value="0"
+                      aria-label="Corridor radius"
+                    />
+                    <output id="corridor-label" for="corridor-radius">0</output>
+                  </label>
+                  <label>
+                    <span title="Room padding">PAD</span>
+                    <input
+                      id="room-padding"
+                      name="roomPadding"
+                      type="range"
+                      min="1"
+                      max="4"
+                      value="2"
+                      aria-label="Room padding"
+                    />
+                    <output id="padding-label" for="room-padding">2</output>
+                  </label>
+                </div>
+              </details>
+
+              <details class="editor-fieldset" open>
+                <summary class="editor-fieldset__legend">ATMOSPHERE / THREAT</summary>
+                <div class="editor-fieldset__body is-dual">
+                  <label>
+                    <span>DECOR</span>
+                    <input
+                      id="decor-density"
+                      name="decorDensity"
+                      type="range"
+                      min="0"
+                      max="100"
+                      value="60"
+                      aria-label="Decor density"
+                    />
+                    <output id="decor-density-label" for="decor-density">60%</output>
+                  </label>
+                  <label>
+                    <span>ENEMIES</span>
+                    <input
+                      id="enemy-density"
+                      name="enemyDensity"
+                      type="range"
+                      min="0"
+                      max="100"
+                      value="50"
+                      aria-label="Enemy density"
+                    />
+                    <output id="enemy-density-label" for="enemy-density">50%</output>
+                  </label>
+                  <label>
+                    <span>LIGHT</span>
+                    <input
+                      id="light-level"
+                      name="lightLevel"
+                      type="range"
+                      min="10"
+                      max="100"
+                      value="70"
+                      aria-label="Light level"
+                    />
+                    <output id="light-level-label" for="light-level">70%</output>
+                  </label>
+                  <label class="is-stacked">
+                    <span>PROFILE</span>
+                    <select id="profile-select" name="profile">
+                      <option value="balanced">balanced</option>
+                      <option value="tight">tight</option>
+                      <option value="sprawl">sprawl</option>
+                      <option value="gauntlet">gauntlet</option>
+                      <option value="crypt">crypt</option>
+                      <option value="custom">custom</option>
+                    </select>
+                  </label>
+                </div>
+              </details>
+
+              <details class="editor-fieldset">
+                <summary class="editor-fieldset__legend">CAMERA</summary>
+                <div class="editor-fieldset__body is-dual">
+                  <label>
+                    <span title="Mouse sensitivity">SENS</span>
+                    <input
+                      id="camera-sensitivity"
+                      name="cameraSensitivity"
+                      type="range"
+                      min="50"
+                      max="160"
+                      value="95"
+                      aria-label="Camera sensitivity"
+                    />
+                    <output id="camera-sensitivity-label" for="camera-sensitivity">95%</output>
+                  </label>
+                  <label>
+                    <span title="Camera motion">MOTION</span>
+                    <input
+                      id="camera-motion"
+                      name="cameraMotion"
+                      type="range"
+                      min="0"
+                      max="100"
+                      value="72"
+                      aria-label="Camera motion"
+                    />
+                    <output id="camera-motion-label" for="camera-motion">72%</output>
+                  </label>
+                </div>
+              </details>
+
+              <div class="record-actions">
+                <button type="submit">GENERATE</button>
+                <button id="reroll" type="button">NEW SEED</button>
+                <button id="push-authority" type="button">PUSH BACKEND</button>
+              </div>
+            </form>
+            <div class="record-data">
+              <p id="run-stats">Preparing grid.</p>
+              <p id="position-readout">Cell —</p>
+              <p id="authority-readout">Authority: —</p>
+            </div>
+          </details>
+
+          <p id="status" class="options-status" role="status" aria-live="polite">
+            Click the scene to explore.
+          </p>
+        </div>
+      </section>
+
+      <section
+        id="editor-workspace"
+        class="editor-workspace"
+        aria-label="Dungeon Creation, procedural editor"
+        data-editor-surface="forge"
+        data-editor-state="loading"
+      >
+        <header class="editor-toolbar">
+          <span class="editor-toolbar__label" aria-hidden="true">WORKSPACE</span>
+          <div class="editor-tabs" role="tablist" aria-label="Dungeon Creation views">
+            <button
+              id="editor-runtime-tab"
+              type="button"
+              role="tab"
+              aria-selected="false"
+              aria-controls="editor-runtime-surface"
+              data-editor-view="runtime"
+            >
+              MAP PREVIEW
+            </button>
+            <button
+              id="editor-forge-tab"
+              class="is-active"
+              type="button"
+              role="tab"
+              aria-selected="true"
+              aria-controls="editor-forge-surface"
+              data-editor-view="forge"
+            >
+              DUNGEON CREATION
+            </button>
+          </div>
+          <span id="forge-status" role="status" aria-live="polite">CREATION LOADING</span>
+        </header>
+        <button
+          id="forge-apply"
+          class="forge-play-btn"
+          type="button"
+          disabled
+          title="Load dungeon into play"
+          aria-label="Play dungeon"
+        >
+          <span class="forge-play-btn__kicker" id="forge-play-kicker">WAIT</span>
+          <span class="forge-play-btn__label">Play</span>
+        </button>
+        <div
+          id="editor-runtime-surface"
+          class="editor-surface"
+          role="tabpanel"
+          aria-labelledby="editor-runtime-tab"
+          hidden
+        >
+          <canvas id="editor-map" aria-label="Editable top-down dungeon view"></canvas>
+          <div class="editor-readout">
+            <strong id="editor-title">Generated map</strong>
+            <span id="editor-cell">SPAWN —</span>
+            <small>CLICK: SPAWN · SHIFT/SECONDARY: PAN · WHEEL: ZOOM</small>
+          </div>
+        </div>
+        <div
+          id="editor-forge-surface"
+          class="editor-surface"
+          role="tabpanel"
+          aria-labelledby="editor-forge-tab"
+        >
+          <iframe
+            id="dungeon-forge"
+            title="Dungeon Creation, full procedural editor"
+            data-src="/forge.html"
+          ></iframe>
+        </div>
+      </section>
+
+      <aside id="debug-panel" class="debug-panel" hidden aria-label="Renderer diagnostics">
+        <header><strong>RUNTIME</strong><span id="debug-mode">DEBUG</span></header>
+        <dl>
+          <div>
+            <dt>FPS</dt>
+            <dd id="debug-fps">—</dd>
+          </div>
+          <div>
+            <dt>FRAME</dt>
+            <dd id="debug-frame">—</dd>
+          </div>
+          <div>
+            <dt>CALLS</dt>
+            <dd id="debug-calls">—</dd>
+          </div>
+          <div>
+            <dt>TRIS</dt>
+            <dd id="debug-tris">—</dd>
+          </div>
+          <div>
+            <dt>TEX</dt>
+            <dd id="debug-textures">—</dd>
+          </div>
+          <div>
+            <dt>LIGHTS</dt>
+            <dd id="debug-lights">—</dd>
+          </div>
+        </dl>
+      </aside>
+
+      <nav class="touch-controls" aria-label="Touch controls">
+        <div class="touch-move">
+          <button type="button" data-move="forward" aria-label="Move forward">▲</button>
+          <button type="button" data-move="left" aria-label="Move left">◀</button>
+          <button type="button" data-move="backward" aria-label="Move back">▼</button>
+          <button type="button" data-move="right" aria-label="Move right">▶</button>
+        </div>
+        <div class="touch-look">
+          <button type="button" data-move="turnLeft" aria-label="Turn left">↶</button>
+          <button type="button" data-move="turnRight" aria-label="Turn right">↷</button>
+          <button type="button" data-move="interact" aria-label="Interact">E</button>
+          <button type="button" data-move="jump" aria-label="Jump">SPACE</button>
+        </div>
+      </nav>
+
+      <section
+        id="end-overlay"
+        class="end-overlay"
+        hidden
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="end-title"
+        data-end="dead"
+      >
+        <img
+          class="end-art"
+          src="/assets/ui/dungeon-victory-results-v1.webp"
+          alt=""
+          width="1672"
+          height="941"
+          decoding="async"
+          loading="lazy"
+        />
+        <div class="end-card">
+          <small id="end-kicker">Run interrupted</small>
+          <h1 id="end-title">The ash claims you</h1>
+          <p id="end-copy">The stones remain unbound.</p>
+          <dl id="end-results" class="end-results" aria-label="Run results">
+            <div>
+              <dt>Time</dt>
+              <dd id="end-time">00:00</dd>
+            </div>
+            <div>
+              <dt>Stones</dt>
+              <dd id="end-stones">4 / 4</dd>
+            </div>
+            <div>
+              <dt>Distance</dt>
+              <dd id="end-distance">0 m</dd>
+            </div>
+            <div>
+              <dt>Biome</dt>
+              <dd id="end-biome">Ancient</dd>
+            </div>
+            <div class="end-results__seed">
+              <dt>Seed</dt>
+              <dd id="end-seed">DUNGEON</dd>
+            </div>
+          </dl>
+          <div class="end-actions">
+            <button id="retry" type="button">Try again</button>
+            <button id="new-dungeon" type="button">New dungeon</button>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
