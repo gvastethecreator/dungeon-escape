@@ -1,0 +1,195 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#07080d" />
+    <meta
+      name="description"
+      content="A deterministic procedural dungeon generator you can watch build itself, room by room. Scatter → separate → Delaunay → MST + loops → carve → theme, rendered live with Three.js."
+    />
+    <title>Dungeon Creation — Procedural Dungeon Editor</title>
+
+    <meta name="author" content="Majid Manzarpour" />
+    <link rel="author" href="https://x.com/majidmanzarpour" />
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%8F%B0%3C/text%3E%3C/svg%3E"
+    />
+
+    <!-- Social share (Open Graph + Twitter) -->
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="Dungeon Creation — Procedural Dungeon Editor" />
+    <meta
+      property="og:description"
+      content="Watch a dungeon build itself, room by room — scatter, separate, triangulate, carve, theme. A deterministic procgen core rendered live with Three.js."
+    />
+    <meta property="og:url" content="https://procedural-dungeon.netlify.app/" />
+    <meta property="og:image" content="https://procedural-dungeon.netlify.app/og.jpg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta
+      property="og:image:alt"
+      content="A procedurally generated dungeon of glowing rooms and corridors seen from above in a moody, ember-lit world."
+    />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Dungeon Creation — Procedural Dungeon Editor" />
+    <meta
+      name="twitter:description"
+      content="Watch a dungeon build itself, room by room — scatter, separate, triangulate, carve, theme. A deterministic procgen core rendered live with Three.js."
+    />
+    <meta name="twitter:image" content="https://procedural-dungeon.netlify.app/og.jpg" />
+    <meta name="twitter:site" content="@majidmanzarpour" />
+    <meta name="twitter:creator" content="@majidmanzarpour" />
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Jacquard+12&family=Jacquard+24&family=Pixelify+Sans:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/src/forge/styles.css" />
+  </head>
+  <body>
+    <!-- control + telemetry panel -->
+    <aside id="panel" aria-label="Dungeon creation controls">
+      <button
+        id="collapse"
+        aria-label="Collapse controls"
+        aria-controls="panel-content"
+        aria-expanded="true"
+        title="Collapse controls"
+      >
+        –
+      </button>
+      <div class="head">
+        <div class="brand"><span>DUNGEON&nbsp;CREATION</span><span>PROCGEN&nbsp;EDITOR</span></div>
+        <h1 id="dname">—</h1>
+        <div id="dsub">building…</div>
+      </div>
+
+      <div id="panel-content">
+        <ul class="pipe" id="pipe" aria-label="Generation stages">
+          <li>SCATTER</li>
+          <li>SEPARATE</li>
+          <li>DELAUNAY</li>
+          <li>MST+LOOPS</li>
+          <li>CARVE</li>
+          <li>THEME</li>
+        </ul>
+
+        <div class="sec">
+          <div class="row">
+            <label style="flex: 1"
+              ><span class="lab"><span>SEED</span></span>
+              <div class="row">
+                <input id="seed" type="number" value="1337" aria-label="Seed" />
+                <button class="btn" id="dice" title="Random seed" aria-label="Random seed">
+                  ⚄
+                </button>
+              </div>
+            </label>
+          </div>
+          <button class="btn primary" id="forge" style="width: 100%; margin-top: 10px">
+            FORGE&nbsp;DUNGEON
+          </button>
+        </div>
+
+        <div class="sec">
+          <span class="lab"><span>THEME</span><b id="vTheme">AUTO</b></span>
+          <div class="chips" id="chips">
+            <button class="chip on" data-t="auto">AUTO</button>
+            <button class="chip" data-t="ancient">ANCIENT</button>
+            <button class="chip" data-t="molten">MOLTEN</button>
+            <button class="chip" data-t="frost">FROST</button>
+            <button class="chip" data-t="grim">ASH</button>
+            <button class="chip" data-t="verdant">VERDANT</button>
+            <button class="chip" data-t="obsidian">OBSIDIAN</button>
+            <button class="chip" data-t="sunken">SUNKEN</button>
+            <button class="chip" data-t="fungal">FUNGAL</button>
+            <button class="chip" data-t="backrooms">BACKROOMS</button>
+          </div>
+        </div>
+
+        <div class="sec">
+          <span class="lab"
+            ><span>ELEMENTS</span><span style="color: var(--dim)">SHOW / HIDE</span></span
+          >
+          <div class="chips" id="objchips">
+            <button class="chip on" data-o="props" aria-pressed="true">PROPS</button>
+            <button class="chip on" data-o="torches" aria-pressed="true">TORCHES</button>
+            <button class="chip on" data-o="particles" aria-pressed="true">PARTICLES</button>
+            <button class="chip on" data-o="liquids" aria-pressed="true">LIQUIDS</button>
+            <button class="chip on" data-o="lights" aria-pressed="true">LIGHTS</button>
+          </div>
+        </div>
+
+        <div class="sec">
+          <label class="sl"
+            ><span class="lab"><span>ROOMS</span><b id="vRooms">42</b></span>
+            <input type="range" id="rooms" min="12" max="80" value="42" aria-label="Room count"
+          /></label>
+          <label class="sl"
+            ><span class="lab"><span>LOOPS</span><b id="vLoops">15%</b></span>
+            <input
+              type="range"
+              id="loops"
+              min="0"
+              max="40"
+              value="15"
+              aria-label="Loop probability"
+          /></label>
+          <label class="sl"
+            ><span class="lab"><span>DECOR&nbsp;DENSITY</span><b id="vDecor">60%</b></span>
+            <input type="range" id="decor" min="0" max="100" value="60" aria-label="Decor density"
+          /></label>
+        </div>
+
+        <div class="sec togs">
+          <label class="tog"
+            ><input type="checkbox" id="tGraph" /> Graph <span class="key">G</span></label
+          >
+          <label class="tog"
+            ><input type="checkbox" id="tHeat" /> Heat map <span class="key">H</span></label
+          >
+          <label class="tog"
+            ><input type="checkbox" id="tAnim" checked /> Animate build
+            <span class="key">SPACE&nbsp;SKIP</span></label
+          >
+          <label class="tog"
+            ><input type="checkbox" id="tPost" checked /> Post effects
+            <span class="key">P</span></label
+          >
+        </div>
+
+        <div class="sec legend" aria-label="Room types">
+          <span class="lg"><span class="dot" style="background: var(--teal)"></span>Entrance</span>
+          <span class="lg"><span class="dot" style="background: #8f95a3"></span>Combat</span>
+          <span class="lg"><span class="dot" style="background: var(--violet)"></span>Elite</span>
+          <span class="lg"><span class="dot" style="background: var(--gold)"></span>Treasure</span>
+          <span class="lg"><span class="dot" style="background: var(--blue)"></span>Shrine</span>
+          <span class="lg"><span class="dot" style="background: var(--blood)"></span>Boss</span>
+        </div>
+
+        <div class="sec stats">
+          <div class="st"><i>ROOMS</i><b id="sRooms">—</b></div>
+          <div class="st"><i>LINKS·LOOPS</i><b id="sEdges">—</b></div>
+          <div class="st"><i>CRITICAL&nbsp;PATH</i><b id="sCrit">—</b></div>
+          <div class="st"><i>FLOOR&nbsp;CELLS</i><b id="sTiles">—</b></div>
+          <div class="st"><i>LIGHTS</i><b id="sLights">—</b></div>
+          <div class="st"><i>GEN&nbsp;TIME</i><b id="sMs" class="hi">—</b></div>
+          <div class="st"><i>DRAW&nbsp;CALLS</i><b id="sCalls">—</b></div>
+          <div class="st"><i>TRIANGLES</i><b id="sTris">—</b></div>
+          <div class="st"><i>FPS</i><b id="sFps">—</b></div>
+        </div>
+      </div>
+    </aside>
+
+    <div id="hints">
+      <b>drag</b> pan · <b>wheel</b> zoom · <b>shift+drag</b> orbit · <b>R</b> forge ·
+      <b>T</b> theme · <b>G</b> graph · <b>H</b> heat · <b>P</b> post · <b>space</b> skip
+    </div>
+
+    <script type="module" src="/src/forge/main.js"></script>
+  </body>
+</html>

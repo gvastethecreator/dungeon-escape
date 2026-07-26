@@ -1,0 +1,12 @@
+node_modules/
+dist/
+.scratch/
+.proof-hud/
+.venv-pbr/
+coverage/
+playwright-report/
+test-results/
+.env
+.env.*
+!.env.example
+*.tsbuildinfo

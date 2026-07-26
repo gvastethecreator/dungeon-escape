@@ -1,0 +1,438 @@
+import { DEFAULT_DUNGEON_PARAMS, normalizeDungeonParams } from "../domain/core";
+import { createSeededRandom, hashSeed, type SeededRandom } from "../core/random";
+import type {
+  DungeonData,
+  DungeonEdge,
+  DungeonOptions,
+  DungeonRoom,
+  GridCell,
+  NormalizedDungeonOptions,
+} from "./types";
+
+export const WALL = 0 as const;
+export const FLOOR = 1 as const;
+
+const DEFAULTS: Readonly<NormalizedDungeonOptions> = Object.freeze({
+  width: DEFAULT_DUNGEON_PARAMS.mapWidth,
+  height: DEFAULT_DUNGEON_PARAMS.mapHeight,
+  roomTarget: DEFAULT_DUNGEON_PARAMS.roomTarget,
+  minRoomSize: DEFAULT_DUNGEON_PARAMS.minRoomSize,
+  maxRoomSize: DEFAULT_DUNGEON_PARAMS.maxRoomSize,
+  roomPadding: DEFAULT_DUNGEON_PARAMS.roomPadding,
+  /** 0 = one cell wide (diameter 2r+1). Tighter default for first-person scale. */
+  corridorRadius: DEFAULT_DUNGEON_PARAMS.corridorRadius,
+  extraConnectionRate: DEFAULT_DUNGEON_PARAMS.loopRate / 100,
+  placementAttemptsPerRoom: 220,
+});
+
+type RoomDraft = Omit<DungeonRoom, "role">;
+type CandidateEdge = Omit<DungeonEdge, "kind">;
+
+class DisjointSet {
+  private readonly parents: number[];
+  private readonly ranks: number[];
+
+  constructor(size: number) {
+    this.parents = Array.from({ length: size }, (_, index) => index);
+    this.ranks = Array.from({ length: size }, () => 0);
+  }
+
+  find(index: number): number {
+    const parent = this.parents[index];
+    if (parent === undefined) throw new Error(`Invalid disjoint-set index: ${index}.`);
+    if (parent !== index) this.parents[index] = this.find(parent);
+    return this.parents[index] as number;
+  }
+
+  join(left: number, right: number): boolean {
+    const leftRoot = this.find(left);
+    const rightRoot = this.find(right);
+    if (leftRoot === rightRoot) return false;
+
+    const leftRank = this.ranks[leftRoot] ?? 0;
+    const rightRank = this.ranks[rightRoot] ?? 0;
+    if (leftRank < rightRank) {
+      this.parents[leftRoot] = rightRoot;
+    } else if (leftRank > rightRank) {
+      this.parents[rightRoot] = leftRoot;
+    } else {
+      this.parents[rightRoot] = leftRoot;
+      this.ranks[leftRoot] = leftRank + 1;
+    }
+    return true;
+  }
+}
+
+function normalizeOptions(options: DungeonOptions = {}): NormalizedDungeonOptions {
+  const params = normalizeDungeonParams(
+    {
+      roomTarget: options.roomTarget,
+      loopRate:
+        typeof options.extraConnectionRate === "number"
+          ? options.extraConnectionRate * 100
+          : undefined,
+      mapWidth: options.width,
+      mapHeight: options.height,
+      minRoomSize: options.minRoomSize,
+      maxRoomSize: options.maxRoomSize,
+      corridorRadius: options.corridorRadius,
+      roomPadding: options.roomPadding,
+    },
+    { profile: "generation-input" },
+  );
+  const placementAttempts =
+    typeof options.placementAttemptsPerRoom === "number" &&
+    Number.isFinite(options.placementAttemptsPerRoom)
+      ? Math.max(1, Math.floor(options.placementAttemptsPerRoom))
+      : DEFAULTS.placementAttemptsPerRoom;
+
+  return {
+    ...DEFAULTS,
+    ...options,
+    width: params.mapWidth,
+    height: params.mapHeight,
+    roomTarget: params.roomTarget,
+    minRoomSize: params.minRoomSize,
+    maxRoomSize: params.maxRoomSize,
+    roomPadding: params.roomPadding,
+    corridorRadius: params.corridorRadius,
+    extraConnectionRate: params.loopRate / 100,
+    placementAttemptsPerRoom: placementAttempts,
+  };
+}
+
+function createGrid(width: number, height: number): Uint8Array[] {
+  return Array.from({ length: height }, () => new Uint8Array(width).fill(WALL));
+}
+
+function isInside(grid: readonly Uint8Array[], x: number, y: number): boolean {
+  const firstRow = grid[0];
+  if (!firstRow) return false;
+  return y >= 0 && y < grid.length && x >= 0 && x < firstRow.length;
+}
+
+function carveCell(grid: Uint8Array[], x: number, y: number): void {
+  if (isInside(grid, x, y)) grid[y]![x] = FLOOR;
+}
+
+function carveRect(grid: Uint8Array[], room: RoomDraft): void {
+  for (let y = room.y; y < room.y + room.height; y += 1) {
+    for (let x = room.x; x < room.x + room.width; x += 1) carveCell(grid, x, y);
+  }
+}
+
+function carveSquare(grid: Uint8Array[], x: number, y: number, radius: number): void {
+  for (let offsetY = -radius; offsetY <= radius; offsetY += 1) {
+    for (let offsetX = -radius; offsetX <= radius; offsetX += 1)
+      carveCell(grid, x + offsetX, y + offsetY);
+  }
+}
+
+function carveLine(grid: Uint8Array[], from: GridCell, to: GridCell, radius: number): void {
+  const stepX = Math.sign(to.x - from.x);
+  const stepY = Math.sign(to.y - from.y);
+  let x = from.x;
+  let y = from.y;
+  carveSquare(grid, x, y, radius);
+
+  while (x !== to.x || y !== to.y) {
+    if (x !== to.x) x += stepX;
+    if (y !== to.y) y += stepY;
+    carveSquare(grid, x, y, radius);
+  }
+}
+
+function roomsOverlap(left: RoomDraft, right: RoomDraft, padding: number): boolean {
+  return !(
+    left.x + left.width + padding <= right.x ||
+    right.x + right.width + padding <= left.x ||
+    left.y + left.height + padding <= right.y ||
+    right.y + right.height + padding <= left.y
+  );
+}
+
+function placeRooms(options: NormalizedDungeonOptions, random: SeededRandom): RoomDraft[] {
+  const rooms: RoomDraft[] = [];
+  const border = options.roomPadding + 1;
+  const maximumAttempts = options.roomTarget * options.placementAttemptsPerRoom;
+
+  for (
+    let attempt = 0;
+    attempt < maximumAttempts && rooms.length < options.roomTarget;
+    attempt += 1
+  ) {
+    const width = random.integer(options.minRoomSize, options.maxRoomSize);
+    const height = random.integer(options.minRoomSize, options.maxRoomSize);
+    const room: RoomDraft = {
+      id: rooms.length,
+      x: random.integer(border, options.width - width - border),
+      y: random.integer(border, options.height - height - border),
+      width,
+      height,
+      center: { x: 0, y: 0 },
+    };
+    if (rooms.some((existing) => roomsOverlap(room, existing, options.roomPadding))) continue;
+    room.center = {
+      x: room.x + Math.floor(room.width / 2),
+      y: room.y + Math.floor(room.height / 2),
+    };
+    rooms.push(room);
+  }
+
+  if (rooms.length < 6)
+    throw new Error(`Unable to place a playable room set; placed ${rooms.length}.`);
+  return rooms;
+}
+
+function makeCandidateEdges(rooms: readonly RoomDraft[]): CandidateEdge[] {
+  const candidates: CandidateEdge[] = [];
+  for (let left = 0; left < rooms.length; left += 1) {
+    for (let right = left + 1; right < rooms.length; right += 1) {
+      const leftRoom = rooms[left];
+      const rightRoom = rooms[right];
+      if (!leftRoom || !rightRoom) continue;
+      const deltaX = leftRoom.center.x - rightRoom.center.x;
+      const deltaY = leftRoom.center.y - rightRoom.center.y;
+      candidates.push({ left, right, distance: deltaX * deltaX + deltaY * deltaY });
+    }
+  }
+  return candidates.sort((a, b) => a.distance - b.distance || a.left - b.left || a.right - b.right);
+}
+
+function connectRooms(
+  rooms: readonly RoomDraft[],
+  random: SeededRandom,
+  loopRate: number,
+): DungeonEdge[] {
+  const candidates = makeCandidateEdges(rooms);
+  const forest = new DisjointSet(rooms.length);
+  const treeEdges: DungeonEdge[] = [];
+  const treeKeys = new Set<string>();
+
+  for (const candidate of candidates) {
+    if (!forest.join(candidate.left, candidate.right)) continue;
+    treeKeys.add(`${candidate.left}:${candidate.right}`);
+    treeEdges.push({ ...candidate, kind: "tree" });
+    if (treeEdges.length === rooms.length - 1) break;
+  }
+
+  const localNeighborKeys = new Set<string>();
+  for (let roomId = 0; roomId < rooms.length; roomId += 1) {
+    candidates
+      .filter((candidate) => candidate.left === roomId || candidate.right === roomId)
+      .slice(0, 4)
+      .forEach((candidate) => localNeighborKeys.add(`${candidate.left}:${candidate.right}`));
+  }
+  const loops = candidates
+    .filter((candidate) => !treeKeys.has(`${candidate.left}:${candidate.right}`))
+    .filter((candidate) => localNeighborKeys.has(`${candidate.left}:${candidate.right}`))
+    .filter(() => random.chance(loopRate))
+    .map<DungeonEdge>((candidate) => ({ ...candidate, kind: "loop" }));
+  return [...treeEdges, ...loops];
+}
+
+function carveCorridor(
+  grid: Uint8Array[],
+  from: GridCell,
+  to: GridCell,
+  radius: number,
+  horizontalFirst: boolean,
+): void {
+  const corner = horizontalFirst ? { x: to.x, y: from.y } : { x: from.x, y: to.y };
+  carveLine(grid, from, corner, radius);
+  carveLine(grid, corner, to, radius);
+}
+
+function cellIndex(width: number, x: number, y: number): number {
+  return y * width + x;
+}
+
+function floodFill(
+  grid: readonly Uint8Array[],
+  start: GridCell,
+): { distances: Int32Array; visited: number } {
+  const height = grid.length;
+  const width = grid[0]?.length ?? 0;
+  const distances = new Int32Array(width * height).fill(-1);
+  const queue = new Int32Array(width * height);
+  let head = 0;
+  let tail = 0;
+  let visited = 0;
+  if (!isInside(grid, start.x, start.y) || grid[start.y]?.[start.x] !== FLOOR)
+    return { distances, visited };
+
+  queue[tail++] = cellIndex(width, start.x, start.y);
+  distances[queue[0] as number] = 0;
+  while (head < tail) {
+    const current = queue[head++] as number;
+    visited += 1;
+    const x = current % width;
+    const y = Math.floor(current / width);
+    const nextDistance = (distances[current] ?? -1) + 1;
+    const neighbors: GridCell[] = [
+      { x: x - 1, y },
+      { x: x + 1, y },
+      { x, y: y - 1 },
+      { x, y: y + 1 },
+    ];
+    for (const neighbor of neighbors) {
+      if (!isInside(grid, neighbor.x, neighbor.y) || grid[neighbor.y]?.[neighbor.x] !== FLOOR)
+        continue;
+      const neighborIndex = cellIndex(width, neighbor.x, neighbor.y);
+      if ((distances[neighborIndex] ?? -1) >= 0) continue;
+      distances[neighborIndex] = nextDistance;
+      queue[tail++] = neighborIndex;
+    }
+  }
+  return { distances, visited };
+}
+
+function countFloorCells(grid: readonly Uint8Array[]): number {
+  let count = 0;
+  for (const row of grid) for (const cell of row) if (cell === FLOOR) count += 1;
+  return count;
+}
+
+function selectEntrance(rooms: readonly RoomDraft[]): RoomDraft {
+  const first = rooms[0];
+  if (!first) throw new Error("Dungeon has no entrance room.");
+  return rooms.reduce(
+    (selected, room) =>
+      room.center.x + room.center.y < selected.center.x + selected.center.y ? room : selected,
+    first,
+  );
+}
+
+function findRoomAt(rooms: readonly RoomDraft[], cell: GridCell): RoomDraft {
+  const containing = rooms.find(
+    (room) =>
+      cell.x >= room.x &&
+      cell.x < room.x + room.width &&
+      cell.y >= room.y &&
+      cell.y < room.y + room.height,
+  );
+  if (containing) return containing;
+  const first = rooms[0];
+  if (!first) throw new Error("Dungeon has no rooms.");
+  return rooms.reduce((nearest, room) => {
+    const roomDistance = (room.center.x - cell.x) ** 2 + (room.center.y - cell.y) ** 2;
+    const nearestDistance = (nearest.center.x - cell.x) ** 2 + (nearest.center.y - cell.y) ** 2;
+    return roomDistance < nearestDistance ? room : nearest;
+  }, first);
+}
+
+function selectExit(rooms: readonly RoomDraft[], distances: Int32Array, width: number): RoomDraft {
+  const first = rooms[0];
+  if (!first) throw new Error("Dungeon has no exit room.");
+  return rooms.reduce((selected, room) => {
+    const roomDistance = distances[cellIndex(width, room.center.x, room.center.y)] ?? -1;
+    const selectedDistance =
+      distances[cellIndex(width, selected.center.x, selected.center.y)] ?? -1;
+    return roomDistance > selectedDistance ? room : selected;
+  }, first);
+}
+
+function topologySignature(
+  rooms: readonly RoomDraft[],
+  edges: readonly DungeonEdge[],
+  entranceId: number,
+  exitId: number,
+): string {
+  const roomSignature = rooms
+    .map((room) => `${room.id}@${room.x},${room.y},${room.width},${room.height}`)
+    .join("|");
+  const edgeSignature = edges.map((edge) => `${edge.left}-${edge.right}-${edge.kind}`).join("|");
+  return `${entranceId}>${exitId}:${roomSignature}:${edgeSignature}`;
+}
+
+export function generateDungeon(
+  seed = "BLACK-FLAG",
+  inputOptions: DungeonOptions = {},
+): DungeonData {
+  const options = normalizeOptions(inputOptions);
+  const normalizedSeed = seed.trim() || "BLACK-FLAG";
+  const random = createSeededRandom(normalizedSeed);
+  const rooms = placeRooms(options, random);
+  const edges = connectRooms(rooms, random, options.extraConnectionRate);
+  const grid = createGrid(options.width, options.height);
+  rooms.forEach((room) => carveRect(grid, room));
+  edges.forEach((edge) => {
+    const left = rooms[edge.left];
+    const right = rooms[edge.right];
+    if (left && right)
+      carveCorridor(grid, left.center, right.center, options.corridorRadius, random.chance(0.5));
+  });
+
+  const entranceRoom = selectEntrance(rooms);
+  const spawn = { ...entranceRoom.center };
+  const initialFill = floodFill(grid, spawn);
+  const exitRoom = selectExit(rooms, initialFill.distances, options.width);
+  const exit = { ...exitRoom.center };
+  const floorCount = countFloorCells(grid);
+  const exitDistance = initialFill.distances[cellIndex(options.width, exit.x, exit.y)] ?? -1;
+
+  return {
+    seed: normalizedSeed,
+    seedHash: hashSeed(normalizedSeed),
+    options,
+    grid,
+    width: options.width,
+    height: options.height,
+    rooms: rooms.map((room) => ({
+      ...room,
+      role: room.id === entranceRoom.id ? "entrance" : room.id === exitRoom.id ? "exit" : "room",
+    })),
+    edges,
+    spawn,
+    exit,
+    entranceRoomId: entranceRoom.id,
+    exitRoomId: exitRoom.id,
+    distances: initialFill.distances,
+    topologySignature: topologySignature(rooms, edges, entranceRoom.id, exitRoom.id),
+    stats: {
+      roomCount: rooms.length,
+      floorCount,
+      reachableFloorCount: initialFill.visited,
+      edgeCount: edges.length,
+      loopCount: edges.filter((edge) => edge.kind === "loop").length,
+      exitDistance,
+    },
+  };
+}
+
+export function isExitReachable(dungeon: DungeonData): boolean {
+  return (dungeon.distances[cellIndex(dungeon.width, dungeon.exit.x, dungeon.exit.y)] ?? -1) >= 0;
+}
+
+export function isFloorCell(dungeon: Pick<DungeonData, "grid">, x: number, y: number): boolean {
+  return isInside(dungeon.grid, x, y) && dungeon.grid[y]?.[x] === FLOOR;
+}
+
+export function setDungeonSpawn(dungeon: DungeonData, spawn: GridCell): DungeonData {
+  if (!isFloorCell(dungeon, spawn.x, spawn.y))
+    throw new Error("Spawn must be placed on a floor cell.");
+  const entranceRoom = findRoomAt(dungeon.rooms, spawn);
+  const fill = floodFill(dungeon.grid, spawn);
+  const exitRoom = selectExit(dungeon.rooms, fill.distances, dungeon.width);
+  const exit = { ...exitRoom.center };
+  const exitDistance = fill.distances[cellIndex(dungeon.width, exit.x, exit.y)] ?? -1;
+  return {
+    ...dungeon,
+    spawn: { ...spawn },
+    exit,
+    entranceRoomId: entranceRoom.id,
+    exitRoomId: exitRoom.id,
+    rooms: dungeon.rooms.map((room) => ({
+      ...room,
+      role: room.id === entranceRoom.id ? "entrance" : room.id === exitRoom.id ? "exit" : "room",
+    })),
+    distances: fill.distances,
+    topologySignature: topologySignature(
+      dungeon.rooms,
+      dungeon.edges,
+      entranceRoom.id,
+      exitRoom.id,
+    ),
+    stats: { ...dungeon.stats, reachableFloorCount: fill.visited, exitDistance },
+  };
+}

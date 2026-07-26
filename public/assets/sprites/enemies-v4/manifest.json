@@ -1,0 +1,392 @@
+{
+  "characterId": "dungeon-enemy-roster-v4",
+  "engine": "component-row",
+  "game_input": "/assets/sprites/enemies-v4/iron-ash-enemies-v4.png",
+  "degraded_static_fallback": false,
+  "curation_applied": false,
+  "sprite_sheet_alpha": "/assets/sprites/enemies-v4/iron-ash-enemies-v4.png",
+  "sprite_sheet_alpha_report": "/assets/sprites/enemies-v4/atlas-report.json",
+  "atlas_outputs": {
+    "png": {
+      "path": "/assets/sprites/enemies-v4/iron-ash-enemies-v4.png",
+      "sha256": "814d79c45773a8fb6e2e7da2ca2a0780f988d1bdf9fb560f48e5a6ddd490932d",
+      "size_bytes": 3437695,
+      "lossless": true
+    }
+  },
+  "base_image": null,
+  "cell": {
+    "shape": "square",
+    "width": 320,
+    "height": 320,
+    "size": 320,
+    "safe_margin": 16
+  },
+  "chroma_key": {
+    "name": "neutral-gray",
+    "hex": "#77787A",
+    "rgb": [119, 120, 122],
+    "selection": "unused-with-rembg"
+  },
+  "animation": {
+    "cellWidth": 320,
+    "cellHeight": 320,
+    "columns": 4,
+    "rows": {
+      "carrion": {
+        "row": 0,
+        "frames": 4,
+        "fps": 8,
+        "loop": true,
+        "durations_ms": [125, 125, 125, 125]
+      },
+      "goblin": {
+        "row": 1,
+        "frames": 4,
+        "fps": 8,
+        "loop": true,
+        "durations_ms": [125, 125, 125, 125]
+      },
+      "ghost": {
+        "row": 2,
+        "frames": 4,
+        "fps": 8,
+        "loop": true,
+        "durations_ms": [125, 125, 125, 125]
+      },
+      "ratling": {
+        "row": 3,
+        "frames": 4,
+        "fps": 8,
+        "loop": true,
+        "durations_ms": [125, 125, 125, 125]
+      },
+      "husk": {
+        "row": 4,
+        "frames": 4,
+        "fps": 8,
+        "loop": true,
+        "durations_ms": [125, 125, 125, 125]
+      },
+      "imp": {
+        "row": 5,
+        "frames": 4,
+        "fps": 8,
+        "loop": true,
+        "durations_ms": [125, 125, 125, 125]
+      },
+      "zombie-orc": {
+        "row": 6,
+        "frames": 4,
+        "fps": 8,
+        "loop": true,
+        "durations_ms": [125, 125, 125, 125]
+      },
+      "spider": {
+        "row": 7,
+        "frames": 4,
+        "fps": 8,
+        "loop": true,
+        "durations_ms": [125, 125, 125, 125]
+      },
+      "bone-slime": {
+        "row": 8,
+        "frames": 4,
+        "fps": 8,
+        "loop": true,
+        "durations_ms": [125, 125, 125, 125]
+      },
+      "white-eyed-shadow": {
+        "row": 9,
+        "frames": 4,
+        "fps": 8,
+        "loop": true,
+        "durations_ms": [125, 125, 125, 125]
+      }
+    }
+  },
+  "frame_layout": {
+    "sheetWidth": 1280,
+    "sheetHeight": 3200,
+    "cellWidth": 320,
+    "cellHeight": 320,
+    "rows": {
+      "carrion": [
+        {
+          "x": 0,
+          "y": 0,
+          "w": 320,
+          "h": 320
+        },
+        {
+          "x": 320,
+          "y": 0,
+          "w": 320,
+          "h": 320
+        },
+        {
+          "x": 640,
+          "y": 0,
+          "w": 320,
+          "h": 320
+        },
+        {
+          "x": 960,
+          "y": 0,
+          "w": 320,
+          "h": 320
+        }
+      ],
+      "goblin": [
+        {
+          "x": 0,
+          "y": 320,
+          "w": 320,
+          "h": 320
+        },
+        {
+          "x": 320,
+          "y": 320,
+          "w": 320,
+          "h": 320
+        },
+        {
+          "x": 640,
+          "y": 320,
+          "w": 320,
+          "h": 320
+        },
+        {
+          "x": 960,
+          "y": 320,
+          "w": 320,
+          "h": 320
+        }
+      ],
+      "ghost": [
+        {
+          "x": 0,
+          "y": 640,
+          "w": 320,
+          "h": 320
+        },
+        {
+          "x": 320,
+          "y": 640,
+          "w": 320,
+          "h": 320
+        },
+        {
+          "x": 640,
+          "y": 640,
+          "w": 320,
+          "h": 320
+        },
+        {
+          "x": 960,
+          "y": 640,
+          "w": 320,
+          "h": 320
+        }
+      ],
+      "ratling": [
+        {
+          "x": 0,
+          "y": 960,
+          "w": 320,
+          "h": 320
+        },
+        {
+          "x": 320,
+          "y": 960,
+          "w": 320,
+          "h": 320
+        },
+        {
+          "x": 640,
+          "y": 960,
+          "w": 320,
+          "h": 320
+        },
+        {
+          "x": 960,
+          "y": 960,
+          "w": 320,
+          "h": 320
+        }
+      ],
+      "husk": [
+        {
+          "x": 0,
+          "y": 1280,
+          "w": 320,
+          "h": 320
+        },
+        {
+          "x": 320,
+          "y": 1280,
+          "w": 320,
+          "h": 320
+        },
+        {
+          "x": 640,
+          "y": 1280,
+          "w": 320,
+          "h": 320
+        },
+        {
+          "x": 960,
+          "y": 1280,
+          "w": 320,
+          "h": 320
+        }
+      ],
+      "imp": [
+        {
+          "x": 0,
+          "y": 1600,
+          "w": 320,
+          "h": 320
+        },
+        {
+          "x": 320,
+          "y": 1600,
+          "w": 320,
+          "h": 320
+        },
+        {
+          "x": 640,
+          "y": 1600,
+          "w": 320,
+          "h": 320
+        },
+        {
+          "x": 960,
+          "y": 1600,
+          "w": 320,
+          "h": 320
+        }
+      ],
+      "zombie-orc": [
+        {
+          "x": 0,
+          "y": 1920,
+          "w": 320,
+          "h": 320
+        },
+        {
+          "x": 320,
+          "y": 1920,
+          "w": 320,
+          "h": 320
+        },
+        {
+          "x": 640,
+          "y": 1920,
+          "w": 320,
+          "h": 320
+        },
+        {
+          "x": 960,
+          "y": 1920,
+          "w": 320,
+          "h": 320
+        }
+      ],
+      "spider": [
+        {
+          "x": 0,
+          "y": 2240,
+          "w": 320,
+          "h": 320
+        },
+        {
+          "x": 320,
+          "y": 2240,
+          "w": 320,
+          "h": 320
+        },
+        {
+          "x": 640,
+          "y": 2240,
+          "w": 320,
+          "h": 320
+        },
+        {
+          "x": 960,
+          "y": 2240,
+          "w": 320,
+          "h": 320
+        }
+      ],
+      "bone-slime": [
+        {
+          "x": 0,
+          "y": 2560,
+          "w": 320,
+          "h": 320
+        },
+        {
+          "x": 320,
+          "y": 2560,
+          "w": 320,
+          "h": 320
+        },
+        {
+          "x": 640,
+          "y": 2560,
+          "w": 320,
+          "h": 320
+        },
+        {
+          "x": 960,
+          "y": 2560,
+          "w": 320,
+          "h": 320
+        }
+      ],
+      "white-eyed-shadow": [
+        {
+          "x": 0,
+          "y": 2880,
+          "w": 320,
+          "h": 320
+        },
+        {
+          "x": 320,
+          "y": 2880,
+          "w": 320,
+          "h": 320
+        },
+        {
+          "x": 640,
+          "y": 2880,
+          "w": 320,
+          "h": 320
+        },
+        {
+          "x": 960,
+          "y": 2880,
+          "w": 320,
+          "h": 320
+        }
+      ]
+    }
+  },
+  "output": {
+    "use": "custom-atlas",
+    "formats": ["png"],
+    "frame_semantics": "animation",
+    "atlas_gutter": 0,
+    "atlas_extrusion": 0
+  },
+  "asset_kind": "sprite",
+  "extraction_mode": "components",
+  "background_removal": {
+    "method": "rembg",
+    "model": "birefnet-general-lite",
+    "device": "cpu",
+    "alpha_matting": true,
+    "post_rembg_chroma_cleanup": false
+  }
+}
