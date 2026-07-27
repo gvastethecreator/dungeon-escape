@@ -1,8 +1,10 @@
 import * as THREE from "three";
 
 import {
+  feetClearColliderTop,
   gridToWorld,
   moveWithCollision,
+  overlapsWorldCollider,
   worldToGridInto,
   type VerticalCollisionRange,
   type WorldCollider,
@@ -124,6 +126,14 @@ export class FirstPersonController {
   private dungeon: DungeonData | null = null;
   private readonly blockedCells = new Set<string>();
   private solidColliders: WorldCollider[] = [];
+  /**
+   * Prop colliders the player has already cleared with their feet while airborne.
+   * Kept until the player is grounded and free of that footprint so landing on a
+   * crate mid-vault does not re-trap the capsule inside the solid.
+   */
+  private readonly vaultedColliderIds = new Set<number>();
+  /** Scratch list rebuilt each move — no per-frame allocation growth beyond capacity. */
+  private activeColliders: WorldCollider[] = [];
   private readonly euler = new THREE.Euler(0, 0, 0, "YXZ");
   private readonly keys = new Set<PlayerAction>();
   private readonly virtualActions = new Set<PlayerAction>();
@@ -229,6 +239,7 @@ export class FirstPersonController {
     this.knockVel.set(0, 0);
     this.surfaceSpeedScale = 1;
     this.surfaceTraction = 1;
+    this.vaultedColliderIds.clear();
     resetVerticalMotion(this.verticalState, this.eyeHeight);
     this.landingDip = 0;
     this.distanceTravelled = 0;
@@ -256,6 +267,8 @@ export class FirstPersonController {
 
   setSolidColliders(colliders: readonly WorldCollider[]): void {
     this.solidColliders = colliders.map((collider) => ({ ...collider }));
+    this.vaultedColliderIds.clear();
+    this.activeColliders = [];
   }
 
   setEnabled(enabled: boolean): void {
@@ -406,6 +419,9 @@ export class FirstPersonController {
       this.landingDip = -Math.min(0.085, this.verticalState.landingSpeed * 0.009);
     }
     this.position.y = this.verticalState.y;
+    // Foot skin: slightly above true sole so floor-flush collider tops clear mid-jump.
+    const feetY = this.verticalState.y - this.eyeHeight + 0.08;
+    this.updateVaultedColliders(feetY);
     let blockedX = false;
     let blockedZ = false;
 
@@ -460,10 +476,9 @@ export class FirstPersonController {
     if (moving) {
       this.movementDelta.x = totalVx * delta;
       this.movementDelta.z = totalVz * delta;
-      // A small foot skin prevents a collider flush with the floor from catching
-      // the capsule after its feet have visibly cleared that prop during a jump.
-      this.collisionVerticalRange.minY = this.verticalState.y - this.eyeHeight + 0.055;
+      this.collisionVerticalRange.minY = feetY;
       this.collisionVerticalRange.maxY = this.verticalState.y + this.verticalConfig.headClearance;
+      this.rebuildActiveColliders();
       const result = moveWithCollision(
         this.dungeon,
         this.position,
@@ -471,7 +486,7 @@ export class FirstPersonController {
         this.tileSize,
         this.radius,
         this.isBlockedCell,
-        this.solidColliders,
+        this.activeColliders,
         this.collisionVerticalRange,
       );
       movedDistance = Math.hypot(
@@ -562,6 +577,42 @@ export class FirstPersonController {
     document.removeEventListener("visibilitychange", this.handleVisibilityChange);
     window.removeEventListener("blur", this.handleBlur);
     this.domElement.removeEventListener("click", this.handleSceneClick);
+  }
+
+  /**
+   * While airborne, mark props whose tops the feet have cleared. Keep them
+   * ignored until the player is free of that footprint so landing mid-vault
+   * cannot re-embed the capsule.
+   */
+  private updateVaultedColliders(feetY: number): void {
+    if (!this.verticalState.grounded) {
+      for (let index = 0; index < this.solidColliders.length; index += 1) {
+        const collider = this.solidColliders[index]!;
+        if (feetClearColliderTop(collider, feetY)) this.vaultedColliderIds.add(index);
+      }
+      return;
+    }
+    if (this.vaultedColliderIds.size === 0) return;
+    for (const index of [...this.vaultedColliderIds]) {
+      const collider = this.solidColliders[index];
+      if (!collider || !overlapsWorldCollider(this.position, this.radius * 1.05, collider)) {
+        this.vaultedColliderIds.delete(index);
+      }
+    }
+  }
+
+  private rebuildActiveColliders(): void {
+    const active = this.activeColliders;
+    active.length = 0;
+    if (this.vaultedColliderIds.size === 0) {
+      for (let index = 0; index < this.solidColliders.length; index += 1) {
+        active.push(this.solidColliders[index]!);
+      }
+      return;
+    }
+    for (let index = 0; index < this.solidColliders.length; index += 1) {
+      if (!this.vaultedColliderIds.has(index)) active.push(this.solidColliders[index]!);
+    }
   }
 
   private readonly handleMouseMove = (event: MouseEvent): void => {

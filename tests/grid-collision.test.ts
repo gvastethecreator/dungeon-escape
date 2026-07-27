@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 
 import { FLOOR, WALL } from "../src/dungeon/generateDungeon";
 import {
+  feetClearColliderTop,
   gridToWorld,
   moveWithCollision,
   overlapsColliderHeight,
@@ -110,7 +111,7 @@ describe("grid collision", () => {
       0.25,
       undefined,
       [lowProp],
-      { minY: 0.055, maxY: 1.86 },
+      { minY: 0.08, maxY: 1.86 },
     );
     const airborne = moveWithCollision(
       dungeon,
@@ -125,6 +126,7 @@ describe("grid collision", () => {
     expect(grounded.blockedX).toBe(true);
     expect(airborne.blockedX).toBe(false);
     expect(overlapsColliderHeight(lowProp, { minY: 0.72, maxY: 2.53 })).toBe(false);
+    expect(feetClearColliderTop(lowProp, 0.72)).toBe(true);
   });
 
   test("keeps tall props solid throughout the normal jump arc", () => {
@@ -149,5 +151,63 @@ describe("grid collision", () => {
       { minY: 0.96, maxY: 2.77 },
     );
     expect(result.blockedX).toBe(true);
+  });
+
+  test("feetClearColliderTop only vaults finite-height props once soles pass the top", () => {
+    const crate = { minX: -0.4, maxX: 0.4, minY: 0, maxY: 0.78, minZ: -0.4, maxZ: 0.4 };
+    const wall = { minX: -0.4, maxX: 0.4, minZ: -0.4, maxZ: 0.4 };
+    expect(feetClearColliderTop(crate, 0.7)).toBe(false);
+    expect(feetClearColliderTop(crate, 0.74)).toBe(true);
+    expect(feetClearColliderTop(crate, 1.1)).toBe(true);
+    // Full-height blockers never become vaultable mid-jump.
+    expect(feetClearColliderTop(wall, 10)).toBe(false);
+  });
+
+  test("a vaulted low prop no longer blocks after feet cleared its top", () => {
+    const dungeon = makeDungeon([[FLOOR, FLOOR, FLOOR]]);
+    const start = gridToWorld(dungeon, { x: 0, y: 0 }, TILE_SIZE);
+    const crate = {
+      minX: -0.4,
+      maxX: 0.4,
+      minY: 0,
+      maxY: 0.78,
+      minZ: -0.5,
+      maxZ: 0.5,
+    };
+    // Landing height (feet back near floor) would re-block without vault ignore.
+    const stuckIfSolid = moveWithCollision(
+      dungeon,
+      start,
+      { x: 4, z: 0 },
+      TILE_SIZE,
+      0.28,
+      undefined,
+      [crate],
+      { minY: 0.08, maxY: 1.8 },
+    );
+    expect(stuckIfSolid.blockedX).toBe(true);
+    // After vault, the prop is filtered out (empty collider list).
+    const afterVault = moveWithCollision(
+      dungeon,
+      start,
+      { x: 4, z: 0 },
+      TILE_SIZE,
+      0.28,
+      undefined,
+      [],
+      { minY: 0.08, maxY: 1.8 },
+    );
+    expect(afterVault.blockedX).toBe(false);
+    expect(worldToGrid(dungeon, afterVault.position, TILE_SIZE).x).toBeGreaterThan(0);
+  });
+
+  test("controller keeps vaulted props ignored until free of their footprint", async () => {
+    const source = await Bun.file(
+      new URL("../src/player/FirstPersonController.ts", import.meta.url),
+    ).text();
+    expect(source).toContain("vaultedColliderIds");
+    expect(source).toContain("updateVaultedColliders");
+    expect(source).toContain("feetClearColliderTop");
+    expect(source).toContain("rebuildActiveColliders");
   });
 });
