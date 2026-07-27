@@ -112,17 +112,26 @@ const BIOME_TINT_WEIGHT: Record<keyof DungeonMaterials, number> = {
   ice: 0.18,
 };
 
-const PROP_ALBEDO_FILL: Record<keyof DungeonMaterials, number> = {
-  stone: 0.5,
-  darkStone: 0.58,
-  wood: 0.38,
-  iron: 0.3,
-  brass: 0.26,
-  cloth: 0.36,
-  bone: 0.24,
-  ceramic: 0.36,
-  crystal: 0,
-  ice: 0,
+interface PropFinish {
+  roughness: number;
+  metalness: number;
+  envMapIntensity: number;
+  /** Small albedo bounce for matte dielectrics; metals must receive scene light. */
+  indirectFill?: number;
+}
+
+/** Role-specific finish keeps the shared material set from becoming one glossy tint. */
+const PROP_FINISH: Record<keyof DungeonMaterials, PropFinish> = {
+  stone: { roughness: 0.96, metalness: 0.02, envMapIntensity: 0.18, indirectFill: 0.14 },
+  darkStone: { roughness: 0.98, metalness: 0.01, envMapIntensity: 0.14, indirectFill: 0.16 },
+  wood: { roughness: 0.9, metalness: 0.02, envMapIntensity: 0.24, indirectFill: 0.1 },
+  iron: { roughness: 0.7, metalness: 0.64, envMapIntensity: 0.62 },
+  brass: { roughness: 0.66, metalness: 0.52, envMapIntensity: 0.68 },
+  cloth: { roughness: 1, metalness: 0, envMapIntensity: 0.12, indirectFill: 0.08 },
+  bone: { roughness: 0.95, metalness: 0, envMapIntensity: 0.16, indirectFill: 0.06 },
+  ceramic: { roughness: 0.86, metalness: 0.02, envMapIntensity: 0.25, indirectFill: 0.08 },
+  crystal: { roughness: 0.48, metalness: 0.08, envMapIntensity: 0.48 },
+  ice: { roughness: 0.5, metalness: 0.02, envMapIntensity: 0.42 },
 };
 
 interface BaseMaterialMaps {
@@ -141,18 +150,21 @@ function cloneBiomePropTexture(source: THREE.Texture | null, repeat: number): TH
   return clone;
 }
 
-const BIOME_MASONRY_RESPONSE: Record<DungeonMoodId, { normalScale: number; roughness: number }> = {
-  ancient: { normalScale: 0.56, roughness: 0.93 },
-  molten: { normalScale: 0.68, roughness: 0.84 },
-  frost: { normalScale: 0.72, roughness: 0.68 },
-  grim: { normalScale: 0.6, roughness: 0.96 },
-  verdant: { normalScale: 0.64, roughness: 0.92 },
-  ash: { normalScale: 0.62, roughness: 0.95 },
-  iron: { normalScale: 0.58, roughness: 0.76 },
-  obsidian: { normalScale: 0.7, roughness: 0.64 },
-  sunken: { normalScale: 0.66, roughness: 0.9 },
-  fungal: { normalScale: 0.68, roughness: 0.9 },
-  backrooms: { normalScale: 0.42, roughness: 0.97 },
+const BIOME_MASONRY_RESPONSE: Record<
+  DungeonMoodId,
+  { normalScale: number; roughness: number; envMapIntensity: number }
+> = {
+  ancient: { normalScale: 0.56, roughness: 0.96, envMapIntensity: 0.22 },
+  molten: { normalScale: 0.68, roughness: 0.92, envMapIntensity: 0.28 },
+  frost: { normalScale: 0.72, roughness: 0.88, envMapIntensity: 0.26 },
+  grim: { normalScale: 0.6, roughness: 0.98, envMapIntensity: 0.16 },
+  verdant: { normalScale: 0.64, roughness: 0.96, envMapIntensity: 0.2 },
+  ash: { normalScale: 0.62, roughness: 0.98, envMapIntensity: 0.18 },
+  iron: { normalScale: 0.58, roughness: 0.9, envMapIntensity: 0.28 },
+  obsidian: { normalScale: 0.7, roughness: 0.82, envMapIntensity: 0.36 },
+  sunken: { normalScale: 0.66, roughness: 0.96, envMapIntensity: 0.24 },
+  fungal: { normalScale: 0.68, roughness: 0.94, envMapIntensity: 0.2 },
+  backrooms: { normalScale: 0.42, roughness: 0.99, envMapIntensity: 0.14 },
 };
 
 /**
@@ -181,13 +193,26 @@ export function applyMoodToDungeonMaterials(
       filtered,
       THREE.MathUtils.clamp(safeStrength * BIOME_TINT_WEIGHT[key], 0, 0.52),
     );
-    const albedoFill = PROP_ALBEDO_FILL[key];
-    if (albedoFill > 0) {
+    const finish = PROP_FINISH[key];
+    const hasBiomeMasonryFinish =
+      (key === "stone" || key === "darkStone") && material.userData.biomeMasonryBound === true;
+    if (!hasBiomeMasonryFinish) {
+      material.roughness = finish.roughness;
+      material.metalness = finish.metalness;
+      material.envMapIntensity = finish.envMapIntensity;
+    }
+    material.emissiveMap = null;
+    if (finish.indirectFill !== undefined) {
       // Cheap indirect bounce from the actual albedo map. It restores surface
-      // detail in torch gaps while remaining far below emissive prop levels.
+      // detail in torch gaps while staying below authored signal materials.
       material.emissive.copy(material.color);
       material.emissiveMap = material.map;
-      material.emissiveIntensity = albedoFill;
+      material.emissiveIntensity = finish.indirectFill;
+    } else if (key !== "crystal" && key !== "ice") {
+      // Metals and unlit utility roles should never self-light through an old
+      // shared map when a biome is applied more than once.
+      material.emissive.set(0x000000);
+      material.emissiveIntensity = 0;
     }
   }
 }
@@ -221,6 +246,8 @@ function bindBiomeLayer(
   material.map = albedo;
   material.roughnessMap = rough;
   material.roughness = roughness;
+  material.envMapIntensity = 0.2;
+  material.userData.biomeMasonryBound = true;
   if (normal) {
     material.normalMap = normal;
     material.normalScale.set(normalScale, normalScale);
@@ -243,6 +270,7 @@ export function applyBiomeMapsToDungeonMaterials(
 ): void {
   const response = BIOME_MASONRY_RESPONSE[moodId];
   bindBiomeLayer(materials.stone, biome.wall, response.normalScale, response.roughness, 1.25);
+  materials.stone.envMapIntensity = response.envMapIntensity;
   bindBiomeLayer(
     materials.darkStone,
     biome.floor,
@@ -250,6 +278,7 @@ export function applyBiomeMapsToDungeonMaterials(
     Math.min(1, response.roughness + 0.04),
     1.4,
   );
+  materials.darkStone.envMapIntensity = Math.min(0.42, response.envMapIntensity + 0.02);
 }
 
 function surfaceTexture(

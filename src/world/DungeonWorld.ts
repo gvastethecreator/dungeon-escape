@@ -780,7 +780,7 @@ export class DungeonWorld {
     this.enemyAnimationElapsed = 0;
     this.ensureStoneTextures();
     const biomeSurfaces = this.assets.getBiomeSurfaces(mood.id);
-    applyBiomeMaps(this.surfaceMaterials, biomeSurfaces);
+    applyBiomeMaps(this.surfaceMaterials, biomeSurfaces, mood.id);
     applyBiomeMapsToDungeonMaterials(this.materials, biomeSurfaces, mood.id);
     // Tint for room variation + albedoGain for bright biome maps (frost ice ~2×).
     applyMoodToSurfaceMaterials(

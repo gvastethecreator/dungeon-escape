@@ -5,6 +5,7 @@ import { FLOOR, generateDungeon, WALL } from "../src/dungeon/generateDungeon";
 import {
   edgeBlendSeamlessRgba,
   liftTextureLuminanceRgba,
+  liftTextureRoughnessRgba,
   normalMapRgbaFromAlbedo,
   registerTextureSource,
 } from "../src/world/TextureTreatment";
@@ -108,5 +109,20 @@ describe("texture luminance treatment", () => {
     const mean = luminances.reduce((sum, value) => sum + value, 0) / luminances.length / 255;
     expect(mean).toBeCloseTo(0.4, 1);
     expect(luminances[3]! - luminances[0]!).toBeGreaterThan(70);
+  });
+
+  test("lifts roughness maps without flattening their authored variation", () => {
+    const data = new Uint8ClampedArray([
+      0, 12, 40, 255, 64, 80, 96, 255, 160, 140, 120, 255, 255, 220, 180, 255,
+    ]);
+    liftTextureRoughnessRgba(data, { floor: 0.4 });
+    expect(data[0]).toBe(102);
+    expect(data[4]).toBeGreaterThan(data[0]!);
+    expect(data[8]).toBeGreaterThan(data[4]!);
+    expect(data[12]).toBe(255);
+    for (let pixel = 0; pixel < data.length; pixel += 4) {
+      expect(data[pixel + 1]).toBe(data[pixel]);
+      expect(data[pixel + 2]).toBe(data[pixel]);
+    }
   });
 });
