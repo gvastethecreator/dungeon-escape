@@ -15,7 +15,7 @@ bun run dev
 
 Open `http://127.0.0.1:24211/`.
 
-Use **New Game** to open the Forge editor. The main entry also supports `?mode=editor`, `?mode=debug`, and `?mode=play`.
+Use **New Game** to start a fresh dungeon run. Use **Custom Run** to open the Forge editor. The main entry also supports `?mode=editor`, `?mode=debug`, and `?mode=play`.
 
 ## What is included
 

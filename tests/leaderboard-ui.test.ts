@@ -8,6 +8,7 @@ describe("persistent leaderboard UI", () => {
     expect(host).toContain('aria-labelledby="leaderboard-title"');
     expect(host).toContain('id="welcome-new"');
     expect(host).toContain('id="welcome-continue"');
+    expect(host).toContain('id="welcome-custom"');
   });
 
   test("victory captures a bounded name and presents the trusted score", async () => {

@@ -304,6 +304,10 @@ kbd {
   margin-top: 26px;
 }
 
+.welcome-actions__span {
+  grid-column: 1 / -1;
+}
+
 .welcome-actions button {
   min-height: 48px;
   padding: 0 16px;
