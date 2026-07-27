@@ -10,6 +10,7 @@ import {
   BIOME_PARTICLE_MOTION_ID,
   BIOME_PARTICLE_SHAPE_ID,
   getBiomeParticleProfile,
+  isCeilingPrecipitationLayer,
   type BiomeParticleLayerProfile,
 } from "./BiomeParticleProfile";
 
@@ -515,11 +516,20 @@ function createBiomeParticleMaterial(
           pos.y += sin(uTime * 0.5 + phase * 1.2) * 0.24 + uFlow.y * uTime * 0.08;
           alphaPulse = 0.38 + 0.62 * pow(0.5 + 0.5 * wave, 2.0);
           sizePulse = 0.78 + 0.42 * (0.5 + 0.5 * wave);
-        } else {
+        } else if (uMotion < 7.5) {
           float gate = step(0.48, hash11(floor(uTime * (3.0 + uSpeed * 5.0)) + aPhase * 31.0));
           pos.x += floor(sin(uTime * 0.34 + phase) * 2.0) * uTurbulence * 0.12;
           alphaPulse = mix(0.56, 1.0, gate);
           sizePulse = mix(0.82, 1.18, gate);
+        } else {
+          // Drip: reset near the ceiling, fall fast, fade near the floor.
+          float fall = fract(t * (1.15 + uSpeed * 0.55) + hash11(aPhase + 8.1));
+          float span = uWallHeight * 0.98;
+          pos.y = uWallHeight * 0.97 - fall * span;
+          pos.x += sin(phase) * 0.035 + uFlow.x * fall * 0.2;
+          pos.z += cos(phase * 1.3) * 0.035 + uFlow.z * fall * 0.2;
+          alphaPulse = 0.62 + 0.38 * (1.0 - smoothstep(0.82, 1.0, fall));
+          sizePulse = 0.78 + fall * 0.42;
         }
 
         // Signature move: the field parts and curls around the player in a cheap GPU wake.
@@ -585,9 +595,19 @@ function createBiomeParticleMaterial(
           float ring = 1.0 - smoothstep(0.035, 0.09, abs(d - 0.32));
           float glint = smoothstep(0.12, 0.01, length(uv - vec2(-0.13, 0.13)));
           mask = max(ring * 0.8, glint);
-        } else {
+        } else if (uShape < 8.5) {
           float box = max(abs(uv.x), abs(uv.y));
           mask = 1.0 - smoothstep(0.32, 0.48, box);
+        } else if (uShape < 9.5) {
+          // Teardrop bead: fat body, pointed lower tip.
+          vec2 dropUv = vec2(uv.x * 1.85, uv.y * 0.78 + 0.1);
+          float body = smoothstep(0.42, 0.08, length(dropUv));
+          float tip = smoothstep(0.22, 0.02, length(vec2(uv.x * 2.6, uv.y + 0.28)));
+          mask = max(body, tip) * smoothstep(0.5, 0.12, abs(uv.x));
+        } else {
+          // Loose dirt crumb: irregular rock edge.
+          float rough = 0.3 + sin(atan(uv.y, uv.x) * 4.0 + vPhase) * 0.07;
+          mask = smoothstep(rough + 0.07, rough - 0.1, d);
         }
 
         vec4 tex = texture2D(map, gl_PointCoord);
@@ -615,8 +635,10 @@ export class AtmosphereSystem {
   private softGroundFog: SoftGroundFog | null = null;
   private supportParticles: THREE.Points | null = null;
   private signatureParticles: THREE.Points | null = null;
+  private ceilingParticles: THREE.Points | null = null;
   private supportParticleMaterial: THREE.ShaderMaterial | null = null;
   private signatureParticleMaterial: THREE.ShaderMaterial | null = null;
+  private ceilingParticleMaterial: THREE.ShaderMaterial | null = null;
   private elapsed = 0;
   private readonly wallHeight: number;
   private readonly viewer = new THREE.Vector3();
@@ -692,13 +714,16 @@ export class AtmosphereSystem {
     const profile = getBiomeParticleProfile(mood.id);
     const support = this.createMoteCloud(dungeon, floorCells, random, profile.support);
     const signature = this.createMoteCloud(dungeon, floorCells, random, profile.signature);
+    const ceiling = this.createMoteCloud(dungeon, floorCells, random, profile.ceiling);
     this.supportParticles = support.points;
     this.signatureParticles = signature.points;
+    this.ceilingParticles = ceiling.points;
     this.supportParticleMaterial = support.material;
     this.signatureParticleMaterial = signature.material;
-    this.group.add(this.supportParticles, this.signatureParticles);
+    this.ceilingParticleMaterial = ceiling.material;
+    this.group.add(this.supportParticles, this.signatureParticles, this.ceilingParticles);
     this.stats.mistBanks = this.mistBanks.length;
-    this.stats.motes = support.count + signature.count;
+    this.stats.motes = support.count + signature.count + ceiling.count;
   }
 
   /**
@@ -729,7 +754,11 @@ export class AtmosphereSystem {
       this.softGroundFog.material.uniforms.uDensity.value = this.softGroundFog.baseDensity * pulse;
     }
     // All flow and the player wake run on the GPU; only tick shared uniforms.
-    for (const material of [this.supportParticleMaterial, this.signatureParticleMaterial]) {
+    for (const material of [
+      this.supportParticleMaterial,
+      this.signatureParticleMaterial,
+      this.ceilingParticleMaterial,
+    ]) {
       if (!material) continue;
       material.uniforms.uTime.value = this.elapsed;
       material.uniforms.uViewer.value.copy(this.viewer);
@@ -808,14 +837,19 @@ export class AtmosphereSystem {
       const swapIndex = Math.floor(random.next() * (index + 1));
       [cells[index], cells[swapIndex]] = [cells[swapIndex]!, cells[index]!];
     }
+    const ceilingSpawn = isCeilingPrecipitationLayer(layer);
     for (let index = 0; index < count; index += 1) {
       const cell = cells[index % cells.length]!;
       const point = gridToWorld(dungeon, cell, this.tileSize);
-      // Fill the room column. The layer shader adds its own rise/fall bias.
-      const y = 0.15 + Math.pow(random.next(), 1.08) * (this.wallHeight * 0.88);
-      positions[index * 3] = point.x + (random.next() - 0.5) * this.tileSize;
+      // Column field fills the room; ceiling drips seed near the slab.
+      const y = ceilingSpawn
+        ? this.wallHeight * (0.9 + random.next() * 0.08)
+        : 0.15 + Math.pow(random.next(), 1.08) * (this.wallHeight * 0.88);
+      // Sparse ceiling fallers cluster slightly so some spots feel wetter/dirtier.
+      const cluster = ceilingSpawn && random.next() < 0.35 ? 0.22 : 0.5;
+      positions[index * 3] = point.x + (random.next() - 0.5) * this.tileSize * cluster * 2;
       positions[index * 3 + 1] = y;
-      positions[index * 3 + 2] = point.z + (random.next() - 0.5) * this.tileSize;
+      positions[index * 3 + 2] = point.z + (random.next() - 0.5) * this.tileSize * cluster * 2;
       const sizeT = Math.pow(random.next(), 1.35);
       sizes[index] = layer.sizeMin + sizeSpan * sizeT;
       phases[index] = random.next();
@@ -859,8 +893,10 @@ export class AtmosphereSystem {
     this.mistBanks.length = 0;
     this.supportParticles = null;
     this.signatureParticles = null;
+    this.ceilingParticles = null;
     this.supportParticleMaterial = null;
     this.signatureParticleMaterial = null;
+    this.ceilingParticleMaterial = null;
 
     this.stats.mistBanks = 0;
     this.stats.motes = 0;

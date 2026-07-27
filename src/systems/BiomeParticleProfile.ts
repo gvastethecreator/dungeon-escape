@@ -8,7 +8,9 @@ export type BiomeParticleMotion =
   | "flutter"
   | "spark"
   | "pulse"
-  | "flicker";
+  | "flicker"
+  /** Fast ceiling-to-floor fall for drips, grit, blood, slime. */
+  | "drip";
 
 export type BiomeParticleShape =
   | "mote"
@@ -19,7 +21,11 @@ export type BiomeParticleShape =
   | "spore"
   | "shard"
   | "bubble"
-  | "block";
+  | "block"
+  /** Teardrop / liquid bead from the ceiling. */
+  | "drop"
+  /** Loose grit or dirt crumb. */
+  | "crumb";
 
 export interface BiomeParticleLayerProfile {
   name: string;
@@ -46,6 +52,11 @@ export interface BiomeParticleProfile {
   label: string;
   support: BiomeParticleLayerProfile;
   signature: BiomeParticleLayerProfile;
+  /**
+   * Sparse ceiling precipitation: liquid drips, falling dirt, blood, slime,
+   * or grit that matches the active biome.
+   */
+  ceiling: BiomeParticleLayerProfile;
 }
 
 const layer = (
@@ -58,9 +69,22 @@ const layer = (
   ...config,
 });
 
+/** Sparse ceiling fallers — keep under the ambient field budget. */
+const ceiling = (
+  config: Omit<BiomeParticleLayerProfile, "minCount" | "maxCount" | "perFloor" | "wake" | "glow"> &
+    Partial<Pick<BiomeParticleLayerProfile, "minCount" | "maxCount" | "perFloor" | "wake" | "glow">>,
+): BiomeParticleLayerProfile => ({
+  minCount: 48,
+  maxCount: 160,
+  perFloor: 0.08,
+  wake: 0.12,
+  glow: false,
+  ...config,
+});
+
 const PROFILES: Record<DungeonMoodId, BiomeParticleProfile> = {
   ancient: {
-    label: "dust and rune motes",
+    label: "dust, rune motes, and falling grit",
     support: layer({
       name: "Ancient limestone dust",
       motion: "drift",
@@ -98,9 +122,27 @@ const PROFILES: Record<DungeonMoodId, BiomeParticleProfile> = {
       glow: true,
       wake: 0.82,
     }),
+    ceiling: ceiling({
+      name: "Ancient ceiling grit",
+      motion: "drip",
+      shape: "crumb",
+      color: 0x8a7a5e,
+      colorAlt: 0x5a4e3a,
+      minCount: 55,
+      maxCount: 170,
+      perFloor: 0.09,
+      sizeMin: 0.05,
+      sizeMax: 0.14,
+      opacity: 0.55,
+      speed: 0.42,
+      turbulence: 0.12,
+      flowX: 0.01,
+      flowY: -0.9,
+      flowZ: -0.01,
+    }),
   },
   molten: {
-    label: "embers and hot cinders",
+    label: "embers, cinders, and slag drips",
     support: layer({
       name: "Molten falling cinders",
       motion: "fall",
@@ -138,9 +180,29 @@ const PROFILES: Record<DungeonMoodId, BiomeParticleProfile> = {
       glow: true,
       wake: 0.9,
     }),
+    ceiling: ceiling({
+      name: "Molten slag drips",
+      motion: "drip",
+      shape: "drop",
+      color: 0xff6a18,
+      colorAlt: 0xc43a10,
+      minCount: 40,
+      maxCount: 140,
+      perFloor: 0.07,
+      sizeMin: 0.05,
+      sizeMax: 0.15,
+      opacity: 0.72,
+      speed: 0.55,
+      turbulence: 0.08,
+      flowX: 0.02,
+      flowY: -1,
+      flowZ: 0,
+      glow: true,
+      wake: 0.2,
+    }),
   },
   frost: {
-    label: "snow and ice crystals",
+    label: "snow, ice crystals, and melt drips",
     support: layer({
       name: "Frost powder snow",
       motion: "fall",
@@ -181,9 +243,27 @@ const PROFILES: Record<DungeonMoodId, BiomeParticleProfile> = {
       glow: true,
       wake: 0.72,
     }),
+    ceiling: ceiling({
+      name: "Frost melt drips",
+      motion: "drip",
+      shape: "drop",
+      color: 0xb8d8f0,
+      colorAlt: 0x6a9aba,
+      minCount: 60,
+      maxCount: 180,
+      perFloor: 0.1,
+      sizeMin: 0.04,
+      sizeMax: 0.12,
+      opacity: 0.58,
+      speed: 0.48,
+      turbulence: 0.1,
+      flowX: 0,
+      flowY: -0.95,
+      flowZ: 0.01,
+    }),
   },
   grim: {
-    label: "soot and pale wisps",
+    label: "soot, grave wisps, and blood drips",
     support: layer({
       name: "Grim descending soot",
       motion: "fall",
@@ -221,9 +301,27 @@ const PROFILES: Record<DungeonMoodId, BiomeParticleProfile> = {
       glow: true,
       wake: 0.94,
     }),
+    ceiling: ceiling({
+      name: "Grim blood drips",
+      motion: "drip",
+      shape: "drop",
+      color: 0x6b1218,
+      colorAlt: 0x3a0a0c,
+      minCount: 50,
+      maxCount: 150,
+      perFloor: 0.08,
+      sizeMin: 0.045,
+      sizeMax: 0.13,
+      opacity: 0.68,
+      speed: 0.5,
+      turbulence: 0.06,
+      flowX: 0,
+      flowY: -1,
+      flowZ: 0,
+    }),
   },
   verdant: {
-    label: "pollen and fireflies",
+    label: "pollen, fireflies, and sap drips",
     support: layer({
       name: "Verdant drifting pollen",
       motion: "drift",
@@ -264,9 +362,27 @@ const PROFILES: Record<DungeonMoodId, BiomeParticleProfile> = {
       glow: true,
       wake: 1,
     }),
+    ceiling: ceiling({
+      name: "Verdant sap drips",
+      motion: "drip",
+      shape: "drop",
+      color: 0x6a8a3a,
+      colorAlt: 0x3d5a28,
+      minCount: 45,
+      maxCount: 140,
+      perFloor: 0.08,
+      sizeMin: 0.045,
+      sizeMax: 0.13,
+      opacity: 0.58,
+      speed: 0.4,
+      turbulence: 0.14,
+      flowX: 0.02,
+      flowY: -0.85,
+      flowZ: -0.01,
+    }),
   },
   ash: {
-    label: "ashfall and warm embers",
+    label: "ashfall, embers, and falling dirt",
     support: layer({
       name: "Ash biome ashfall",
       motion: "fall",
@@ -307,9 +423,27 @@ const PROFILES: Record<DungeonMoodId, BiomeParticleProfile> = {
       glow: true,
       wake: 0.76,
     }),
+    ceiling: ceiling({
+      name: "Ash ceiling dirt",
+      motion: "drip",
+      shape: "crumb",
+      color: 0x6a5e56,
+      colorAlt: 0x3e3836,
+      minCount: 70,
+      maxCount: 190,
+      perFloor: 0.11,
+      sizeMin: 0.055,
+      sizeMax: 0.16,
+      opacity: 0.58,
+      speed: 0.38,
+      turbulence: 0.18,
+      flowX: 0.04,
+      flowY: -0.8,
+      flowZ: -0.02,
+    }),
   },
   iron: {
-    label: "metal dust and magnetic sparks",
+    label: "metal dust, sparks, and rust water",
     support: layer({
       name: "Iron filings",
       motion: "fall",
@@ -347,9 +481,27 @@ const PROFILES: Record<DungeonMoodId, BiomeParticleProfile> = {
       glow: true,
       wake: 1.12,
     }),
+    ceiling: ceiling({
+      name: "Iron rust water drips",
+      motion: "drip",
+      shape: "drop",
+      color: 0x8a5a32,
+      colorAlt: 0x5a3420,
+      minCount: 50,
+      maxCount: 150,
+      perFloor: 0.08,
+      sizeMin: 0.04,
+      sizeMax: 0.12,
+      opacity: 0.6,
+      speed: 0.52,
+      turbulence: 0.08,
+      flowX: 0,
+      flowY: -1,
+      flowZ: 0.01,
+    }),
   },
   obsidian: {
-    label: "glass splinters and void motes",
+    label: "glass dust, splinters, and black grit",
     support: layer({
       name: "Obsidian glass dust",
       motion: "drift",
@@ -387,9 +539,27 @@ const PROFILES: Record<DungeonMoodId, BiomeParticleProfile> = {
       glow: true,
       wake: 1.05,
     }),
+    ceiling: ceiling({
+      name: "Obsidian black grit",
+      motion: "drip",
+      shape: "crumb",
+      color: 0x2a1e30,
+      colorAlt: 0x4a3058,
+      minCount: 55,
+      maxCount: 160,
+      perFloor: 0.09,
+      sizeMin: 0.045,
+      sizeMax: 0.13,
+      opacity: 0.55,
+      speed: 0.44,
+      turbulence: 0.1,
+      flowX: -0.01,
+      flowY: -0.9,
+      flowZ: 0.02,
+    }),
   },
   sunken: {
-    label: "drizzle and rising bubbles",
+    label: "drizzle, bubbles, and ceiling seepage",
     support: layer({
       name: "Sunken suspended droplets",
       motion: "fall",
@@ -430,9 +600,27 @@ const PROFILES: Record<DungeonMoodId, BiomeParticleProfile> = {
       glow: true,
       wake: 0.9,
     }),
+    ceiling: ceiling({
+      name: "Sunken ceiling seepage",
+      motion: "drip",
+      shape: "drop",
+      color: 0x4a7a78,
+      colorAlt: 0x2a4a4c,
+      minCount: 80,
+      maxCount: 220,
+      perFloor: 0.13,
+      sizeMin: 0.05,
+      sizeMax: 0.15,
+      opacity: 0.62,
+      speed: 0.58,
+      turbulence: 0.12,
+      flowX: 0.015,
+      flowY: -1,
+      flowZ: 0.02,
+    }),
   },
   fungal: {
-    label: "spore bloom and mycelial pulses",
+    label: "spores, pulses, and slime drips",
     support: layer({
       name: "Fungal spore cloud",
       motion: "rise",
@@ -473,9 +661,29 @@ const PROFILES: Record<DungeonMoodId, BiomeParticleProfile> = {
       glow: true,
       wake: 1.05,
     }),
+    ceiling: ceiling({
+      name: "Fungal slime drips",
+      motion: "drip",
+      shape: "drop",
+      color: 0x5a8a62,
+      colorAlt: 0x6a4a78,
+      minCount: 55,
+      maxCount: 170,
+      perFloor: 0.09,
+      sizeMin: 0.05,
+      sizeMax: 0.15,
+      opacity: 0.64,
+      speed: 0.36,
+      turbulence: 0.16,
+      flowX: -0.02,
+      flowY: -0.75,
+      flowZ: 0.02,
+      glow: true,
+      wake: 0.25,
+    }),
   },
   backrooms: {
-    label: "stale dust and fluorescent glitches",
+    label: "stale dust, glitches, and yellow seepage",
     support: layer({
       name: "Backrooms stale dust",
       motion: "drift",
@@ -516,6 +724,24 @@ const PROFILES: Record<DungeonMoodId, BiomeParticleProfile> = {
       glow: true,
       wake: 0.3,
     }),
+    ceiling: ceiling({
+      name: "Backrooms yellow seepage",
+      motion: "drip",
+      shape: "drop",
+      color: 0xc4b86a,
+      colorAlt: 0x8a7e40,
+      minCount: 45,
+      maxCount: 140,
+      perFloor: 0.07,
+      sizeMin: 0.04,
+      sizeMax: 0.12,
+      opacity: 0.55,
+      speed: 0.46,
+      turbulence: 0.06,
+      flowX: 0.01,
+      flowY: -0.9,
+      flowZ: 0,
+    }),
   },
 };
 
@@ -528,6 +754,7 @@ export const BIOME_PARTICLE_MOTION_ID: Record<BiomeParticleMotion, number> = {
   spark: 5,
   pulse: 6,
   flicker: 7,
+  drip: 8,
 };
 
 export const BIOME_PARTICLE_SHAPE_ID: Record<BiomeParticleShape, number> = {
@@ -540,8 +767,15 @@ export const BIOME_PARTICLE_SHAPE_ID: Record<BiomeParticleShape, number> = {
   shard: 6,
   bubble: 7,
   block: 8,
+  drop: 9,
+  crumb: 10,
 };
 
 export function getBiomeParticleProfile(mood: DungeonMoodId): BiomeParticleProfile {
   return PROFILES[mood];
+}
+
+/** True when a layer is authored as ceiling precipitation (spawn bias + drip motion). */
+export function isCeilingPrecipitationLayer(layer: BiomeParticleLayerProfile): boolean {
+  return layer.motion === "drip";
 }

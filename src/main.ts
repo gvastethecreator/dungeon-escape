@@ -39,7 +39,12 @@ import { computeCriticalHealthFeel } from "./systems/CriticalHealthFeel";
 import { FrameGapProfiler, type FrameGapSnapshot } from "./systems/FrameGapProfiler";
 import { collectVisibleRenderInventory } from "./systems/RenderInventory";
 import { readVisualQaState } from "./systems/VisualQaState";
-import { computePovFeel, PovFeelState, samplePovShake } from "./systems/povFeel";
+import {
+  computePovFeel,
+  decayHitTrauma,
+  PovFeelState,
+  samplePovShake,
+} from "./systems/povFeel";
 import { drawMinimap } from "./ui/drawMinimap";
 import { COPY, STONE_ORDER, formatTime, type StoneId } from "./ui/copy";
 import { createMinimapLayoutScheduler } from "./ui/minimapLayout";
@@ -53,6 +58,7 @@ import {
   type PersistedRunSession,
 } from "./game/RunSession";
 import { shouldAdoptHydratedSeed } from "./game/hydratePolicy";
+import { nextProceduralSeed } from "./game/SeedFactory";
 import {
   canContinueDomainRun,
   canContinueLocalRun,
@@ -269,6 +275,8 @@ try {
   // Long-task entries are optional. Frame-gap percentiles remain available.
 }
 let damageTimer = 0;
+/** Residual camera trauma after a hit (0..1); keeps shaking for a few seconds. */
+let hitTrauma = 0;
 let touchSessionActive = false;
 let engineMode: EngineMode = "editor";
 let crtEnabled = true;
@@ -285,6 +293,8 @@ let currentThreatDistance: number | null = null;
 let editorSurface: "runtime" | "forge" = "forge";
 let forgeDungeon: ForgeDungeonPayload | null = null;
 let forgePreviewDungeon: DungeonData | null = null;
+let lastProceduralSeed = 0;
+let pendingProceduralSeed: number | null = null;
 type EditorSurfaceState = "idle" | "loading" | "updating" | "ready" | "error";
 const editorSurfaceStatus: Record<
   "runtime" | "forge",
@@ -805,6 +815,8 @@ function spawnOrbBloodSplash(): void {
 
 function triggerDamageFeedback(knockback: { x: number; z: number } | null): void {
   damageTimer = DAMAGE_WASH_SECONDS;
+  // Fresh hits re-arm full trauma so multi-hits stay unstable for a few seconds.
+  hitTrauma = 1;
   elements.damage.classList.remove("is-hit");
   void elements.damage.offsetWidth;
   elements.damage.classList.add("is-hit");
@@ -1044,6 +1056,8 @@ function activateDungeon(
   elements.shell.dataset.resolve = String(Math.ceil(session.resolve));
   elements.editorCell.textContent = `SPAWN ${formatCell(dungeon.spawn)}`;
   damageTimer = 0;
+  hitTrauma = 0;
+  povFeel.reset();
   lastPortalBanner = quest.portalOpen;
   // Invalidate the quest HUD dirty cache so the first syncQuestHud() repaints.
   questHudStonesFound = -1;
@@ -1288,6 +1302,27 @@ function makeSeed(): string {
   const values = new Uint32Array(1);
   crypto.getRandomValues(values);
   return `ASH-${(values[0] ?? 0).toString(36).toUpperCase()}`;
+}
+
+function makeProceduralSeed(): number {
+  const values = new Uint32Array(1);
+  crypto.getRandomValues(values);
+  lastProceduralSeed = nextProceduralSeed(values[0] ?? 0, lastProceduralSeed);
+  return lastProceduralSeed;
+}
+
+function postPendingProceduralSeed(): void {
+  if (pendingProceduralSeed === null || elements.forgeFrame.dataset.loaded !== "true") return;
+  elements.forgeFrame.contentWindow?.postMessage(
+    { type: "black-flag:forge-new-seed", seed: pendingProceduralSeed },
+    location.origin,
+  );
+  pendingProceduralSeed = null;
+}
+
+function queueNewProceduralSeed(): void {
+  pendingProceduralSeed = makeProceduralSeed();
+  postPendingProceduralSeed();
 }
 
 function refreshMinimapViewport(): void {
@@ -1594,6 +1629,7 @@ elements.runSelect.addEventListener("change", () => {
 elements.welcomeNew.addEventListener("click", () => {
   void audio.unlock();
   const freshSeed = makeSeed();
+  queueNewProceduralSeed();
   elements.seed.value = freshSeed;
   buildDungeon(freshSeed);
   setWelcomeOpen(false);
@@ -1635,6 +1671,7 @@ elements.editorViewButtons.forEach((button) =>
 );
 elements.forgeApply.addEventListener("click", applyForgeDungeon);
 elements.forgeFrame.addEventListener("load", () => {
+  elements.forgeFrame.dataset.loaded = "true";
   setEditorSurfaceStatus("forge", "DUNGEON CREATION · BUILDING", "loading");
   elements.forgeFrame.contentWindow?.postMessage(
     {
@@ -1643,6 +1680,7 @@ elements.forgeFrame.addEventListener("load", () => {
     },
     location.origin,
   );
+  postPendingProceduralSeed();
 });
 window.addEventListener("message", (event) => {
   if (
@@ -1956,6 +1994,7 @@ function frame(now: number): void {
     damageHitActive = false;
     elements.damage.classList.remove("is-hit");
   }
+  hitTrauma = simulationActive ? decayHitTrauma(hitTrauma, delta) : 0;
   if (simulationActive && result.footstep) {
     audio.playFootstep(footstepSurfaceAt(dungeon, result.cell));
   }
@@ -1977,13 +2016,14 @@ function frame(now: number): void {
   camera.getWorldDirection(lanternForward);
   lighting.update(delta, playerPosition, currentThreatDistance, lanternForward);
 
-  // POV lens + stress: mild outward warp always; sprint widens it; threat shakes + chromatic fringe.
+  // POV: close enemies shake a little; hits keep the lens unstable for a few seconds.
   const maxSpeed = PLAYER_MOVE_SPEED * PLAYER_SPRINT_MULT;
   const speedRatio = THREE.MathUtils.clamp(player.speed / maxSpeed, 0, 1);
   const feelTarget = computePovFeel({
     sprinting: player.sprinting && simulationActive,
     speedRatio: simulationActive ? speedRatio : 0,
     threatDistance: simulationActive ? currentThreatDistance : null,
+    hitTrauma: simulationActive ? hitTrauma : 0,
     reducedMotion,
   });
   const feel = povFeel.apply(feelTarget, delta);
