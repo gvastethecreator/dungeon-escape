@@ -122,6 +122,8 @@ const elements = {
   healthOrb: requireElement<HTMLElement>(".health-orb"),
   playVitals: requireElement<HTMLElement>(".play-vitals"),
   runTimer: requireElement<HTMLTimeElement>("#run-timer"),
+  timeFreezeStatus: requireElement<HTMLElement>("#time-freeze-status"),
+  timeFreezeValue: requireElement<HTMLTimeElement>("#time-freeze-value"),
   hazardStatus: requireElement<HTMLElement>("#hazard-status"),
   playObjective: requireElement<HTMLElement>("#play-objective"),
   stoneCount: requireElement<HTMLElement>("#stone-count"),
@@ -239,6 +241,7 @@ function syncSessionMirrors(): void {
 let mapExpanded = false;
 let lastMapDraw = 0;
 let lastRunTimerSecond = -1;
+let lastTimeFreezeDisplay = "";
 let lastHazardKind: HazardSurfaceEffect["kind"] | undefined;
 /**
  * Cached minimap viewport (CSS size + clamped DPR). Refreshed on resize so the
@@ -525,6 +528,8 @@ function syncQuestHud(): void {
 function applyPersistedRunSession(persisted: PersistedRunSession): void {
   restoreRunSession(session, quest, persisted);
   world.restoreSession(persisted.foundStoneIds);
+  lastTimeFreezeDisplay = "";
+  syncTimeFreezeHud();
   syncSessionMirrors();
   elements.shell.dataset.mode = session.runMode;
   elements.shell.dataset.relic = String(quest.portalOpen);
@@ -586,6 +591,26 @@ function syncRunTimer(snapshot = world.getDifficultyState()): void {
   elements.shell.dataset.difficulty = snapshot.label.toLowerCase();
   elements.shell.dataset.pressure = String(snapshot.pressureLevel);
 }
+
+function syncTimeFreezeHud(remaining = world.timeFreezeRemaining): void {
+  const seconds = Math.max(0, remaining);
+  const active = seconds > 0.0001;
+  elements.timeFreezeStatus.hidden = !active;
+  elements.shell.dataset.timeFreeze = active ? "true" : "false";
+  if (!active) {
+    lastTimeFreezeDisplay = "";
+    elements.timeFreezeStatus.removeAttribute("data-urgent");
+    return;
+  }
+  const display = `${seconds.toFixed(1)}s`;
+  if (display === lastTimeFreezeDisplay) return;
+  lastTimeFreezeDisplay = display;
+  elements.timeFreezeValue.textContent = display;
+  elements.timeFreezeValue.dateTime = `PT${seconds.toFixed(1)}S`;
+  elements.timeFreezeValue.setAttribute("aria-label", `${display} time freeze remaining`);
+  elements.timeFreezeStatus.toggleAttribute("data-urgent", seconds <= 5);
+}
+
 function syncHazardStatus(effect: HazardSurfaceEffect): void {
   if (effect.kind === lastHazardKind) return;
   lastHazardKind = effect.kind;
@@ -831,14 +856,27 @@ function triggerDamageFeedback(knockback: { x: number; z: number } | null): void
 
 let pickupFeedbackAnimation: Animation | null = null;
 
-function showPickupFeedback(label: string, restoreResolve = false, stoneId?: StoneId): void {
+function showPickupFeedback(
+  label: string,
+  restoreResolve = false,
+  stoneId?: StoneId,
+  timeFreeze = false,
+): void {
   elements.pickupFeedbackText.textContent = label;
-  elements.pickupFeedbackKicker.textContent = restoreResolve
-    ? COPY.pickup.flask
-    : stoneId
-      ? COPY.pickup.small
-      : COPY.pickup.notice;
-  elements.pickupFeedback.dataset.kind = restoreResolve ? "flask" : stoneId ? "stone" : "notice";
+  elements.pickupFeedbackKicker.textContent = timeFreeze
+    ? COPY.pickup.timeFreeze
+    : restoreResolve
+      ? COPY.pickup.flask
+      : stoneId
+        ? COPY.pickup.small
+        : COPY.pickup.notice;
+  elements.pickupFeedback.dataset.kind = timeFreeze
+    ? "time-freeze"
+    : restoreResolve
+      ? "flask"
+      : stoneId
+        ? "stone"
+        : "notice";
   if (stoneId) elements.pickupFeedback.dataset.stone = stoneId;
   else delete elements.pickupFeedback.dataset.stone;
   elements.pickupFeedback.classList.add("is-active");
@@ -1047,6 +1085,8 @@ function activateDungeon(
   const mood = applyDungeonMood(nextDungeon);
   applyAtmosphereFromParams();
   world.setDungeon(dungeon, mood);
+  lastTimeFreezeDisplay = "";
+  syncTimeFreezeHud(0);
   controller.setSurfaceMovement(1, 1);
   lastHazardKind = undefined;
   syncHazardStatus({ kind: null, label: "", damage: 0, movementScale: 1, traction: 1 });
@@ -1091,6 +1131,7 @@ function activateDungeon(
   if (session.runMode === "playing") closeEndOverlay();
   else showEndOverlay(session.runMode);
   updateResolve();
+  syncTimeFreezeHud();
   updateObjective();
   // Intro objective: appears at run start, then fades so the scene stays clean.
   if (engineMode === "play" && session.runMode === "playing" && !quest.portalOpen) {
@@ -1405,6 +1446,7 @@ export interface DungeonRuntimeState {
   exitReached?: boolean;
   hasRelic?: boolean;
   stonesFound?: number;
+  timeFreezeRemaining?: number;
   resolve?: number;
   mode?: "playing" | "dead" | "won";
   engineMode?: EngineMode;
@@ -1492,6 +1534,7 @@ function getRuntimeState(): DungeonRuntimeState {
     exitReached,
     hasRelic: world.hasRelic,
     stonesFound: world.stonesFound,
+    timeFreezeRemaining: Number(world.timeFreezeRemaining.toFixed(2)),
     resolve: Number(resolve.toFixed(1)),
     mode: runMode,
     engineMode,
@@ -1941,6 +1984,7 @@ function frame(now: number): void {
       result.atExit,
       result.interactPressed || uiInteractQueued,
     );
+    syncTimeFreezeHud(worldUpdate.timeFreezeRemaining);
     controller.setSurfaceMovement(
       worldUpdate.surfaceEffect.movementScale,
       worldUpdate.surfaceEffect.traction,
@@ -1952,6 +1996,7 @@ function frame(now: number): void {
       session,
       quest,
       {
+        collectedPickupKind: worldUpdate.collectedPickup?.kind ?? null,
         collectedStoneId: worldUpdate.collectedStoneId as StoneId | null,
         stonesFound: worldUpdate.stonesFound,
         stonesTotal: worldUpdate.stonesTotal,
@@ -1982,6 +2027,7 @@ function frame(now: number): void {
         effects.pickup.label,
         Boolean(effects.pickup.restoreResolve),
         effects.pickup.stoneId,
+        Boolean(effects.pickup.timeFreeze),
       );
     }
     if (effects.playEnemyHit) {
@@ -2009,6 +2055,7 @@ function frame(now: number): void {
     // Threat distance still drives lighting / audio feel; no HUD spam.
     currentThreatDistance = worldUpdate.nearestThreat;
   }
+  syncTimeFreezeHud();
   syncRunTimer();
 
   damageTimer = Math.max(0, damageTimer - delta);

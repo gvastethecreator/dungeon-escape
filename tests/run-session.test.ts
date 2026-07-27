@@ -99,6 +99,23 @@ describe("RunSession applyWorldUpdate", () => {
     expect(session.resolve).toBe(100);
   });
 
+  test("emits the time-freeze pickup feedback without changing health", () => {
+    const session = createRunSession(64);
+    const quest = new QuestState();
+    quest.start(0);
+    const fx = applyWorldUpdate(
+      session,
+      quest,
+      emptyUpdate({ collectedPickupKind: "time-freeze" }),
+    );
+
+    expect(session.resolve).toBe(64);
+    expect(fx.pickup).toEqual({ label: COPY.pickup.timeFreeze, timeFreeze: true });
+    expect(fx.status).toBe(COPY.status.timeFreeze);
+    expect(fx.playPickup).toBe(true);
+    expect(fx.flash).toBe("event");
+  });
+
   test("keeps a quest-sealed exit active", () => {
     const session = createRunSession();
     const quest = new QuestState();

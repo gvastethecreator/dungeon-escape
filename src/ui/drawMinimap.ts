@@ -18,6 +18,7 @@ export const MINIMAP_COLORS = {
   stone: "#3aa6a0",
   stoneCollected: "#1d2f30",
   pickup: "#6a9a4f",
+  timeFreeze: "#72e7ef",
   relic: "#8a4fb0",
   door: "#3a3d3a",
   player: "#f0ebe0",
@@ -160,6 +161,19 @@ function drawFeatures(
     const [cx, cy] = cellCenter(pickup);
     context.beginPath();
     context.arc(cx, cy, pickupR, 0, Math.PI * 2);
+    context.fill();
+  }
+
+  if (features.timeFreeze) {
+    const [cx, cy] = cellCenter(features.timeFreeze);
+    const r = Math.max(2, cellSize * 0.52);
+    context.fillStyle = COLORS.timeFreeze;
+    context.beginPath();
+    context.moveTo(cx, cy - r);
+    context.lineTo(cx + r * 0.72, cy);
+    context.lineTo(cx, cy + r);
+    context.lineTo(cx - r * 0.72, cy);
+    context.closePath();
     context.fill();
   }
 

@@ -1662,6 +1662,20 @@ kbd {
   border-left-color: var(--bone);
 }
 
+.pickup-feedback[data-kind="time-freeze"] {
+  border-left-color: #72e7ef;
+  box-shadow:
+    6px 6px 0 rgb(0 0 0 / 48%),
+    0 0 24px rgb(68 210 226 / 24%);
+}
+
+.pickup-feedback[data-kind="time-freeze"] .pickup-mark {
+  border-color: #b9fbff;
+  background: rgb(114 231 239 / 42%);
+  box-shadow: 0 0 8px rgb(114 231 239 / 60%);
+  transform: rotate(45deg);
+}
+
 .pickup-copy {
   display: grid;
   gap: 2px;
@@ -1686,6 +1700,16 @@ kbd {
 
 .pickup-feedback.is-active {
   visibility: visible;
+}
+
+@keyframes time-freeze-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.58;
+  }
 }
 
 .crt-overlay {
@@ -2062,6 +2086,38 @@ kbd {
   border: 0;
   background: transparent;
   box-shadow: none;
+}
+
+.time-freeze-status {
+  display: grid;
+  gap: 3px;
+  min-width: 10ch;
+  padding: 5px 8px 5px 10px;
+  border-right: 2px solid rgb(114 231 239 / 78%);
+  background: linear-gradient(90deg, transparent, rgb(8 24 29 / 88%) 26%);
+  color: #b9fbff;
+  font-family: var(--font-pixel);
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  line-height: 1;
+  text-align: right;
+  text-shadow: 0 0 10px rgb(74 215 229 / 58%);
+}
+
+.time-freeze-status__label {
+  color: rgb(185 251 255 / 72%);
+  font-size: 9px;
+}
+
+.time-freeze-status time {
+  font-size: 15px;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.08em;
+}
+
+.time-freeze-status[data-urgent] {
+  border-right-color: #e5fcff;
+  animation: time-freeze-pulse 520ms steps(2, end) infinite;
 }
 .end-overlay[data-end="won"] .end-card {
   width: min(540px, 100%);

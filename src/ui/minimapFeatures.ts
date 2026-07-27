@@ -35,6 +35,8 @@ export interface MinimapFeatures {
   stones: MinimapStone[];
   /** Resolve flasks that have not yet been picked up. */
   pickups: MinimapCell[];
+  /** Time-freeze relic that has not yet been picked up. */
+  timeFreeze?: MinimapCell;
   /** Special objective prop (reliquary altar / boss-shrine crystal), if any. */
   relic?: MinimapCell;
   /** Entrance / spawn marker (dungeon.spawn). */
