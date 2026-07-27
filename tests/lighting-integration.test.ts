@@ -3,6 +3,7 @@ import * as THREE from "three";
 
 import {
   FIRE_LIGHT_TUNING,
+  INTERIOR_LIGHT_TUNING,
   MATERIAL_FILL_TUNING,
   MAX_DYNAMIC_FIRE_LIGHTS,
   PLAYER_LANTERN_TUNING,
@@ -28,15 +29,18 @@ import { createVolumetricBeam } from "../src/world/VolumetricBeam";
 import { biomeTintedLightColor } from "../src/world/DungeonWorld";
 
 describe("integrated dungeon lighting", () => {
-  test("player lantern reaches mid-corridor without washing out torch contrast", () => {
-    expect(PLAYER_LANTERN_TUNING.intensity).toBeGreaterThanOrEqual(38);
-    expect(PLAYER_LANTERN_TUNING.intensity).toBeLessThanOrEqual(46);
-    expect(PLAYER_LANTERN_TUNING.range).toBeGreaterThanOrEqual(23);
-    expect(PLAYER_LANTERN_TUNING.range).toBeLessThanOrEqual(25);
-    expect(PLAYER_LANTERN_TUNING.decay).toBeGreaterThanOrEqual(1.05);
-    expect(PLAYER_LANTERN_TUNING.decay).toBeLessThan(1.25);
+  test("player lantern is bright nearby and falls off before the next room", () => {
+    expect(PLAYER_LANTERN_TUNING.intensity).toBeGreaterThanOrEqual(70);
+    expect(PLAYER_LANTERN_TUNING.intensity).toBeLessThanOrEqual(82);
+    expect(PLAYER_LANTERN_TUNING.range).toBeGreaterThanOrEqual(17);
+    expect(PLAYER_LANTERN_TUNING.range).toBeLessThanOrEqual(19);
+    expect(PLAYER_LANTERN_TUNING.decay).toBeGreaterThanOrEqual(1.7);
+    expect(PLAYER_LANTERN_TUNING.decay).toBeLessThanOrEqual(1.9);
     expect(PLAYER_LANTERN_TUNING.backwardOffset).toBeGreaterThanOrEqual(0.75);
     expect(PLAYER_LANTERN_TUNING.backwardOffset).toBeLessThanOrEqual(1);
+    const nearResponse = PLAYER_LANTERN_TUNING.intensity / Math.pow(2, PLAYER_LANTERN_TUNING.decay);
+    const farResponse = PLAYER_LANTERN_TUNING.intensity / Math.pow(12, PLAYER_LANTERN_TUNING.decay);
+    expect(nearResponse / farResponse).toBeGreaterThan(20);
   });
 
   test("player lantern stays behind the view to cap close-wall highlights", () => {
@@ -155,13 +159,16 @@ describe("integrated dungeon lighting", () => {
   });
 
   test("neutral room bounce stays low while keeping albedo maps visible", () => {
-    expect(MATERIAL_FILL_TUNING.intensity).toBeGreaterThanOrEqual(0.84);
-    expect(MATERIAL_FILL_TUNING.intensity).toBeLessThanOrEqual(0.96);
+    expect(MATERIAL_FILL_TUNING.intensity).toBeGreaterThanOrEqual(0.6);
+    expect(MATERIAL_FILL_TUNING.intensity).toBeLessThanOrEqual(0.7);
 
     for (const id of listDungeonMoodIds()) {
-      const fill = MATERIAL_FILL_TUNING.intensity * getDungeonMood(id).bounceScale;
-      expect(fill).toBeGreaterThanOrEqual(0.54);
-      expect(fill).toBeLessThanOrEqual(0.68);
+      const fill =
+        MATERIAL_FILL_TUNING.intensity *
+        getDungeonMood(id).bounceScale *
+        INTERIOR_LIGHT_TUNING.bounceScale;
+      expect(fill).toBeGreaterThanOrEqual(0.32);
+      expect(fill).toBeLessThanOrEqual(0.4);
     }
   });
 
@@ -187,11 +194,20 @@ describe("integrated dungeon lighting", () => {
     const mood = getDungeonMood("ash");
     rig.applyMood(mood);
     expect(scene.fog).toBe(rig.fog);
-    expect(rig.fog.density).toBeCloseTo(mood.fogDensity * mood.fogMul, 5);
-    expect(rig.getBounceIntensity()).toBeCloseTo(mood.hemiIntensity * mood.bounceScale, 5);
-    expect(rig.getKeyIntensity()).toBeCloseTo(mood.keyIntensity * mood.keyScale, 5);
+    expect(rig.fog.density).toBeCloseTo(
+      mood.fogDensity * mood.fogMul * INTERIOR_LIGHT_TUNING.fogScale,
+      5,
+    );
+    expect(rig.getBounceIntensity()).toBeCloseTo(
+      mood.hemiIntensity * mood.bounceScale * INTERIOR_LIGHT_TUNING.bounceScale,
+      5,
+    );
+    expect(rig.getKeyIntensity()).toBeCloseTo(
+      mood.keyIntensity * mood.keyScale * INTERIOR_LIGHT_TUNING.keyScale,
+      5,
+    );
     expect(rig.getMaterialFillIntensity()).toBeCloseTo(
-      MATERIAL_FILL_TUNING.intensity * mood.bounceScale,
+      MATERIAL_FILL_TUNING.intensity * mood.bounceScale * INTERIOR_LIGHT_TUNING.bounceScale,
       5,
     );
     expect(rig.getLanternBaseIntensity()).toBeCloseTo(
@@ -202,7 +218,10 @@ describe("integrated dungeon lighting", () => {
 
     const frost = getDungeonMood("frost");
     rig.applyMood(frost);
-    expect(rig.fog.density).toBeCloseTo(frost.fogDensity * frost.fogMul, 5);
+    expect(rig.fog.density).toBeCloseTo(
+      frost.fogDensity * frost.fogMul * INTERIOR_LIGHT_TUNING.fogScale,
+      5,
+    );
     expect(rig.getBounceIntensity()).toBeLessThan(mood.hemiIntensity * mood.bounceScale);
     rig.dispose();
   });

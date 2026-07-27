@@ -150,6 +150,27 @@ kbd {
   touch-action: none;
 }
 
+/* Softens the point where props enter the first-person frame and reinforces
+   the short player lantern without adding another render pass. */
+.view-falloff {
+  position: absolute;
+  z-index: 5;
+  inset: 0;
+  background: radial-gradient(
+    ellipse at 50% 52%,
+    transparent 48%,
+    rgb(0 0 0 / 8%) 68%,
+    rgb(0 0 0 / 48%) 100%
+  );
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 420ms ease;
+}
+
+.app-shell[data-engine-mode="play"] .view-falloff {
+  opacity: 1;
+}
+
 /* Welcome: full-frame authored cover with a stable, accessible HTML menu. */
 .welcome-screen {
   position: absolute;
