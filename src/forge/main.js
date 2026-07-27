@@ -31,6 +31,7 @@ import { createMagicStone } from "../world/MagicStoneKit";
 import { auditAndRepairForgeSurface } from "./SurfaceGeometryAudit";
 import { resolveForgeRenderQuality } from "./ForgeRenderQuality";
 import { resolveEditorLightingProfile } from "../editor/EditorLightingProfiles";
+import { nextProceduralSeed } from "../game/SeedFactory";
 import {
   BIOME_PARTICLE_MOTION_ID,
   BIOME_PARTICLE_SHAPE_ID,
@@ -4263,6 +4264,14 @@ function tick() {
 
 addEventListener("message", (event) => {
   if (event.origin !== location.origin || event.source !== window.parent) return;
+  if (event.data?.type === "black-flag:forge-new-seed") {
+    const requested = Number(event.data.seed);
+    if (Number.isFinite(requested)) {
+      el.seed.value = nextProceduralSeed(requested, Number(el.seed.value) || 0);
+      forge(true);
+    }
+    return;
+  }
   if (event.data?.type === "black-flag:forge-visibility") {
     hostPaused = !event.data.visible;
     // The iframe can publish its first payload before the host finishes
@@ -4326,6 +4335,11 @@ const sliderRegen = () => {
   clearTimeout(deb);
   deb = setTimeout(() => forge(false), 220);
 };
+const randomizeEditorSeed = () => {
+  const entropy = new Uint32Array(1);
+  crypto.getRandomValues(entropy);
+  el.seed.value = nextProceduralSeed(entropy[0] ?? 0, Number(el.seed.value) || 0);
+};
 el.rooms.addEventListener("input", () => {
   el.vRooms.textContent = el.rooms.value;
   sliderRegen();
@@ -4340,7 +4354,7 @@ el.decor.addEventListener("input", () => {
 });
 el.seed.addEventListener("change", () => forge(true));
 el.dice.addEventListener("click", () => {
-  el.seed.value = 1 + Math.floor(Math.random() * 999999);
+  randomizeEditorSeed();
   forge(true);
 });
 el.forge.addEventListener("click", () => forge(true));
@@ -4376,7 +4390,7 @@ addEventListener("keydown", (e) => {
   if (tag === "BUTTON") return;
   if (tag === "INPUT" && e.target.type !== "range" && e.target.type !== "checkbox") return;
   if (e.code === "KeyR") {
-    el.seed.value = 1 + Math.floor(Math.random() * 999999);
+    randomizeEditorSeed();
     forge(true);
   } else if (e.code === "KeyG") {
     el.tGraph.checked = !el.tGraph.checked;
@@ -4414,5 +4428,6 @@ addEventListener("resize", () => {
 });
 
 /* -------- go -------- */
+randomizeEditorSeed();
 forge(true);
 tick();

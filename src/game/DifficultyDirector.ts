@@ -7,6 +7,7 @@ export type DifficultyLabel = "MERCIFUL" | "CAUTIOUS" | "STANDARD" | "HARD" | "R
 export interface DifficultyTuning {
   value: number;
   label: DifficultyLabel;
+  initialOccupiedRooms: number;
   initialEnemies: number;
   maxEnemies: number;
   waveSeconds: number;
@@ -105,12 +106,19 @@ export function resolveDifficultyTuning(
   const difficulty = clamp01(value);
   const rooms = Math.max(1, Math.floor(roomCount));
   const available = Math.max(0, Math.floor(availableEnemies));
-  const initialEnemies = Math.min(available, Math.round(2 + difficulty * 2));
-  const mapCap = Math.round(rooms * (0.55 + difficulty * 0.55) + 5);
-  const maxEnemies = Math.min(available, Math.max(initialEnemies, Math.min(72, mapCap)));
+  // At most one room in each complete group of six starts empty. Every other
+  // room receives one actor, then difficulty decides how many receive two.
+  const initialOccupiedRooms = Math.max(0, rooms - Math.floor(rooms / 6));
+  const doubleRoomShare = mix(0.25, 0.75, difficulty);
+  const requestedInitialEnemies =
+    initialOccupiedRooms + Math.round(initialOccupiedRooms * doubleRoomShare);
+  const initialEnemies = Math.min(available, requestedInitialEnemies);
+  const mapCap = initialEnemies + Math.round(rooms * (0.65 + difficulty * 0.55));
+  const maxEnemies = Math.min(available, Math.max(initialEnemies, Math.min(128, mapCap)));
   return {
     value: difficulty,
     label: difficultyLabel(difficulty),
+    initialOccupiedRooms: Math.min(initialOccupiedRooms, initialEnemies),
     initialEnemies,
     maxEnemies,
     waveSeconds: 30,
