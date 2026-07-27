@@ -17,6 +17,15 @@ export interface LiquidSection {
 
 export type LiquidKind = "pool" | "lake";
 
+/**
+ * Floor boxes are centered at y=-0.05 with height 0.1, so the walkable top is y=0.
+ * Liquid quads sit a hair above that plane to avoid z-fight while reading coplanar.
+ */
+export const LIQUID_SURFACE_Y = 0.004;
+/** Boundary rim center height (thin lip on the floor edge, not a raised platform). */
+export const LIQUID_RIM_Y = 0.012;
+export const LIQUID_RIM_HEIGHT = 0.04;
+
 export interface LiquidSurface {
   kind: LiquidKind;
   mesh: THREE.Mesh;
@@ -146,7 +155,8 @@ export function createLiquidMaterial(kind: LiquidKind): THREE.MeshStandardMateri
          #include <begin_vertex>
          float liquidWave = sin(position.x * 1.65 + uLiquidTime * 1.15)
            + sin(position.z * 2.2 - uLiquidTime * 0.82);
-         transformed.y += liquidWave * ${lake ? "0.012" : "0.026"};`,
+         // Keep ripples shallow so the surface stays coplanar with the floor.
+         transformed.y += liquidWave * ${lake ? "0.006" : "0.01"};`,
       );
     shader.fragmentShader = shader.fragmentShader
       .replace(
@@ -162,7 +172,7 @@ export function createLiquidMaterial(kind: LiquidKind): THREE.MeshStandardMateri
          diffuseColor.rgb *= 0.91 + liquidRipple * ${lake ? "0.035" : "0.075"};`,
       );
   };
-  material.customProgramCacheKey = () => `connected-liquid-wave-${kind}-v2`;
+  material.customProgramCacheKey = () => `connected-liquid-wave-${kind}-v3`;
   return material;
 }
 
@@ -244,12 +254,12 @@ function createBoundaryRim(
     const center = gridToWorld(dungeon, edge.cell, tileSize);
     position.set(
       center.x + edge.dx * tileSize * 0.49,
-      kind === "lake" ? 0.075 : 0.025,
+      LIQUID_RIM_Y,
       center.z + edge.dy * tileSize * 0.49,
     );
     scale.set(
       edge.dx === 0 ? tileSize * 0.98 : 0.16,
-      kind === "lake" ? 0.13 : 0.2,
+      LIQUID_RIM_HEIGHT,
       edge.dy === 0 ? tileSize * 0.98 : 0.16,
     );
     rim.setMatrixAt(index, matrix.compose(position, rotation, scale));
@@ -294,7 +304,7 @@ export function createLiquidSectionKit(
     for (const [index, section] of sections.entries()) {
       const mesh = new THREE.Mesh(createSectionGeometry(dungeon, section, tileSize), material);
       mesh.name = `${kind === "lake" ? "Frozen lake" : "Dark water"} section ${index + 1}`;
-      mesh.position.y = kind === "lake" ? 0.135 : 0.075;
+      mesh.position.y = LIQUID_SURFACE_Y;
       mesh.renderOrder = 2;
       root.add(mesh);
       surfaces.push({ kind, mesh, material });
