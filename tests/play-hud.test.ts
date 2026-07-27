@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 
 describe("Play HUD structure (Ash Binding)", () => {
-  test("hosts health orb, empty stone sockets, intro objective, and map head", async () => {
+  test("keeps health left and groups timer with stone progress", async () => {
     const host = await Bun.file(new URL("../index.html", import.meta.url)).text();
     expect(host).toContain('id="play-objective"');
     expect(host).toContain('class="health-orb"');
@@ -12,19 +12,34 @@ describe("Play HUD structure (Ash Binding)", () => {
     expect(host).toContain("health-orb__specular");
     expect(host).toContain("health-orb__splatter");
     expect(host).toContain('class="stone-sockets"');
+    expect(host).toContain('class="play-progress"');
+    expect(host).toContain('id="run-timer"');
+    expect(host).toContain('id="hazard-status"');
+    expect(host).toContain('datetime="PT0S"');
     expect(host).toContain("stone-socket__empty");
     expect(host).toContain("stone-socket__gem");
     expect(host).toContain('data-stone="ember"');
     expect(host).toContain('data-stone="ash"');
     expect(host).toContain('data-stone="crypt"');
     expect(host).toContain('data-stone="verdant"');
-    expect(host).toContain('class="map-head"');
+    expect(host).not.toContain('class="map-head"');
     expect(host).toContain('id="map-toggle"');
+    expect(host).toContain('aria-label="Expand map"');
     expect(host).not.toContain('id="pointer-lock"');
     expect(host).toContain("RUN AUTHORITY");
     expect(host).not.toContain('class="resolve-track"');
     expect(host).not.toContain("map-toggle-sr");
     expect(host).not.toContain("Kredit");
+  });
+
+  test("exposes named difficulty instead of raw enemy density", async () => {
+    const host = await Bun.file(new URL("../index.html", import.meta.url)).text();
+    const source = await Bun.file(new URL("../src/main.ts", import.meta.url)).text();
+    expect(host).toContain("<span>DIFFICULTY</span>");
+    expect(host).toContain('aria-valuetext="Standard"');
+    expect(host).toContain(">STANDARD</output>");
+    expect(source).toContain("syncDifficultyLabel()");
+    expect(source).toContain("difficulty: { ...world.getDifficultyState() }");
   });
 
   test("copy exposes intro objective and map toggle labels", async () => {
@@ -73,6 +88,10 @@ describe("Play HUD structure (Ash Binding)", () => {
     expect(css).toContain(".health-orb__splatter");
     expect(css).toContain("damage-red-wash");
     expect(css).toContain(".stone-socket.is-bound .stone-socket__gem");
+    expect(css).toContain(".play-progress");
+    expect(css).toContain(".run-timer");
+    expect(css).toContain(".map-toggle");
+    expect(css).toContain(".hazard-status");
     expect(css).toContain(".play-objective.is-visible");
     expect(css).toContain(".play-objective.is-fading");
     expect(css).toMatch(/\.reticle\s*\{[^}]*opacity:\s*0\.28/s);

@@ -13,7 +13,7 @@ import {
   enemyAnimationsForMood,
   type EnemyAnimationDefinition,
 } from "./EnemySpriteAtlas";
-import { selectEnemyKindsForSpawns } from "./EnemySpawnPlan";
+import { buildDistributedEnemySpawns, selectEnemyKindsForSpawns } from "./EnemySpawnPlan";
 import { createVolumetricBeam, tickVolumetricBeamTime } from "./VolumetricBeam";
 import { createFloorCampfire } from "./FloorCampfireFactory";
 import { createWallLantern, createWallTorch } from "./WallTorchFactory";
@@ -59,8 +59,18 @@ import {
 } from "./EnemyBillboardMaterial";
 import type { DungeonMood } from "../systems/DungeonMood";
 import { getDungeonMood } from "../systems/DungeonMood";
+import {
+  DEFAULT_DIFFICULTY,
+  isEnemyKindUnlocked,
+  resolveDifficultySnapshot,
+  type DifficultySnapshot,
+} from "../game/DifficultyDirector";
 import { FIRE_LIGHT_TUNING, MAX_DYNAMIC_FIRE_LIGHTS } from "../systems/LightTuning";
 import { hasGridLineOfSight } from "./LightOcclusion";
+import {
+  HazardTileSystem,
+  type HazardSurfaceEffect,
+} from "./HazardTileSystem";
 import {
   collectRoomInteriorSeats,
   collectRoomWallSeats,
@@ -221,6 +231,8 @@ interface EnemyActor {
   roll: number;
   phaseEpoch: number;
   phaseVisibility: number;
+  /** Smooth reveal used when the difficulty director adds a threat. */
+  spawnReveal: number;
   moving: boolean;
   visibilityAttribute: THREE.InstancedBufferAttribute;
   /** Threat tier 0-3; drives minimap marker size. */
@@ -316,6 +328,7 @@ export interface WorldUpdate {
     position: { x: number; y: number; z: number };
     voice: CreatureVoice;
   } | null;
+  surfaceEffect: HazardSurfaceEffect;
   doorSound: {
     kind: "open" | "close";
     position: { x: number; y: number; z: number };
@@ -688,6 +701,9 @@ export class DungeonWorld {
     wallTiles: 0,
     ceilingTiles: 0,
     enemies: 0,
+    reserveEnemies: 0,
+    difficultyLevel: 1,
+    hazardTiles: 0,
     pickups: 0,
     beams: 0,
     lights: 0,
@@ -720,6 +736,7 @@ export class DungeonWorld {
     },
   });
   private readonly enemies: EnemyActor[] = [];
+  private readonly enemyReserve: EnemyActor[] = [];
   private readonly enemyBatches = new Set<THREE.InstancedMesh>();
   private readonly enemyShadowBatches = new Set<THREE.InstancedMesh>();
   private readonly enemyVisibilityAttributes = new Set<THREE.InstancedBufferAttribute>();
@@ -735,6 +752,7 @@ export class DungeonWorld {
   private readonly solidCells = new Map<string, GridCell>();
   private readonly solidColliders: WorldCollider[] = [];
   private readonly objectiveClearanceCells = new Set<string>();
+  private readonly hazardCells = new Set<string>();
   private readonly staticContactShadowPlacements: Array<{
     x: number;
     z: number;
@@ -750,6 +768,7 @@ export class DungeonWorld {
   private portalLight: THREE.PointLight | null = null;
   private readonly stoneBeams: THREE.Mesh[] = [];
   private liquidKit: LiquidSectionKit | null = null;
+  private hazardTiles: HazardTileSystem | null = null;
   private readonly audioFrame: DungeonAudioFrame = {
     fires: [],
     magicStones: [],
@@ -759,10 +778,20 @@ export class DungeonWorld {
   private lockedExitCooldown = 0;
   private elapsed = 0;
   private enemyAnimationElapsed = 0;
+  private difficultyElapsed = 0;
+  private difficultySecond = -1;
+  private enemyActivationRandom = createSeededRandom("difficulty-activation");
   private readonly stoneTextures = new Map<StoneId, THREE.Texture>();
   private activeMood: DungeonMood = getDungeonMood("ash");
   private decorDensity = 0.6;
-  private enemyDensity = 0.5;
+  private difficulty = DEFAULT_DIFFICULTY;
+  private difficultyState: DifficultySnapshot = resolveDifficultySnapshot(
+    DEFAULT_DIFFICULTY,
+    0,
+    1,
+    0,
+    0,
+  );
   private readonly tempPosition = new THREE.Vector3();
   private readonly tempScale = new THREE.Vector3();
   private readonly tempQuaternion = new THREE.Quaternion();
@@ -790,6 +819,8 @@ export class DungeonWorld {
     this.lockedExitCooldown = 0;
     this.elapsed = 0;
     this.enemyAnimationElapsed = 0;
+    this.difficultyElapsed = 0;
+    this.difficultySecond = -1;
     this.ensureStoneTextures();
     const biomeSurfaces = this.assets.getBiomeSurfaces(mood.id);
     applyBiomeMaps(this.surfaceMaterials, biomeSurfaces, mood.id);
@@ -816,6 +847,22 @@ export class DungeonWorld {
     }
     const wallCells = collectBoundaryWalls(dungeon);
     this.addArchitecture(dungeon, floorCells, wallCells);
+    const hazardExclusions = new Set([
+      ...this.objectiveClearanceCells,
+      ...this.solidCells.keys(),
+      `${dungeon.spawn.x},${dungeon.spawn.y}`,
+      `${dungeon.exit.x},${dungeon.exit.y}`,
+    ]);
+    this.hazardTiles = new HazardTileSystem(dungeon, mood, this.tileSize, hazardExclusions);
+    this.hazardTiles.placements.forEach((placement) => {
+      const key = `${placement.cell.x},${placement.cell.y}`;
+      this.hazardCells.add(key);
+      // Dressing systems already honor this clearance set. Reserving the tile
+      // here keeps props and bones off the generated hazard art.
+      this.objectiveClearanceCells.add(key);
+    });
+    this.group.add(this.hazardTiles.root);
+    this.stats.hazardTiles = this.hazardTiles.placements.length;
     if (!dungeon.forge) this.addCaveProps(dungeon);
     this.addDoorsAndRoomProps(dungeon);
     this.commitStaticContactShadows();
@@ -840,7 +887,78 @@ export class DungeonWorld {
     this.decorDensity = THREE.MathUtils.clamp(value, 0, 1);
   }
   setEnemyDensity(value: number): void {
-    this.enemyDensity = THREE.MathUtils.clamp(value, 0, 1);
+    this.difficulty = THREE.MathUtils.clamp(value, 0, 1);
+    this.refreshDifficultyState();
+  }
+
+  getDifficultyState(): Readonly<DifficultySnapshot> {
+    return this.difficultyState;
+  }
+
+  private refreshDifficultyState(): void {
+    this.difficultyState = resolveDifficultySnapshot(
+      this.difficulty,
+      this.difficultyElapsed,
+      this.dungeon?.stats.roomCount ?? 1,
+      this.enemies.length,
+      this.enemyReserve.length,
+    );
+    this.stats.enemies = this.enemies.length;
+    this.stats.reserveEnemies = this.enemyReserve.length;
+    this.stats.difficultyLevel = this.difficultyState.pressureLevel;
+  }
+
+  private updateDifficulty(player: { x: number; z: number }): void {
+    const second = Math.floor(this.difficultyElapsed);
+    if (second === this.difficultySecond) return;
+    this.difficultySecond = second;
+    this.refreshDifficultyState();
+    this.activateEnemiesToTarget(player, false);
+  }
+
+  private activateEnemiesToTarget(player: { x: number; z: number }, immediate: boolean): void {
+    if (!this.dungeon) return;
+    this.refreshDifficultyState();
+    const target = this.difficultyState.targetEnemies;
+    const activatedThisPulse: THREE.Vector3[] = [];
+    while (this.enemies.length < target) {
+      const candidates: number[] = [];
+      for (let index = 0; index < this.enemyReserve.length; index += 1) {
+        const enemy = this.enemyReserve[index]!;
+        if (
+          !isEnemyKindUnlocked(
+            enemy.kind,
+            this.difficultyElapsed,
+            this.difficultyState,
+          )
+        )
+          continue;
+        const distance = Math.hypot(enemy.position.x - player.x, enemy.position.z - player.z);
+        if (distance < this.difficultyState.safeSpawnDistance) continue;
+        if (
+          !immediate &&
+          hasGridLineOfSight(this.dungeon, player, enemy.position, this.tileSize)
+        )
+          continue;
+        candidates.push(index);
+      }
+      if (candidates.length === 0) break;
+      const spreadCandidates = candidates.filter((index) => {
+        const enemy = this.enemyReserve[index]!;
+        return activatedThisPulse.every(
+          (active) => Math.hypot(enemy.position.x - active.x, enemy.position.z - active.z) >= 8,
+        );
+      });
+      const pool = spreadCandidates.length > 0 ? spreadCandidates : candidates;
+      const selectedIndex = pool[this.enemyActivationRandom.integer(0, pool.length - 1)]!;
+      const [enemy] = this.enemyReserve.splice(selectedIndex, 1);
+      if (!enemy) break;
+      enemy.spawnReveal = immediate ? 1 : 0;
+      enemy.hitCooldown = Math.max(enemy.hitCooldown, this.difficultyState.revealSeconds);
+      this.enemies.push(enemy);
+      activatedThisPulse.push(enemy.position);
+    }
+    this.refreshDifficultyState();
   }
 
   private isObjectiveClearanceCell(cell: GridCell): boolean {
@@ -855,6 +973,8 @@ export class DungeonWorld {
   ): WorldUpdate {
     this.lockedExitCooldown = Math.max(0, this.lockedExitCooldown - delta);
     this.enemyAnimationElapsed += Math.max(0, delta);
+    this.difficultyElapsed += Math.max(0, delta);
+    this.updateDifficulty(player);
     let resolveGain = 0;
     let collectedStoneId: StoneId | null = null;
     let collectedPickup: WorldUpdate["collectedPickup"] = null;
@@ -871,7 +991,14 @@ export class DungeonWorld {
       solidColliders: this.solidColliders,
       tileSize: this.tileSize,
     });
-    const damage = sim.damage;
+    const surfaceEffect = this.hazardTiles?.sample(delta, player) ?? {
+      kind: null,
+      label: "",
+      damage: 0,
+      movementScale: 1,
+      traction: 1,
+    };
+    const damage = sim.damage + surfaceEffect.damage;
     const nearestThreat = sim.nearestThreat;
     const knockX = sim.knockX;
     const knockZ = sim.knockZ;
@@ -889,12 +1016,17 @@ export class DungeonWorld {
     this.updateEnemyAnimationFrames();
 
     for (const enemy of this.enemies) {
+      enemy.spawnReveal = Math.min(
+        1,
+        enemy.spawnReveal + delta / Math.max(0.1, this.difficultyState.revealSeconds),
+      );
       const archetype = ENEMY_ARCHETYPES[enemy.kind];
       const yaw = Math.atan2(player.x - enemy.position.x, player.z - enemy.position.z);
       this.tempEuler.set(0, yaw, enemy.roll);
       this.tempQuaternion.setFromEuler(this.tempEuler);
       this.tempScale.set(enemy.scaleX, enemy.scaleY, 1);
-      enemy.visibilityAttribute.setX(enemy.instanceIndex, enemy.phaseVisibility);
+      const visible = enemy.phaseVisibility * enemy.spawnReveal;
+      enemy.visibilityAttribute.setX(enemy.instanceIndex, visible);
       enemy.batch.setMatrixAt(
         enemy.instanceIndex,
         this.tempMatrix.compose(enemy.position, this.tempQuaternion, this.tempScale),
@@ -904,8 +1036,8 @@ export class DungeonWorld {
       const lowBody = isLowProfileEnemy(enemy.kind);
       const contactWidth = archetype.width * (lowBody ? 0.78 : 0.56);
       this.tempScale.set(
-        contactWidth * enemy.phaseVisibility,
-        contactWidth * (lowBody ? 0.62 : 0.4) * enemy.phaseVisibility,
+        contactWidth * visible,
+        contactWidth * (lowBody ? 0.62 : 0.4) * visible,
         1,
       );
       enemy.shadowBatch.setMatrixAt(
@@ -1077,6 +1209,7 @@ export class DungeonWorld {
       resolveGain,
       damage,
       damageSource,
+      surfaceEffect,
       doorSound,
       chestSound,
       interactionPrompt,
@@ -1169,6 +1302,7 @@ export class DungeonWorld {
 
   updateEffects(delta: number, viewerPosition?: THREE.Vector3Like): void {
     this.elapsed += delta;
+    this.hazardTiles?.update(delta);
     const losInterval = 0.12; // ~8 Hz LOS refresh — enough for occlusion feel, cheap on large forge maps
     for (const effect of this.fireEffects) {
       const distance = viewerPosition
@@ -3478,26 +3612,30 @@ export class DungeonWorld {
 
     const random = createSeededRandom(`${dungeon.seed}:actors`);
     const stoneRoomSet = new Set(stoneRooms);
-    const enemyRooms = rankedRooms
-      .filter((room) => !stoneRoomSet.has(room))
-      .filter((_, index) => index % 2 === 1)
-      .slice(0, 7);
+    const enemyRooms = rankedRooms.filter((room) => !stoneRoomSet.has(room));
     const kinds: readonly EnemyKind[] = ENEMY_ROSTER;
 
-    const rawSpawns = dungeon.forge?.spawns.length
+    const authoredSpawns = dungeon.forge?.spawns.length
       ? dungeon.forge.spawns
           .filter((spawn) => !this.isObjectiveClearanceCell(spawn))
           .map((spawn) => ({
             cell: { x: spawn.x, y: spawn.y },
             tier: spawn.tier,
           }))
-      : enemyRooms.map((room, tier) => ({ cell: room.center, tier: tier % 4 }));
-    // Forge maps: enemyDensity 1.0 keeps authored spawn list; runtime uses host slider.
-    const densityScale = dungeon.forge
-      ? Math.max(this.enemyDensity, 0.99)
-      : 0.35 + this.enemyDensity * 0.9;
-    const maxActors = Math.max(0, Math.round(rawSpawns.length * densityScale));
-    const spawnRecords = rawSpawns.slice(0, Math.max(this.enemyDensity <= 0 ? 0 : 1, maxActors));
+      : [];
+    // Use several shuffled passes over every room. This gives large maps enough
+    // reserve for growing batches and keeps new actors spread across the floor.
+    const maxPool = Math.min(96, Math.max(18, Math.round(dungeon.stats.roomCount * 2.2)));
+    const excludedSpawnCells = new Set([...this.objectiveClearanceCells, ...this.hazardCells]);
+    authoredSpawns.forEach((spawn) => excludedSpawnCells.add(`${spawn.cell.x},${spawn.cell.y}`));
+    const distributedSpawns = buildDistributedEnemySpawns(
+      dungeon.seed,
+      enemyRooms,
+      Math.max(0, maxPool - authoredSpawns.length),
+      excludedSpawnCells,
+    );
+    const spawnRecords = [...authoredSpawns, ...distributedSpawns].slice(0, maxPool);
+    this.enemyActivationRandom = createSeededRandom(`${dungeon.seed}:difficulty-activation`);
     const selectedKinds = selectEnemyKindsForSpawns(
       dungeon.seed,
       spawnRecords.map((spawn) => spawn.tier),
@@ -3540,7 +3678,6 @@ export class DungeonWorld {
     for (const kind of kinds) {
       const specs = actorSpecs.filter((spec) => spec.kind === kind);
       if (specs.length === 0) continue;
-      const kindArchetype = ENEMY_ARCHETYPES[kind];
       const animation = moodAnimations[kind];
       const texture = this.assets.enemyAnimation(animation);
       const material = createEnemyBillboardMaterial(texture);
@@ -3554,7 +3691,7 @@ export class DungeonWorld {
       });
       const billboardGeometry = new THREE.PlaneGeometry(1, 1);
       const visibilityAttribute = new THREE.InstancedBufferAttribute(
-        new Float32Array(specs.length).fill(1),
+        new Float32Array(specs.length),
         1,
       );
       billboardGeometry.setAttribute("aEnemyVisibility", visibilityAttribute);
@@ -3582,11 +3719,12 @@ export class DungeonWorld {
           roll: 0,
           phaseEpoch: -1,
           phaseVisibility: 1,
+          spawnReveal: 0,
           moving: false,
           visibilityAttribute,
           tier: spec.tier,
         };
-        this.enemies.push(actor);
+        this.enemyReserve.push(actor);
         batch.setMatrixAt(
           instanceIndex,
           new THREE.Matrix4().compose(
@@ -3595,14 +3733,12 @@ export class DungeonWorld {
             new THREE.Vector3(actor.scaleX, actor.scaleY, 1),
           ),
         );
-        const lowBody = isLowProfileEnemy(kind);
-        const contactWidth = kindArchetype.width * (lowBody ? 0.78 : 0.56);
         sharedShadowBatch.setMatrixAt(
           spec.shadowInstanceIndex,
           new THREE.Matrix4().compose(
             new THREE.Vector3(actor.position.x, 0.024, actor.position.z),
             new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), -Math.PI / 2),
-            new THREE.Vector3(contactWidth, contactWidth * (lowBody ? 0.62 : 0.4), 1),
+            new THREE.Vector3(0, 0, 1),
           ),
         );
       });
@@ -3627,6 +3763,9 @@ export class DungeonWorld {
       this.enemyShadowBatches.add(sharedShadowBatch);
       this.group.add(sharedShadowBatch);
     }
+
+    const entrance = gridToWorld(dungeon, dungeon.spawn, this.tileSize);
+    this.activateEnemiesToTarget(entrance, true);
 
     if (!dungeon.forge) {
       rankedRooms
@@ -3656,12 +3795,15 @@ export class DungeonWorld {
 
   private clear(): void {
     this.enemies.length = 0;
+    this.enemyReserve.length = 0;
     this.enemyBatches.clear();
     this.enemyShadowBatches.clear();
     this.enemyVisibilityAttributes.clear();
     this.enemyAnimationBatches.clear();
     this.movingEnemyKinds.clear();
     this.enemyAnimationElapsed = 0;
+    this.difficultyElapsed = 0;
+    this.difficultySecond = -1;
     this.doors.length = 0;
     this.pickups.length = 0;
     this.chests.length = 0;
@@ -3671,6 +3813,7 @@ export class DungeonWorld {
     this.solidCells.clear();
     this.solidColliders.length = 0;
     this.objectiveClearanceCells.clear();
+    this.hazardCells.clear();
     this.staticContactShadowPlacements.length = 0;
     this.portalRoot = null;
     this.portalBeam = null;
@@ -3681,11 +3824,20 @@ export class DungeonWorld {
       disposeLiquidSectionKit(this.liquidKit);
       this.liquidKit = null;
     }
+    if (this.hazardTiles) {
+      this.group.remove(this.hazardTiles.root);
+      this.hazardTiles.dispose();
+      this.hazardTiles = null;
+    }
     this.collectedStones.clear();
     this.portalOpen = false;
     this.stats.beams = 0;
     this.stats.lights = 0;
     this.stats.props = 0;
+    this.stats.enemies = 0;
+    this.stats.reserveEnemies = 0;
+    this.stats.difficultyLevel = 1;
+    this.stats.hazardTiles = 0;
     while (this.group.children.length > 0) {
       const child = this.group.children[0] as THREE.Object3D;
       this.group.remove(child);

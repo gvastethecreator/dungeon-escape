@@ -310,8 +310,7 @@ kbd {
   text-shadow: 0 1px 0 #000;
 }
 
-.play-hud .map-panel,
-.play-hud .map-head button {
+.play-hud .map-panel {
   pointer-events: auto;
 }
 
@@ -374,7 +373,7 @@ kbd {
   color: #ded8c8;
 }
 
-/* Vitals: health orb + stone slots, bottom-left */
+/* Health stays isolated at the lower-left so run progress can scan from the right. */
 .play-vitals {
   position: absolute;
   left: var(--safe-l);
@@ -388,6 +387,36 @@ kbd {
   border: 0;
   background: transparent;
   box-shadow: none;
+}
+
+.play-progress {
+  position: absolute;
+  right: var(--safe-r);
+  bottom: var(--safe-b);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 7px;
+  width: auto;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+.run-timer {
+  display: block;
+  min-width: 6ch;
+  padding: 4px 7px 3px;
+  border-right: 2px solid rgb(201 197 184 / 32%);
+  background: linear-gradient(90deg, transparent, rgb(5 6 7 / 76%) 26%);
+  color: var(--bone);
+  font-family: var(--font-pixel);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.1em;
+  line-height: 1;
+  text-align: right;
+  text-shadow: 0 1px 4px rgb(0 0 0 / 92%);
 }
 
 /* Health orb — iron-mounted glass phial with blood-red liquid */
@@ -903,7 +932,7 @@ kbd {
   border-radius: 8px;
 }
 
-/* Map: head + canvas, visible toggle */
+/* Compact map with one keyboard hint at its top-right edge. */
 .map-panel {
   position: absolute;
   right: var(--safe-r);
@@ -915,41 +944,31 @@ kbd {
   box-shadow: var(--hud-shadow);
 }
 
-.map-head {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  min-height: 30px;
-  padding: 0 4px 0 8px;
-  border-bottom: var(--rule);
-  color: var(--ash);
-  font-family: var(--font-pixel);
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-}
-
-.map-head kbd {
-  margin-left: auto;
-  min-height: 0;
-  font-size: 8px;
-}
-
-.map-head button {
-  min-width: 44px;
+.map-toggle {
+  position: absolute;
+  z-index: 2;
+  top: 0;
+  right: 0;
+  display: grid;
+  place-items: center;
+  width: 30px;
+  min-width: 30px;
+  height: 26px;
   min-height: 26px;
-  padding: 0 6px;
+  padding: 0;
   border: 0;
   border-left: var(--rule);
-  background: transparent;
+  border-bottom: var(--rule);
+  background: rgb(7 8 9 / 84%);
   color: var(--bone-dim);
+  font-family: var(--font-pixel);
   font-size: 10px;
   font-weight: 600;
-  letter-spacing: 0.08em;
+  line-height: 1;
 }
 
-.map-head button:hover {
+.map-toggle:hover,
+.map-toggle:focus-visible {
   background: rgb(201 197 184 / 10%);
   color: var(--bone);
 }
@@ -1034,6 +1053,43 @@ kbd {
   width: 5px;
   height: 1px;
   transform: translateY(-50%);
+}
+
+.hazard-status {
+  position: absolute;
+  z-index: 7;
+  left: 50%;
+  bottom: max(112px, calc(var(--safe-b) + 82px));
+  min-width: 12ch;
+  margin: 0;
+  padding: 5px 9px 4px;
+  border-bottom: 1px solid currentcolor;
+  background: linear-gradient(90deg, transparent, rgb(5 6 7 / 82%) 22% 78%, transparent);
+  color: #d6cab7;
+  font-family: var(--font-pixel);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-align: center;
+  text-shadow: 0 1px 4px #000;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+.hazard-status[data-hazard="fire"] {
+  color: #ff8a52;
+}
+.hazard-status[data-hazard="ice"] {
+  color: #9edfff;
+}
+.hazard-status[data-hazard="toxin"] {
+  color: #91d987;
+}
+.hazard-status[data-hazard="spikes"] {
+  color: #d3c9b8;
+}
+
+.hazard-status[hidden] {
+  display: none;
 }
 
 .interaction-prompt {
@@ -2438,6 +2494,11 @@ kbd {
     left: max(8px, env(safe-area-inset-left));
   }
 
+  .play-progress {
+    right: max(8px, env(safe-area-inset-right));
+    bottom: max(112px, calc(env(safe-area-inset-bottom) + 106px));
+  }
+
   .health-orb {
     --orb-size: 74px;
   }
@@ -2448,6 +2509,10 @@ kbd {
     grid-template-columns: repeat(4, 34px);
     gap: 6px;
   }
+
+  .run-timer {
+    font-size: 12px;
+  }
   .stone-socket {
     width: 34px;
     height: 34px;
@@ -2457,6 +2522,13 @@ kbd {
     top: max(10px, env(safe-area-inset-top));
     right: max(8px, env(safe-area-inset-right));
     width: 128px;
+  }
+
+  .map-toggle {
+    width: 34px;
+    min-width: 34px;
+    height: 30px;
+    min-height: 30px;
   }
 
   #minimap {
@@ -2593,10 +2665,15 @@ kbd {
   }
   .stone-sockets {
     grid-template-columns: repeat(4, 30px);
+    gap: 4px;
   }
   .stone-socket {
     width: 30px;
     height: 30px;
+  }
+
+  .play-progress {
+    right: max(6px, env(safe-area-inset-right));
   }
 }
 
