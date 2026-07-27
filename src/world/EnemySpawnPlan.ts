@@ -88,10 +88,12 @@ export function buildDistributedEnemySpawns(
       const key = `${cell.x},${cell.y}`;
       used.add(key);
       const rank = rankById.get(room.id) ?? 0;
-      // The first two seats in every room form the opening quota and use basic
-      // threats. Later passes can draw from stronger danger bands.
+      // Opening seats stay basic. Every two later passes bumps the danger band
+      // so reinforcements get stronger every couple of room pulses.
       const distanceTier = Math.floor((rank / Math.max(1, rooms.length)) * 5);
-      const tier = passIndex < 2 ? 0 : Math.min(4, Math.max(1, distanceTier));
+      const passTier = Math.min(4, Math.floor(passIndex / 2));
+      const tier =
+        passIndex < 2 ? 0 : Math.min(4, Math.max(1, Math.max(passTier, distanceTier)));
       result.push({ cell, tier, roomId: room.id, pass: passIndex });
       placedThisPass += 1;
       if (result.length >= count) break;
