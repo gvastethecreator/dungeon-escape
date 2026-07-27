@@ -203,16 +203,33 @@ export function createResolveFlask(materials: DungeonMaterials): THREE.Group {
   return root;
 }
 
-export function setPickupOpacity(object: THREE.Object3D, opacity: number): void {
+/**
+ * Locks the pickup into its fade-capable shader variant before renderer warmup.
+ * Runtime opacity changes can then reuse the compiled program.
+ */
+export function preparePickupOpacity(object: THREE.Object3D): void {
   object.traverse((child) => {
     if (!(child instanceof THREE.Mesh)) return;
     const materials = Array.isArray(child.material) ? child.material : [child.material];
     for (const material of materials) {
       if (material.userData.baseOpacity === undefined)
         material.userData.baseOpacity = material.opacity;
-      material.transparent = true;
+      if (!material.transparent) {
+        material.transparent = true;
+        material.needsUpdate = true;
+      }
+    }
+  });
+  object.userData.pickupOpacityPrepared = true;
+}
+
+export function setPickupOpacity(object: THREE.Object3D, opacity: number): void {
+  if (object.userData.pickupOpacityPrepared !== true) preparePickupOpacity(object);
+  object.traverse((child) => {
+    if (!(child instanceof THREE.Mesh)) return;
+    const materials = Array.isArray(child.material) ? child.material : [child.material];
+    for (const material of materials) {
       material.opacity = Math.min(material.userData.baseOpacity as number, opacity);
-      material.needsUpdate = true;
     }
   });
 }
