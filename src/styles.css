@@ -115,7 +115,6 @@ kbd {
 .end-card h1,
 .end-card small,
 .editor-readout strong,
-.domain-panel__head strong,
 .pickup-feedback strong,
 .forge-play-btn__label {
   font-family: var(--font-gothic);
@@ -1775,21 +1774,20 @@ kbd {
   color: #9eb7aa;
 }
 
-/* Large PLAY CTA — fixed visible zone over the editor workspace */
+/* Large PLAY CTA — bottom-right over the editor workspace */
 .forge-play-btn,
 #forge-apply.forge-play-btn {
   position: absolute;
   z-index: 8;
-  right: 16px;
-  bottom: 16px;
+  right: 20px;
+  bottom: 20px;
+  top: auto;
   display: flex;
-  flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 2px;
-  min-width: 168px;
-  min-height: 88px;
-  padding: 14px 28px 16px;
+  min-width: 188px;
+  min-height: 92px;
+  padding: 16px 32px 18px;
   border: var(--edge-strong);
   background: linear-gradient(180deg, rgb(196 90 50 / 92%) 0%, rgb(120 40 24 / 96%) 100%);
   color: #f2ebe0;
@@ -1806,18 +1804,9 @@ kbd {
   pointer-events: auto;
 }
 
-.forge-play-btn__kicker {
-  display: block;
-  color: rgb(242 235 224 / 72%);
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.18em;
-  line-height: 1;
-}
-
 .forge-play-btn__label {
   display: block;
-  font-size: 42px;
+  font-size: 48px;
   letter-spacing: 0.08em;
   line-height: 1;
 }
@@ -1849,10 +1838,6 @@ kbd {
   box-shadow:
     0 0 0 2px rgb(0 0 0 / 50%),
     4px 4px 0 rgb(0 0 0 / 40%);
-}
-
-#forge-apply.forge-play-btn:disabled .forge-play-btn__kicker {
-  color: var(--ash);
 }
 
 #forge-apply.forge-play-btn:focus-visible {
@@ -1978,95 +1963,6 @@ kbd {
   font-variant-numeric: tabular-nums;
 }
 
-/* Domain panel (editor/debug) */
-.domain-panel {
-  position: fixed;
-  left: var(--safe-l);
-  bottom: var(--safe-b);
-  z-index: 12;
-  width: min(280px, calc(100vw - 24px));
-  padding: 0.55rem 0.65rem;
-  border: var(--edge);
-  background: rgb(7 8 9 / 90%);
-  color: var(--bone);
-  pointer-events: none;
-}
-
-.domain-panel__head {
-  display: flex;
-  align-items: baseline;
-  gap: 0.4rem;
-  margin-bottom: 0.25rem;
-}
-
-.domain-panel__head small {
-  color: var(--ash);
-  font-family: var(--font-pixel);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-.domain-panel__head strong {
-  font-size: 1.15rem;
-  line-height: 1;
-}
-
-.domain-panel__badge {
-  margin-left: auto;
-  font-family: var(--font-pixel);
-  font-size: 0.72rem;
-  letter-spacing: 0.06em;
-  color: var(--ash);
-}
-
-.domain-panel__badge.is-online {
-  color: #c9c5b8;
-}
-
-.domain-panel__summary {
-  margin: 0 0 0.35rem;
-  font-family: var(--font-pixel);
-  font-size: 0.82rem;
-  color: var(--ash);
-}
-
-.domain-panel__grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0.25rem 0.5rem;
-  margin: 0;
-}
-
-.domain-panel__grid div {
-  display: grid;
-  gap: 0.05rem;
-}
-
-.domain-panel__grid dt {
-  margin: 0;
-  font-family: var(--font-pixel);
-  font-size: 0.72rem;
-  letter-spacing: 0.06em;
-  color: var(--ash);
-  text-transform: uppercase;
-}
-
-.domain-panel__grid dd {
-  margin: 0;
-  font-family: var(--font-pixel);
-  font-size: 0.85rem;
-  color: var(--bone);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.domain-panel__error {
-  margin: 0.35rem 0 0;
-  font-size: 0.7rem;
-  color: var(--danger);
-}
-
 /* Mode shells */
 .app-shell[data-engine-mode="editor"] .play-hud,
 .app-shell[data-engine-mode="editor"] .reticle,
@@ -2115,9 +2011,6 @@ kbd {
 
 .app-shell[data-engine-mode="play"] .options-menu[hidden] {
   display: none !important;
-}
-.app-shell[data-engine-mode="play"] .domain-panel {
-  display: none;
 }
 
 .app-shell[data-engine-mode="play"].options-open .touch-controls,
@@ -2451,18 +2344,17 @@ kbd {
     left: 8px;
   }
 
-  /* Keep PLAY clear of the bottom options sheet */
   #forge-apply.forge-play-btn {
     right: 12px;
-    bottom: auto;
-    top: 56px;
-    min-width: 132px;
-    min-height: 72px;
-    padding: 10px 20px 12px;
+    bottom: 12px;
+    top: auto;
+    min-width: 148px;
+    min-height: 76px;
+    padding: 12px 22px 14px;
   }
 
   #forge-apply.forge-play-btn .forge-play-btn__label {
-    font-size: 34px;
+    font-size: 36px;
   }
 
   .app-shell[data-engine-mode="editor"] .options-menu,
@@ -2906,7 +2798,7 @@ kbd {
 .editor-toolbar {
   min-height: 52px;
   gap: 10px;
-  padding: 6px 148px 6px 8px;
+  padding: 6px 8px;
   background: linear-gradient(90deg, rgb(201 197 184 / 3%), transparent 42%), rgb(5 6 6 / 96%);
 }
 
@@ -2977,18 +2869,17 @@ kbd {
 
 .forge-play-btn,
 #forge-apply.forge-play-btn {
-  top: 7px;
-  right: 8px;
-  bottom: auto;
-  flex-direction: row;
-  gap: 8px;
-  min-width: 128px;
-  min-height: 38px;
-  padding: 5px 12px 6px;
-  border: var(--edge);
+  right: 18px;
+  bottom: 18px;
+  top: auto;
+  min-width: 188px;
+  min-height: 92px;
+  padding: 16px 32px 18px;
+  border: var(--edge-strong);
   box-shadow:
-    0 0 0 1px rgb(0 0 0 / 65%),
-    3px 3px 0 rgb(0 0 0 / 48%);
+    0 0 0 2px rgb(0 0 0 / 70%),
+    6px 6px 0 rgb(0 0 0 / 55%),
+    0 0 28px rgb(196 90 50 / 35%);
   transition:
     background-color 150ms ease-out,
     color 150ms ease-out,
@@ -2996,57 +2887,24 @@ kbd {
     transform 120ms ease-out;
 }
 
-.forge-play-btn__kicker {
-  font-size: 9px;
-}
-
 .forge-play-btn__label {
-  font-size: 25px;
+  font-size: 48px;
 }
 
 #forge-apply.forge-play-btn:hover:not(:disabled) {
   box-shadow:
-    0 0 0 1px rgb(0 0 0 / 65%),
-    3px 3px 0 rgb(0 0 0 / 48%),
-    0 0 22px rgb(196 90 50 / 28%);
+    0 0 0 2px rgb(0 0 0 / 70%),
+    6px 6px 0 rgb(0 0 0 / 55%),
+    0 0 36px rgb(196 90 50 / 50%);
   transform: translateY(-1px);
 }
 
 #forge-apply.forge-play-btn:active:not(:disabled) {
-  transform: translate(1px, 1px);
+  transform: translate(2px, 2px);
   box-shadow:
-    0 0 0 1px rgb(0 0 0 / 65%),
-    1px 1px 0 rgb(0 0 0 / 48%);
-}
-
-.app-shell[data-engine-mode="editor"] .domain-panel,
-.app-shell[data-engine-mode="debug"] .domain-panel {
-  right: 22px;
-  bottom: 22px;
-  left: auto;
-  width: min(250px, calc(100vw - 44px));
-  padding: 7px 9px;
-  background: rgb(7 8 9 / 88%);
-  box-shadow: 3px 3px 0 rgb(0 0 0 / 44%);
-}
-
-.app-shell[data-engine-mode="editor"] .domain-panel__grid,
-.app-shell[data-engine-mode="debug"] .domain-panel__grid {
-  display: none;
-}
-
-.app-shell[data-engine-mode="editor"] .domain-panel__summary,
-.app-shell[data-engine-mode="debug"] .domain-panel__summary {
-  margin: 0;
-  overflow: hidden;
-  font-size: 11px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.app-shell[data-engine-mode="editor"]:has(.record-panel[open]) .domain-panel,
-.app-shell[data-engine-mode="debug"]:has(.record-panel[open]) .domain-panel {
-  display: none;
+    0 0 0 2px rgb(0 0 0 / 70%),
+    3px 3px 0 rgb(0 0 0 / 55%),
+    0 0 20px rgb(196 90 50 / 30%);
 }
 
 @keyframes editor-status-pulse {
@@ -3231,31 +3089,20 @@ kbd {
   }
 
   #forge-apply.forge-play-btn {
-    top: 6px;
-    right: 6px;
-    min-width: 104px;
-    min-height: 38px;
-    padding: 4px 8px;
+    right: 10px;
+    bottom: 10px;
+    top: auto;
+    min-width: 132px;
+    min-height: 68px;
+    padding: 10px 18px 12px;
   }
 
   #forge-apply.forge-play-btn .forge-play-btn__label {
-    font-size: 22px;
+    font-size: 32px;
   }
 
   .editor-surface {
     top: 76px;
-  }
-
-  .app-shell[data-engine-mode="editor"] .domain-panel,
-  .app-shell[data-engine-mode="debug"] .domain-panel {
-    right: 14px;
-    bottom: 14px;
-    width: min(220px, calc(100vw - 28px));
-  }
-
-  .app-shell[data-engine-mode="editor"]:has(#editor-workspace[data-editor-surface="forge"])
-    .domain-panel {
-    display: none;
   }
 }
 

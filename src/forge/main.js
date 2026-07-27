@@ -26,7 +26,7 @@ import {
 } from "./layoutTuning";
 import { getEnemySpriteRenderMetrics } from "../world/EnemyArchetypes";
 import { selectEnemyKindsForSpawns } from "../world/EnemySpawnPlan";
-import { ENEMY_ANIMATIONS } from "../world/EnemySpriteAtlas";
+import { enemyAnimationsForMood } from "../world/EnemySpriteAtlas";
 import { createMagicStone } from "../world/MagicStoneKit";
 import { auditAndRepairForgeSurface } from "./SurfaceGeometryAudit";
 import { resolveForgeRenderQuality } from "./ForgeRenderQuality";
@@ -2915,7 +2915,7 @@ function disposeLevel() {
 
 function applyThemeEnv(TH) {
   const profile = resolveEditorLightingProfile(
-    themeSel === "auto" ? resolveTheme(D?.seed ?? 0) : themeSel,
+    themeSel === "random" ? resolveTheme(D?.seed ?? 0) : themeSel,
   );
   scene.fog.color.set(TH.fog);
   curBg.set(TH.bg);
@@ -3403,20 +3403,22 @@ function buildScene(d) {
   const enemyRoot = new THREE.Group();
   enemyRoot.name = "Production enemy preview";
   const enemyMaterials = new Map();
-  const enemyPreviewTint = new THREE.Color(TH.wall)
-    .lerp(new THREE.Color(TH.accent), 0.24)
-    .multiplyScalar(0.48);
+  // Soft theme wash — keep biome atlas hue readable (not a flat grey mask).
+  const enemyPreviewTint = new THREE.Color(0xf4f0e8)
+    .lerp(new THREE.Color(TH.accent), 0.12)
+    .lerp(new THREE.Color(TH.wall), 0.08);
   const selectedEnemyKinds = selectEnemyKindsForSpawns(
     `CREATION-${d.seed}`,
     d.spawns.map((spawn) => spawn.tier),
   );
+  const enemyMoodAnims = enemyAnimationsForMood(d.params.themeKey);
   const enemyMaterial = (kind) => {
     const cached = enemyMaterials.get(kind);
     if (cached) return cached;
-    const animation = ENEMY_ANIMATIONS[kind];
+    const animation = enemyMoodAnims[kind];
     const frame = animation.frames[0];
     const texture = new THREE.TextureLoader().load(animation.src);
-    texture.name = `Forge preview ${kind}`;
+    texture.name = `Forge biome enemy ${d.params.themeKey} ${kind}`;
     texture.colorSpace = THREE.SRGBColorSpace;
     texture.magFilter = THREE.NearestFilter;
     texture.minFilter = THREE.NearestFilter;
@@ -3429,14 +3431,14 @@ function buildScene(d) {
       map: texture,
       color: enemyPreviewTint,
       transparent: true,
-      opacity: 0.64,
-      alphaTest: 0.04,
+      opacity: 0.92,
+      alphaTest: 0.08,
       depthTest: true,
       depthWrite: false,
       fog: true,
       toneMapped: true,
     });
-    material.name = `Forge enemy silhouette ${kind}`;
+    material.name = `Forge enemy ${d.params.themeKey} ${kind}`;
     enemyMaterials.set(kind, material);
     fx.enemyMaterials.push(material);
     return material;
@@ -3991,7 +3993,7 @@ const el = {
 };
 
 /* -------- theme selection -------- */
-let themeSel = "auto";
+let themeSel = "random";
 function setThemeSel(t) {
   themeSel = t;
   document
@@ -3999,7 +4001,7 @@ function setThemeSel(t) {
     .forEach((ch) => ch.classList.toggle("on", ch.dataset.t === t));
 }
 function resolveTheme(seed) {
-  if (themeSel !== "auto") return themeSel;
+  if (themeSel !== "random") return themeSel;
   const hash = Math.imul(seed ^ 0x9e37, 2654435761) >>> 0;
   return hash % 23 === 0 ? "backrooms" : REGULAR_THEME_KEYS[hash % REGULAR_THEME_KEYS.length];
 }
@@ -4119,7 +4121,7 @@ function forge(animate) {
   publishDungeon(d);
   applyObjectVis();
   const TH = THEMES[themeKey];
-  el.vTheme.textContent = themeSel === "auto" ? "AUTO \u00b7 " + TH.label : TH.label;
+  el.vTheme.textContent = themeSel === "random" ? "RANDOM \u00b7 " + TH.label : TH.label;
   el.dname.textContent = d.name;
   const st = d.stats;
   document.documentElement.dataset.forgeStats = JSON.stringify(st);
@@ -4383,7 +4385,7 @@ addEventListener("keydown", (e) => {
     el.tHeat.checked = !el.tHeat.checked;
     applyHeat(el.tHeat.checked);
   } else if (e.code === "KeyT") {
-    const order = ["auto"].concat(THEME_KEYS);
+    const order = ["random"].concat(THEME_KEYS);
     setThemeSel(order[(order.indexOf(themeSel) + 1) % order.length]);
     forge(true);
   } else if (e.code === "KeyP") {

@@ -8,8 +8,13 @@ describe("Dungeon Creation interface", () => {
     expect(host).toContain('id="forge-apply"');
     expect(host).toContain("forge-play-btn");
     expect(host).toMatch(/forge-play-btn__label">\s*Play\s*</);
+    expect(host).not.toContain("forge-play-btn__kicker");
+    expect(host).not.toContain("READY");
     expect(creation).toContain("DUNGEON&nbsp;CREATION");
     expect(creation).toContain("FORGE&nbsp;DUNGEON");
+    expect(creation).toContain('data-t="random"');
+    expect(creation).toContain(">RANDOM<");
+    expect(creation).not.toContain('data-t="auto"');
     expect(`${host}\n${creation}`).not.toContain("CARGAR EN PLAY");
     expect(`${host}\n${creation}`).not.toContain("GENERAR&nbsp;DUNGEON");
   });
