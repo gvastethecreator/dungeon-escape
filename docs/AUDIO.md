@@ -10,16 +10,21 @@ pwsh -File scripts/build-audio-pack.ps1
 
 ## Mix targets
 
-| Group           |                    Runtime gain |    Asset target | Use                                |
-| --------------- | ------------------------------: | --------------: | ---------------------------------- |
-| ambience        |                            0.60 |        -29 LUFS | Cave room tone and torch crackle   |
-| sfx             |                            0.84 | -23 to -18 LUFS | Items, doors, damage, portal, win  |
-| stone footsteps | 0.84 group; 0.10–0.11 per asset |        -30 LUFS | Dry floors                         |
-| wet footsteps   | 0.84 group; 0.14–0.16 per asset |        -32 LUFS | Water masks                        |
-| threat          |                            0.72 | -24 to -18 LUFS | Enemy voices                       |
-| ui              |                            0.58 |        -24 LUFS | Menu and mode clicks               |
+| Group           |                    Runtime gain |    Asset target | Effective bus target | Use                     |
+| --------------- | ------------------------------: | --------------: | -------------------: | ----------------------- |
+| ambience        |                            0.60 |        -29 LUFS |           ~-39 LUFS | Cave room tone          |
+| torch           |                     ambience ×0.69 |        -25 LUFS |           ~-36 LUFS | Nearby fire             |
+| sfx (pickups)   |                            0.84 | -21 to -19 LUFS |           ~-26 LUFS | Stones and powers       |
+| sfx (world)     |                            0.84 | -24 to -22 LUFS |      ~-31 to -30 LUFS | Doors and chests        |
+| sfx (hits/ends) |                            0.84 | -25 to -18 LUFS |      ~-27 to -24 LUFS | Damage, win, lose, portal |
+| stone footsteps | 0.84 group; 0.10–0.11 per asset |        -30 LUFS |           soft bed  | Dry floors (left soft)  |
+| wet footsteps   | 0.84 group; 0.14–0.16 per asset |        -32 LUFS |           soft bed  | Water masks (left soft) |
+| threat          |                            0.72 | -24 to -18 LUFS |      ~-30 to -27 LUFS | Enemy voices            |
+| ui              |                            0.58 |        -24 LUFS |           ~-34 LUFS | Menu and mode clicks    |
 
-Master defaults to `0.76`. A compressor at -12 dB / 12:1 limits overlap. Encode uses loudnorm plus a pre-Opus limiter so decoded peaks stay at or below -2 dBTP.
+Master defaults to `0.76`. Effective level ≈ file LUFS + asset gain + group gain + master. Per-asset gains in `GameAudio` were matched to measured Opus loudness; footsteps stay intentionally quiet.
+
+A compressor at -12 dB / 12:1 limits overlap. Encode uses loudnorm plus a pre-Opus limiter so decoded peaks stay at or below -2 dBTP.
 
 ## Asset map
 
