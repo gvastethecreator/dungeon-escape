@@ -427,16 +427,23 @@ function renderLeaderboard(entries: readonly LeaderboardEntry[]): void {
   for (const entry of entries) {
     const item = document.createElement("li");
     const rank = document.createElement("span");
+    const main = document.createElement("span");
     const name = document.createElement("span");
+    const meta = document.createElement("span");
     const score = document.createElement("span");
     rank.className = "leaderboard-rank";
+    main.className = "leaderboard-main";
     name.className = "leaderboard-name";
+    meta.className = "leaderboard-meta";
     score.className = "leaderboard-score";
     rank.textContent = `#${entry.rank}`;
     name.textContent = entry.playerName;
-    name.title = `${entry.biome} · ${entry.difficulty} · ${formatTime(entry.durationMs / 1000)}`;
+    const escapeTime = formatTime(entry.durationMs / 1000);
+    meta.textContent = `${escapeTime} · ${entry.seed}`;
+    meta.title = `${entry.biome} · ${entry.difficulty} · ${escapeTime} · seed ${entry.seed}`;
     score.textContent = entry.score.toLocaleString("en-US");
-    item.append(rank, name, score);
+    main.append(name, meta);
+    item.append(rank, main, score);
     fragment.append(item);
   }
   elements.leaderboardList.replaceChildren(fragment);
