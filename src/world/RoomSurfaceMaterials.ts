@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import type { DungeonMoodId } from "../systems/DungeonMood";
 import type { BiomeLayerTextures, BiomeSurfaceTextures } from "./AssetLibrary";
 import {
   enableDungeonSurfaceShader,
@@ -10,6 +11,77 @@ import {
 const NORMAL_SCALE = new THREE.Vector2(0.45, 0.45);
 /** Walls read a bit stronger relief than floors (lantern grazes vertical faces). */
 const WALL_NORMAL_SCALE = new THREE.Vector2(0.55, 0.55);
+
+interface SurfaceFinish {
+  roughness: number;
+  envMapIntensity: number;
+}
+
+/**
+ * Room layers share a shader, but they do not share a finish. Wet, polished,
+ * and obsidian biomes keep a controlled sheen; ash, grim, and backrooms stay
+ * diffuse so a torch cannot paint every tile with the same reflection.
+ */
+const BIOME_SURFACE_FINISH: Record<
+  DungeonMoodId,
+  Record<"floor" | "wall" | "ceiling", SurfaceFinish>
+> = {
+  ancient: {
+    floor: { roughness: 0.96, envMapIntensity: 0.18 },
+    wall: { roughness: 0.98, envMapIntensity: 0.14 },
+    ceiling: { roughness: 1, envMapIntensity: 0.1 },
+  },
+  molten: {
+    floor: { roughness: 0.9, envMapIntensity: 0.24 },
+    wall: { roughness: 0.94, envMapIntensity: 0.18 },
+    ceiling: { roughness: 0.99, envMapIntensity: 0.12 },
+  },
+  frost: {
+    floor: { roughness: 0.86, envMapIntensity: 0.24 },
+    wall: { roughness: 0.9, envMapIntensity: 0.18 },
+    ceiling: { roughness: 0.98, envMapIntensity: 0.12 },
+  },
+  grim: {
+    floor: { roughness: 0.98, envMapIntensity: 0.14 },
+    wall: { roughness: 0.99, envMapIntensity: 0.11 },
+    ceiling: { roughness: 1, envMapIntensity: 0.08 },
+  },
+  verdant: {
+    floor: { roughness: 0.96, envMapIntensity: 0.17 },
+    wall: { roughness: 0.98, envMapIntensity: 0.13 },
+    ceiling: { roughness: 0.99, envMapIntensity: 0.09 },
+  },
+  ash: {
+    floor: { roughness: 0.98, envMapIntensity: 0.13 },
+    wall: { roughness: 0.99, envMapIntensity: 0.1 },
+    ceiling: { roughness: 1, envMapIntensity: 0.08 },
+  },
+  iron: {
+    floor: { roughness: 0.9, envMapIntensity: 0.24 },
+    wall: { roughness: 0.94, envMapIntensity: 0.18 },
+    ceiling: { roughness: 0.98, envMapIntensity: 0.12 },
+  },
+  obsidian: {
+    floor: { roughness: 0.82, envMapIntensity: 0.3 },
+    wall: { roughness: 0.88, envMapIntensity: 0.24 },
+    ceiling: { roughness: 0.96, envMapIntensity: 0.14 },
+  },
+  sunken: {
+    floor: { roughness: 0.94, envMapIntensity: 0.22 },
+    wall: { roughness: 0.97, envMapIntensity: 0.17 },
+    ceiling: { roughness: 0.99, envMapIntensity: 0.11 },
+  },
+  fungal: {
+    floor: { roughness: 0.92, envMapIntensity: 0.18 },
+    wall: { roughness: 0.96, envMapIntensity: 0.14 },
+    ceiling: { roughness: 0.99, envMapIntensity: 0.1 },
+  },
+  backrooms: {
+    floor: { roughness: 0.99, envMapIntensity: 0.1 },
+    wall: { roughness: 1, envMapIntensity: 0.08 },
+    ceiling: { roughness: 1, envMapIntensity: 0.06 },
+  },
+};
 
 export type SurfaceTheme =
   | "corridor"
@@ -161,7 +233,8 @@ function assignLayerMaps(
   material: THREE.MeshStandardMaterial,
   layer: BiomeLayerTextures,
   _theme: SurfaceTheme,
-  _surface: "floor" | "wall" | "ceiling",
+  surface: "floor" | "wall" | "ceiling",
+  moodId: DungeonMoodId,
 ): void {
   // Share AssetLibrary textures directly (no clone-before-load, which left blank maps).
   // Themes only differ by color/emissive multiply, not UV, so sharing is safe.
@@ -173,9 +246,11 @@ function assignLayerMaps(
   material.map = layer.albedo;
   material.normalMap = layer.normal;
   material.roughnessMap = layer.rough;
-  material.normalScale.copy(_surface === "wall" ? WALL_NORMAL_SCALE : NORMAL_SCALE);
-  material.roughness = 1;
-  material.metalness = 0.03;
+  material.normalScale.copy(surface === "wall" ? WALL_NORMAL_SCALE : NORMAL_SCALE);
+  const finish = BIOME_SURFACE_FINISH[moodId][surface];
+  material.roughness = finish.roughness;
+  material.metalness = 0.02;
+  material.envMapIntensity = finish.envMapIntensity;
   // Ensure wrap for tall wall UVs that exceed 0..1 in V.
   for (const map of [layer.albedo, layer.normal, layer.rough].filter(
     (candidate): candidate is THREE.Texture => candidate !== null,
@@ -200,12 +275,13 @@ function assignLayerMaps(
 export function applyBiomeMaps(
   materials: Record<SurfaceTheme, RoomSurfaceSet>,
   biome: BiomeSurfaceTextures,
+  moodId: DungeonMoodId = "ash",
 ): void {
   for (const theme of Object.keys(PALETTES) as SurfaceTheme[]) {
     const set = materials[theme]!;
-    assignLayerMaps(set.floor, biome.floor, theme, "floor");
-    assignLayerMaps(set.wall, biome.wall, theme, "wall");
-    assignLayerMaps(set.ceiling, biome.ceiling, theme, "ceiling");
+    assignLayerMaps(set.floor, biome.floor, theme, "floor", moodId);
+    assignLayerMaps(set.wall, biome.wall, theme, "wall", moodId);
+    assignLayerMaps(set.ceiling, biome.ceiling, theme, "ceiling", moodId);
   }
 }
 
