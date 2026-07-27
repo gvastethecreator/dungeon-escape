@@ -2,7 +2,13 @@ import { describe, expect, test } from "bun:test";
 
 import { FLOOR, WALL } from "../src/dungeon/generateDungeon";
 import type { DungeonData } from "../src/dungeon/types";
-import { drawMinimap, MINIMAP_COLORS } from "../src/ui/drawMinimap";
+import {
+  cellKey,
+  collectExploredAround,
+  drawMinimap,
+  MINIMAP_COLORS,
+  MINIMAP_REVEAL_RADIUS,
+} from "../src/ui/drawMinimap";
 import type { MinimapFeatures } from "../src/ui/minimapFeatures";
 
 /** Minimal canvas stub: records fillStyle transitions and primitive counts. */
@@ -14,8 +20,8 @@ function makeCanvasStub(width = 200, height = 120) {
     fillRect: () => calls.push({ op: "fillRect" }),
     beginPath: () => calls.push({ op: "beginPath" }),
     arc: () => calls.push({ op: "arc" }),
-    moveTo: () => {},
-    lineTo: () => {},
+    moveTo: () => calls.push({ op: "moveTo" }),
+    lineTo: () => calls.push({ op: "lineTo" }),
     closePath: () => calls.push({ op: "closePath" }),
     fill: () => calls.push({ op: "fill", fill: String((ctx as { fillStyle: unknown }).fillStyle) }),
     stroke: () =>
@@ -66,7 +72,7 @@ function makeDungeon(): DungeonData {
     exitRoomId: 0,
     distances: new Int32Array(),
     topologySignature: "",
-    stats: { roomCount: 1, loopCount: 0, deadEnds: 0, corridorRatio: 0 },
+    stats: { roomCount: 1, loopCount: 0, deadEnds: 0, corridorRatio: 0, floorCount: 15 },
   } as unknown as DungeonData;
 }
 
@@ -78,12 +84,13 @@ describe("minimap marker layer", () => {
     expect(MINIMAP_COLORS.stone).not.toBe(MINIMAP_COLORS.pickup);
     expect(MINIMAP_COLORS.relic).not.toBe(MINIMAP_COLORS.enemy);
     expect(MINIMAP_COLORS.stoneCollected).not.toBe(MINIMAP_COLORS.stone);
+    expect(MINIMAP_COLORS.wall).toBe("#1c1f1c");
   });
 
   test("without features it only draws floor + exit (legacy behaviour)", () => {
     const { canvas, calls } = makeCanvasStub();
     drawMinimap(canvas, makeDungeon(), { x: 2, y: 2 });
-    // Floor cells (5*3=15) + exit (1 fillRect) = 16 fillRects; arcs are player only.
+    // Floor cells (5*3=15) + exit (1 fillRect) + field fill = 17 fillRects; player is triangle fills.
     const fillRects = calls.filter((c) => c.op === "fillRect").length;
     expect(fillRects).toBeGreaterThanOrEqual(15);
   });
@@ -146,5 +153,66 @@ describe("minimap marker layer", () => {
       (c) => c.op === "stroke" && c.stroke === MINIMAP_COLORS.luminousWard,
     );
     expect(wardSignals.length).toBe(1);
+  });
+
+  test("fog of war hides unexplored floors and distant markers", () => {
+    const { canvas, calls } = makeCanvasStub();
+    const dungeon = makeDungeon();
+    const explored = new Set([cellKey(2, 2)]);
+    const features: MinimapFeatures = {
+      doors: [],
+      fires: [{ x: 2, y: 2 }],
+      enemies: [{ cell: { x: 5, y: 2 }, tier: 1 }],
+      stones: [{ cell: { x: 4, y: 2 }, collected: false, id: "ember" }],
+      pickups: [],
+      spawn: { x: 1, y: 2 },
+    };
+    drawMinimap(canvas, dungeon, { x: 2, y: 2 }, {
+      features,
+      explored,
+      playerYaw: 0,
+    });
+
+    // One explored floor + field + wall silhouettes + player underlay/tip.
+    // Distant enemy/stone/exit/spawn must not paint their hues.
+    const enemyFills = calls.filter((c) => c.op === "fill" && c.fill === MINIMAP_COLORS.enemy);
+    const stoneFills = calls.filter((c) => c.op === "fill" && c.fill === MINIMAP_COLORS.stone);
+    const exitRects = calls.filter((c) => c.op === "fillRect").length;
+    expect(enemyFills.length).toBe(0);
+    expect(stoneFills.length).toBe(0);
+    // Local fire on the explored cell still shows.
+    const fireFills = calls.filter((c) => c.op === "fill" && c.fill === MINIMAP_COLORS.fire);
+    expect(fireFills.length).toBe(1);
+    // Far fewer floor tiles than the full 15-cell room.
+    expect(exitRects).toBeLessThan(10);
+  });
+
+  test("player marker is a heading triangle, not a circle", () => {
+    const { canvas, calls } = makeCanvasStub();
+    drawMinimap(canvas, makeDungeon(), { x: 2, y: 2 }, {
+      playerYaw: Math.PI / 2,
+    });
+    const arcs = calls.filter((c) => c.op === "arc");
+    const playerFills = calls.filter(
+      (c) =>
+        c.op === "fill" && (c.fill === MINIMAP_COLORS.player || c.fill === MINIMAP_COLORS.playerCore),
+    );
+    // Arrow uses path fills, not arcs.
+    expect(playerFills.length).toBeGreaterThanOrEqual(2);
+    expect(calls.some((c) => c.op === "moveTo")).toBe(true);
+    expect(calls.some((c) => c.op === "lineTo")).toBe(true);
+    // No player-dot arcs when only the player is drawn (no features).
+    expect(arcs.length).toBe(0);
+  });
+
+  test("collectExploredAround reveals floor in Chebyshev radius", () => {
+    const dungeon = makeDungeon();
+    const explored = collectExploredAround(dungeon, { x: 3, y: 2 }, MINIMAP_REVEAL_RADIUS);
+    expect(explored.has(cellKey(3, 2))).toBe(true);
+    expect(explored.has(cellKey(1, 2))).toBe(true);
+    expect(explored.has(cellKey(5, 2))).toBe(true);
+    // Walls are never marked as explored floors.
+    expect(explored.has(cellKey(0, 2))).toBe(false);
+    expect(explored.size).toBe(15);
   });
 });
