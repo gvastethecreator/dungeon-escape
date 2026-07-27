@@ -9,11 +9,11 @@ export const MAX_DYNAMIC_FIRE_LIGHTS = 10;
 
 export const PLAYER_LANTERN_TUNING = Object.freeze({
   color: 0xd0a064,
-  /** Local exploration fill: readable at one room radius, dark beyond it. */
-  intensity: 42,
-  /** Reaches the next corridor decision while keeping distant rooms dark. */
-  range: 24,
-  decay: 1.15,
+  /** Strong close fill around the body; steeper decay keeps distant rooms dark. */
+  intensity: 76,
+  /** One room of useful light, then fog and physical decay take over. */
+  range: 18,
+  decay: 1.8,
   /** Keeps the point source out of walls when the camera reaches its collision radius. */
   backwardOffset: 0.85,
   threatBoost: 4,
@@ -21,8 +21,17 @@ export const PLAYER_LANTERN_TUNING = Object.freeze({
 
 export const MATERIAL_FILL_TUNING = Object.freeze({
   color: 0xe3ddd3,
-  /** Low neutral room bounce that keeps albedo maps visible between torches. */
-  intensity: 0.9,
+  /** Low neutral floor so unlit albedo retains shape without flattening depth. */
+  intensity: 0.64,
+});
+
+/** Global interior contrast pass applied after each biome's authored response. */
+export const INTERIOR_LIGHT_TUNING = Object.freeze({
+  bounceScale: 0.82,
+  keyScale: 0.86,
+  rimScale: 0.84,
+  iblScale: 0.84,
+  fogScale: 1.08,
 });
 
 const PLAYER_FILL_NEUTRAL = new THREE.Color(0xf1d5b5);
@@ -36,7 +45,7 @@ export function resolvePlayerLanternColor(moodColor: number): number {
 }
 
 export function resolveDungeonExposure(lightLevel: number, moodBias: number): number {
-  return 0.72 + THREE.MathUtils.clamp(lightLevel, 0, 1) * 0.48 + moodBias * 0.45;
+  return 0.68 + THREE.MathUtils.clamp(lightLevel, 0, 1) * 0.44 + moodBias * 0.4;
 }
 
 export const FIRE_LIGHT_TUNING = Object.freeze({

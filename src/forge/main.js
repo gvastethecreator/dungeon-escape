@@ -31,6 +31,11 @@ import { createMagicStone } from "../world/MagicStoneKit";
 import { auditAndRepairForgeSurface } from "./SurfaceGeometryAudit";
 import { resolveForgeRenderQuality } from "./ForgeRenderQuality";
 import { resolveEditorLightingProfile } from "../editor/EditorLightingProfiles";
+import {
+  BIOME_PARTICLE_MOTION_ID,
+  BIOME_PARTICLE_SHAPE_ID,
+  getBiomeParticleProfile,
+} from "../systems/BiomeParticleProfile";
 
 /* ================================================================
    DUNGEON FORGE — procedural dungeon generator core + showcase
@@ -2292,7 +2297,7 @@ const liquidMat = new THREE.ShaderMaterial({
     }`,
 });
 
-/* ambient particle field: dust / embers / snow / wisps / spores (GPU) */
+/* One shared GPU field. Profiles supply a distinct motion and silhouette per biome. */
 const partMat = new THREE.ShaderMaterial({
   transparent: true,
   depthWrite: false,
@@ -2301,65 +2306,98 @@ const partMat = new THREE.ShaderMaterial({
     uTime: { value: 0 },
     uRamp: { value: 1 },
     uZoom: { value: 2 },
-    uKind: { value: 0 },
+    uMotion: { value: 0 },
+    uShape: { value: 0 },
     uColor: { value: new THREE.Color(0xffffff) },
+    uColorAlt: { value: new THREE.Color(0xffffff) },
+    uOpacity: { value: 0.7 },
+    uSpeed: { value: 0.25 },
+    uTurbulence: { value: 0.4 },
+    uFlow: { value: new THREE.Vector3() },
   },
   vertexShader: `
     attribute float aSeed;
-    uniform float uTime, uRamp, uZoom, uKind;
-    varying float vA;
+    attribute float aSize;
+    attribute float aTint;
+    uniform float uTime, uRamp, uZoom, uMotion, uOpacity, uSpeed, uTurbulence;
+    uniform vec3 uFlow;
+    varying float vA, vTint, vPhase;
     float h(float n){ return fract(sin(n*127.1)*43758.5453); }
     void main(){
       vec3 p = position;
-      float s = aSeed, t, w;
-      /* w = particle diameter in WORLD units; uZoom = device px per world
-         unit, so sprites stay anchored to the scene across zoom levels */
-      if(uKind < 0.5){            /* dust motes in light shafts */
-        w = 0.05 + 0.05*h(s+3.1);
-        p.x += sin(uTime*0.10 + s*17.0)*0.25;
-        p.z += cos(uTime*0.08 + s*23.0)*0.25;
-        p.y += 0.25*sin(uTime*0.13 + s*31.0);
-        vA = 0.10 + 0.08*sin(uTime*0.5 + s*40.0);
-      } else if(uKind < 1.5){     /* embers rising off lava + flames */
-        w = 0.045 + 0.05*h(s+3.1);
-        t = fract(uTime*(0.10 + 0.08*h(s)) + s);
-        p.y += t*(1.1 + 0.9*h(s+5.0));
-        p.x += sin(t*9.0 + s*50.0)*0.10;
-        p.z += cos(t*8.0 + s*60.0)*0.10;
-        vA = smoothstep(0.0,0.05,t)*(1.0-t)*(0.55 + 0.45*sin(uTime*10.0 + s*90.0));
-      } else if(uKind < 2.5){     /* snowfall */
-        w = 0.04 + 0.045*h(s+3.1);
-        t = fract(uTime*(0.035 + 0.02*h(s)) + s);
-        p.y += (1.0-t)*3.2;
-        p.x += sin(uTime*0.5 + s*30.0)*0.3;
-        p.z += cos(uTime*0.42 + s*36.0)*0.3;
-        vA = 0.5*smoothstep(0.0,0.05,t)*smoothstep(1.0,0.95,t);
-      } else if(uKind < 3.5){     /* wisps hovering over graves/candles */
-        w = 0.09 + 0.07*h(s+3.1);
-        p.x += sin(uTime*0.25 + s*44.0)*0.35;
-        p.z += cos(uTime*0.21 + s*52.0)*0.35;
-        p.y += 0.35 + 0.25*sin(uTime*0.4 + s*20.0);
-        vA = 0.16 + 0.14*sin(uTime*1.3 + s*70.0);
-      } else {                    /* spores drifting off moss/roots */
-        w = 0.035 + 0.04*h(s+3.1);
-        t = fract(uTime*0.03*(0.6 + h(s)) + s);
-        p.y += t*1.3 + 0.08;
-        p.x += sin(uTime*0.35 + s*25.0)*0.3;
-        p.z += cos(uTime*0.3 + s*29.0)*0.3;
-        vA = 0.35*smoothstep(0.0,0.08,t)*(1.0-t);
+      float s = aSeed, phase = s*6.2831853;
+      float t = fract(s + uTime*max(uSpeed, 0.01)*0.16);
+      float wave = sin(uTime*(0.55+uSpeed)+phase);
+      float alphaPulse = 0.72 + 0.28*sin(uTime*(0.8+uSpeed)+phase*1.7);
+      float sizePulse = 1.0;
+      if(uMotion < 0.5){
+        p += uFlow*sin(uTime*.18+phase)*2.4;
+        p.x += sin(uTime*.42+phase)*uTurbulence*.42;
+        p.z += cos(uTime*.36+phase*1.3)*uTurbulence*.36;
+        p.y += wave*uTurbulence*.24;
+      } else if(uMotion < 1.5){
+        p.y += t*(1.4 + abs(uFlow.y)*2.0);
+        p.x += sin(uTime*.8+phase)*uTurbulence*.38;
+        p.z += cos(uTime*.64+phase)*uTurbulence*.3;
+      } else if(uMotion < 2.5){
+        p.y += (1.-t)*3.15;
+        p.x += sin(uTime*.5+phase)*uTurbulence*.6;
+        p.z += cos(uTime*.44+phase*1.2)*uTurbulence*.48;
+      } else if(uMotion < 3.5){
+        float r=.18+h(s+3.7)*(.38+uTurbulence*.45);
+        p.x += cos(uTime*uSpeed+phase)*r;
+        p.z += sin(uTime*uSpeed*.83+phase)*r;
+        p.y += .3+sin(uTime*.7+phase*1.4)*.22;
+      } else if(uMotion < 4.5){
+        p.y += (1.-t*.58)*2.4;
+        p.x += sin(uTime*1.1+phase)*uTurbulence*.72;
+        p.z += cos(uTime*.76+phase*1.5)*uTurbulence*.52;
+        sizePulse=.8+abs(wave)*.36;
+      } else if(uMotion < 5.5){
+        float burst=fract(t*2.+h(s+4.));
+        vec3 dir=normalize(uFlow+vec3(sin(phase),.22,cos(phase))*.28);
+        p += dir*burst*(.8+uTurbulence*1.7);
+        p.y += sin(burst*3.1415926)*.24;
+        alphaPulse=.7+.3*sin(burst*6.2831853+phase);
+      } else if(uMotion < 6.5){
+        p.x += sin(uTime*.4+phase)*uTurbulence*.42;
+        p.z += cos(uTime*.37+phase)*uTurbulence*.38;
+        p.y += .28+sin(uTime*.5+phase*1.2)*.24;
+        alphaPulse=.38+.62*pow(.5+.5*wave,2.);
+        sizePulse=.78+.42*(.5+.5*wave);
+      } else {
+        float gate=step(.48,h(floor(uTime*(3.+uSpeed*5.))+s*31.));
+        p.x += floor(sin(uTime*.34+phase)*2.)*uTurbulence*.12;
+        alphaPulse=mix(.56,1.,gate);
       }
-      vA *= uRamp;
+      vA = uOpacity*max(.56,alphaPulse)*uRamp;
+      vTint = aTint;
+      vPhase = phase;
       gl_Position = projectionMatrix * modelViewMatrix * vec4(p, 1.0);
-      gl_PointSize = max(w * uZoom, 1.2);
+      gl_PointSize = clamp(aSize*sizePulse*uZoom, 1.8, 16.0);
     }`,
   fragmentShader: `
     precision mediump float;
-    uniform vec3 uColor;
-    varying float vA;
+    uniform vec3 uColor, uColorAlt;
+    uniform float uShape;
+    varying float vA, vTint, vPhase;
     void main(){
-      float d = length(gl_PointCoord - 0.5);
-      float a = smoothstep(0.5, 0.12, d) * vA;
-      gl_FragColor = vec4(uColor * (1.0 + 0.8*smoothstep(0.3, 0.0, d)), a);
+      vec2 uv=gl_PointCoord-.5;
+      float cs=cos(vPhase), sn=sin(vPhase);
+      uv=mat2(cs,-sn,sn,cs)*uv;
+      float d=length(uv), mask=0.;
+      if(uShape<.5) mask=smoothstep(.5,.08,d);
+      else if(uShape<1.5) mask=smoothstep(.48,.08,length(vec2(uv.x*3.4,uv.y)));
+      else if(uShape<2.5){ float arms=min(abs(uv.x),abs(uv.y)); float diag=min(abs(uv.x+uv.y),abs(uv.x-uv.y))*.72; float crystal=1.-smoothstep(.035,.075,min(arms,diag)); mask=crystal*smoothstep(.37,.14,d); }
+      else if(uShape<3.5){ float edge=.36+sin(atan(uv.y,uv.x)*5.+vPhase)*.08; mask=smoothstep(edge+.08,edge-.08,d); }
+      else if(uShape<4.5) mask=smoothstep(.5,.05,length(vec2(uv.x*.72,uv.y*2.6)));
+      else if(uShape<5.5){ float core=smoothstep(.23,.04,d); float rim=smoothstep(.42,.35,d)*(1.-smoothstep(.31,.37,d)); mask=max(core,rim*.52); }
+      else if(uShape<6.5) mask=1.-smoothstep(.32,.48,abs(uv.x)*.72+abs(uv.y)*1.28);
+      else if(uShape<7.5){ float ring=1.-smoothstep(.035,.09,abs(d-.32)); float glint=smoothstep(.12,.01,length(uv-vec2(-.13,.13))); mask=max(ring*.8,glint); }
+      else mask=1.-smoothstep(.32,.48,max(abs(uv.x),abs(uv.y)));
+      float a=mask*vA;
+      if(a<.025) discard;
+      gl_FragColor=vec4(mix(uColor,uColorAlt,vTint),a);
     }`,
 });
 partMat.toneMapped = false;
@@ -3577,19 +3615,18 @@ function buildScene(d) {
     fx.shafts.push(m);
   }
 
-  /* ambient particles — emitted from sources that make physical sense:
-     embers off lava + flames, wisps over graves/candles/miasma, spores off
-     moss/roots/water, dust inside light shafts, snow as weather everywhere */
+  /* Biome signature field. Source placement follows the material that emits it. */
   {
-    const spec = TH.particles;
+    const moodId = d.params.themeKey;
+    const spec = getBiomeParticleProfile(moodId).signature;
     const pts = [];
     const pp = (x, z, y) => pts.push({ x, z, y });
-    if (spec.kind === 1) {
+    if (moodId === "molten" || moodId === "obsidian") {
       for (const p of d.pools)
         pp(wx(p.x) + cellRng.f(-0.3, 0.3), wz(p.y) + cellRng.f(-0.3, 0.3), -0.02);
       for (const t of d.torches) pp(wx(t.x) + t.dx * 0.66, wz(t.y) + t.dy * 0.66, 1.5);
       for (const p of d.props) if (p.kind === "brazier") pp(wx(p.x), wz(p.y), 0.62);
-    } else if (spec.kind === 3) {
+    } else if (moodId === "grim") {
       for (const p of d.props) {
         if (p.kind === "grave" || p.kind === "sarco")
           pp(wx(p.x) + cellRng.f(-0.2, 0.2), wz(p.y) + cellRng.f(-0.2, 0.2), 0.3);
@@ -3597,7 +3634,7 @@ function buildScene(d) {
         else if (p.kind === "bones") pp(wx(p.x), wz(p.y), 0.1);
       }
       for (const p of d.pools) pp(wx(p.x), wz(p.y), 0);
-    } else if (spec.kind === 4) {
+    } else if (moodId === "verdant" || moodId === "fungal") {
       for (const p of d.props) {
         if (p.kind === "moss")
           pp(wx(p.x) + cellRng.f(-0.25, 0.25), wz(p.y) + cellRng.f(-0.25, 0.25), 0.05);
@@ -3605,7 +3642,7 @@ function buildScene(d) {
           pp(wx(p.x) + p.dx * 0.8, wz(p.y) + p.dy * 0.8, cellRng.f(0.2, 1.4));
       }
       for (const p of d.pools) pp(wx(p.x), wz(p.y), 0);
-    } else if (spec.kind === 0) {
+    } else if (moodId === "ancient" || moodId === "backrooms") {
       for (const s of shaftAt)
         for (let k = 0; k < 10; k++)
           pp(
@@ -3615,33 +3652,51 @@ function buildScene(d) {
           );
       for (const t of d.torches)
         pp(wx(t.x) + t.dx * 0.7, wz(t.y) + t.dy * 0.7, cellRng.f(1.2, 1.9));
+    } else if (moodId === "sunken") {
+      for (const p of d.pools)
+        for (let k = 0; k < 4; k++)
+          pp(wx(p.x) + cellRng.f(-0.35, 0.35), wz(p.y) + cellRng.f(-0.35, 0.35), 0);
     } else {
       for (let y = 0; y < H; y++)
         for (let x = 0; x < W; x++)
-          if (grid[idx(x, y)] === FLOOR && cellRng.chance(0.25)) pp(wx(x), wz(y), 0);
+          if (grid[idx(x, y)] === FLOOR && cellRng.chance(0.18))
+            pp(wx(x) + cellRng.f(-0.35, 0.35), wz(y) + cellRng.f(-0.35, 0.35), 0);
     }
     if (!pts.length)
       for (let y = 0; y < H; y++)
         for (let x = 0; x < W; x++)
           if (grid[idx(x, y)] === FLOOR && cellRng.chance(0.1)) pp(wx(x), wz(y), 0);
     if (pts.length) {
-      const n = Math.min(spec.n, Math.max(40, pts.length * 6));
+      const n = Math.min(spec.maxCount, Math.max(spec.minCount, pts.length * 8));
       const pos = new Float32Array(n * 3),
-        seed = new Float32Array(n);
+        seed = new Float32Array(n),
+        size = new Float32Array(n),
+        tint = new Float32Array(n);
       for (let i = 0; i < n; i++) {
         const p = pts[cellRng.i(0, pts.length - 1)];
-        pos[i * 3] = p.x;
-        pos[i * 3 + 1] = p.y;
-        pos[i * 3 + 2] = p.z;
+        pos[i * 3] = p.x + cellRng.f(-0.22, 0.22);
+        pos[i * 3 + 1] = p.y + cellRng.f(0.02, 0.42);
+        pos[i * 3 + 2] = p.z + cellRng.f(-0.22, 0.22);
         seed[i] = cellRng.raw();
+        size[i] = spec.sizeMin + (spec.sizeMax - spec.sizeMin) * Math.pow(cellRng.raw(), 1.3);
+        tint[i] = Math.pow(cellRng.raw(), 1.5);
       }
       const g = new THREE.BufferGeometry();
       g.setAttribute("position", new THREE.BufferAttribute(pos, 3));
       g.setAttribute("aSeed", new THREE.BufferAttribute(seed, 1));
+      g.setAttribute("aSize", new THREE.BufferAttribute(size, 1));
+      g.setAttribute("aTint", new THREE.BufferAttribute(tint, 1));
       levelGeos.push(g);
-      partMat.uniforms.uKind.value = spec.kind;
+      partMat.uniforms.uMotion.value = BIOME_PARTICLE_MOTION_ID[spec.motion];
+      partMat.uniforms.uShape.value = BIOME_PARTICLE_SHAPE_ID[spec.shape];
       partMat.uniforms.uColor.value.set(spec.color);
+      partMat.uniforms.uColorAlt.value.set(spec.colorAlt);
+      partMat.uniforms.uOpacity.value = spec.opacity;
+      partMat.uniforms.uSpeed.value = spec.speed;
+      partMat.uniforms.uTurbulence.value = spec.turbulence;
+      partMat.uniforms.uFlow.value.set(spec.flowX, spec.flowY, spec.flowZ);
       const pm = new THREE.Points(g, partMat);
+      pm.name = `Forge biome particles: ${spec.name}`;
       pm.frustumCulled = false;
       group.add(pm);
       fx.parts = pm;

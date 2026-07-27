@@ -6,6 +6,12 @@ import { gridToWorld } from "../dungeon/gridCollision";
 import type { DungeonData, GridCell } from "../dungeon/types";
 import type { DungeonMood } from "./DungeonMood";
 import { getDungeonMood } from "./DungeonMood";
+import {
+  BIOME_PARTICLE_MOTION_ID,
+  BIOME_PARTICLE_SHAPE_ID,
+  getBiomeParticleProfile,
+  type BiomeParticleLayerProfile,
+} from "./BiomeParticleProfile";
 
 interface MistBank {
   sprite: THREE.Sprite;
@@ -19,6 +25,8 @@ interface SoftGroundFog {
   material: THREE.ShaderMaterial;
   baseDensity: number;
   mask: THREE.DataTexture;
+  worldMin: THREE.Vector2;
+  worldSize: THREE.Vector2;
 }
 
 /** Matches DungeonWorld wall/tile height. */
@@ -108,6 +116,10 @@ export const DUST_FINE_OPACITY = 0.34;
 /** Kept for tests / callers that still read a single size token (mid of range). */
 export const DUST_COARSE_SIZE = (DUST_COARSE_SIZE_MIN + DUST_COARSE_SIZE_MAX) * 0.5;
 export const DUST_FINE_SIZE = (DUST_FINE_SIZE_MIN + DUST_FINE_SIZE_MAX) * 0.5;
+
+/** Dense enough for a room read while both layers stay under their profile caps. */
+export const BIOME_PARTICLE_DENSITY_DESKTOP = 2.2;
+export const BIOME_PARTICLE_DENSITY_COMPACT = 1.25;
 
 function createDustTexture(): THREE.Texture {
   if (typeof document === "undefined") {
@@ -407,77 +419,188 @@ function createSoftGroundFogMaterial(
 interface MoteCloud {
   points: THREE.Points;
   material: THREE.ShaderMaterial;
-  baseY: Float32Array;
   count: number;
 }
 
-function createDustMoteMaterial(
+function createBiomeParticleMaterial(
   map: THREE.Texture,
-  color: number,
-  opacity: number,
-  driftAmplitude = 0.08,
-  driftSpeed = 0.45,
+  layer: BiomeParticleLayerProfile,
+  wallHeight: number,
 ): THREE.ShaderMaterial {
   return new THREE.ShaderMaterial({
     uniforms: {
       map: { value: map },
-      uColor: { value: new THREE.Color(color) },
-      uOpacity: { value: opacity },
+      uColor: { value: new THREE.Color(layer.color) },
+      uColorAlt: { value: new THREE.Color(layer.colorAlt) },
+      uOpacity: { value: layer.opacity },
       uTime: { value: 0 },
       uPixelRatio: {
         value: typeof window !== "undefined" ? Math.min(window.devicePixelRatio, 1.5) : 1,
       },
-      uAtten: { value: 280 },
-      uDriftAmp: { value: driftAmplitude },
-      uDriftSpeed: { value: driftSpeed },
+      uAtten: { value: 350 },
+      uMotion: { value: BIOME_PARTICLE_MOTION_ID[layer.motion] },
+      uShape: { value: BIOME_PARTICLE_SHAPE_ID[layer.shape] },
+      uFlow: { value: new THREE.Vector3(layer.flowX, layer.flowY, layer.flowZ) },
+      uSpeed: { value: layer.speed },
+      uTurbulence: { value: layer.turbulence },
+      uWallHeight: { value: wallHeight },
+      uViewer: { value: new THREE.Vector3() },
+      uWake: { value: layer.wake },
     },
     vertexShader: /* glsl */ `
       attribute float aSize;
       attribute float aPhase;
+      attribute float aTint;
       uniform float uTime;
       uniform float uOpacity;
       uniform float uPixelRatio;
       uniform float uAtten;
-      uniform float uDriftAmp;
-      uniform float uDriftSpeed;
+      uniform float uMotion;
+      uniform vec3 uFlow;
+      uniform float uSpeed;
+      uniform float uTurbulence;
+      uniform float uWallHeight;
+      uniform vec3 uViewer;
+      uniform float uWake;
       varying float vAlpha;
+      varying float vTint;
+      varying float vPhase;
+      varying float vDepthFade;
+
+      float hash11(float p) {
+        return fract(sin(p * 127.1) * 43758.5453);
+      }
 
       void main() {
-        // Each mote cycles on its own phase: visible, then soft vanish, then return.
-        float speed = 0.09 + aPhase * 0.11;
-        float t = fract(uTime * speed + aPhase);
-        float appear = smoothstep(0.0, 0.14, t);
-        float vanish = 1.0 - smoothstep(0.58, 0.82, t);
-        // Dead zone after vanish so dust "disappears for a while".
-        float alive = appear * vanish;
-        vAlpha = uOpacity * alive * (0.55 + 0.45 * aPhase);
-
-        // Vertical drift on GPU — avoids rewriting position buffers every frame.
         vec3 pos = position;
-        pos.y += sin(uTime * uDriftSpeed + aPhase * 6.2831853) * uDriftAmp;
-        vec4 mvPosition = modelViewMatrix * vec4(pos, 1.0);
+        float phase = aPhase * 6.2831853;
+        float t = fract(aPhase + uTime * max(uSpeed, 0.01) * 0.16);
+        float wave = sin(uTime * (0.55 + uSpeed) + phase);
+        float alphaPulse = 0.72 + 0.28 * sin(uTime * (0.8 + uSpeed) + phase * 1.7);
+        float sizePulse = 1.0;
+
+        if (uMotion < 0.5) {
+          pos += uFlow * sin(uTime * 0.18 + phase) * 2.4;
+          pos.x += sin(uTime * 0.42 + phase) * uTurbulence * 0.42;
+          pos.z += cos(uTime * 0.36 + phase * 1.3) * uTurbulence * 0.36;
+          pos.y += wave * uTurbulence * 0.24;
+        } else if (uMotion < 1.5) {
+          pos.y = -0.22 + fract((position.y + 0.22) / (uWallHeight + 0.44) + t) * (uWallHeight + 0.44);
+          pos.x += sin(uTime * 0.8 + phase) * uTurbulence * 0.38 + uFlow.x * t;
+          pos.z += cos(uTime * 0.64 + phase) * uTurbulence * 0.3 + uFlow.z * t;
+        } else if (uMotion < 2.5) {
+          pos.y = -0.22 + (1.0 - fract((position.y + 0.22) / (uWallHeight + 0.44) + t)) * (uWallHeight + 0.44);
+          pos.x += sin(uTime * 0.5 + phase) * uTurbulence * 0.6 + uFlow.x * t;
+          pos.z += cos(uTime * 0.44 + phase * 1.2) * uTurbulence * 0.48 + uFlow.z * t;
+        } else if (uMotion < 3.5) {
+          float radius = 0.18 + hash11(aPhase + 3.7) * (0.38 + uTurbulence * 0.45);
+          pos.x += cos(uTime * uSpeed + phase) * radius;
+          pos.z += sin(uTime * uSpeed * 0.83 + phase) * radius;
+          pos.y += sin(uTime * 0.7 + phase * 1.4) * 0.22;
+        } else if (uMotion < 4.5) {
+          pos.y = 0.12 + (1.0 - fract(position.y / uWallHeight + t * 0.58)) * (uWallHeight * 0.88);
+          pos.x += sin(uTime * 1.1 + phase) * uTurbulence * 0.72;
+          pos.z += cos(uTime * 0.76 + phase * 1.5) * uTurbulence * 0.52;
+          sizePulse = 0.8 + abs(wave) * 0.36;
+        } else if (uMotion < 5.5) {
+          float burst = fract(t * 2.0 + hash11(aPhase + 4.0));
+          vec3 direction = normalize(uFlow + vec3(sin(phase), 0.22, cos(phase)) * 0.28);
+          pos += direction * burst * (0.8 + uTurbulence * 1.7);
+          pos.y += sin(burst * 3.1415926) * 0.24;
+          alphaPulse = 0.7 + 0.3 * sin(burst * 6.2831853 + phase);
+          sizePulse = 0.82 + (1.0 - burst) * 0.28;
+        } else if (uMotion < 6.5) {
+          pos.x += sin(uTime * 0.4 + phase) * uTurbulence * 0.42;
+          pos.z += cos(uTime * 0.37 + phase) * uTurbulence * 0.38;
+          pos.y += sin(uTime * 0.5 + phase * 1.2) * 0.24 + uFlow.y * uTime * 0.08;
+          alphaPulse = 0.38 + 0.62 * pow(0.5 + 0.5 * wave, 2.0);
+          sizePulse = 0.78 + 0.42 * (0.5 + 0.5 * wave);
+        } else {
+          float gate = step(0.48, hash11(floor(uTime * (3.0 + uSpeed * 5.0)) + aPhase * 31.0));
+          pos.x += floor(sin(uTime * 0.34 + phase) * 2.0) * uTurbulence * 0.12;
+          alphaPulse = mix(0.56, 1.0, gate);
+          sizePulse = mix(0.82, 1.18, gate);
+        }
+
+        // Signature move: the field parts and curls around the player in a cheap GPU wake.
+        vec2 particleWorldXZ = (modelMatrix * vec4(pos, 1.0)).xz;
+        vec2 delta = particleWorldXZ - uViewer.xz;
+        float distanceToViewer = length(delta);
+        float wake = (1.0 - smoothstep(1.1, 4.8, distanceToViewer)) * uWake * 0.42;
+        vec2 tangent = distanceToViewer > 0.001 ? vec2(-delta.y, delta.x) / distanceToViewer : vec2(0.0);
+        pos.xz += tangent * wake * sin(phase + uTime * 1.3) * 0.32;
+        pos.y += wake * 0.1 * sin(phase * 1.9 + uTime);
+
+        vec4 worldPosition = modelMatrix * vec4(pos, 1.0);
+        vec4 mvPosition = viewMatrix * worldPosition;
         float depth = max(0.35, -mvPosition.z);
-        gl_PointSize = aSize * uAtten * uPixelRatio / depth;
+        gl_PointSize = clamp(aSize * sizePulse * uAtten * uPixelRatio / depth, 1.8, 18.0);
         gl_Position = projectionMatrix * mvPosition;
+        vAlpha = uOpacity * max(0.56, alphaPulse) * (0.78 + aPhase * 0.22);
+        vTint = aTint;
+        vPhase = phase;
+        vDepthFade = smoothstep(0.35, 0.9, depth) * (1.0 - smoothstep(13.0, 24.0, depth));
       }
     `,
     fragmentShader: /* glsl */ `
       uniform sampler2D map;
       uniform vec3 uColor;
+      uniform vec3 uColorAlt;
+      uniform float uShape;
       varying float vAlpha;
+      varying float vTint;
+      varying float vPhase;
+      varying float vDepthFade;
 
       void main() {
-        if (vAlpha < 0.01) discard;
+        vec2 uv = gl_PointCoord - 0.5;
+        float cs = cos(vPhase);
+        float sn = sin(vPhase);
+        uv = mat2(cs, -sn, sn, cs) * uv;
+        float d = length(uv);
+        float mask = 0.0;
+
+        if (uShape < 0.5) {
+          mask = smoothstep(0.5, 0.08, d);
+        } else if (uShape < 1.5) {
+          mask = smoothstep(0.48, 0.08, length(vec2(uv.x * 3.4, uv.y)));
+        } else if (uShape < 2.5) {
+          float arms = min(abs(uv.x), abs(uv.y));
+          float diagonals = min(abs(uv.x + uv.y), abs(uv.x - uv.y)) * 0.72;
+          float crystal = 1.0 - smoothstep(0.035, 0.075, min(arms, diagonals));
+          mask = crystal * smoothstep(0.37, 0.14, d);
+        } else if (uShape < 3.5) {
+          float roughEdge = 0.36 + sin(atan(uv.y, uv.x) * 5.0 + vPhase) * 0.08;
+          mask = smoothstep(roughEdge + 0.08, roughEdge - 0.08, d);
+        } else if (uShape < 4.5) {
+          mask = smoothstep(0.5, 0.05, length(vec2(uv.x * 0.72, uv.y * 2.6))) * (0.7 + 0.3 * sin(uv.x * 18.0));
+        } else if (uShape < 5.5) {
+          float core = smoothstep(0.23, 0.04, d);
+          float rim = smoothstep(0.42, 0.35, d) * (1.0 - smoothstep(0.31, 0.37, d));
+          mask = max(core, rim * 0.52);
+        } else if (uShape < 6.5) {
+          float diamond = abs(uv.x) * 0.72 + abs(uv.y) * 1.28;
+          mask = 1.0 - smoothstep(0.32, 0.48, diamond);
+        } else if (uShape < 7.5) {
+          float ring = 1.0 - smoothstep(0.035, 0.09, abs(d - 0.32));
+          float glint = smoothstep(0.12, 0.01, length(uv - vec2(-0.13, 0.13)));
+          mask = max(ring * 0.8, glint);
+        } else {
+          float box = max(abs(uv.x), abs(uv.y));
+          mask = 1.0 - smoothstep(0.32, 0.48, box);
+        }
+
         vec4 tex = texture2D(map, gl_PointCoord);
-        float a = tex.a * vAlpha;
-        if (a < 0.02) discard;
-        gl_FragColor = vec4(uColor * tex.rgb, a);
+        float a = mask * mix(0.78, 1.0, tex.a) * vAlpha * vDepthFade;
+        if (a < 0.025) discard;
+        vec3 color = mix(uColor, uColorAlt, vTint);
+        gl_FragColor = vec4(color, a);
       }
     `,
     transparent: true,
     depthWrite: false,
     depthTest: true,
-    blending: THREE.AdditiveBlending,
+    blending: layer.glow ? THREE.AdditiveBlending : THREE.NormalBlending,
     fog: false,
     toneMapped: false,
   });
@@ -490,10 +613,10 @@ export class AtmosphereSystem {
   private readonly dustTexture = createDustTexture();
   private readonly mistBanks: MistBank[] = [];
   private softGroundFog: SoftGroundFog | null = null;
-  private motes: THREE.Points | null = null;
-  private fineMotes: THREE.Points | null = null;
-  private moteMaterial: THREE.ShaderMaterial | null = null;
-  private fineMoteMaterial: THREE.ShaderMaterial | null = null;
+  private supportParticles: THREE.Points | null = null;
+  private signatureParticles: THREE.Points | null = null;
+  private supportParticleMaterial: THREE.ShaderMaterial | null = null;
+  private signatureParticleMaterial: THREE.ShaderMaterial | null = null;
   private elapsed = 0;
   private readonly wallHeight: number;
   private readonly viewer = new THREE.Vector3();
@@ -560,46 +683,22 @@ export class AtmosphereSystem {
 
     this.addSoftGroundFog(dungeon, floorCells, mood);
 
-    const dustScale = mood.dustOpacityScale;
-    const coarse = this.createMoteCloud(
-      dungeon,
-      floorCells,
-      random,
-      Math.min(
-        DUST_COARSE_MAX,
-        Math.max(DUST_COARSE_MIN, Math.round(floorCells.length * DUST_COARSE_PER_FLOOR)),
-      ),
-      DUST_COARSE_SIZE_MIN,
-      DUST_COARSE_SIZE_MAX,
-      DUST_COARSE_OPACITY * dustScale,
-      "Lit dungeon dust motes",
-      mood.dustColor,
-      0.07,
-      0.4,
-    );
-    const fine = this.createMoteCloud(
-      dungeon,
-      floorCells,
-      random,
-      Math.min(
-        DUST_FINE_MAX,
-        Math.max(DUST_FINE_MIN, Math.round(floorCells.length * DUST_FINE_PER_FLOOR)),
-      ),
-      DUST_FINE_SIZE_MIN,
-      DUST_FINE_SIZE_MAX,
-      DUST_FINE_OPACITY * dustScale,
-      "Fine floating dust",
-      mood.dustFineColor,
-      0.11,
-      0.55,
-    );
-    this.motes = coarse.points;
-    this.fineMotes = fine.points;
-    this.moteMaterial = coarse.material;
-    this.fineMoteMaterial = fine.material;
-    this.group.add(this.motes, this.fineMotes);
+    if (floorCells.length === 0) {
+      this.stats.mistBanks = this.mistBanks.length;
+      this.stats.motes = 0;
+      return;
+    }
+
+    const profile = getBiomeParticleProfile(mood.id);
+    const support = this.createMoteCloud(dungeon, floorCells, random, profile.support);
+    const signature = this.createMoteCloud(dungeon, floorCells, random, profile.signature);
+    this.supportParticles = support.points;
+    this.signatureParticles = signature.points;
+    this.supportParticleMaterial = support.material;
+    this.signatureParticleMaterial = signature.material;
+    this.group.add(this.supportParticles, this.signatureParticles);
     this.stats.mistBanks = this.mistBanks.length;
-    this.stats.motes = coarse.count + fine.count;
+    this.stats.motes = support.count + signature.count;
   }
 
   /**
@@ -629,11 +728,12 @@ export class AtmosphereSystem {
       const pulse = 1 + Math.sin(this.elapsed * 0.17) * 0.03;
       this.softGroundFog.material.uniforms.uDensity.value = this.softGroundFog.baseDensity * pulse;
     }
-    // Mote vertical drift is GPU-side (uTime + uDriftAmp); only tick uniforms.
-    if (this.moteMaterial) this.moteMaterial.uniforms.uTime.value = this.elapsed;
-    if (this.fineMoteMaterial) this.fineMoteMaterial.uniforms.uTime.value = this.elapsed;
-    if (this.motes) this.motes.rotation.y = Math.sin(this.elapsed * 0.035) * 0.05;
-    if (this.fineMotes) this.fineMotes.rotation.y = Math.sin(this.elapsed * 0.05 + 1.2) * -0.04;
+    // All flow and the player wake run on the GPU; only tick shared uniforms.
+    for (const material of [this.supportParticleMaterial, this.signatureParticleMaterial]) {
+      if (!material) continue;
+      material.uniforms.uTime.value = this.elapsed;
+      material.uniforms.uViewer.value.copy(this.viewer);
+    }
   }
 
   dispose(): void {
@@ -680,7 +780,7 @@ export class AtmosphereSystem {
     mesh.renderOrder = 3;
     mesh.frustumCulled = false;
     this.group.add(mesh);
-    this.softGroundFog = { mesh, material, baseDensity, mask };
+    this.softGroundFog = { mesh, material, baseDensity, mask, worldMin, worldSize };
     this.stats.groundFogTiles = floorCells.length;
   }
 
@@ -688,49 +788,51 @@ export class AtmosphereSystem {
     dungeon: DungeonData,
     floorCells: readonly GridCell[],
     random: ReturnType<typeof createSeededRandom>,
-    count: number,
-    sizeMin: number,
-    sizeMax: number,
-    opacity: number,
-    name: string,
-    color: number,
-    driftAmplitude: number,
-    driftSpeed: number,
+    layer: BiomeParticleLayerProfile,
   ): MoteCloud {
+    const densityScale =
+      typeof window !== "undefined" && window.innerWidth <= 820
+        ? BIOME_PARTICLE_DENSITY_COMPACT
+        : BIOME_PARTICLE_DENSITY_DESKTOP;
+    const count = Math.min(
+      layer.maxCount,
+      Math.max(layer.minCount, Math.round(floorCells.length * layer.perFloor * densityScale)),
+    );
     const positions = new Float32Array(count * 3);
     const sizes = new Float32Array(count);
     const phases = new Float32Array(count);
-    const baseY = new Float32Array(count);
-    const sizeSpan = Math.max(0, sizeMax - sizeMin);
+    const tints = new Float32Array(count);
+    const sizeSpan = Math.max(0, layer.sizeMax - layer.sizeMin);
+    const cells = [...floorCells];
+    for (let index = cells.length - 1; index > 0; index -= 1) {
+      const swapIndex = Math.floor(random.next() * (index + 1));
+      [cells[index], cells[swapIndex]] = [cells[swapIndex]!, cells[index]!];
+    }
     for (let index = 0; index < count; index += 1) {
-      const cell = random.pick(floorCells);
+      const cell = cells[index % cells.length]!;
       const point = gridToWorld(dungeon, cell, this.tileSize);
-      // Bias motes downward so the vertical gradient reads in particles too.
-      const y = 0.15 + Math.pow(random.next(), 1.4) * (this.wallHeight * 0.9);
+      // Fill the room column. The layer shader adds its own rise/fall bias.
+      const y = 0.15 + Math.pow(random.next(), 1.08) * (this.wallHeight * 0.88);
       positions[index * 3] = point.x + (random.next() - 0.5) * this.tileSize;
       positions[index * 3 + 1] = y;
       positions[index * 3 + 2] = point.z + (random.next() - 0.5) * this.tileSize;
-      baseY[index] = y;
-      // Bias toward smaller flecks; a few larger motes still appear.
       const sizeT = Math.pow(random.next(), 1.35);
-      sizes[index] = sizeMin + sizeSpan * sizeT;
+      sizes[index] = layer.sizeMin + sizeSpan * sizeT;
       phases[index] = random.next();
+      tints[index] = Math.pow(random.next(), 1.5);
     }
     const geometry = new THREE.BufferGeometry();
     geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
     geometry.setAttribute("aSize", new THREE.BufferAttribute(sizes, 1));
     geometry.setAttribute("aPhase", new THREE.BufferAttribute(phases, 1));
-    const material = createDustMoteMaterial(
-      this.dustTexture,
-      color,
-      opacity,
-      driftAmplitude,
-      driftSpeed,
-    );
+    geometry.setAttribute("aTint", new THREE.BufferAttribute(tints, 1));
+    const material = createBiomeParticleMaterial(this.dustTexture, layer, this.wallHeight);
     const points = new THREE.Points(geometry, material);
-    points.name = name;
-    points.frustumCulled = false;
-    return { points, material, baseY, count };
+    points.name = `Biome particles: ${layer.name}`;
+    geometry.computeBoundingSphere();
+    points.frustumCulled = true;
+    points.renderOrder = layer.glow ? 2 : 1;
+    return { points, material, count };
   }
 
   private clear(): void {
@@ -755,10 +857,10 @@ export class AtmosphereSystem {
       else material?.dispose();
     }
     this.mistBanks.length = 0;
-    this.motes = null;
-    this.fineMotes = null;
-    this.moteMaterial = null;
-    this.fineMoteMaterial = null;
+    this.supportParticles = null;
+    this.signatureParticles = null;
+    this.supportParticleMaterial = null;
+    this.signatureParticleMaterial = null;
 
     this.stats.mistBanks = 0;
     this.stats.motes = 0;
