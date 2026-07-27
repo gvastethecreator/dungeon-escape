@@ -263,6 +263,7 @@ export class GameAudio {
   private musicGain: GainNode | null = null;
   private musicTrack: MusicTrack | null = null;
   private muted = false;
+  private musicMuted = false;
   private paused = true;
   private disposed = false;
   private threatIntensity = 0;
@@ -279,6 +280,10 @@ export class GameAudio {
 
   get isMuted(): boolean {
     return this.muted;
+  }
+
+  get isMusicMuted(): boolean {
+    return this.musicMuted;
   }
 
   get isReady(): boolean {
@@ -305,7 +310,9 @@ export class GameAudio {
     this.applyMix();
     this.startAmbience();
     // Welcome/end may request a bed before the first unlock gesture resolves.
-    if (this.musicTrack && !this.musicSource) this.startMusic(this.musicTrack);
+    if (this.musicTrack && !this.musicSource && !this.musicMuted) {
+      this.startMusic(this.musicTrack);
+    }
     return true;
   }
 
@@ -362,6 +369,7 @@ export class GameAudio {
   /**
    * Loop a soft scene bed. Safe before unlock (queues after assets load).
    * Music stays audible while the play mix is paused (welcome / end screens).
+   * Track choice is kept while music is muted so unmute can resume the bed.
    */
   setMusicTrack(track: MusicTrack | null): void {
     if (this.disposed) return;
@@ -370,8 +378,35 @@ export class GameAudio {
     if (!this.context || this.context.state !== "running") return;
     void this.ensureAssets().then(() => {
       if (this.disposed || this.musicTrack !== track) return;
+      if (this.musicMuted && track) {
+        // Keep selection only; unmute restarts the bed.
+        this.startMusic(null);
+        return;
+      }
       this.startMusic(track);
     });
+  }
+
+  setMusicMuted(muted: boolean): void {
+    if (this.musicMuted === muted) return;
+    this.musicMuted = muted;
+    this.applyMix();
+    if (!this.context || this.context.state !== "running") return;
+    if (muted) {
+      this.startMusic(null);
+      return;
+    }
+    if (this.musicTrack && !this.musicSource) {
+      void this.ensureAssets().then(() => {
+        if (this.disposed || this.musicMuted || !this.musicTrack || this.musicSource) return;
+        this.startMusic(this.musicTrack);
+      });
+    }
+  }
+
+  toggleMusicMuted(): boolean {
+    this.setMusicMuted(!this.musicMuted);
+    return this.musicMuted;
   }
 
   /** Enemy attack stays at the attacker; damage feedback stays on the player. */
@@ -694,7 +729,8 @@ export class GameAudio {
     const now = context.currentTime;
     master.gain.setTargetAtTime(this.muted ? SILENT_GAIN : 0.76, now, 0.03);
     for (const [group, gain] of this.groups) {
-      const active = group === "ui" || group === "music" || !this.paused;
+      let active = group === "ui" || group === "music" || !this.paused;
+      if (group === "music" && this.musicMuted) active = false;
       gain.gain.setTargetAtTime(active ? this.groupLevels[group] : SILENT_GAIN, now, 0.12);
     }
   }

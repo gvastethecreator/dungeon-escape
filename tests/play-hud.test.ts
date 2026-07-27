@@ -6,6 +6,9 @@ describe("Play HUD structure (Ash Binding)", () => {
     expect(host).toContain('id="play-objective"');
     expect(host).toContain('class="health-orb"');
     expect(host).toContain('id="resolve-fill"');
+    expect(host).toContain('id="stamina-meter"');
+    expect(host).toContain('id="stamina-fill"');
+    expect(host).toContain("stamina-meter__track");
     expect(host).toContain("health-orb__liquid");
     expect(host).toContain("health-orb__mount");
     expect(host).toContain("health-orb__meniscus");
@@ -63,6 +66,8 @@ describe("Play HUD structure (Ash Binding)", () => {
     expect(COPY.end.winLead).toBe("All four stones are bound. The exit is open.");
     expect(COPY.end.retry).toBe("Try again");
     expect(COPY.end.newDungeon).toBe("New dungeon");
+    expect(COPY.hud.musicOn).toBe("MUSIC ON");
+    expect(COPY.hud.musicOff).toBe("MUSIC OFF");
   });
 
   test("death offers the same layout and a new dungeon as separate actions", async () => {
@@ -98,6 +103,9 @@ describe("Play HUD structure (Ash Binding)", () => {
     expect(css).toContain(".health-orb__splatter");
     expect(css).toContain("damage-red-wash");
     expect(css).toContain(".stone-socket.is-bound .stone-socket__gem");
+    expect(css).toContain(".stamina-meter");
+    expect(css).toContain(".stamina-meter__fill");
+    expect(css).toContain(".stamina-meter.is-exhausted");
     expect(css).toContain(".play-progress");
     expect(css).toContain(".run-timer");
     expect(css).toContain(".time-freeze-status");
@@ -111,5 +119,10 @@ describe("Play HUD structure (Ash Binding)", () => {
     expect(css).toContain(".play-objective.is-visible");
     expect(css).toContain(".play-objective.is-fading");
     expect(css).toMatch(/\.reticle\s*\{[^}]*opacity:\s*0\.28/s);
+  });
+
+  test("copy mentions shift sprint", async () => {
+    const { COPY } = await import("../src/ui/copy");
+    expect(COPY.status.exploring.toLowerCase()).toContain("shift sprint");
   });
 });

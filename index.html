@@ -18,42 +18,6 @@
     />
   </head>
   <body>
-    <svg class="crt-filter-defs" aria-hidden="true" focusable="false">
-      <defs>
-        <filter
-          id="crt-phosphor"
-          x="-2%"
-          y="-2%"
-          width="104%"
-          height="104%"
-          color-interpolation-filters="sRGB"
-        >
-          <feGaussianBlur in="SourceGraphic" stdDeviation="0.78" result="phosphor-glow" />
-          <feColorMatrix
-            in="phosphor-glow"
-            type="matrix"
-            values="1 0 0 0 0
-                    0 1 0 0 0
-                    0 0 1 0 0
-                    0 0 0 0.18 0"
-            result="soft-glow"
-          />
-          <feOffset in="SourceGraphic" dy="1.35" result="decay-offset" />
-          <feGaussianBlur in="decay-offset" stdDeviation="0.32 1.1" result="decay-blur" />
-          <feColorMatrix
-            in="decay-blur"
-            type="matrix"
-            values="1 0 0 0 0
-                    0 1 0 0 0
-                    0 0 1 0 0
-                    0 0 0 0.11 0"
-            result="phosphor-decay"
-          />
-          <feBlend in="SourceGraphic" in2="phosphor-decay" mode="screen" result="with-decay" />
-          <feBlend in="with-decay" in2="soft-glow" mode="screen" />
-        </filter>
-      </defs>
-    </svg>
     <main class="app-shell">
       <canvas id="scene" tabindex="0" aria-label="First-person grimdark dungeon"></canvas>
       <div class="view-falloff" aria-hidden="true"></div>
@@ -86,6 +50,17 @@
                 CUSTOM RUN
               </button>
             </div>
+            <div class="welcome-audio">
+              <button
+                id="welcome-music-toggle"
+                type="button"
+                class="is-active"
+                aria-pressed="false"
+                title="Toggle menu music"
+              >
+                MUSIC ON
+              </button>
+            </div>
             <p id="welcome-status" class="welcome-status" role="status" aria-live="polite">
               Checking saved run…
             </p>
@@ -109,7 +84,7 @@
           Find the four magic stones
         </p>
 
-        <section class="play-vitals" aria-label="Health">
+        <section class="play-vitals" aria-label="Health and stamina">
           <div
             class="health-orb"
             role="meter"
@@ -138,6 +113,22 @@
             </div>
             <div class="health-orb__splatter" aria-hidden="true"></div>
             <output id="resolve-value" class="health-orb__value">100</output>
+          </div>
+          <div
+            id="stamina-meter"
+            class="stamina-meter"
+            role="meter"
+            aria-label="Stamina"
+            aria-valuemin="0"
+            aria-valuemax="100"
+            aria-valuenow="100"
+            aria-valuetext="100 stamina"
+            style="--fill: 100%"
+          >
+            <span class="stamina-meter__label">STAMINA</span>
+            <div class="stamina-meter__track" aria-hidden="true">
+              <div id="stamina-fill" class="stamina-meter__fill"></div>
+            </div>
           </div>
         </section>
 
@@ -274,15 +265,24 @@
           </nav>
 
           <fieldset class="options-fx">
-            <legend>DISPLAY</legend>
+            <legend>SOUND &amp; DISPLAY</legend>
             <button
               id="audio-toggle"
               class="is-active"
               type="button"
               aria-pressed="false"
-              title="Mute audio"
+              title="Mute all audio"
             >
               AUDIO ON
+            </button>
+            <button
+              id="music-toggle"
+              class="is-active"
+              type="button"
+              aria-pressed="false"
+              title="Mute music beds"
+            >
+              MUSIC ON
             </button>
             <button
               id="crt-toggle"

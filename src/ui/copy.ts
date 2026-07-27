@@ -34,7 +34,7 @@ export const COPY = {
   status: {
     enter: "Click the scene to explore.",
     enterPlay: "Click the scene to explore. ESC opens options.",
-    exploring: "WASD move · SPACE jump · E interact · ESC options.",
+    exploring: "WASD move · SHIFT sprint · SPACE jump · E interact · ESC options.",
     pointerReleased: "Paused. ESC or RESUME to continue.",
     pointerFailed: "Could not capture the pointer. Click the scene to retry.",
     pointerBlocked: "The browser blocked the pointer. Click the scene to retry.",
@@ -89,6 +89,8 @@ export const COPY = {
     escapeKey: "ESC",
     mute: "AUDIO OFF",
     audioOn: "AUDIO ON",
+    musicOff: "MUSIC OFF",
+    musicOn: "MUSIC ON",
     crtOn: "CRT ON",
     crtOff: "CRT OFF",
     registry: "RUN AUTHORITY",
