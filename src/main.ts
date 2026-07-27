@@ -2219,7 +2219,7 @@ function frame(now: number): void {
       audio.playDoor(worldUpdate.doorSound.kind, worldUpdate.doorSound.position);
     }
     if (worldUpdate.chestSound) {
-      audio.playDoor("open", worldUpdate.chestSound.position);
+      audio.playChest(worldUpdate.chestSound.position);
     }
     if (effects.flash) flash(effects.flash);
     if (

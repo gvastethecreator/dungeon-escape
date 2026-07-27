@@ -11,12 +11,12 @@ function SourcePath([string]$relativePath) {
   return Join-Path $sourceRoot $relativePath
 }
 
-# Keep authored sample levels predictable before runtime group gain and the master limiter.
-# Positional sources are mono; room tone keeps its stereo field.
+# Personal sample library → browser Opus pack.
+# Loudnorm + limiter keep decoded peaks under the runtime master ceiling.
 $assets = @(
   [pscustomobject]@{
     Name = "ambience-cave"; Channels = 2; Bitrate = "96k"; TargetLufs = -29
-    Source = SourcePath "AMBIENCE\FantasyAmbiences\FantasyAmbiences\AMBFant_Opressing Cave, Heavy Wind, Water Drops, Distant Spirits Voice, Reverse Breaths, Loopable_Ocular Sounds_Fantasy Ambiences_The Complete Fantasy Collection.wav"
+    Source = SourcePath "AMBIENCE\FantasyAmbiences\FantasyAmbiences\AMBFant_Opressing Cave, Heavy Wind, Drops of Water, Organic Gurgle, Loopable_Ocular Sounds_Fantasy Ambiences_The Complete Fantasy Collection.wav"
   },
   [pscustomobject]@{
     Name = "torch-crackle"; Channels = 1; Bitrate = "48k"; TargetLufs = -25; Start = 0; Duration = 4.15
@@ -55,12 +55,20 @@ $assets = @(
     Source = SourcePath "Magic\MagicSpells\MagicSpells\MAGSpel_Magic Of Shadows, Spell Launch, Fairy Resonance_Ocular Sounds_Magic Spells_The Complete Fantasy Collection.wav"
   },
   [pscustomobject]@{
-    Name = "enemy-alert"; Channels = 1; Bitrate = "56k"; TargetLufs = -21; Start = 0; Duration = 2.62
-    Source = SourcePath "Horror\MonstersAndCreatures\Monsters&Creatures\CREAMnstr_Big Cave Creature, Menacing Idle_Ocular Sounds_Monsters & Creatures_The Complete Fantasy Collection.wav"
+    Name = "pickup-time-freeze"; Channels = 1; Bitrate = "56k"; TargetLufs = -20; Start = 0; Duration = 1.85
+    Source = SourcePath "Magic\BoomLibraryMagicAlchemyDs\DSGNWhsh_WHOOSH NEUTRAL-Ice Slide_B00M_MALDS.wav"
   },
   [pscustomobject]@{
-    Name = "enemy-growl"; Channels = 1; Bitrate = "48k"; TargetLufs = -20; Start = 0; Duration = 0.71
-    Source = SourcePath "Horror\BlastwaveFxHorrorVol2\MonsterZombieGrowl_SFXB.145.wav"
+    Name = "pickup-ward"; Channels = 1; Bitrate = "56k"; TargetLufs = -20; Start = 0; Duration = 2.10
+    Source = SourcePath "Magic\BoomLibraryMagicAlchemyDs\MAGMisc_IMPACT HOLY-Luminous Echoes_B00M_MALDS.wav"
+  },
+  [pscustomobject]@{
+    Name = "enemy-alert"; Channels = 1; Bitrate = "56k"; TargetLufs = -21; Start = 0; Duration = 1.85
+    Source = SourcePath "Horror\EpicStockMediaHumanoidCreatures4\OneShot\Designed\Werewolf\ESM_HC4_Cinematic_FX_werewolf_creature_alert_attention_grab_01.wav"
+  },
+  [pscustomobject]@{
+    Name = "enemy-growl"; Channels = 1; Bitrate = "48k"; TargetLufs = -20; Start = 0; Duration = 1.65
+    Source = SourcePath "Horror\EpicStockMediaHumanoidCreatures4\OneShot\Designed\Zombie\ESM_HC4_Cinematic_FX_zombie_undead_alert_noticed_energy_groan_01.wav"
   },
   [pscustomobject]@{
     Name = "enemy-attack"; Channels = 1; Bitrate = "56k"; TargetLufs = -18; Start = 0; Duration = 1.70
@@ -91,12 +99,28 @@ $assets = @(
     Source = SourcePath "Medieval\MedievalFantasySoundFxPackVol3\Dungeon\Dungeon Door Close Dry A.wav"
   },
   [pscustomobject]@{
-    Name = "damage"; Channels = 1; Bitrate = "56k"; TargetLufs = -18; Start = 0; Duration = 2.15
-    Source = SourcePath "Impacts\Deep Thud.wav"
+    Name = "chest-open"; Channels = 1; Bitrate = "48k"; TargetLufs = -22; Start = 0; Duration = 1.35
+    Source = SourcePath "WOOD\FRICTION\WOODFric_Wood Creak Low Heavy 01_B00M_ONE.wav"
   },
   [pscustomobject]@{
-    Name = "portal-open"; Channels = 1; Bitrate = "64k"; TargetLufs = -20; Start = 0; Duration = 4.40
-    Source = SourcePath "Magic\MagicSpells\MagicSpells\MAGSpel_Magic Of Shadows, Fairy Spell Launch, Long Metallic Resonance, Low Tone_Ocular Sounds_Magic Spells_The Complete Fantasy Collection.wav"
+    Name = "chest-reward"; Channels = 1; Bitrate = "48k"; TargetLufs = -21; Start = 0; Duration = 1.55
+    Source = SourcePath "Medieval\MedievalFantasySoundFxPackVol3\Dungeon\Gold Shimmer A.wav"
+  },
+  [pscustomobject]@{
+    Name = "damage"; Channels = 1; Bitrate = "56k"; TargetLufs = -18; Start = 0; Duration = 1.35
+    Source = SourcePath "Impacts\30033240DeepImpacts\DeepImpacts\DSGNImpt_Deep Single Hit Impact_Ocular Sounds_Deep Impacts_The Complete Impacts Collection.wav"
+  },
+  [pscustomobject]@{
+    Name = "lose"; Channels = 1; Bitrate = "64k"; TargetLufs = -18; Start = 0; Duration = 2.40
+    Source = SourcePath "Impacts\30033240DeepImpacts\DeepImpacts\DSGNImpt_Heavy Impact, Deep, Rumble, Distorted_Ocular Sounds_Deep Impacts_The Complete Impacts Collection.wav"
+  },
+  [pscustomobject]@{
+    Name = "win"; Channels = 1; Bitrate = "64k"; TargetLufs = -19; Start = 0; Duration = 3.20
+    Source = SourcePath "Magic\BoomLibraryMagicAlchemyDs\MAGSpel_ENCHANT HOLY-Divine Finish_B00M_MALDS.wav"
+  },
+  [pscustomobject]@{
+    Name = "portal-open"; Channels = 1; Bitrate = "64k"; TargetLufs = -20; Start = 0; Duration = 3.60
+    Source = SourcePath "Magic\MagicSpells\MagicSpells\MAGSpel_Forbidden Magic, Powerful Crystal Spell Launch_Ocular Sounds_Magic Spells_The Complete Fantasy Collection.wav"
   }
 )
 
