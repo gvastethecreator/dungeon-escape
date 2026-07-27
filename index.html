@@ -18,6 +18,42 @@
     />
   </head>
   <body>
+    <svg class="crt-filter-defs" aria-hidden="true" focusable="false">
+      <defs>
+        <filter
+          id="crt-phosphor"
+          x="-2%"
+          y="-2%"
+          width="104%"
+          height="104%"
+          color-interpolation-filters="sRGB"
+        >
+          <feGaussianBlur in="SourceGraphic" stdDeviation="0.78" result="phosphor-glow" />
+          <feColorMatrix
+            in="phosphor-glow"
+            type="matrix"
+            values="1 0 0 0 0
+                    0 1 0 0 0
+                    0 0 1 0 0
+                    0 0 0 0.18 0"
+            result="soft-glow"
+          />
+          <feOffset in="SourceGraphic" dy="1.35" result="decay-offset" />
+          <feGaussianBlur in="decay-offset" stdDeviation="0.32 1.1" result="decay-blur" />
+          <feColorMatrix
+            in="decay-blur"
+            type="matrix"
+            values="1 0 0 0 0
+                    0 1 0 0 0
+                    0 0 1 0 0
+                    0 0 0 0.11 0"
+            result="phosphor-decay"
+          />
+          <feBlend in="SourceGraphic" in2="phosphor-decay" mode="screen" result="with-decay" />
+          <feBlend in="with-decay" in2="soft-glow" mode="screen" />
+        </filter>
+      </defs>
+    </svg>
     <main class="app-shell">
       <canvas id="scene" tabindex="0" aria-label="First-person grimdark dungeon"></canvas>
       <div class="view-falloff" aria-hidden="true"></div>
@@ -250,7 +286,7 @@
               class="is-active"
               type="button"
               aria-pressed="true"
-              title="Toggle soft CRT"
+              title="Toggle CRT"
             >
               CRT ON
             </button>

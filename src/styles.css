@@ -58,6 +58,14 @@ body {
   background: var(--ink);
 }
 
+.crt-filter-defs {
+  position: fixed;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
 button,
 input,
 select,
@@ -139,6 +147,28 @@ kbd {
   overflow: hidden;
   background: var(--ink);
   isolation: isolate;
+}
+
+.app-shell:not(.crt-off) {
+  animation: crt-jitter 2.8s steps(1, end) infinite;
+  filter: url("#crt-phosphor");
+}
+
+@keyframes crt-jitter {
+  0%,
+  92%,
+  96%,
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+
+  93% {
+    transform: translate3d(0.24px, 0, 0);
+  }
+
+  94% {
+    transform: translate3d(-0.18px, 0.1px, 0);
+  }
 }
 
 #scene {
@@ -1815,14 +1845,66 @@ kbd {
 
 .crt-overlay {
   position: absolute;
-  z-index: 12;
+  z-index: 100;
   inset: 0;
+  overflow: hidden;
   background:
-    repeating-linear-gradient(0deg, rgb(0 0 0 / 0%) 0 3px, rgb(0 0 0 / 7%) 3px 4px),
-    radial-gradient(ellipse at center, transparent 64%, rgb(0 0 0 / 16%) 100%);
-  opacity: 0.34;
-  mix-blend-mode: multiply;
+    url("/assets/ui/crt-noise.svg") 0 0 / 96px 96px repeat,
+    radial-gradient(ellipse at center, transparent 64%, rgb(0 0 0 / 10%) 100%);
+  animation: crt-noise-shift 320ms steps(2, end) infinite;
   pointer-events: none;
+}
+
+.crt-overlay::before,
+.crt-overlay::after {
+  position: absolute;
+  inset: 0;
+  content: "";
+  pointer-events: none;
+}
+
+/* A small fixed subset of Shader Boy Mini's CRT model: scanlines plus an RGB
+   aperture grille. Both stay in screen space so the world and HTML HUD share
+   the same display surface. */
+.crt-overlay::before {
+  background: repeating-linear-gradient(to bottom, transparent 0 5px, rgb(2 4 4 / 4.2%) 5px 6px);
+  mix-blend-mode: multiply;
+}
+
+.crt-overlay::after {
+  background: repeating-linear-gradient(
+    to right,
+    rgb(255 72 72 / 1.4%) 0 4px,
+    rgb(82 255 154 / 0.9%) 4px 8px,
+    rgb(96 142 255 / 1.4%) 8px 12px
+  );
+  mix-blend-mode: soft-light;
+}
+
+@keyframes crt-noise-shift {
+  0% {
+    background-position:
+      0 0,
+      center;
+  }
+
+  25% {
+    background-position:
+      37px -19px,
+      center;
+  }
+
+  50% {
+    background-position:
+      -23px 41px,
+      center;
+  }
+
+  75% {
+    background-position:
+      11px 29px,
+      center;
+  }
 }
 
 .app-shell.crt-off .crt-overlay {
@@ -2859,8 +2941,9 @@ kbd {
     animation-iteration-count: 1 !important;
   }
 
+  .app-shell:not(.crt-off),
   .crt-overlay {
-    opacity: 0.2;
+    animation: none;
   }
 
   .pickup-feedback.is-active,
