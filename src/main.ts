@@ -13,7 +13,6 @@ import {
   type DomainBridge,
   type DungeonDomainState,
 } from "./domain/bridge";
-import { mountDomainPanel } from "./domain/panel";
 import { DUNGEON_PRESETS, type DungeonEditorParams, type DungeonPresetId } from "./editor/presets";
 import { generateDungeon, setDungeonSpawn } from "./dungeon/generateDungeon";
 import {
@@ -186,10 +185,8 @@ elements.seed.value = urlSeed;
 const authorityBaseUrl = new URLSearchParams(window.location.search).get("authority")?.trim() ?? "";
 const authority = createAuthorityClient({ baseUrl: authorityBaseUrl });
 const domainBridge: DomainBridge = createDomainBridge({ initialSeed: urlSeed, authority });
-const domainPanel = mountDomainPanel(elements.shell, domainBridge);
 const visitedCells = new Set<string>();
 let lastExploreCellKey = "";
-let lastPanelRefresh = 0;
 
 const scene = new THREE.Scene();
 
@@ -670,8 +667,7 @@ function pushParamsToDomain(
   const result = domainBridge.setParams(params);
   if (result.ok) return true;
   setStatus(`${source}: ${result.error.message}`);
-  domainPanel.refresh();
-  return false;
+    return false;
 }
 
 function applyDungeonDomainToForm(state: DungeonDomainState): void {
@@ -720,8 +716,7 @@ async function refreshRunSelect(): Promise<void> {
       err instanceof Error ? err.message : String(err),
     );
   }
-  domainPanel.refresh();
-}
+  }
 
 function playCue(cue: AudioCue): void {
   void audio.unlock().then(() => audio.play(cue));
@@ -951,7 +946,6 @@ function flushDomainExplore(allowDuringRunTransition = false): void {
     topologySignature: dungeon.topologySignature,
     threat: extra.threat,
   });
-  domainPanel.refresh();
 }
 
 function syncDomainExplore(extra: { threat?: number } = {}): void {
@@ -980,7 +974,6 @@ async function beginAuthorityRunTransition(): Promise<boolean> {
   domainBridge.cancelRunTransition();
   runTransitionPending = false;
   setStatus("Run change blocked by an unsynced dungeon. Use PUSH BACKEND, then retry.");
-  domainPanel.refresh();
   return false;
 }
 
@@ -1006,7 +999,6 @@ function activateDungeon(
     if (!captured.ok) {
       const error = new Error(`Dungeon build rejected: ${captured.error.message}`);
       setStatus(error.message);
-      domainPanel.refresh();
       throw error;
     }
   }
@@ -1217,10 +1209,8 @@ function setEngineMode(
     void (async () => {
       const hydrated = await domainBridge.hydrateFromAuthority();
       if (!hydrated) {
-        domainPanel.refresh();
         return;
       }
-      domainPanel.refresh();
       const localSeed = elements.seed.value.trim();
       if (shouldAdoptHydratedSeed(Boolean(dungeon), hydrated.seed, localSeed)) {
         applyDungeonDomainToForm(hydrated.state);
@@ -1237,7 +1227,7 @@ function setEngineMode(
       }
     })();
   } else {
-    void domainBridge.probeAuthority().then(() => domainPanel.refresh());
+    void domainBridge.probeAuthority();
   }
   elements.modeButtons.forEach((button) => {
     const active = button.dataset.engineMode === nextMode;
@@ -1532,12 +1522,10 @@ elements.pushAuthority.addEventListener("click", () => {
   const seeded = domainBridge.setSeed(elements.seed.value.trim() || "CAMPAIGN-17");
   if (!seeded.ok) {
     setStatus(`Backend push rejected: ${seeded.error.message}`);
-    domainPanel.refresh();
     return;
   }
   const reconciliationQueued = domainBridge.reconcileRemote();
   void domainBridge.probeAuthority().then((ok) => {
-    domainPanel.refresh();
     setStatus(
       ok && reconciliationQueued
         ? "Backend reconciliation queued with the current dungeon snapshot."
@@ -1683,8 +1671,6 @@ window.addEventListener("message", (event) => {
       "ready",
     );
     elements.forgeApply.disabled = false;
-    const playKicker = elements.forgeApply.querySelector(".forge-play-btn__kicker");
-    if (playKicker) playKicker.textContent = "READY";
   } catch (error) {
     forgeDungeon = null;
     forgePreviewDungeon = null;
@@ -1927,7 +1913,6 @@ function frame(now: number): void {
     if (effects.sessionChanged) {
       domainBridge.syncSession(snapshotRunSession(session, quest));
       scheduleLocalRunSave();
-      domainPanel.refresh();
     }
     if (effects.status) setStatus(effects.status);
     if (effects.playPickup && effects.pickup) {
@@ -2027,11 +2012,6 @@ function frame(now: number): void {
     drawMap();
     lastMapDraw = now;
   }
-  // Panel is signature-gated; refresh slowly so it never contends with FPS input.
-  if (now - lastPanelRefresh > 1500) {
-    domainPanel.refresh();
-    lastPanelRefresh = now;
-  }
   if (engineMode === "debug" && now - lastDebugDraw > 240) {
     const diagnostics = getRendererDiagnostics();
     elements.debugFps.textContent = String(Math.round(diagnostics.fps));
@@ -2064,7 +2044,6 @@ window.addEventListener("beforeunload", () => {
   longTaskObserver?.disconnect();
   minimapResizeObserver.disconnect();
   minimapLayout.dispose();
-  domainPanel.dispose();
   editorView.dispose();
   audio.dispose();
   controller.dispose();
@@ -2131,7 +2110,6 @@ if (visualQaState) {
     } else if (!continueDomainState) {
       setContinueCandidate(null, "No active saved run. Start a new game.");
     }
-    domainPanel.refresh();
     await refreshRunSelect();
   })();
 }
