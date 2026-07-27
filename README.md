@@ -1,73 +1,46 @@
 # Dungeon Escape
 
-Juego de exploración de mazmorras en primera persona. Genera una mazmorra, permite editar su mapa, jugarla en WebGL y guardar una partida local.
+A first-person procedural dungeon game built with Three.js. Forge a seeded map, inspect it in the editor, then explore it in a local WebGL run.
 
-## Requisitos
+The project includes a deterministic map generator, first-person controls, a local run save, touch controls, audio, a Forge map editor, and a reliquary preview.
 
-- Bun 1.3.14 o posterior
-- Un navegador WebGL moderno
+## Quick start
 
-## Inicio
+Requires Bun 1.3.14 or later and a modern WebGL browser.
 
 ```bash
 bun install
 bun run dev
 ```
 
-Abre `http://127.0.0.1:24211/`.
+Open `http://127.0.0.1:24211/`.
 
-Entradas incluidas:
+Use **New Game** to open the Forge editor. The main entry also supports `?mode=editor`, `?mode=debug`, and `?mode=play`.
 
-- `/` — editor, depuración y partida
-- `/forge.html` — Forge del mapa
-- `/reliquary.html` — vista de altar
+## What is included
 
-## Controles
+- Deterministic dungeon layouts with seeded replay.
+- Forge map editing and a matching in-game map preview.
+- First-person exploration with keyboard, mouse, and touch input.
+- Eleven visual moods, enemy sprites, spatial audio, and local run persistence.
 
-| Entrada                  | Acción                  |
-| ------------------------ | ----------------------- |
-| Click en ENTRAR o escena | Captura el cursor       |
-| WASD o flechas           | Mover                   |
-| Ratón                    | Mirar                   |
-| Shift                    | Correr                  |
-| Espacio                  | Saltar                  |
-| M                        | Mapa                    |
-| R                        | Reiniciar semilla       |
-| Esc                      | Liberar cursor          |
-| 1 / 2 / 3                | CREATION / DEBUG / PLAY |
+## Documentation
 
-Los controles táctiles incluyen movimiento, giro, interacción y salto.
+- [Development](docs/DEVELOPMENT.md)
+- [Standalone architecture](docs/STANDALONE.md)
+- [Editor, world signals, and jump](docs/DUNGEON-EDITOR-WORLD-JUMP.md)
+- [Performance and topology](docs/DUNGEON-PERFORMANCE-TOPOLOGY.md)
+- [Audio runtime](docs/AUDIO.md)
+- [Third-party notices](THIRD_PARTY_NOTICES.md)
 
-## Calidad local
+## Attribution
 
-```bash
-bun run test
-bun run typecheck
-bun run build
-bun run lint
-bun run fmt:check
-```
+The map generator is a modified version of [Majid Manzarpour's threejs-procedural-dungeon](https://github.com/majidmanzarpour/threejs-procedural-dungeon). Thank you to Majid Manzarpour for the original procedural-dungeon work. See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for the upstream MIT notice.
 
-## Estructura
+## Status
 
-```text
-src/
-  authority/       cliente HTTP opcional
-  domain/          parámetros y simulación local de Dungeon
-  dungeon/         generación e importación de mapas
-  editor/          proyección y vista del editor
-  world/           escena y sistemas Three.js
-public/assets/     recursos que carga el juego
-tests/             pruebas Bun
-scripts/           procesos de assets y capturas
-docs/              guías técnicas y migración
-```
+Dungeon Escape is a standalone local application with a verified build and test suite. The optional authority client expects a compatible `/health` and `/v0` HTTP API when `authority` is supplied in the URL.
 
-La partida funciona con estado local. Se puede enlazar una autoridad HTTP compatible con `?authority=https://servidor.example`; el servicio debe exponer `/health` y las rutas `/v0` usadas por `src/authority/client.ts`.
+## License
 
-## Documentación
-
-- [Editor, mundo y salto](docs/DUNGEON-EDITOR-WORLD-JUMP.md)
-- [Rendimiento y topología](docs/DUNGEON-PERFORMANCE-TOPOLOGY.md)
-- [Audio](docs/AUDIO.md)
-- [Extracción standalone](docs/STANDALONE.md)
+No project-wide license has been selected yet. Confirm the licensing of the included audio pack before distributing release assets.

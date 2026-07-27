@@ -7,6 +7,9 @@
  * driven by a single deterministic mulberry32 stream so any seed rebuilds the
  * exact same dungeon.
  *
+ * The generator derives from a modified version of Majid Manzarpour's
+ * threejs-procedural-dungeon. See THIRD_PARTY_NOTICES.md.
+ *
  * Rendering targets Three.js r128 (see README → "A note on the Three.js
  * version"). The named-export namespace import below is the ESM equivalent of
  * the global `THREE` the original prototype pulled from a CDN.
