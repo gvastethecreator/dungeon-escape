@@ -29,10 +29,12 @@ describe("progressive difficulty director", () => {
     expect(start.targetEnemies).toBe(53);
     expect(start.enemiesPerWave).toBe(perWave);
     expect(start.maxEnemies).toBeLessThanOrEqual(ENEMY_HARD_CAP);
-    expect(start.waveSeconds).toBe(16);
+    expect(start.waveSeconds).toBe(25);
     expect(firstWave.targetEnemies).toBe(53 + perWave);
-    // ~1 enemy per room each pulse: after a minute several full room waves land.
-    expect(minute.targetEnemies).toBe(Math.min(start.maxEnemies, 53 + Math.floor(60 / 16) * perWave));
+    // ~1 enemy per room each pulse: after a minute a couple of full room waves land.
+    expect(minute.targetEnemies).toBe(
+      Math.min(start.maxEnemies, 53 + Math.floor(60 / DEFAULT_WAVE_SECONDS) * perWave),
+    );
     expect(late.targetEnemies).toBe(start.maxEnemies);
     expect(late.targetEnemies).toBeLessThanOrEqual(ENEMY_HARD_CAP);
   });
@@ -57,8 +59,8 @@ describe("progressive difficulty director", () => {
     expect(relentless.initialOccupiedRooms).toBe(35);
     expect(merciful.initialEnemies).toBe(44);
     expect(relentless.initialEnemies).toBe(61);
-    expect(merciful.waveSeconds).toBe(16);
-    expect(relentless.waveSeconds).toBe(16);
+    expect(merciful.waveSeconds).toBe(25);
+    expect(relentless.waveSeconds).toBe(25);
     expect(merciful.enemiesPerWave).toBeLessThan(relentless.enemiesPerWave);
     // Large maps often share the hard instancing cap; smaller maps still diverge.
     const mercifulSmall = resolveDifficultyTuning(0, 12, 200);
@@ -80,7 +82,7 @@ describe("progressive difficulty director", () => {
     expect(enemyUnlockSeconds("ratling", tuning)).toBe(0);
     expect(isEnemyKindUnlocked("ratling", 0, tuning)).toBe(true);
     expect(isEnemyKindUnlocked("goblin", 0, tuning)).toBe(false);
-    // Phase 1 unlocks after two 16s pulses at standard danger scale.
+    // Phase 1 unlocks after two reinforcement pulses at standard danger scale.
     expect(enemyUnlockSeconds("goblin", tuning)).toBe(wave * 2);
     expect(enemyUnlockSeconds("husk", tuning)).toBeGreaterThan(enemyUnlockSeconds("ghost", tuning));
     expect(enemyUnlockSeconds("zombie-orc", tuning)).toBeGreaterThan(

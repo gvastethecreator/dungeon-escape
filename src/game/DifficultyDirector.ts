@@ -6,7 +6,13 @@ export const DEFAULT_DIFFICULTY = 0.5;
 export const ENEMY_HARD_CAP = 200;
 
 /** Default reinforcement cadence: one new seat per room. */
-export const DEFAULT_WAVE_SECONDS = 16;
+export const DEFAULT_WAVE_SECONDS = 25;
+
+/**
+ * Minimum horizontal distance between newly activated enemies (world units).
+ * Keeps reinforcement pops from stacking on the same corner.
+ */
+export const ENEMY_ACTIVATION_SPREAD = 14;
 
 /**
  * Pressure and danger-band unlocks climb every this many reinforcement pulses.
