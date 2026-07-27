@@ -35,17 +35,19 @@ function colorDistance(first: THREE.Color, second: THREE.Color): number {
 
 describe("integrated dungeon lighting", () => {
   test("player lantern is bright nearby and falls off before the next room", () => {
-    expect(PLAYER_LANTERN_TUNING.intensity).toBeGreaterThanOrEqual(70);
-    expect(PLAYER_LANTERN_TUNING.intensity).toBeLessThanOrEqual(82);
-    expect(PLAYER_LANTERN_TUNING.range).toBeGreaterThanOrEqual(17);
-    expect(PLAYER_LANTERN_TUNING.range).toBeLessThanOrEqual(19);
-    expect(PLAYER_LANTERN_TUNING.decay).toBeGreaterThanOrEqual(1.7);
-    expect(PLAYER_LANTERN_TUNING.decay).toBeLessThanOrEqual(1.9);
+    expect(PLAYER_LANTERN_TUNING.intensity).toBeGreaterThanOrEqual(112);
+    expect(PLAYER_LANTERN_TUNING.intensity).toBeLessThanOrEqual(124);
+    expect(PLAYER_LANTERN_TUNING.range).toBeGreaterThanOrEqual(15);
+    expect(PLAYER_LANTERN_TUNING.range).toBeLessThanOrEqual(17);
+    expect(PLAYER_LANTERN_TUNING.decay).toBeGreaterThanOrEqual(1.95);
+    expect(PLAYER_LANTERN_TUNING.decay).toBeLessThanOrEqual(2.05);
     expect(PLAYER_LANTERN_TUNING.backwardOffset).toBeGreaterThanOrEqual(0.75);
     expect(PLAYER_LANTERN_TUNING.backwardOffset).toBeLessThanOrEqual(1);
     const nearResponse = PLAYER_LANTERN_TUNING.intensity / Math.pow(2, PLAYER_LANTERN_TUNING.decay);
     const farResponse = PLAYER_LANTERN_TUNING.intensity / Math.pow(12, PLAYER_LANTERN_TUNING.decay);
-    expect(nearResponse / farResponse).toBeGreaterThan(20);
+    expect(nearResponse).toBeGreaterThanOrEqual(28);
+    expect(farResponse).toBeLessThanOrEqual(0.85);
+    expect(nearResponse / farResponse).toBeGreaterThan(32);
   });
 
   test("player lantern stays behind the view to cap close-wall highlights", () => {
