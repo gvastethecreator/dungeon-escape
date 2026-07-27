@@ -8,7 +8,8 @@ import {
   tickEnemySim,
   type EnemySimBody,
 } from "../src/world/EnemySim";
-import { ENEMY_ARCHETYPES } from "../src/world/EnemyArchetypes";
+import { ENEMY_ARCHETYPES, getEnemySpriteRenderMetrics } from "../src/world/EnemyArchetypes";
+import { LUMINOUS_WARD_REPEL_RADIUS } from "../src/game/LuminousWard";
 
 function body(kind: EnemySimBody["kind"], x: number, z: number): EnemySimBody {
   const arch = ENEMY_ARCHETYPES[kind];
@@ -71,6 +72,47 @@ describe("EnemySim", () => {
       tileSize: 2.4,
     });
     expect(result.nearestThreat).toBeCloseTo(2, 5);
+  });
+
+  test("luminous ward makes enemies retreat and blocks contact damage", () => {
+    const dungeon = generateDungeon("SIM-WARD", { roomTarget: 10 });
+    const enemy = body("zombie-orc", 0.7, 0);
+    const result = tickEnemySim([enemy], {
+      delta: 0.016,
+      elapsed: 1,
+      player: { x: 0, y: 1.6, z: 0 },
+      dungeon,
+      solidColliders: [],
+      tileSize: 2.4,
+      repelRadius: 8.25,
+    });
+    expect(result.damage).toBe(0);
+    expect(enemy.position.x).toBeGreaterThan(0.7);
+    expect(enemy.hitCooldown).toBe(0);
+
+    const overlapping = body("ratling", 0, 0);
+    tickEnemySim([overlapping], {
+      delta: 0.016,
+      elapsed: 1,
+      player: { x: 0, y: 1.6, z: 0 },
+      dungeon,
+      solidColliders: [],
+      tileSize: 2.4,
+      repelRadius: LUMINOUS_WARD_REPEL_RADIUS,
+    });
+    expect(Math.hypot(overlapping.position.x, overlapping.position.z)).toBeGreaterThan(0);
+  });
+
+  test("uses the selected biome alpha bounds for billboard scale", () => {
+    const ashGhost = getEnemySpriteRenderMetrics("ghost", "ash");
+    const frostGhost = getEnemySpriteRenderMetrics("ghost", "frost");
+    const ashGoblin = getEnemySpriteRenderMetrics("goblin", "ash");
+    const verdantGoblin = getEnemySpriteRenderMetrics("goblin", "verdant");
+    expect(frostGhost.planeHeight).toBeLessThan(ashGhost.planeHeight);
+    // Verdant's goblin crop is narrower. The billboard grows to keep the
+    // visible body width stable instead of making that biome look undersized.
+    expect(verdantGoblin.planeWidth).toBeGreaterThan(ashGoblin.planeWidth);
+    expect(getEnemySpriteRenderMetrics("ghost", "unknown-biome")).toEqual(ashGhost);
   });
 
   test("spectral enemies fade out, relocate sideways and return closer", () => {

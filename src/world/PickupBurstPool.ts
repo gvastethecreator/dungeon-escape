@@ -1,6 +1,6 @@
 import * as THREE from "three";
 
-export type PickupBurstKind = "stone" | "resolve" | "time-freeze";
+export type PickupBurstKind = "stone" | "resolve" | "time-freeze" | "luminous-ward";
 
 interface PickupBurstSlot {
   root: THREE.Group;
@@ -15,6 +15,7 @@ const BURST_COLORS: Readonly<Record<PickupBurstKind, number>> = {
   stone: 0xc9b97b,
   resolve: 0xb52a3d,
   "time-freeze": 0x72e7ef,
+  "luminous-ward": 0xb9e879,
 };
 
 function createSlot(index: number): PickupBurstSlot {
@@ -92,7 +93,8 @@ export class PickupBurstPool {
     slot.ring.material.color.setHex(color);
     slot.ring.material.opacity = 0.72;
     slot.sparks.material.color.setHex(color);
-    slot.sparks.material.size = kind === "resolve" ? 0.075 : kind === "time-freeze" ? 0.09 : 0.06;
+    slot.sparks.material.size =
+      kind === "resolve" ? 0.075 : kind === "time-freeze" || kind === "luminous-ward" ? 0.09 : 0.06;
     slot.sparks.material.opacity = 0.88;
   }
 

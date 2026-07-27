@@ -50,7 +50,7 @@ export interface DungeonAudioFrame {
 }
 
 export interface CollectedPickupAudio {
-  kind: "stone" | "resolve" | "time-freeze";
+  kind: "stone" | "resolve" | "time-freeze" | "luminous-ward";
   position: AudioPosition;
 }
 
@@ -283,7 +283,12 @@ export class GameAudio {
       this.play("pickup");
       return;
     }
-    this.playAsset(pickup.kind === "stone" ? "pickup-stone" : "pickup-resolve", pickup.position);
+    this.playAsset(
+      pickup.kind === "stone" || pickup.kind === "luminous-ward"
+        ? "pickup-stone"
+        : "pickup-resolve",
+      pickup.position,
+    );
   }
 
   playPortal(position: AudioPosition | null): void {

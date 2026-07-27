@@ -340,6 +340,124 @@ export function createTimeFreezeRelic(materials: DungeonMaterials): THREE.Group 
 }
 
 /**
+ * A faceted ward stone with a rough pedestal, iron cage and a lifted crystal
+ * core. The stone uses the biome-treated material palette supplied by the
+ * dungeon, so its accent shifts with the room mood while its matte base keeps
+ * the pickup from looking like a second glossy magic stone.
+ */
+export function createLuminousWardStone(materials: DungeonMaterials): THREE.Group {
+  const root = new THREE.Group();
+  root.name = "Three-dimensional luminous ward stone";
+
+  const base = materials.darkStone.clone();
+  base.color.multiplyScalar(0.78);
+  base.roughness = Math.max(base.roughness, 0.9);
+  const iron = materials.iron.clone();
+  iron.color.multiplyScalar(0.72);
+  iron.roughness = 0.82;
+  iron.metalness = Math.min(0.62, Math.max(iron.metalness, 0.34));
+  const crystal = materials.crystal.clone();
+  crystal.color.setHex(0xb4e98c);
+  crystal.emissive.setHex(0x4d9e43);
+  crystal.emissiveIntensity = 1.45;
+  crystal.roughness = 0.48;
+  const core = materials.ice.clone();
+  core.color.setHex(0xd5f7a9);
+  core.emissive.setHex(0x74be4f);
+  core.emissiveIntensity = 1.8;
+  core.roughness = 0.36;
+  const glow = new THREE.MeshBasicMaterial({
+    color: 0xbff58d,
+    transparent: true,
+    opacity: 0.28,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+    toneMapped: false,
+    side: THREE.DoubleSide,
+  });
+
+  const pedestal = mesh(
+    new THREE.CylinderGeometry(0.46, 0.58, 0.2, 8),
+    base,
+    "Luminous ward stone pedestal",
+  );
+  pedestal.position.y = 0.1;
+  const footRing = mesh(
+    new THREE.TorusGeometry(0.47, 0.045, 6, 16),
+    iron,
+    "Luminous ward iron foot ring",
+  );
+  footRing.rotation.x = Math.PI / 2;
+  footRing.position.y = 0.22;
+  const crystalCore = mesh(
+    new THREE.DodecahedronGeometry(0.31, 1),
+    crystal,
+    "Luminous ward faceted crystal",
+  );
+  crystalCore.position.y = 0.58;
+  crystalCore.rotation.set(0.2, 0.34, -0.08);
+  const crystalShard = mesh(
+    new THREE.OctahedronGeometry(0.14, 0),
+    core,
+    "Luminous ward inner glow crystal",
+  );
+  crystalShard.position.set(0.01, 0.59, 0.22);
+  crystalShard.rotation.set(-0.16, 0.4, 0.2);
+
+  const cageRing = mesh(
+    new THREE.TorusGeometry(0.37, 0.026, 5, 18),
+    iron,
+    "Luminous ward upper cage ring",
+  );
+  cageRing.rotation.x = Math.PI / 2;
+  cageRing.position.y = 0.58;
+  const cageRingVertical = cageRing.clone();
+  cageRingVertical.name = "Luminous ward vertical cage ring";
+  cageRingVertical.rotation.set(Math.PI / 2, Math.PI / 2, 0);
+  const halo = mesh(new THREE.TorusGeometry(0.52, 0.018, 5, 22), glow, "Luminous ward pickup halo");
+  halo.rotation.x = Math.PI / 2;
+  halo.position.y = 0.58;
+
+  for (let index = 0; index < 6; index += 1) {
+    const rune = mesh(new THREE.BoxGeometry(0.045, 0.12, 0.035), core, "Luminous ward rune");
+    const angle = (index / 6) * Math.PI * 2;
+    rune.position.set(Math.cos(angle) * 0.46, 0.26, Math.sin(angle) * 0.46);
+    rune.rotation.y = angle;
+    root.add(rune);
+  }
+
+  const pickupLight = new THREE.PointLight(0xb9e879, 2.2, 8.5, 2);
+  pickupLight.name = "Luminous ward pickup light";
+  pickupLight.position.y = 0.62;
+  const pickupAnchor = new THREE.Object3D();
+  pickupAnchor.name = "Luminous ward pickup anchor";
+  pickupAnchor.position.y = 0.58;
+  const glowAnchor = new THREE.Object3D();
+  glowAnchor.name = "Luminous ward glow anchor";
+  glowAnchor.position.set(0, 0.58, 0.22);
+
+  root.add(
+    pedestal,
+    footRing,
+    crystalCore,
+    crystalShard,
+    cageRing,
+    cageRingVertical,
+    halo,
+    pickupLight,
+    pickupAnchor,
+    glowAnchor,
+  );
+  root.userData.pickupKind = "luminous-ward";
+  root.userData.sculptRuntime = {
+    rootMotionNode: root,
+    sockets: { pickup: pickupAnchor, glow: glowAnchor },
+    colliders: [{ type: "sphere", radius: 0.48, offset: [0, 0.58, 0], isTrigger: true }],
+  };
+  return root;
+}
+
+/**
  * Locks the pickup into its fade-capable shader variant before renderer warmup.
  * Runtime opacity changes can then reuse the compiled program.
  */

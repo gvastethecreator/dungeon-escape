@@ -1676,6 +1676,20 @@ kbd {
   transform: rotate(45deg);
 }
 
+.pickup-feedback[data-kind="luminous-ward"] {
+  border-left-color: #b9e879;
+  box-shadow:
+    6px 6px 0 rgb(0 0 0 / 48%),
+    0 0 24px rgb(185 232 121 / 24%);
+}
+
+.pickup-feedback[data-kind="luminous-ward"] .pickup-mark {
+  border-color: #d9ffae;
+  background: rgb(185 232 121 / 42%);
+  box-shadow: 0 0 8px rgb(185 232 121 / 60%);
+  border-radius: 50%;
+}
+
 .pickup-copy {
   display: grid;
   gap: 2px;
@@ -2118,6 +2132,44 @@ kbd {
 .time-freeze-status[data-urgent] {
   border-right-color: #e5fcff;
   animation: time-freeze-pulse 520ms steps(2, end) infinite;
+}
+
+.luminous-ward-status {
+  display: grid;
+  gap: 3px;
+  min-width: 10ch;
+  padding: 5px 8px 5px 10px;
+  border-right: 2px solid rgb(185 232 121 / 78%);
+  background: linear-gradient(90deg, transparent, rgb(15 28 10 / 88%) 26%);
+  color: #d9ffae;
+  font-family: var(--font-pixel);
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  line-height: 1;
+  text-align: right;
+  text-shadow: 0 0 10px rgb(185 232 121 / 58%);
+}
+
+.luminous-ward-status__label {
+  color: rgb(217 255 174 / 72%);
+  font-size: 9px;
+}
+
+.luminous-ward-status time {
+  font-size: 15px;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.08em;
+}
+
+.luminous-ward-status[data-urgent] {
+  border-right-color: #efffd7;
+  animation: luminous-ward-pulse 560ms steps(2, end) infinite;
+}
+
+@keyframes luminous-ward-pulse {
+  50% {
+    filter: brightness(1.4);
+  }
 }
 .end-overlay[data-end="won"] .end-card {
   width: min(540px, 100%);
