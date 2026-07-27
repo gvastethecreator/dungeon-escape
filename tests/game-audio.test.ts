@@ -34,6 +34,12 @@ describe("GameAudio dungeon soundscape", () => {
     audio.playPickup({ kind: "time-freeze", position: { x: 1, y: 1, z: 0 } });
     audio.playPickup({ kind: "luminous-ward", position: { x: 1, y: 1, z: 0 } });
     audio.playEnemyHit({ x: 1.2, y: 1, z: -2 });
+    audio.setMusicTrack("menu");
+    expect(audio.currentMusic).toBe("menu");
+    audio.setMusicTrack("win");
+    audio.setMusicTrack("lose");
+    audio.setMusicTrack(null);
+    expect(audio.currentMusic).toBe(null);
     audio.setPaused(true);
     audio.setPaused(false);
 
@@ -60,8 +66,21 @@ describe("GameAudio dungeon soundscape", () => {
     expect(source).toContain("chest-open.opus");
     expect(source).toContain("win.opus");
     expect(source).toContain("lose.opus");
+    expect(source).toContain("music-menu.opus");
+    expect(source).toContain("music-win.opus");
+    expect(source).toContain("music-lose.opus");
+    expect(source).toContain("setMusicTrack");
+    expect(source).toContain('group === "music"');
     expect(source).toContain("PICKUP_ASSETS");
     expect(source).toContain("CREATURE_VOICE_ASSETS");
+  });
+
+  test("main wires menu and end-screen music beds", async () => {
+    const main = await Bun.file(new URL("../src/main.ts", import.meta.url)).text();
+    expect(main).toContain('setMusicBed("menu")');
+    expect(main).toContain('setMusicBed("win")');
+    expect(main).toContain('setMusicBed("lose")');
+    expect(main).toContain("audio.setMusicTrack");
   });
 
   test("play loop wires threat and tick into the frame", async () => {
