@@ -488,6 +488,45 @@ const REGULAR_SEED_ORDER: readonly DungeonMoodId[] = [
   "fungal",
 ];
 
+/** Backrooms share of seeded runs (percent). Rare, but always in the NEW GAME pool. */
+const BACKROOMS_SEED_CHANCE = 8;
+/** When a generation profile is set, chance to stick to its preferred mood. */
+const PROFILE_PREFERENCE_CHANCE = 50;
+
+/**
+ * Independent hash channel so rare rolls and mood picks never share the same modulus.
+ * Previous logic used `seedHash % 10` for both profile bias and regular pick, which
+ * locked the alternate branch to only three biomes (obsidian/sunken/fungal).
+ */
+function moodChannel(seedHash: number, salt: number): number {
+  return (Math.imul(Math.abs(seedHash) ^ salt, 2654435761) >>> 0);
+}
+
+function pickRegularMood(seedHash: number, salt = 0xb7e15163): DungeonMoodId {
+  const index = moodChannel(seedHash, salt) % REGULAR_SEED_ORDER.length;
+  return REGULAR_SEED_ORDER[index]!;
+}
+
+function pickSeededMood(seedHash: number, preferred: DungeonMoodId | null): DungeonMoodId {
+  // Keep the special biome uncommon, but include it in every NEW GAME path.
+  if (moodChannel(seedHash, 0xa5a5a5a5) % 100 < BACKROOMS_SEED_CHANCE) {
+    return "backrooms";
+  }
+  if (preferred && moodChannel(seedHash, 0xc3c3c3c3) % 100 < PROFILE_PREFERENCE_CHANCE) {
+    return preferred;
+  }
+  let pick = pickRegularMood(seedHash);
+  // Avoid collapsing variety when the random regular equals the profile favorite.
+  if (preferred && pick === preferred) {
+    pick = pickRegularMood(seedHash, 0x27d4eb2f);
+    if (pick === preferred) {
+      const idx = REGULAR_SEED_ORDER.indexOf(preferred);
+      pick = REGULAR_SEED_ORDER[(idx + 1) % REGULAR_SEED_ORDER.length]!;
+    }
+  }
+  return pick;
+}
+
 export function getDungeonMood(id: DungeonMoodId): DungeonMood {
   return MOODS[id];
 }
@@ -523,26 +562,17 @@ export function moodColorLuminance(hex: number): number {
 /**
  * Pick mood from forge theme (play import), editor profile, or seed hash.
  * Same seed + same profile always resolves the same look.
+ *
+ * Seeded NEW GAME runs can resolve every biome, including backrooms (~8%).
+ * Generation profiles only bias the look; they no longer lock out whole biomes.
  */
 export function resolveDungeonMood(dungeon: DungeonData, profile?: string): DungeonMood {
   const forgeKey = dungeon.forge?.themeKey?.toLowerCase();
   if (forgeKey && FORGE_THEME_IDS.has(forgeKey)) {
     return MOODS[forgeKey as DungeonMoodId];
   }
-  const seedValue = Math.abs(dungeon.seedHash);
-  // The special biome stays surprising in normal runs while remaining directly
-  // selectable through Forge or ?mood=backrooms for authoring and QA.
-  if (seedValue % 23 === 0) return MOODS.backrooms;
   const profileKey = (profile ?? "").toLowerCase();
-  if (profileKey && PROFILE_MOOD[profileKey]) {
-    // Blend profile preference with seed so two crypts still differ slightly.
-    const preferred = PROFILE_MOOD[profileKey]!;
-    const seedPick = REGULAR_SEED_ORDER[seedValue % REGULAR_SEED_ORDER.length]!;
-    // 70% profile, 30% seed alternate among neighbors of preferred.
-    if (Math.abs(dungeon.seedHash) % 10 < 7) return MOODS[preferred];
-    const idx = REGULAR_SEED_ORDER.indexOf(preferred);
-    const neighbor = REGULAR_SEED_ORDER[(idx + 1 + (seedValue % 3)) % REGULAR_SEED_ORDER.length]!;
-    return MOODS[seedPick === preferred ? neighbor : seedPick];
-  }
-  return MOODS[REGULAR_SEED_ORDER[seedValue % REGULAR_SEED_ORDER.length]!];
+  const preferred =
+    profileKey && PROFILE_MOOD[profileKey] ? PROFILE_MOOD[profileKey]! : null;
+  return MOODS[pickSeededMood(dungeon.seedHash, preferred)];
 }

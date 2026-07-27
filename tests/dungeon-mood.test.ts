@@ -88,9 +88,50 @@ describe("dungeon mood tints", () => {
 
   test("backrooms stays rare in seeded runs and direct in authored runs", () => {
     const base = generateDungeon("MOOD-SPECIAL", { roomTarget: 8 });
-    expect(resolveDungeonMood({ ...base, seedHash: 46 }).id).toBe("backrooms");
-    expect(resolveDungeonMood({ ...base, seedHash: 47 }).id).not.toBe("backrooms");
+    // Independent rare channel (same mix as resolveDungeonMood).
+    const channel = (hash: number, salt: number) =>
+      (Math.imul(Math.abs(hash) ^ salt, 2654435761) >>> 0);
+    let rareHash = 0;
+    let commonHash = 1;
+    for (let h = 0; h < 50_000; h++) {
+      if (channel(h, 0xa5a5a5a5) % 100 < 8) {
+        rareHash = h;
+        break;
+      }
+    }
+    for (let h = 0; h < 50_000; h++) {
+      if (channel(h, 0xa5a5a5a5) % 100 >= 8) {
+        commonHash = h;
+        break;
+      }
+    }
+    expect(resolveDungeonMood({ ...base, seedHash: rareHash }).id).toBe("backrooms");
+    expect(resolveDungeonMood({ ...base, seedHash: commonHash }).id).not.toBe("backrooms");
     expect(resolveDungeonMood(withForgeTheme(base, "backrooms")).id).toBe("backrooms");
+  });
+
+  test("NEW GAME balanced profile can resolve every biome including backrooms", () => {
+    const counts = Object.fromEntries(listDungeonMoodIds().map((id) => [id, 0])) as Record<
+      string,
+      number
+    >;
+    const samples = 4_000;
+    for (let i = 0; i < samples; i++) {
+      const dungeon = generateDungeon(`ASH-BAL-${i.toString(36).toUpperCase()}`, {
+        roomTarget: 8,
+      });
+      counts[resolveDungeonMood(dungeon, "balanced").id] += 1;
+    }
+    // Default NEW GAME uses profile "balanced". Every authored biome must be reachable.
+    for (const id of listDungeonMoodIds()) {
+      expect(counts[id]).toBeGreaterThan(0);
+    }
+    // Backrooms stays uncommon but well above a one-in-thousands fluke.
+    expect(counts.backrooms).toBeGreaterThan(samples * 0.04);
+    expect(counts.backrooms).toBeLessThan(samples * 0.14);
+    // Profile still biases ash without erasing the rest of the roster.
+    expect(counts.ash).toBeGreaterThan(counts.frost);
+    expect(counts.ash).toBeLessThan(samples * 0.65);
   });
 
   test("distinct moods change fog and surface tint values", () => {
@@ -142,7 +183,8 @@ describe("dungeon mood tints", () => {
       expect(source).toContain(`${id}: {`);
       expect(biomeKeys).toContain(`"${id}"`);
     }
-    expect(source).toContain('hash % 23 === 0 ? "backrooms"');
+    expect(source).toContain('moodChannel(seed, 0xa5a5a5a5) % 100 < 8');
+    expect(source).toContain('return "backrooms"');
     expect(source).toContain("fluorescent: true");
     expect(source).toContain("if (TH.fluorescent)");
     expect(source).toContain('["panelGlow", GEO.panelGlow, matGlow');
@@ -191,6 +233,9 @@ describe("dungeon mood tints", () => {
     expect(getBiomeDecorationProfile("verdant").hangingKind).toBe("vine");
     expect(getBiomeDecorationProfile("fungal").hangingKind).toBe("vine");
     expect(getBiomeDecorationProfile("iron").hangingKind).toBe("chain");
+    expect(getBiomeDecorationProfile("verdant").hangingKinds).toContain("root-cluster");
+    expect(getBiomeDecorationProfile("iron").hangingKinds).toContain("iron-cage");
+    expect(getBiomeDecorationProfile("grim").hangingKinds).toContain("bone-mobile");
     expect(getBiomeDecorationProfile("grim").boneDensity).toBeGreaterThan(
       getBiomeDecorationProfile("verdant").boneDensity,
     );
