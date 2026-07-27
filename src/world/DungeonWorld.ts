@@ -3945,7 +3945,7 @@ export class DungeonWorld {
       if (specs.length === 0) continue;
       const animation = moodAnimations[kind];
       const texture = this.assets.enemyAnimation(animation);
-      const material = createEnemyBillboardMaterial(texture);
+      const material = createEnemyBillboardMaterial(texture, this.activeMood);
       setEnemyBillboardFrame(material, animation, 0);
       this.enemyAnimationBatches.set(kind, {
         kind,

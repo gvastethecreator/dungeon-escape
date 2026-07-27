@@ -18,6 +18,7 @@ import type { DungeonData } from "../src/dungeon/types";
 import {
   createEnemyBillboardMaterial,
   createEnemyContactShadowMaterial,
+  resolveEnemyBiomeMaterialPalette,
   setEnemyBillboardFrame,
 } from "../src/world/EnemyBillboardMaterial";
 import { ENEMY_ANIMATIONS } from "../src/world/EnemySpriteAtlas";
@@ -27,6 +28,10 @@ import { computeTorchLod } from "../src/world/TorchLod";
 import { createWallTorch } from "../src/world/WallTorchFactory";
 import { createVolumetricBeam } from "../src/world/VolumetricBeam";
 import { biomeTintedLightColor } from "../src/world/DungeonWorld";
+
+function colorDistance(first: THREE.Color, second: THREE.Color): number {
+  return Math.hypot(first.r - second.r, first.g - second.g, first.b - second.b);
+}
 
 describe("integrated dungeon lighting", () => {
   test("player lantern is bright nearby and falls off before the next room", () => {
@@ -252,11 +257,15 @@ describe("integrated dungeon lighting", () => {
   });
 
   test("enemy sprites use scene lights, tone mapping, depth and a soft contact mask", () => {
-    const sprite = createEnemyBillboardMaterial(new THREE.Texture());
+    const mood = getDungeonMood("frost");
+    const sprite = createEnemyBillboardMaterial(new THREE.Texture(), mood);
     expect(sprite.isMeshStandardMaterial).toBe(true);
     expect(sprite.toneMapped).toBe(true);
     expect(sprite.depthWrite).toBe(true);
     expect(sprite.emissiveIntensity).toBeLessThan(0.2);
+    expect(sprite.roughness).toBeGreaterThan(0.9);
+    expect(sprite.metalness).toBe(0);
+    expect(sprite.userData.enemyBiomeMood).toBe("frost");
     const shader = {
       vertexShader: "#include <common>\n#include <uv_vertex>\n#include <begin_vertex>",
       fragmentShader: "#include <common>\n#include <alphatest_fragment>",
@@ -282,10 +291,51 @@ describe("integrated dungeon lighting", () => {
     expect(data[3]).toBeLessThan(data[(32 * 64 + 32) * 4 + 3]!);
   });
 
+  test("enemy tint follows both biome surfaces and authored lights without crushing albedo", () => {
+    for (const id of listDungeonMoodIds()) {
+      const palette = resolveEnemyBiomeMaterialPalette(getDungeonMood(id));
+      expect(
+        Math.min(palette.diffuse.r, palette.diffuse.g, palette.diffuse.b),
+      ).toBeGreaterThanOrEqual(0.68);
+      expect(Math.max(palette.diffuse.r, palette.diffuse.g, palette.diffuse.b)).toBeLessThanOrEqual(
+        1,
+      );
+      expect(
+        Math.max(palette.lowLightFill.r, palette.lowLightFill.g, palette.lowLightFill.b),
+      ).toBeCloseTo(0.026, 5);
+      expect(palette.tintStrength).toBeGreaterThanOrEqual(0.2);
+      expect(palette.tintStrength).toBeLessThanOrEqual(0.3);
+    }
+
+    const frost = resolveEnemyBiomeMaterialPalette(getDungeonMood("frost"));
+    const molten = resolveEnemyBiomeMaterialPalette(getDungeonMood("molten"));
+    expect(frost.diffuse.b).toBeGreaterThan(frost.diffuse.r);
+    expect(molten.diffuse.r).toBeGreaterThan(molten.diffuse.b);
+    expect(colorDistance(frost.diffuse, molten.diffuse)).toBeGreaterThan(0.08);
+
+    const sharedSurface = {
+      id: "ancient" as const,
+      surfaceTint: 0xa0a0a0,
+      surfaceStrength: 0.5,
+    };
+    const coldLight = resolveEnemyBiomeMaterialPalette({
+      ...sharedSurface,
+      keyColor: 0x70a0ff,
+      lanternColor: 0x60d8ff,
+    });
+    const warmLight = resolveEnemyBiomeMaterialPalette({
+      ...sharedSurface,
+      keyColor: 0xff9a60,
+      lanternColor: 0xff6030,
+    });
+    expect(colorDistance(coldLight.diffuse, warmLight.diffuse)).toBeGreaterThan(0.08);
+  });
+
   test("enemy kinds share one atlas while keeping independent frame uniforms", () => {
     const atlas = new THREE.Texture();
-    const first = createEnemyBillboardMaterial(atlas);
-    const second = createEnemyBillboardMaterial(atlas);
+    const mood = getDungeonMood("fungal");
+    const first = createEnemyBillboardMaterial(atlas, mood);
+    const second = createEnemyBillboardMaterial(atlas, mood);
     const animation = ENEMY_ANIMATIONS.spider;
 
     setEnemyBillboardFrame(first, animation, 1);
