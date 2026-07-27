@@ -3,9 +3,11 @@ import * as THREE from "three";
 
 import {
   FIRE_LIGHT_TUNING,
+  MATERIAL_FILL_TUNING,
   MAX_DYNAMIC_FIRE_LIGHTS,
   PLAYER_LANTERN_TUNING,
   resolveDungeonExposure,
+  resolvePlayerLanternColor,
 } from "../src/systems/LightTuning";
 import { getDungeonMood, listDungeonMoodIds } from "../src/systems/DungeonMood";
 import { LightingRig } from "../src/systems/LightingRig";
@@ -27,12 +29,12 @@ import { biomeTintedLightColor } from "../src/world/DungeonWorld";
 
 describe("integrated dungeon lighting", () => {
   test("player lantern reaches mid-corridor without washing out torch contrast", () => {
-    expect(PLAYER_LANTERN_TUNING.intensity).toBeGreaterThanOrEqual(88);
-    expect(PLAYER_LANTERN_TUNING.intensity).toBeLessThanOrEqual(104);
-    expect(PLAYER_LANTERN_TUNING.range).toBeGreaterThanOrEqual(19);
-    expect(PLAYER_LANTERN_TUNING.range).toBeLessThanOrEqual(22);
-    expect(PLAYER_LANTERN_TUNING.decay).toBeGreaterThanOrEqual(1.6);
-    expect(PLAYER_LANTERN_TUNING.decay).toBeLessThan(2.2);
+    expect(PLAYER_LANTERN_TUNING.intensity).toBeGreaterThanOrEqual(136);
+    expect(PLAYER_LANTERN_TUNING.intensity).toBeLessThanOrEqual(152);
+    expect(PLAYER_LANTERN_TUNING.range).toBeGreaterThanOrEqual(23);
+    expect(PLAYER_LANTERN_TUNING.range).toBeLessThanOrEqual(25);
+    expect(PLAYER_LANTERN_TUNING.decay).toBeGreaterThanOrEqual(1.55);
+    expect(PLAYER_LANTERN_TUNING.decay).toBeLessThan(1.8);
   });
 
   test("default exposure keeps floor edges readable in the darkest authored mood", () => {
@@ -119,6 +121,35 @@ describe("integrated dungeon lighting", () => {
     expect(frost).not.toBe(base);
   });
 
+  test("player fill keeps each biome hue while revealing material color", () => {
+    const ids = listDungeonMoodIds();
+    const resolved = ids.map((id) => resolvePlayerLanternColor(getDungeonMood(id).lanternColor));
+    expect(new Set(resolved).size).toBe(ids.length);
+
+    const sunken = new THREE.Color(
+      resolvePlayerLanternColor(getDungeonMood("sunken").lanternColor),
+    );
+    const authored = new THREE.Color(getDungeonMood("sunken").lanternColor);
+    const resolvedHsl = { h: 0, s: 0, l: 0 };
+    const authoredHsl = { h: 0, s: 0, l: 0 };
+    sunken.getHSL(resolvedHsl);
+    authored.getHSL(authoredHsl);
+    expect(sunken.r).toBeGreaterThan(authored.r);
+    expect(resolvedHsl.s).toBeLessThan(authoredHsl.s);
+    expect(resolvedHsl.l).toBeGreaterThan(authoredHsl.l);
+  });
+
+  test("neutral room bounce stays low while keeping albedo maps visible", () => {
+    expect(MATERIAL_FILL_TUNING.intensity).toBeGreaterThanOrEqual(0.84);
+    expect(MATERIAL_FILL_TUNING.intensity).toBeLessThanOrEqual(0.96);
+
+    for (const id of listDungeonMoodIds()) {
+      const fill = MATERIAL_FILL_TUNING.intensity * getDungeonMood(id).bounceScale;
+      expect(fill).toBeGreaterThanOrEqual(0.54);
+      expect(fill).toBeLessThanOrEqual(0.68);
+    }
+  });
+
   test("frost is darker than ash: lower bounce, key, IBL, exposure and albedo", () => {
     const frost = getDungeonMood("frost");
     const ash = getDungeonMood("ash");
@@ -144,6 +175,10 @@ describe("integrated dungeon lighting", () => {
     expect(rig.fog.density).toBeCloseTo(mood.fogDensity * mood.fogMul, 5);
     expect(rig.getBounceIntensity()).toBeCloseTo(mood.hemiIntensity * mood.bounceScale, 5);
     expect(rig.getKeyIntensity()).toBeCloseTo(mood.keyIntensity * mood.keyScale, 5);
+    expect(rig.getMaterialFillIntensity()).toBeCloseTo(
+      MATERIAL_FILL_TUNING.intensity * mood.bounceScale,
+      5,
+    );
     expect(rig.getLanternBaseIntensity()).toBeCloseTo(
       PLAYER_LANTERN_TUNING.intensity * mood.playerLightScale,
       5,

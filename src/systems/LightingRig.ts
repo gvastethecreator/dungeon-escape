@@ -1,7 +1,11 @@
 import * as THREE from "three";
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
 
-import { PLAYER_LANTERN_TUNING } from "./LightTuning";
+import {
+  MATERIAL_FILL_TUNING,
+  PLAYER_LANTERN_TUNING,
+  resolvePlayerLanternColor,
+} from "./LightTuning";
 import type { DungeonMood } from "./DungeonMood";
 import { getDungeonMood, moodColorLuminance } from "./DungeonMood";
 
@@ -30,6 +34,10 @@ export class LightingRig {
     DEFAULT_MOOD.rimColor,
     DEFAULT_MOOD.rimIntensity * DEFAULT_MOOD.rimScale,
   );
+  private readonly materialFill = new THREE.AmbientLight(
+    MATERIAL_FILL_TUNING.color,
+    MATERIAL_FILL_TUNING.intensity * DEFAULT_MOOD.bounceScale,
+  );
   private readonly playerFill = new THREE.PointLight(
     PLAYER_LANTERN_TUNING.color,
     PLAYER_LANTERN_TUNING.intensity,
@@ -54,7 +62,7 @@ export class LightingRig {
     this.playerFill.name = "Player radial exploration lantern";
     // Dynamic shadow maps on the player light cause interaction stutter.
     this.playerFill.castShadow = false;
-    scene.add(this.hemisphere, this.key, this.rim, this.playerFill);
+    scene.add(this.hemisphere, this.key, this.rim, this.materialFill, this.playerFill);
   }
 
   /**
@@ -99,7 +107,8 @@ export class LightingRig {
     this.key.intensity = mood.keyIntensity * mood.keyScale;
     this.rim.color.setHex(mood.rimColor);
     this.rim.intensity = mood.rimIntensity * mood.rimScale;
-    this.playerFill.color.setHex(mood.lanternColor);
+    this.materialFill.intensity = MATERIAL_FILL_TUNING.intensity * mood.bounceScale;
+    this.playerFill.color.setHex(resolvePlayerLanternColor(mood.lanternColor));
     this.basePlayerLightIntensity = PLAYER_LANTERN_TUNING.intensity * mood.playerLightScale;
     this.playerFill.intensity = this.basePlayerLightIntensity;
     if (this.scene.environment) {
@@ -133,6 +142,10 @@ export class LightingRig {
     return this.key.intensity;
   }
 
+  getMaterialFillIntensity(): number {
+    return this.materialFill.intensity;
+  }
+
   update(delta: number, player: THREE.Vector3, nearestThreat: number | null): void {
     this.target.copy(player);
     this.target.y += 0.82;
@@ -154,7 +167,7 @@ export class LightingRig {
   }
 
   dispose(): void {
-    this.scene.remove(this.hemisphere, this.key, this.rim, this.playerFill);
+    this.scene.remove(this.hemisphere, this.key, this.rim, this.materialFill, this.playerFill);
     if (this.scene.environment) {
       this.scene.environment.dispose();
       this.scene.environment = null;
