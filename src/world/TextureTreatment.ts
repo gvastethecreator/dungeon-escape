@@ -153,6 +153,12 @@ export interface TextureLuminanceLevels {
   gamma: number;
 }
 
+/** Roughness maps are linear grayscale data; the floor keeps dark maps matte. */
+export interface TextureRoughnessLevels {
+  floor: number;
+  gamma?: number;
+}
+
 export function liftTextureLuminanceRgba(
   data: Uint8ClampedArray,
   levels: TextureLuminanceLevels,
@@ -184,6 +190,22 @@ export function liftTextureLuminanceRgba(
   }
 }
 
+export function liftTextureRoughnessRgba(
+  data: Uint8ClampedArray,
+  levels: TextureRoughnessLevels,
+): void {
+  const floor = THREE.MathUtils.clamp(levels.floor, 0, 0.95);
+  const gamma = THREE.MathUtils.clamp(levels.gamma ?? 1, 0.65, 1.5);
+  for (let pixel = 0; pixel < data.length; pixel += 4) {
+    const value = Math.pow(data[pixel]! / 255, gamma);
+    const remapped = floor + value * (1 - floor);
+    const output = Math.round(THREE.MathUtils.clamp(remapped, 0, 1) * 255);
+    data[pixel] = output;
+    data[pixel + 1] = output;
+    data[pixel + 2] = output;
+  }
+}
+
 /**
  * Normalize a dark authored albedo before sRGB decoding. The transform keeps
  * each channel mean and raises local contrast around it.
@@ -210,6 +232,32 @@ export function liftTextureLuminanceSource(
   context.drawImage(image, 0, 0, width, height);
   const pixels = context.getImageData(0, 0, width, height);
   liftTextureLuminanceRgba(pixels.data, levels);
+  context.putImageData(pixels, 0, 0);
+  texture.image = canvas;
+}
+
+export function liftTextureRoughnessSource(
+  texture: THREE.Texture,
+  levels: TextureRoughnessLevels,
+  maxSide = 512,
+): void {
+  if (typeof document === "undefined") return;
+  const image = texture.image as HTMLImageElement | HTMLCanvasElement | undefined;
+  const sourceWidth = image?.width ?? 0;
+  const sourceHeight = image?.height ?? 0;
+  if (!image || sourceWidth === 0 || sourceHeight === 0) return;
+
+  const scale = Math.min(1, maxSide / Math.max(sourceWidth, sourceHeight));
+  const width = Math.max(1, Math.round(sourceWidth * scale));
+  const height = Math.max(1, Math.round(sourceHeight * scale));
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const context = canvas.getContext("2d", { willReadFrequently: true });
+  if (!context) return;
+  context.drawImage(image, 0, 0, width, height);
+  const pixels = context.getImageData(0, 0, width, height);
+  liftTextureRoughnessRgba(pixels.data, levels);
   context.putImageData(pixels, 0, 0);
   texture.image = canvas;
 }

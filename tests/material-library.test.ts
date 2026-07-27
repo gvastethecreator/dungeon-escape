@@ -104,25 +104,33 @@ describe("dungeon prop materials", () => {
     expect(materials.iron.color.getHex()).not.toBe(verdantIron);
   });
 
-  test("dark prop roles reuse their albedo map as restrained indirect fill", () => {
+  test("matte roles use low indirect fill while metals keep scene reflections", () => {
     const materials = createDungeonMaterials();
     applyMoodToDungeonMaterials(materials, 0x77aaa2, 1);
-    for (const key of [
-      "stone",
-      "darkStone",
-      "wood",
-      "iron",
-      "brass",
-      "cloth",
-      "bone",
-      "ceramic",
-    ] as const) {
+    for (const key of ["stone", "darkStone", "wood", "cloth", "bone", "ceramic"] as const) {
       expect(materials[key].emissiveMap).toBe(materials[key].map);
-      expect(materials[key].emissiveIntensity).toBeGreaterThan(0.2);
-      expect(materials[key].emissiveIntensity).toBeLessThan(0.6);
+      expect(materials[key].emissiveIntensity).toBeGreaterThan(0.04);
+      expect(materials[key].emissiveIntensity).toBeLessThan(0.2);
+    }
+    for (const key of ["iron", "brass"] as const) {
+      expect(materials[key].emissiveMap).toBeNull();
+      expect(materials[key].emissiveIntensity).toBe(0);
     }
     expect(materials.crystal.emissiveMap).toBeNull();
     expect(materials.ice.emissiveMap).toBeNull();
+    expect(materials.crystal.emissiveIntensity).toBeGreaterThan(0.5);
+    expect(materials.ice.emissiveIntensity).toBeGreaterThan(0.2);
+  });
+
+  test("role finishes keep roughness and IBL response distinct", () => {
+    const materials = createDungeonMaterials();
+    applyMoodToDungeonMaterials(materials, 0x77aaa2, 1);
+    expect(materials.cloth.roughness).toBe(1);
+    expect(materials.stone.roughness).toBeGreaterThan(materials.wood.roughness);
+    expect(materials.iron.roughness).toBeGreaterThan(materials.brass.roughness);
+    expect(materials.iron.envMapIntensity).toBeLessThan(0.75);
+    expect(materials.brass.envMapIntensity).toBeGreaterThan(materials.iron.envMapIntensity);
+    expect(materials.crystal.roughness).toBeLessThan(materials.ice.roughness);
   });
 
   test("browser-white PBR multipliers return to distinct role colors before biome tint", () => {
@@ -146,11 +154,13 @@ describe("dungeon prop materials", () => {
     expect(materials.stone.map?.repeat.x).toBeCloseTo(1.25);
     expect(materials.stone.normalMap?.repeat.x).toBeCloseTo(1.25);
     expect(materials.stone.roughnessMap?.repeat.x).toBeCloseTo(1.25);
+    expect(materials.stone.envMapIntensity).toBeCloseTo(0.24);
     expect(materials.darkStone.map).not.toBe(sunken.floor.albedo);
     expect(materials.darkStone.map?.image).toBe(sunken.floor.albedo.image);
     expect(materials.darkStone.map?.repeat.x).toBeCloseTo(1.4);
     expect(materials.darkStone.normalMap?.repeat.x).toBeCloseTo(1.4);
     expect(materials.darkStone.roughnessMap?.repeat.x).toBeCloseTo(1.4);
+    expect(materials.darkStone.envMapIntensity).toBeCloseTo(0.26);
 
     const frost = biome("frost");
     applyBiomeMapsToDungeonMaterials(materials, frost, "frost");

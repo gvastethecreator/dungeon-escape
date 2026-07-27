@@ -2,6 +2,7 @@ import * as THREE from "three";
 import type { DungeonMoodId } from "../systems/DungeonMood";
 import {
   liftTextureLuminanceSource,
+  liftTextureRoughnessSource,
   registerTextureSource,
   resolveTextureSource,
 } from "./TextureTreatment";
@@ -99,6 +100,28 @@ const BIOME_ALBEDO_TARGETS: Record<DungeonMoodId, Record<"floor" | "wall" | "cei
   backrooms: { floor: 0.44, wall: 0.48, ceiling: 0.46 },
 };
 
+/**
+ * Authored roughness maps for a few wet/dark biomes were too close to zero.
+ * A light lift keeps their texture variation, while preventing one dark pixel
+ * from turning a whole masonry tile into a mirror under the room IBL.
+ */
+const BIOME_ROUGHNESS_FLOORS: Record<
+  DungeonMoodId,
+  Record<"floor" | "wall" | "ceiling", number>
+> = {
+  ancient: { floor: 0.12, wall: 0.1, ceiling: 0.08 },
+  molten: { floor: 0.1, wall: 0.08, ceiling: 0.06 },
+  frost: { floor: 0.08, wall: 0.08, ceiling: 0.06 },
+  grim: { floor: 0.12, wall: 0.1, ceiling: 0.08 },
+  verdant: { floor: 0.1, wall: 0.1, ceiling: 0.08 },
+  ash: { floor: 0.12, wall: 0.1, ceiling: 0.08 },
+  iron: { floor: 0.14, wall: 0.12, ceiling: 0.1 },
+  obsidian: { floor: 0.28, wall: 0.26, ceiling: 0.2 },
+  sunken: { floor: 0.42, wall: 0.42, ceiling: 0.34 },
+  fungal: { floor: 0.02, wall: 0.02, ceiling: 0.02 },
+  backrooms: { floor: 0.02, wall: 0.02, ceiling: 0.02 },
+};
+
 function loadBiomeLayer(
   mood: DungeonMoodId,
   surface: "floor" | "wall" | "ceiling",
@@ -118,7 +141,12 @@ function loadBiomeLayer(
     : pixelTexture(biomePath(mood, surface, "normal"), false, "edge-blend");
   const rough = compact
     ? null
-    : pixelTexture(biomePath(mood, surface, "rough"), false, "edge-blend");
+    : pixelTexture(biomePath(mood, surface, "rough"), false, "edge-blend", (loaded) =>
+        liftTextureRoughnessSource(loaded, {
+          floor: BIOME_ROUGHNESS_FLOORS[mood][surface],
+          gamma: 1,
+        }),
+      );
   const depth = compact ? null : dataTexture(biomePath(mood, surface, "depth"));
   // Shared sampling: linear mips for all layers reduce light shimmer at tile boundaries.
   for (const tex of [albedo, normal, rough, depth].filter(
