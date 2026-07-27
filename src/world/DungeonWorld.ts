@@ -107,7 +107,6 @@ import {
 } from "./LiquidSectionKit";
 import { createSpecialRoomSignals } from "./SpecialRoomSignalKit";
 import { getBiomeDecorationProfile } from "./BiomeDecorationProfile";
-import { WALL_DECOR_COUNT } from "./WallDecorSlots";
 
 export { knockbackAwayFrom } from "./knockback";
 
@@ -3169,8 +3168,12 @@ export class DungeonWorld {
     random: ReturnType<typeof createSeededRandom>,
   ): void {
     const profile = getBiomeDecorationProfile(this.activeMood.id);
-    const placements: Array<Array<{ seat: ReturnType<typeof collectRoomWallSeats>[number] }>> =
-      Array.from({ length: WALL_DECOR_COUNT }, () => []);
+    const placements: Array<Array<{ seat: ReturnType<typeof collectRoomWallSeats>[number] }>> = [
+      [],
+      [],
+      [],
+      [],
+    ];
     const occupied = new Set<string>();
     for (const room of dungeon.rooms) {
       if (room.role !== "room") continue;
@@ -3182,15 +3185,13 @@ export class DungeonWorld {
       if (seats.length === 0) continue;
       const area = room.width * room.height;
       const count = Math.min(
-        4,
-        Math.max(1, Math.round((area / 38) * this.decorDensity * profile.wallDecorDensity)),
+        3,
+        Math.max(1, Math.round((area / 42) * this.decorDensity * profile.wallDecorDensity)),
       );
       const selected = pickSpreadSeats(seats, count, dungeon.seedHash + room.id * 41);
       selected.forEach((seat, index) => {
         occupied.add(`${seat.cell.x},${seat.cell.y}`);
-        const frame =
-          Math.abs(room.id * 7 + index * 3 + Math.floor(random.next() * WALL_DECOR_COUNT)) %
-          WALL_DECOR_COUNT;
+        const frame = Math.abs(room.id * 3 + index + Math.floor(random.next() * 4)) % 4;
         placements[frame]!.push({ seat });
       });
     }
@@ -3198,17 +3199,15 @@ export class DungeonWorld {
     for (const [frame, cells] of placements.entries()) {
       if (cells.length === 0) continue;
       const textures = this.assets.biomeWallDecorPbr(this.activeMood.id, frame);
-      // Paintings/reliefs read fully lit; cracks/stains stay slightly subdued.
-      const litSlots = frame <= 1 || frame === 18 || frame === 12 || frame === 4;
       const material = createWallSpriteMaterial(
         textures,
         this.activeMood,
         profile.doorRoughness + 0.04,
-        litSlots ? 1 : 0.78,
+        frame < 2 ? 1 : 0.76,
       );
-      material.polygonOffset = !litSlots;
-      material.polygonOffsetFactor = !litSlots ? -3 : 0;
-      material.polygonOffsetUnits = !litSlots ? -3 : 0;
+      material.polygonOffset = frame >= 2;
+      material.polygonOffsetFactor = frame >= 2 ? -3 : 0;
+      material.polygonOffsetUnits = frame >= 2 ? -3 : 0;
       const spriteSize = 1.72 * profile.wallDecorScale;
       const geometry = new THREE.PlaneGeometry(spriteSize, spriteSize);
       const batch = new THREE.InstancedMesh(geometry, material, cells.length);
