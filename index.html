@@ -52,13 +52,13 @@
         </div>
       </section>
 
-      <!-- Play HUD: intro objective, health orb, stone sockets, minimap -->
+      <!-- Play HUD: intro objective, health, run progress, minimap -->
       <aside class="play-hud" aria-label="Play status">
         <p id="play-objective" class="play-objective" role="status" aria-live="polite" hidden>
           Find the four magic stones
         </p>
 
-        <section class="play-vitals" aria-label="Health and magic stones">
+        <section class="play-vitals" aria-label="Health">
           <div
             class="health-orb"
             role="meter"
@@ -88,6 +88,12 @@
             <div class="health-orb__splatter" aria-hidden="true"></div>
             <output id="resolve-value" class="health-orb__value">100</output>
           </div>
+        </section>
+
+        <section class="play-progress" aria-label="Run time and magic stones">
+          <time id="run-timer" class="run-timer" datetime="PT0S" aria-label="Run time 00:00"
+            >00:00</time
+          >
           <ul class="stone-sockets" aria-label="Magic stone sockets">
             <li class="stone-socket" data-stone="ember" title="Ember Core" aria-pressed="false">
               <span class="stone-socket__empty" aria-hidden="true"></span>
@@ -115,19 +121,17 @@
         </section>
 
         <aside id="map-panel" class="map-panel" aria-label="Dungeon map">
-          <header class="map-head">
-            <span>MAP</span>
-            <kbd>M</kbd>
-            <button
-              id="map-toggle"
-              type="button"
-              aria-expanded="true"
-              aria-controls="minimap"
-              title="Expand map (M)"
-            >
-              EXPAND
-            </button>
-          </header>
+          <button
+            id="map-toggle"
+            class="map-toggle"
+            type="button"
+            aria-label="Expand map"
+            aria-expanded="false"
+            aria-controls="minimap"
+            title="Expand map (M)"
+          >
+            M
+          </button>
           <canvas
             id="minimap"
             role="img"
@@ -156,6 +160,7 @@
       </div>
       <div class="crt-overlay" aria-hidden="true"></div>
       <div class="reticle" aria-hidden="true"><i></i></div>
+      <p id="hazard-status" class="hazard-status" role="status" aria-live="polite" hidden></p>
       <button
         id="interaction-prompt"
         class="interaction-prompt"
@@ -392,7 +397,7 @@
                     <output id="decor-density-label" for="decor-density">60%</output>
                   </label>
                   <label>
-                    <span>ENEMIES</span>
+                    <span>DIFFICULTY</span>
                     <input
                       id="enemy-density"
                       name="enemyDensity"
@@ -400,9 +405,10 @@
                       min="0"
                       max="100"
                       value="50"
-                      aria-label="Enemy density"
+                      aria-label="Difficulty"
+                      aria-valuetext="Standard"
                     />
-                    <output id="enemy-density-label" for="enemy-density">50%</output>
+                    <output id="enemy-density-label" for="enemy-density">STANDARD</output>
                   </label>
                   <label>
                     <span>LIGHT</span>

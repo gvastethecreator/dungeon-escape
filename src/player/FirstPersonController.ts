@@ -116,6 +116,8 @@ export class FirstPersonController {
   private mouseSensitivity: number;
   private cameraMotion: number;
   private criticalMovementDrift = 0;
+  private surfaceSpeedScale = 1;
+  private surfaceTraction = 1;
   private readonly lookResponse: number;
   private readonly verticalConfig: VerticalMotionConfig;
   private readonly verticalState: VerticalMotionState;
@@ -225,6 +227,8 @@ export class FirstPersonController {
     this.position.set(spawn.x, this.eyeHeight, spawn.z);
     this.velocity.set(0, 0);
     this.knockVel.set(0, 0);
+    this.surfaceSpeedScale = 1;
+    this.surfaceTraction = 1;
     resetVerticalMotion(this.verticalState, this.eyeHeight);
     this.landingDip = 0;
     this.distanceTravelled = 0;
@@ -300,6 +304,11 @@ export class FirstPersonController {
 
   setCriticalMovementDrift(value: number): void {
     this.criticalMovementDrift = THREE.MathUtils.clamp(value, -0.1, 0.1);
+  }
+
+  setSurfaceMovement(speedScale: number, traction: number): void {
+    this.surfaceSpeedScale = THREE.MathUtils.clamp(speedScale, 0.45, 1.2);
+    this.surfaceTraction = THREE.MathUtils.clamp(traction, 0.12, 1.2);
   }
 
   requestPointerLock(): void {
@@ -419,9 +428,12 @@ export class FirstPersonController {
 
     const targetSpeed =
       hasIntent && movementAllowed
-        ? this.moveSpeed * (this.isActionActive("sprint") ? this.sprintMultiplier : 1)
+        ? this.moveSpeed *
+          this.surfaceSpeedScale *
+          (this.isActionActive("sprint") ? this.sprintMultiplier : 1)
         : 0;
-    const response = targetSpeed > 0 ? this.acceleration : this.deceleration;
+    const response =
+      (targetSpeed > 0 ? this.acceleration : this.deceleration) * this.surfaceTraction;
     this.velocity.x = THREE.MathUtils.damp(
       this.velocity.x,
       this.desired.x * targetSpeed,

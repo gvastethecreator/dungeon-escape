@@ -1,20 +1,51 @@
 import { createSeededRandom } from "../core/random";
+import type { DungeonRoom, GridCell } from "../dungeon/types";
+import { ENEMY_DANGER_TIER } from "../game/DifficultyDirector";
 import type { EnemyKind } from "./EnemyArchetypes";
 import { ENEMY_ROSTER } from "./EnemySpriteAtlas";
 
-const PREFERRED_TIER: Readonly<Record<EnemyKind, number>> = {
-  carrion: 0,
-  goblin: 0,
-  ghost: 2,
-  ratling: 0,
-  husk: 1,
-  imp: 2,
-  "zombie-orc": 3,
-  spider: 0,
-  "bone-slime": 1,
-  "white-eyed-shadow": 2,
-  "carrion-stalker": 1,
-};
+export interface PlannedEnemySpawn {
+  cell: GridCell;
+  tier: number;
+}
+
+/**
+ * Fills the full room set in shuffled passes. Each room gets a point before a
+ * second point enters that room, which prevents wave reserves from clustering.
+ */
+export function buildDistributedEnemySpawns(
+  seed: string,
+  rooms: readonly DungeonRoom[],
+  count: number,
+  excludedCellKeys: ReadonlySet<string> = new Set(),
+): PlannedEnemySpawn[] {
+  if (rooms.length === 0 || count <= 0) return [];
+  const random = createSeededRandom(`${seed}:enemy-cells`);
+  const rankById = new Map(rooms.map((room, index) => [room.id, index]));
+  const used = new Set(excludedCellKeys);
+  const result: PlannedEnemySpawn[] = [];
+  let attempts = 0;
+  while (result.length < count && attempts < count * 12) {
+    const pass = [...rooms];
+    for (let index = pass.length - 1; index > 0; index -= 1) {
+      const swap = random.integer(0, index);
+      [pass[index], pass[swap]] = [pass[swap]!, pass[index]!];
+    }
+    for (const room of pass) {
+      attempts += 1;
+      const x = random.integer(room.x + 1, room.x + room.width - 2);
+      const y = random.integer(room.y + 1, room.y + room.height - 2);
+      const key = `${x},${y}`;
+      if (used.has(key)) continue;
+      used.add(key);
+      const rank = rankById.get(room.id) ?? 0;
+      const tier = Math.min(4, Math.floor((rank / Math.max(1, rooms.length)) * 5));
+      result.push({ cell: { x, y }, tier });
+      if (result.length >= count) break;
+    }
+  }
+  return result;
+}
 
 /**
  * Builds a deterministic threat deck. A creature appears at most once until
@@ -32,12 +63,12 @@ export function selectEnemyKindsForSpawns(seed: string, tiers: readonly number[]
   const used = new Set<EnemyKind>();
   return tiers.map((rawTier) => {
     if (used.size >= deck.length) used.clear();
-    const tier = Math.max(0, Math.min(3, Math.round(rawTier)));
+    const tier = Math.max(0, Math.min(4, Math.round(rawTier)));
     let selected: EnemyKind | undefined;
     let selectedDistance = Number.POSITIVE_INFINITY;
     for (const kind of deck) {
       if (used.has(kind)) continue;
-      const tierDistance = Math.abs(PREFERRED_TIER[kind] - tier);
+      const tierDistance = Math.abs(ENEMY_DANGER_TIER[kind] - tier);
       if (tierDistance >= selectedDistance) continue;
       selected = kind;
       selectedDistance = tierDistance;
