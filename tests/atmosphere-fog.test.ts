@@ -4,14 +4,6 @@ import * as THREE from "three";
 import { generateDungeon } from "../src/dungeon/generateDungeon";
 import {
   AtmosphereSystem,
-  DUST_COARSE_MIN,
-  DUST_COARSE_OPACITY,
-  DUST_COARSE_SIZE_MAX,
-  DUST_COARSE_SIZE_MIN,
-  DUST_FINE_MIN,
-  DUST_FINE_OPACITY,
-  DUST_FINE_SIZE_MAX,
-  DUST_FINE_SIZE_MIN,
   fogVolumeColor,
   SOFT_FOG_DEFAULT_WALL_HEIGHT,
   SOFT_FOG_DENSITY,
@@ -21,6 +13,7 @@ import {
   SOFT_FOG_MAX_ALPHA,
   SOFT_FOG_MAX_DIST,
 } from "../src/systems/AtmosphereSystem";
+import { getBiomeParticleProfile } from "../src/systems/BiomeParticleProfile";
 import { getDungeonMood } from "../src/systems/DungeonMood";
 
 function dualHeightDensity(y: number): number {
@@ -93,74 +86,135 @@ describe("soft ground fog", () => {
     atmosphere.dispose();
   });
 
-  test("frost dust opacity is scaled down vs ash", () => {
+  test("each dungeon binds the named particle signature for its biome", () => {
     const scene = new THREE.Scene();
     const atmosphere = new AtmosphereSystem(scene, 2.4);
     const dungeon = generateDungeon("DUST-MOOD", { roomTarget: 10 });
     atmosphere.setDungeon(dungeon, getDungeonMood("frost"));
-    const coarseFrost = scene.getObjectByName("Lit dungeon dust motes") as THREE.Points;
-    const frostOpacity = (coarseFrost.material as THREE.ShaderMaterial).uniforms.uOpacity.value;
+    const frostProfile = getBiomeParticleProfile("frost");
+    const frost = scene.getObjectByName(
+      `Biome particles: ${frostProfile.signature.name}`,
+    ) as THREE.Points;
+    expect(frost).toBeDefined();
+    const frostMaterial = frost.material as THREE.ShaderMaterial;
+    expect(frostMaterial.uniforms.uShape.value).toBeGreaterThanOrEqual(0);
+    expect(frostMaterial.uniforms.uOpacity.value).toBe(frostProfile.signature.opacity);
+
     atmosphere.setDungeon(dungeon, getDungeonMood("ash"));
-    const coarseAsh = scene.getObjectByName("Lit dungeon dust motes") as THREE.Points;
-    const ashOpacity = (coarseAsh.material as THREE.ShaderMaterial).uniforms.uOpacity.value;
-    expect(frostOpacity).toBeLessThan(ashOpacity);
+    const ashProfile = getBiomeParticleProfile("ash");
+    const ash = scene.getObjectByName(
+      `Biome particles: ${ashProfile.signature.name}`,
+    ) as THREE.Points;
+    expect(ash).toBeDefined();
+    expect(ash.name).not.toBe(frost.name);
     atmosphere.dispose();
   });
 
-  test("dust motes vary in size, peak softer, and carry fade phases", () => {
+  test("particle layers vary size and carry phase, tint, time, and viewer wake", () => {
     const scene = new THREE.Scene();
     const atmosphere = new AtmosphereSystem(scene, 2.4);
     atmosphere.setDungeon(generateDungeon("DUST-VIS", { roomTarget: 12 }), getDungeonMood("ash"));
+    const profile = getBiomeParticleProfile("ash");
 
-    const coarse = scene.getObjectByName("Lit dungeon dust motes") as THREE.Points;
-    const fine = scene.getObjectByName("Fine floating dust") as THREE.Points;
-    expect(coarse).toBeDefined();
-    expect(fine).toBeDefined();
+    const support = scene.getObjectByName(
+      `Biome particles: ${profile.support.name}`,
+    ) as THREE.Points;
+    const signature = scene.getObjectByName(
+      `Biome particles: ${profile.signature.name}`,
+    ) as THREE.Points;
+    expect(support).toBeDefined();
+    expect(signature).toBeDefined();
 
-    const coarseMat = coarse.material as THREE.ShaderMaterial;
-    const fineMat = fine.material as THREE.ShaderMaterial;
-    expect(coarse.geometry.getAttribute("position").count).toBeGreaterThanOrEqual(DUST_COARSE_MIN);
-    expect(fine.geometry.getAttribute("position").count).toBeGreaterThanOrEqual(DUST_FINE_MIN);
-    expect(coarseMat.uniforms.uOpacity.value).toBe(DUST_COARSE_OPACITY);
-    expect(fineMat.uniforms.uOpacity.value).toBe(DUST_FINE_OPACITY);
-    expect(DUST_COARSE_OPACITY).toBeGreaterThanOrEqual(0.44);
-    expect(DUST_COARSE_OPACITY).toBeLessThan(0.55);
-    expect(DUST_FINE_OPACITY).toBeGreaterThanOrEqual(0.3);
-    expect(DUST_FINE_OPACITY).toBeLessThan(0.45);
+    const supportMat = support.material as THREE.ShaderMaterial;
+    const signatureMat = signature.material as THREE.ShaderMaterial;
+    expect(support.geometry.getAttribute("position").count).toBeGreaterThanOrEqual(
+      profile.support.minCount,
+    );
+    expect(signature.geometry.getAttribute("position").count).toBeGreaterThanOrEqual(
+      profile.signature.minCount,
+    );
+    expect(supportMat.uniforms.uOpacity.value).toBe(profile.support.opacity);
+    expect(signatureMat.uniforms.uOpacity.value).toBe(profile.signature.opacity);
 
-    const sizes = coarse.geometry.getAttribute("aSize") as THREE.BufferAttribute;
-    const phases = coarse.geometry.getAttribute("aPhase") as THREE.BufferAttribute;
+    const sizes = support.geometry.getAttribute("aSize") as THREE.BufferAttribute;
+    const phases = support.geometry.getAttribute("aPhase") as THREE.BufferAttribute;
+    const tints = support.geometry.getAttribute("aTint") as THREE.BufferAttribute;
     expect(sizes).toBeDefined();
     expect(phases).toBeDefined();
+    expect(tints).toBeDefined();
     let minSize = Number.POSITIVE_INFINITY;
     let maxSize = Number.NEGATIVE_INFINITY;
     for (let i = 0; i < sizes.count; i += 1) {
       const s = sizes.getX(i);
       minSize = Math.min(minSize, s);
       maxSize = Math.max(maxSize, s);
-      expect(s).toBeGreaterThanOrEqual(DUST_COARSE_SIZE_MIN - 1e-6);
-      expect(s).toBeLessThanOrEqual(DUST_COARSE_SIZE_MAX + 1e-6);
+      expect(s).toBeGreaterThanOrEqual(profile.support.sizeMin - 1e-6);
+      expect(s).toBeLessThanOrEqual(profile.support.sizeMax + 1e-6);
     }
     expect(maxSize).toBeGreaterThan(minSize);
-    expect(maxSize - minSize).toBeGreaterThan((DUST_COARSE_SIZE_MAX - DUST_COARSE_SIZE_MIN) * 0.25);
+    expect(maxSize - minSize).toBeGreaterThan(
+      (profile.support.sizeMax - profile.support.sizeMin) * 0.25,
+    );
 
-    const fineSizes = fine.geometry.getAttribute("aSize") as THREE.BufferAttribute;
+    const fineSizes = signature.geometry.getAttribute("aSize") as THREE.BufferAttribute;
     let fineMin = Number.POSITIVE_INFINITY;
     let fineMax = Number.NEGATIVE_INFINITY;
     for (let i = 0; i < fineSizes.count; i += 1) {
       const s = fineSizes.getX(i);
       fineMin = Math.min(fineMin, s);
       fineMax = Math.max(fineMax, s);
-      expect(s).toBeGreaterThanOrEqual(DUST_FINE_SIZE_MIN - 1e-6);
-      expect(s).toBeLessThanOrEqual(DUST_FINE_SIZE_MAX + 1e-6);
+      expect(s).toBeGreaterThanOrEqual(profile.signature.sizeMin - 1e-6);
+      expect(s).toBeLessThanOrEqual(profile.signature.sizeMax + 1e-6);
     }
     expect(fineMax).toBeGreaterThan(fineMin);
 
-    atmosphere.update(1.25, { x: 0, y: 1.6, z: 0 });
-    expect(coarseMat.uniforms.uTime.value).toBeGreaterThan(0);
+    atmosphere.update(1.25, { x: 3, y: 1.6, z: -2 });
+    expect(supportMat.uniforms.uTime.value).toBeGreaterThan(0);
+    expect(supportMat.uniforms.uViewer.value.x).toBe(3);
+    expect(supportMat.uniforms.uViewer.value.z).toBe(-2);
     expect(atmosphere.stats.motes).toBe(
-      coarse.geometry.getAttribute("position").count + fine.geometry.getAttribute("position").count,
+      support.geometry.getAttribute("position").count +
+        signature.geometry.getAttribute("position").count,
     );
+
+    atmosphere.dispose();
+  });
+
+  test("short player movement never reseeds or teleports the world particle field", () => {
+    const scene = new THREE.Scene();
+    const atmosphere = new AtmosphereSystem(scene, 2.4);
+    atmosphere.setDungeon(
+      generateDungeon("DUST-STABLE", { roomTarget: 14 }),
+      getDungeonMood("sunken"),
+    );
+    const profile = getBiomeParticleProfile("sunken");
+    const support = scene.getObjectByName(
+      `Biome particles: ${profile.support.name}`,
+    ) as THREE.Points;
+    const signature = scene.getObjectByName(
+      `Biome particles: ${profile.signature.name}`,
+    ) as THREE.Points;
+    const supportBefore = Array.from(
+      (support.geometry.getAttribute("position") as THREE.BufferAttribute).array,
+    );
+    const signatureBefore = Array.from(
+      (signature.geometry.getAttribute("position") as THREE.BufferAttribute).array,
+    );
+
+    atmosphere.update(0.4, { x: 0, y: 1.6, z: 0 });
+    atmosphere.update(0.4, { x: 3.4, y: 1.6, z: -1.8 });
+    atmosphere.update(0.4, { x: 6.8, y: 1.6, z: -3.6 });
+
+    expect(support.position.toArray()).toEqual([0, 0, 0]);
+    expect(signature.position.toArray()).toEqual([0, 0, 0]);
+    expect(
+      Array.from((support.geometry.getAttribute("position") as THREE.BufferAttribute).array),
+    ).toEqual(supportBefore);
+    expect(
+      Array.from((signature.geometry.getAttribute("position") as THREE.BufferAttribute).array),
+    ).toEqual(signatureBefore);
+    expect((support.material as THREE.ShaderMaterial).uniforms.uViewer.value.x).toBeCloseTo(6.8);
+    expect((signature.material as THREE.ShaderMaterial).uniforms.uViewer.value.z).toBeCloseTo(-3.6);
 
     atmosphere.dispose();
   });
