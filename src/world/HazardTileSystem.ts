@@ -118,6 +118,84 @@ const HAZARD_ATLAS_ROW: Readonly<Record<HazardTileKind, number>> = {
 };
 const HAZARD_ANIMATION_FRAMES = [0, 1, 2, 3, 2, 1] as const;
 
+const HAZARD_MATERIAL_RESPONSE: Readonly<
+  Record<
+    HazardTileKind,
+    { emissiveBase: number; emissivePulse: number; roughness: number; metalness: number }
+  >
+> = {
+  fire: { emissiveBase: 0.1, emissivePulse: 0.065, roughness: 0.82, metalness: 0.04 },
+  ice: { emissiveBase: 0.025, emissivePulse: 0.018, roughness: 0.34, metalness: 0.02 },
+  toxin: { emissiveBase: 0.055, emissivePulse: 0.035, roughness: 0.9, metalness: 0.02 },
+  spikes: { emissiveBase: 0, emissivePulse: 0, roughness: 0.8, metalness: 0.2 },
+};
+
+const SPIKE_LAYOUT: ReadonlyArray<
+  Readonly<{ x: number; z: number; yaw: number; leanX: number; leanZ: number; scale: number }>
+> = [
+  { x: -0.43, z: -0.38, yaw: -0.18, leanX: 0.025, leanZ: -0.035, scale: 0.94 },
+  { x: 0.39, z: -0.43, yaw: 0.42, leanX: -0.035, leanZ: 0.02, scale: 1.04 },
+  { x: -0.03, z: 0.01, yaw: -0.55, leanX: 0.018, leanZ: 0.042, scale: 1.1 },
+  { x: -0.4, z: 0.41, yaw: 0.72, leanX: -0.02, leanZ: -0.028, scale: 1 },
+  { x: 0.44, z: 0.37, yaw: -0.86, leanX: 0.032, leanZ: 0.018, scale: 0.91 },
+] as const;
+
+/**
+ * Image-derived forged spike profile. The reference uses uneven faceted tapers,
+ * so a four-ring custom buffer keeps a bent shoulder and off-axis tip instead
+ * of the smooth radial silhouette of ConeGeometry.
+ */
+export function createForgedSpikeGeometry(): THREE.BufferGeometry {
+  const sides = 4;
+  const rings = [
+    { y: 0, radius: 0.13, x: 0, z: 0 },
+    { y: 0.065, radius: 0.142, x: -0.006, z: 0.006 },
+    { y: 0.16, radius: 0.096, x: 0.004, z: -0.004 },
+    { y: 0.39, radius: 0.045, x: 0.024, z: 0.01 },
+  ] as const;
+  const positions: number[] = [];
+  const indices: number[] = [];
+  for (const [ringIndex, ring] of rings.entries()) {
+    for (let side = 0; side < sides; side += 1) {
+      const angle = (side / sides) * Math.PI * 2 + Math.PI / 4 + ringIndex * 0.09;
+      positions.push(
+        ring.x + Math.cos(angle) * ring.radius,
+        ring.y,
+        ring.z + Math.sin(angle) * ring.radius,
+      );
+    }
+  }
+  for (let ring = 0; ring < rings.length - 1; ring += 1) {
+    for (let side = 0; side < sides; side += 1) {
+      const next = (side + 1) % sides;
+      const lower = ring * sides + side;
+      const lowerNext = ring * sides + next;
+      const upper = (ring + 1) * sides + side;
+      const upperNext = (ring + 1) * sides + next;
+      indices.push(lower, upper, lowerNext, lowerNext, upper, upperNext);
+    }
+  }
+  const tip = positions.length / 3;
+  positions.push(0.045, 0.54, -0.018);
+  const lastRing = (rings.length - 1) * sides;
+  for (let side = 0; side < sides; side += 1) {
+    indices.push(lastRing + side, tip, lastRing + ((side + 1) % sides));
+  }
+  const baseCenter = positions.length / 3;
+  positions.push(0, 0, 0);
+  for (let side = 0; side < sides; side += 1) {
+    indices.push(baseCenter, (side + 1) % sides, side);
+  }
+  const geometry = new THREE.BufferGeometry();
+  geometry.name = "Image-sculpted forged hazard spike";
+  geometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+  geometry.setIndex(indices);
+  geometry.computeVertexNormals();
+  geometry.computeBoundingBox();
+  geometry.computeBoundingSphere();
+  return geometry;
+}
+
 function createHazardTexture(kind: HazardTileKind, mood: DungeonMoodId): THREE.Texture {
   const texture = new THREE.TextureLoader().load(HAZARD_ATLAS_PATH);
   texture.name = `${mood} ${kind} imagegen hazard atlas`;
@@ -135,7 +213,7 @@ function createHazardTexture(kind: HazardTileKind, mood: DungeonMoodId): THREE.T
 interface HazardVisual {
   placement: HazardTilePlacement;
   position: THREE.Vector3;
-  spikeLayer: THREE.Group | null;
+  spikeStart: number;
 }
 
 export class HazardTileSystem {
@@ -143,6 +221,12 @@ export class HazardTileSystem {
   readonly placements: readonly HazardTilePlacement[];
   private readonly visuals: HazardVisual[] = [];
   private readonly materials = new Map<HazardTileKind, THREE.MeshStandardMaterial>();
+  private readonly spikeInstances: THREE.InstancedMesh | null;
+  private readonly spikeMatrix = new THREE.Matrix4();
+  private readonly spikePosition = new THREE.Vector3();
+  private readonly spikeQuaternion = new THREE.Quaternion();
+  private readonly spikeScale = new THREE.Vector3();
+  private readonly spikeEuler = new THREE.Euler();
   private elapsed = 0;
   private fireCooldown = 0;
   private spikeCooldown = 0;
@@ -158,58 +242,124 @@ export class HazardTileSystem {
     this.root.name = `${mood.label} hazard tiles`;
     this.placements = planHazardTiles(dungeon, mood.id, excludedCellKeys);
     const tileGeometry = new THREE.PlaneGeometry(tileSize * 0.78, tileSize * 0.78);
-    const spikeGeometry = new THREE.ConeGeometry(0.11, 0.52, 5);
-    const spikeMaterial = new THREE.MeshStandardMaterial({
-      color: BIOME_ACCENTS[mood.id][0],
-      roughness: 0.48,
-      metalness: 0.72,
-    });
+    const placementsByKind = new Map<HazardTileKind, HazardTilePlacement[]>();
     for (const placement of this.placements) {
-      let material = this.materials.get(placement.kind);
-      if (!material) {
-        const texture = createHazardTexture(placement.kind, mood.id);
-        material = new THREE.MeshStandardMaterial({
-          map: texture,
-          emissiveMap: texture,
-          color: new THREE.Color(0xffffff).lerp(new THREE.Color(BIOME_ACCENTS[mood.id][0]), 0.1),
-          emissive: new THREE.Color(BIOME_ACCENTS[mood.id][0]),
-          emissiveIntensity: placement.kind === "ice" ? 0.08 : 0.24,
-          roughness: placement.kind === "ice" ? 0.24 : 0.72,
-          metalness: placement.kind === "spikes" ? 0.52 : 0.08,
-          transparent: true,
-          alphaTest: 0.08,
-          polygonOffset: true,
-          polygonOffsetFactor: -2,
-        });
-        material.name = `${mood.id} ${placement.kind} hazard material`;
-        this.materials.set(placement.kind, material);
-      }
-      const worldPosition = gridToWorld(dungeon, placement.cell, tileSize);
-      const position = new THREE.Vector3(worldPosition.x, 0, worldPosition.z);
-      const tile = new THREE.Mesh(tileGeometry, material);
-      tile.name = `${placement.kind} hazard tile`;
-      tile.rotation.x = -Math.PI / 2;
-      tile.position.set(position.x, 0.025, position.z);
-      tile.receiveShadow = false;
-      this.root.add(tile);
-      let spikeLayer: THREE.Group | null = null;
-      if (placement.kind === "spikes") {
-        spikeLayer = new THREE.Group();
-        spikeLayer.position.set(position.x, 0.02, position.z);
-        for (const [x, z] of [
-          [-0.45, -0.45],
-          [0.45, -0.45],
-          [-0.45, 0.45],
-          [0.45, 0.45],
-        ] as const) {
-          const spike = new THREE.Mesh(spikeGeometry, spikeMaterial);
-          spike.position.set(x, 0.26, z);
-          spikeLayer.add(spike);
-        }
-        this.root.add(spikeLayer);
-      }
-      this.visuals.push({ placement, position, spikeLayer });
+      const list = placementsByKind.get(placement.kind) ?? [];
+      list.push(placement);
+      placementsByKind.set(placement.kind, list);
     }
+    const spikePlacements = placementsByKind.get("spikes") ?? [];
+    const spikeGeometry = createForgedSpikeGeometry();
+    const spikeColor = new THREE.Color(0x2e2b29).lerp(
+      new THREE.Color(BIOME_ACCENTS[mood.id][0]),
+      0.09,
+    );
+    const spikeMaterial = new THREE.MeshStandardMaterial({
+      color: spikeColor,
+      roughness: 0.72,
+      metalness: 0.58,
+      envMapIntensity: 0.28,
+      side: THREE.DoubleSide,
+    });
+    const collarGeometry = new THREE.TorusGeometry(0.105, 0.022, 4, 8);
+    collarGeometry.name = "Forged spike socket collar";
+    collarGeometry.rotateX(-Math.PI / 2);
+    const collarMaterial = spikeMaterial.clone();
+    collarMaterial.name = `${mood.id} forged spike collar material`;
+    collarMaterial.color.multiplyScalar(0.55);
+    collarMaterial.roughness = 0.82;
+    collarMaterial.metalness = 0.46;
+
+    const tileRotation = new THREE.Quaternion().setFromEuler(new THREE.Euler(-Math.PI / 2, 0, 0));
+    const tileScale = new THREE.Vector3(1, 1, 1);
+    const tileMatrix = new THREE.Matrix4();
+    const tilePosition = new THREE.Vector3();
+    for (const [kind, placements] of placementsByKind) {
+      const response = HAZARD_MATERIAL_RESPONSE[kind];
+      const texture = createHazardTexture(kind, mood.id);
+      const material = new THREE.MeshStandardMaterial({
+        map: texture,
+        emissiveMap: kind === "spikes" ? null : texture,
+        color: new THREE.Color(0xffffff).lerp(new THREE.Color(BIOME_ACCENTS[mood.id][0]), 0.08),
+        emissive: new THREE.Color(BIOME_ACCENTS[mood.id][0]),
+        emissiveIntensity: response.emissiveBase,
+        roughness: response.roughness,
+        metalness: response.metalness,
+        envMapIntensity: kind === "ice" ? 0.42 : 0.24,
+        polygonOffset: true,
+        polygonOffsetFactor: -2,
+      });
+      material.name = `${mood.id} ${kind} hazard material`;
+      this.materials.set(kind, material);
+      const batch = new THREE.InstancedMesh(tileGeometry, material, placements.length);
+      batch.name = `${kind} hazard tile batch`;
+      batch.receiveShadow = false;
+      placements.forEach((placement, index) => {
+        const worldPosition = gridToWorld(dungeon, placement.cell, tileSize);
+        tilePosition.set(worldPosition.x, 0.025, worldPosition.z);
+        tileMatrix.compose(tilePosition, tileRotation, tileScale);
+        batch.setMatrixAt(index, tileMatrix);
+        this.visuals.push({
+          placement,
+          position: new THREE.Vector3(worldPosition.x, 0, worldPosition.z),
+          spikeStart: -1,
+        });
+      });
+      batch.instanceMatrix.needsUpdate = true;
+      this.root.add(batch);
+    }
+
+    if (spikePlacements.length > 0) {
+      const count = spikePlacements.length * SPIKE_LAYOUT.length;
+      this.spikeInstances = new THREE.InstancedMesh(spikeGeometry, spikeMaterial, count);
+      this.spikeInstances.name = "Image-sculpted forged spike batch";
+      this.spikeInstances.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+      const collarInstances = new THREE.InstancedMesh(collarGeometry, collarMaterial, count);
+      collarInstances.name = "Forged spike socket collar batch";
+      const color = new THREE.Color();
+      let instance = 0;
+      for (const placement of spikePlacements) {
+        const visual = this.visuals.find((entry) => entry.placement === placement);
+        if (!visual) continue;
+        visual.spikeStart = instance;
+        for (const [localIndex, layout] of SPIKE_LAYOUT.entries()) {
+          const colorGain = 0.9 + ((localIndex + instance) % 3) * 0.045;
+          color.copy(spikeColor).multiplyScalar(colorGain);
+          this.spikeInstances.setColorAt(instance, color);
+          this.spikePosition.set(visual.position.x + layout.x, 0.055, visual.position.z + layout.z);
+          this.spikeEuler.set(layout.leanX, layout.yaw, layout.leanZ);
+          this.spikeQuaternion.setFromEuler(this.spikeEuler);
+          this.spikeScale.set(layout.scale, 0.08, layout.scale);
+          this.spikeMatrix.compose(this.spikePosition, this.spikeQuaternion, this.spikeScale);
+          this.spikeInstances.setMatrixAt(instance, this.spikeMatrix);
+
+          this.spikePosition.y = 0.048;
+          this.spikeEuler.set(0, layout.yaw * 0.35, 0);
+          this.spikeQuaternion.setFromEuler(this.spikeEuler);
+          this.spikeScale.setScalar(0.92 + localIndex * 0.018);
+          this.spikeMatrix.compose(this.spikePosition, this.spikeQuaternion, this.spikeScale);
+          collarInstances.setMatrixAt(instance, this.spikeMatrix);
+          instance += 1;
+        }
+      }
+      this.spikeInstances.instanceMatrix.needsUpdate = true;
+      if (this.spikeInstances.instanceColor) this.spikeInstances.instanceColor.needsUpdate = true;
+      collarInstances.instanceMatrix.needsUpdate = true;
+      this.root.add(collarInstances, this.spikeInstances);
+    } else {
+      this.spikeInstances = null;
+      spikeGeometry.dispose();
+      spikeMaterial.dispose();
+      collarGeometry.dispose();
+      collarMaterial.dispose();
+    }
+    this.root.userData.sculptRuntime = {
+      sourceImage: HAZARD_ATLAS_PATH,
+      sourceSpec: ".scratch/quality-pass-2026-07-27/img2threejs/forged-spike-plate/spec.json",
+      components: ["plate-frame", "spike-batch", "spike-collars", "guide-grooves"],
+      collider: { type: "box-trigger", size: [tileSize * 0.78, 0.55, tileSize * 0.78] },
+      drawStrategy: "instanced by hazard kind; shared spike and collar batches",
+    };
   }
 
   update(delta: number): void {
@@ -217,15 +367,27 @@ export class HazardTileSystem {
     const frame =
       HAZARD_ANIMATION_FRAMES[Math.floor(this.elapsed * 3.5) % HAZARD_ANIMATION_FRAMES.length]!;
     for (const [kind, material] of this.materials) {
-      if (material.map) material.map.offset.x = frame * 0.25;
+      if (material.map) material.map.offset.x = (kind === "spikes" ? 0 : frame) * 0.25;
+      const response = HAZARD_MATERIAL_RESPONSE[kind];
       material.emissiveIntensity =
-        (kind === "ice" ? 0.06 : 0.18) + (Math.sin(this.elapsed * 4.2) * 0.5 + 0.5) * 0.12;
+        response.emissiveBase + (Math.sin(this.elapsed * 4.2) * 0.5 + 0.5) * response.emissivePulse;
     }
+    if (!this.spikeInstances) return;
     for (const visual of this.visuals) {
-      if (!visual.spikeLayer) continue;
+      if (visual.spikeStart < 0) continue;
       const exposure = this.spikeExposure(visual.placement.phase);
-      visual.spikeLayer.scale.y = 0.08 + exposure * 0.92;
+      for (const [localIndex, layout] of SPIKE_LAYOUT.entries()) {
+        const instance = visual.spikeStart + localIndex;
+        const stagger = 0.92 + ((localIndex + 2) % 3) * 0.045;
+        this.spikePosition.set(visual.position.x + layout.x, 0.055, visual.position.z + layout.z);
+        this.spikeEuler.set(layout.leanX, layout.yaw, layout.leanZ);
+        this.spikeQuaternion.setFromEuler(this.spikeEuler);
+        this.spikeScale.set(layout.scale, 0.035 + exposure * stagger, layout.scale);
+        this.spikeMatrix.compose(this.spikePosition, this.spikeQuaternion, this.spikeScale);
+        this.spikeInstances.setMatrixAt(instance, this.spikeMatrix);
+      }
     }
+    this.spikeInstances.instanceMatrix.needsUpdate = true;
   }
 
   sample(delta: number, player: THREE.Vector3): HazardSurfaceEffect {
@@ -278,7 +440,10 @@ export class HazardTileSystem {
     });
     geometries.forEach((geometry) => geometry.dispose());
     materials.forEach((material) => {
-      if (material instanceof THREE.MeshStandardMaterial) material.map?.dispose();
+      if (material instanceof THREE.MeshStandardMaterial) {
+        material.map?.dispose();
+        if (material.emissiveMap !== material.map) material.emissiveMap?.dispose();
+      }
       material.dispose();
     });
     this.root.clear();

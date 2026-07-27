@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
+import { createFlameTongueGeometry } from "./FlameGeometry";
 import { createImageSculptedProp } from "./ImageSculptedPropKit";
 import type { DungeonMaterials } from "./MaterialLibrary";
 import { FIRE_LIGHT_TUNING } from "../systems/LightTuning";
@@ -30,22 +31,23 @@ export function createWallLantern(
   root.rotation.y = Math.atan2(facing.x, facing.z);
   const baseY = 0.76;
   const flame = new THREE.Mesh(
-    new THREE.OctahedronGeometry(0.085, 0),
+    createFlameTongueGeometry(0.09, 0.25, 7, 0.03),
     new THREE.MeshBasicMaterial({
       color: 0xffd38a,
       transparent: true,
-      opacity: 0.92,
+      opacity: 0.8,
       blending: THREE.AdditiveBlending,
       depthWrite: false,
-      toneMapped: false,
+      toneMapped: true,
+      side: THREE.DoubleSide,
     }),
   );
   flame.name = "Lantern warm flame";
   flame.visible = lit;
   flame.position.set(0, baseY, 0.43);
-  flame.scale.y = 1.42;
+  flame.scale.y = 1.12;
   root.add(flame);
-  const baseIntensity = 54;
+  const baseIntensity = 42;
   const light = lit
     ? new THREE.PointLight(0xc9864d, baseIntensity, FIRE_LIGHT_TUNING.wallRange, 1.94)
     : null;
@@ -99,18 +101,20 @@ export function createWallTorch(
   const ember = new THREE.MeshBasicMaterial({
     color: 0xd7a05c,
     transparent: true,
-    opacity: 0.88,
+    opacity: 0.78,
     blending: THREE.AdditiveBlending,
     depthWrite: false,
-    toneMapped: false,
+    toneMapped: true,
+    side: THREE.DoubleSide,
   });
   const core = new THREE.MeshBasicMaterial({
     color: 0xffe0a1,
     transparent: true,
-    opacity: 0.94,
+    opacity: 0.82,
     blending: THREE.AdditiveBlending,
     depthWrite: false,
-    toneMapped: false,
+    toneMapped: true,
+    side: THREE.DoubleSide,
   });
 
   const plateShape = new THREE.Shape();
@@ -177,7 +181,7 @@ export function createWallTorch(
     new THREE.MeshBasicMaterial({
       color: 0xb87943,
       transparent: true,
-      opacity: 0.11,
+      opacity: 0.075,
       depthWrite: false,
       blending: THREE.AdditiveBlending,
       toneMapped: false,
@@ -189,17 +193,17 @@ export function createWallTorch(
   glow.renderOrder = 1;
 
   const baseY = 0.93;
-  const flame = new THREE.Mesh(new THREE.OctahedronGeometry(0.15, 0), ember);
+  const flame = new THREE.Mesh(createFlameTongueGeometry(0.15, 0.44, 7, 0.07), ember);
   flame.name = "Torch outer flame";
   flame.visible = lit;
   flame.position.set(0, baseY, 0.67);
-  flame.scale.set(0.82, 1.72, 0.82);
+  flame.scale.set(0.88, 1.08, 0.88);
   flame.renderOrder = 4;
-  const flameCore = new THREE.Mesh(new THREE.OctahedronGeometry(0.075, 0), core);
+  const flameCore = new THREE.Mesh(createFlameTongueGeometry(0.075, 0.27, 7, -0.025), core);
   flameCore.name = "Torch flame core";
   flameCore.visible = lit;
   flameCore.position.set(0, baseY - 0.015, 0.69);
-  flameCore.scale.y = 1.45;
+  flameCore.scale.y = 1.06;
   flameCore.renderOrder = 5;
 
   const ironParts = [
@@ -233,7 +237,7 @@ export function createWallTorch(
   root.add(forgedShieldTag, scrollBracketTag);
   root.add(glow, flame, flameCore);
 
-  const baseIntensity = 60;
+  const baseIntensity = 44;
   const light = lit
     ? new THREE.PointLight(0xd18b4c, baseIntensity, FIRE_LIGHT_TUNING.wallRange, 1.92)
     : null;
@@ -244,8 +248,8 @@ export function createWallTorch(
     light.position.set(0, baseY + 0.05, 0.92);
     root.add(light);
     for (const [radius, opacity] of [
-      [0.72, 0.075],
-      [1.35, 0.032],
+      [0.72, 0.055],
+      [1.35, 0.022],
     ] as const) {
       const halo = new THREE.Mesh(
         new THREE.SphereGeometry(radius, 12, 8),

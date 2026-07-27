@@ -1,7 +1,12 @@
 import { describe, expect, test } from "bun:test";
+import * as THREE from "three";
 
 import type { DungeonData, DungeonRoom } from "../src/dungeon/types";
-import { hazardKindsForMood, planHazardTiles } from "../src/world/HazardTileSystem";
+import {
+  createForgedSpikeGeometry,
+  hazardKindsForMood,
+  planHazardTiles,
+} from "../src/world/HazardTileSystem";
 
 function dungeonFixture(): DungeonData {
   const rooms: DungeonRoom[] = Array.from({ length: 10 }, (_, id) => ({
@@ -67,14 +72,16 @@ describe("biome hazard tiles", () => {
     expect(first.every((tile) => tile.kind === "fire" || tile.kind === "spikes")).toBe(true);
   });
 
-  test("uses the imagegen atlas for animated frames, raised spikes and status effects", async () => {
+  test("uses the imagegen atlas, instanced forged spikes and status effects", async () => {
     const source = await Bun.file(
       new URL("../src/world/HazardTileSystem.ts", import.meta.url),
     ).text();
     expect(source).toContain("hazard-tiles-pixel-v1.webp");
     expect(source).not.toContain("CanvasRenderingContext2D");
     expect(source).toContain("HAZARD_ANIMATION_FRAMES");
-    expect(source).toContain("new THREE.ConeGeometry");
+    expect(source).toContain("new THREE.InstancedMesh");
+    expect(source).toContain("createForgedSpikeGeometry");
+    expect(source).not.toContain("new THREE.ConeGeometry");
     expect(source).toContain('movementScale: kind === "ice" ? 0.82 : 1');
     expect(source).toContain("this.toxinRemaining = 3.2");
     const atlas = Bun.file(
@@ -82,5 +89,17 @@ describe("biome hazard tiles", () => {
     );
     expect(await atlas.exists()).toBe(true);
     expect(atlas.size).toBeLessThan(200_000);
+  });
+
+  test("builds an asymmetric tapered spike without placeholder cone geometry", () => {
+    const geometry = createForgedSpikeGeometry();
+    expect(geometry).toBeInstanceOf(THREE.BufferGeometry);
+    expect(geometry).not.toBeInstanceOf(THREE.ConeGeometry);
+    expect(geometry.name).toContain("forged hazard spike");
+    const bounds = geometry.boundingBox!;
+    expect(bounds.max.y - bounds.min.y).toBeCloseTo(0.54, 4);
+    expect(Math.abs(bounds.max.x + bounds.min.x)).toBeGreaterThan(0.005);
+    expect(geometry.getAttribute("normal")).toBeDefined();
+    geometry.dispose();
   });
 });

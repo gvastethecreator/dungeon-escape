@@ -2,6 +2,7 @@ import * as THREE from "three";
 
 import type { DungeonMaterials } from "./MaterialLibrary";
 import { FIRE_LIGHT_TUNING } from "../systems/LightTuning";
+import { createFlameTongueGeometry } from "./FlameGeometry";
 
 /** Small floor campfire footprint — replaces floor candles at adult player scale. */
 export const FLOOR_CAMPFIRE_MESH_SCALE = 1;
@@ -112,42 +113,44 @@ export function createFloorCampfire(
   const emberMat = new THREE.MeshBasicMaterial({
     color: 0xd7a05c,
     transparent: true,
-    opacity: 0.9,
+    opacity: 0.78,
     blending: THREE.AdditiveBlending,
     depthWrite: false,
-    toneMapped: false,
+    toneMapped: true,
+    side: THREE.DoubleSide,
   });
   const coreMat = new THREE.MeshBasicMaterial({
     color: 0xffe0a1,
     transparent: true,
-    opacity: 0.95,
+    opacity: 0.84,
     blending: THREE.AdditiveBlending,
     depthWrite: false,
-    toneMapped: false,
+    toneMapped: true,
+    side: THREE.DoubleSide,
   });
 
   // Outer soft flame tongue + brighter core (animated by FireEffect on `flame`).
-  const flame = new THREE.Mesh(new THREE.OctahedronGeometry(0.16, 0), emberMat);
+  const flame = new THREE.Mesh(createFlameTongueGeometry(0.16, 0.42, 7, 0.065), emberMat);
   flame.name = "Campfire outer flame";
   flame.visible = lit;
   flame.position.set(0, baseY, 0);
-  flame.scale.set(0.9, 1.65, 0.9);
+  flame.scale.set(0.92, 1.16, 0.92);
   flame.renderOrder = 4;
 
-  const flameCore = new THREE.Mesh(new THREE.OctahedronGeometry(0.08, 0), coreMat);
+  const flameCore = new THREE.Mesh(createFlameTongueGeometry(0.08, 0.27, 7, -0.025), coreMat);
   flameCore.name = "Campfire flame core";
   flameCore.visible = lit;
   flameCore.position.set(0.01, baseY + 0.02, -0.01);
-  flameCore.scale.set(0.85, 1.5, 0.85);
+  flameCore.scale.set(0.86, 1.08, 0.86);
   flameCore.renderOrder = 5;
 
   // Secondary lean tongue for silhouette variety.
-  const tongue = new THREE.Mesh(new THREE.OctahedronGeometry(0.07, 0), emberMat.clone());
+  const tongue = new THREE.Mesh(createFlameTongueGeometry(0.07, 0.29, 6, -0.07), emberMat.clone());
   tongue.name = "Campfire lean tongue";
   tongue.visible = lit;
   tongue.position.set(-0.06, baseY + 0.08, 0.04);
-  tongue.scale.set(0.55, 1.35, 0.55);
-  tongue.rotation.z = 0.35;
+  tongue.scale.set(0.7, 1.02, 0.7);
+  tongue.rotation.z = 0.18;
   tongue.renderOrder = 4;
 
   // Ground warm card under the fire.
@@ -156,7 +159,7 @@ export function createFloorCampfire(
     new THREE.MeshBasicMaterial({
       color: 0xb87943,
       transparent: true,
-      opacity: 0.14,
+      opacity: 0.1,
       depthWrite: false,
       blending: THREE.AdditiveBlending,
       toneMapped: false,
@@ -170,7 +173,7 @@ export function createFloorCampfire(
 
   root.add(groundGlow, flame, flameCore, tongue);
 
-  const baseIntensity = 30;
+  const baseIntensity = 26;
   const light = lit
     ? new THREE.PointLight(0xd18b4c, baseIntensity, FIRE_LIGHT_TUNING.candleRange, 2.1)
     : null;
@@ -180,8 +183,8 @@ export function createFloorCampfire(
     light.position.set(0, baseY + 0.12, 0);
     root.add(light);
     for (const [radius, opacity] of [
-      [0.55, 0.07],
-      [1.05, 0.03],
+      [0.55, 0.05],
+      [1.05, 0.02],
     ] as const) {
       const halo = new THREE.Mesh(
         new THREE.SphereGeometry(radius, 12, 8),

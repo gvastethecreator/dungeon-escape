@@ -15,9 +15,13 @@ describe("authored wall torch", () => {
 
     expect(torch.root.getObjectByName("Torch forged shield plate")).toBeDefined();
     expect(torch.root.getObjectByName("Torch scroll bracket")).toBeDefined();
+    expect(torch.flame.geometry.name).toBe("Authored low-poly flame tongue");
+    expect(torch.flame.geometry).not.toBeInstanceOf(THREE.OctahedronGeometry);
     expect(torch.flameDetails.length).toBeGreaterThanOrEqual(1);
     expect(torch.root.scale.x).toBeGreaterThanOrEqual(0.76);
-    expect(torch.baseIntensity).toBeGreaterThanOrEqual(56);
+    expect(torch.baseIntensity).toBeGreaterThanOrEqual(40);
+    expect(torch.baseIntensity).toBeLessThanOrEqual(48);
+    expect((torch.flame.material as THREE.MeshBasicMaterial).toneMapped).toBe(true);
     expect(torch.light?.distance).toBeGreaterThanOrEqual(12);
   });
 
@@ -28,7 +32,9 @@ describe("authored wall torch", () => {
       true,
       createDungeonMaterials(),
     );
-    expect(lantern.baseIntensity).toBeGreaterThanOrEqual(50);
+    expect(lantern.baseIntensity).toBeGreaterThanOrEqual(38);
+    expect(lantern.baseIntensity).toBeLessThanOrEqual(46);
+    expect((lantern.flame.material as THREE.MeshBasicMaterial).toneMapped).toBe(true);
     expect(lantern.light?.distance).toBeGreaterThanOrEqual(12);
     expect(lantern.root.scale.x).toBeGreaterThanOrEqual(0.74);
   });
