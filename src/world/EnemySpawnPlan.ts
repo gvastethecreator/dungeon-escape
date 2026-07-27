@@ -36,8 +36,8 @@ export function roomInteriorArea(room: Pick<DungeonRoom, "width" | "height">): n
 }
 
 /**
- * Hard seat budget for a room. Tiny closets stay at one threat; only large
- * chambers can stack several reserves without feeling abusive.
+ * Hard seat budget for a room. Small interiors stay light; large chambers can
+ * hold a few more reserves without stacking a crowd in every nook.
  */
 export function roomEnemySeatCap(room: Pick<DungeonRoom, "width" | "height">): number {
   const innerW = Math.max(0, room.width - 2);
@@ -45,15 +45,15 @@ export function roomEnemySeatCap(room: Pick<DungeonRoom, "width" | "height">): n
   const area = innerW * innerH;
   const minSide = Math.min(innerW, innerH);
   if (area <= 0) return 0;
-  // Closets / tight nooks: a single actor is enough.
-  if (minSide <= 2 || area <= 12) return 1;
-  // Small combat rooms: opening seat + at most one reserve.
-  if (minSide <= 3 || area <= 25) return 2;
-  // Mid rooms keep a light multi-seat stack.
-  if (area <= 42) return 3;
-  if (area <= 64) return 4;
-  if (area <= 100) return 5;
-  return 6;
+  // Closets / tight nooks: two seats max so a reserve can still land.
+  if (minSide <= 2 || area <= 12) return 2;
+  // Small combat rooms: opening + a couple of later pulses.
+  if (minSide <= 3 || area <= 25) return 3;
+  // Mid rooms keep a moderate multi-seat stack.
+  if (area <= 42) return 4;
+  if (area <= 64) return 5;
+  if (area <= 100) return 6;
+  return 7;
 }
 
 /**
