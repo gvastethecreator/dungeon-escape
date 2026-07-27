@@ -1,4 +1,4 @@
-import { FLOOR } from "../dungeon/generateDungeon";
+import { FLOOR, WALL } from "../dungeon/generateDungeon";
 import type { DungeonData, GridCell } from "../dungeon/types";
 import type { MinimapEnemy, MinimapFeatures, MinimapStone } from "./minimapFeatures";
 
@@ -11,6 +11,8 @@ export const MINIMAP_COLORS = {
   field: "#07090b",
   floor: "#6e7168",
   floorEdge: "#4a4d48",
+  /** Wall silhouettes adjacent to explored floors. */
+  wall: "#1c1f1c",
   exit: "#d4cfc0",
   spawn: "#5a5d58",
   enemy: "#c2362e",
@@ -43,13 +45,74 @@ export interface MinimapViewport {
   pixelRatio: number;
 }
 
+export interface DrawMinimapOptions {
+  features?: MinimapFeatures;
+  viewport?: MinimapViewport;
+  /**
+   * Keys `"x,y"` of revealed floor cells. When omitted, the full floor plan is
+   * drawn (tests / editor). When provided, unexplored floors stay under fog.
+   */
+  explored?: ReadonlySet<string>;
+  /**
+   * Player look yaw in radians (FirstPersonController.lookYaw).
+   * Forward maps to canvas (-sin(yaw), -cos(yaw)).
+   */
+  playerYaw?: number;
+}
+
+export function cellKey(x: number, y: number): string {
+  return `${x},${y}`;
+}
+
+/**
+ * Mark floor cells around a center for fog-of-war. Chebyshev radius keeps
+ * corridors readable without dumping the whole map.
+ */
+export function collectExploredAround(
+  dungeon: DungeonData,
+  center: GridCell,
+  radius: number,
+  into: Set<string> = new Set(),
+): Set<string> {
+  const r = Math.max(0, Math.floor(radius));
+  for (let y = center.y - r; y <= center.y + r; y += 1) {
+    for (let x = center.x - r; x <= center.x + r; x += 1) {
+      if (dungeon.grid[y]?.[x] !== FLOOR) continue;
+      into.add(cellKey(x, y));
+    }
+  }
+  return into;
+}
+
+/** Default vision radius used when the player steps onto a cell. */
+export const MINIMAP_REVEAL_RADIUS = 2;
+
 export function drawMinimap(
   canvas: HTMLCanvasElement,
   dungeon: DungeonData,
   playerCell: GridCell | null,
-  features?: MinimapFeatures,
-  viewport?: MinimapViewport,
+  featuresOrOptions?: MinimapFeatures | DrawMinimapOptions,
+  viewportArg?: MinimapViewport,
+  exploredArg?: ReadonlySet<string>,
+  playerYawArg?: number,
 ): void {
+  // Support both legacy positional args and the options bag (4th parameter).
+  let features: MinimapFeatures | undefined;
+  let viewport: MinimapViewport | undefined;
+  let explored: ReadonlySet<string> | undefined;
+  let playerYaw: number | undefined;
+  if (featuresOrOptions && isOptionsBag(featuresOrOptions)) {
+    features = featuresOrOptions.features;
+    viewport = featuresOrOptions.viewport ?? viewportArg;
+    explored = featuresOrOptions.explored ?? exploredArg;
+    playerYaw = featuresOrOptions.playerYaw ?? playerYawArg;
+  } else {
+    features = featuresOrOptions;
+    viewport = viewportArg;
+    explored = exploredArg;
+    playerYaw = playerYawArg;
+  }
+
   // Hot path: use the caller-provided viewport to avoid getBoundingClientRect()
   // (forced reflow) on every cell change. Fall back to measuring for tests/legacy.
   let cssWidth: number;
@@ -89,10 +152,34 @@ export function drawMinimap(
     originX + cell.x * cellSize + cellSize / 2,
     originY + cell.y * cellSize + cellSize / 2,
   ];
+  const isExplored = (x: number, y: number): boolean =>
+    !explored || explored.has(cellKey(x, y));
+
+  // Wall silhouettes next to explored floors (only under fog-of-war).
+  if (explored) {
+    context.fillStyle = COLORS.wall;
+    for (const key of explored) {
+      const sep = key.indexOf(",");
+      const x = Number(key.slice(0, sep));
+      const y = Number(key.slice(sep + 1));
+      if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
+      for (let dy = -1; dy <= 1; dy += 1) {
+        for (let dx = -1; dx <= 1; dx += 1) {
+          if (dx === 0 && dy === 0) continue;
+          const wx = x + dx;
+          const wy = y + dy;
+          if (dungeon.grid[wy]?.[wx] !== WALL) continue;
+          const size = Math.ceil(cellSize);
+          context.fillRect(originX + wx * cellSize, originY + wy * cellSize, size, size);
+        }
+      }
+    }
+  }
 
   for (let y = 0; y < dungeon.height; y += 1) {
     for (let x = 0; x < dungeon.width; x += 1) {
       if (dungeon.grid[y]?.[x] !== FLOOR) continue;
+      if (!isExplored(x, y)) continue;
       const px = originX + x * cellSize;
       const py = originY + y * cellSize;
       const size = Math.ceil(cellSize);
@@ -101,19 +188,23 @@ export function drawMinimap(
     }
   }
 
-  if (features) drawFeatures(context, features, cellCenter, cellSize);
-
-  // Exit: bright bone square, always on top of furniture markers.
-  const exitSize = Math.max(3, cellSize * 1.85);
-  context.fillStyle = COLORS.exit;
-  context.fillRect(
-    originX + dungeon.exit.x * cellSize - exitSize / 2 + cellSize / 2,
-    originY + dungeon.exit.y * cellSize - exitSize / 2 + cellSize / 2,
-    exitSize,
-    exitSize,
-  );
-
   if (features) {
+    drawFeatures(context, features, cellCenter, cellSize, isExplored);
+  }
+
+  // Exit: only when its cell is known (or full-map mode with no fog).
+  if (isExplored(dungeon.exit.x, dungeon.exit.y)) {
+    const exitSize = Math.max(3, cellSize * 1.85);
+    context.fillStyle = COLORS.exit;
+    context.fillRect(
+      originX + dungeon.exit.x * cellSize - exitSize / 2 + cellSize / 2,
+      originY + dungeon.exit.y * cellSize - exitSize / 2 + cellSize / 2,
+      exitSize,
+      exitSize,
+    );
+  }
+
+  if (features && isExplored(features.spawn.x, features.spawn.y)) {
     const [sx, sy] = cellCenter(features.spawn);
     const spawnR = Math.max(2, cellSize * 0.7);
     context.lineWidth = Math.max(1, cellSize * 0.18);
@@ -126,16 +217,61 @@ export function drawMinimap(
   if (playerCell) {
     const cx = originX + playerCell.x * cellSize + cellSize / 2;
     const cy = originY + playerCell.y * cellSize + cellSize / 2;
-    const r = Math.max(2.4, cellSize * 0.78);
-    context.beginPath();
-    context.fillStyle = COLORS.playerCore;
-    context.arc(cx, cy, r + 1.2, 0, Math.PI * 2);
-    context.fill();
-    context.beginPath();
-    context.fillStyle = COLORS.player;
-    context.arc(cx, cy, r, 0, Math.PI * 2);
-    context.fill();
+    drawPlayerMarker(context, cx, cy, cellSize, playerYaw ?? 0);
   }
+}
+
+function isOptionsBag(value: MinimapFeatures | DrawMinimapOptions): value is DrawMinimapOptions {
+  return (
+    "explored" in value ||
+    "playerYaw" in value ||
+    "viewport" in value ||
+    ("features" in value && !("doors" in value))
+  );
+}
+
+/**
+ * Small heading arrow. Yaw 0 faces world -Z, which is up on the minimap.
+ */
+function drawPlayerMarker(
+  context: CanvasRenderingContext2D,
+  cx: number,
+  cy: number,
+  cellSize: number,
+  yaw: number,
+): void {
+  const dx = -Math.sin(yaw);
+  const dy = -Math.cos(yaw);
+  const len = Math.max(4.5, cellSize * 1.55);
+  const halfW = Math.max(2.1, cellSize * 0.62);
+  const px = -dy;
+  const py = dx;
+
+  const tipX = cx + dx * len * 0.62;
+  const tipY = cy + dy * len * 0.62;
+  const baseX = cx - dx * len * 0.42;
+  const baseY = cy - dy * len * 0.42;
+  const leftX = baseX + px * halfW;
+  const leftY = baseY + py * halfW;
+  const rightX = baseX - px * halfW;
+  const rightY = baseY - py * halfW;
+
+  // Dark underlay for contrast on bone floors.
+  context.beginPath();
+  context.moveTo(tipX + dx * 1.2, tipY + dy * 1.2);
+  context.lineTo(leftX - px * 0.8 - dx * 0.4, leftY - py * 0.8 - dy * 0.4);
+  context.lineTo(rightX + px * 0.8 - dx * 0.4, rightY + py * 0.8 - dy * 0.4);
+  context.closePath();
+  context.fillStyle = COLORS.playerCore;
+  context.fill();
+
+  context.beginPath();
+  context.moveTo(tipX, tipY);
+  context.lineTo(leftX, leftY);
+  context.lineTo(rightX, rightY);
+  context.closePath();
+  context.fillStyle = COLORS.player;
+  context.fill();
 }
 
 /** Renders every world-feature marker layer below the exit/player caps. */
@@ -144,11 +280,13 @@ function drawFeatures(
   features: MinimapFeatures,
   cellCenter: (cell: { x: number; y: number }) => [number, number],
   cellSize: number,
+  isExplored: (x: number, y: number) => boolean,
 ): void {
   // Fires: small ember dots.
   context.fillStyle = COLORS.fire;
   const fireR = Math.max(1.2, cellSize * 0.3);
   for (const fire of features.fires) {
+    if (!isExplored(fire.x, fire.y)) continue;
     const [cx, cy] = cellCenter(fire);
     context.beginPath();
     context.arc(cx, cy, fireR, 0, Math.PI * 2);
@@ -159,13 +297,14 @@ function drawFeatures(
   context.fillStyle = COLORS.pickup;
   const pickupR = Math.max(1.2, cellSize * 0.32);
   for (const pickup of features.pickups) {
+    if (!isExplored(pickup.x, pickup.y)) continue;
     const [cx, cy] = cellCenter(pickup);
     context.beginPath();
     context.arc(cx, cy, pickupR, 0, Math.PI * 2);
     context.fill();
   }
 
-  if (features.timeFreeze) {
+  if (features.timeFreeze && isExplored(features.timeFreeze.x, features.timeFreeze.y)) {
     const [cx, cy] = cellCenter(features.timeFreeze);
     const r = Math.max(2, cellSize * 0.52);
     context.fillStyle = COLORS.timeFreeze;
@@ -178,7 +317,7 @@ function drawFeatures(
     context.fill();
   }
 
-  if (features.luminousWard) {
+  if (features.luminousWard && isExplored(features.luminousWard.x, features.luminousWard.y)) {
     const [cx, cy] = cellCenter(features.luminousWard);
     const r = Math.max(2, cellSize * 0.58);
     context.strokeStyle = COLORS.luminousWard;
@@ -194,6 +333,7 @@ function drawFeatures(
 
   // Enemies: rust dots, size scales with tier.
   for (const enemy of features.enemies) {
+    if (!isExplored(enemy.cell.x, enemy.cell.y)) continue;
     drawEnemy(context, enemy, cellCenter, cellSize);
   }
 
@@ -203,6 +343,7 @@ function drawFeatures(
   context.lineCap = "round";
   const doorHalf = Math.max(1, cellSize * 0.42);
   for (const door of features.doors) {
+    if (!isExplored(door.x, door.y)) continue;
     const [cx, cy] = cellCenter(door);
     context.beginPath();
     context.moveTo(cx - doorHalf, cy - doorHalf);
@@ -214,11 +355,12 @@ function drawFeatures(
 
   // Stones: cyan diamonds; collected ones fade.
   for (const stone of features.stones) {
+    if (!isExplored(stone.cell.x, stone.cell.y)) continue;
     drawStone(context, stone, cellCenter, cellSize);
   }
 
   // Relic: large violet diamond.
-  if (features.relic) {
+  if (features.relic && isExplored(features.relic.x, features.relic.y)) {
     const [cx, cy] = cellCenter(features.relic);
     const r = Math.max(2, cellSize * 0.6);
     context.fillStyle = COLORS.relic;

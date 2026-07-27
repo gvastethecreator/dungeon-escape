@@ -47,7 +47,11 @@ import {
   PovFeelState,
   samplePovShake,
 } from "./systems/povFeel";
-import { drawMinimap } from "./ui/drawMinimap";
+import {
+  collectExploredAround,
+  drawMinimap,
+  MINIMAP_REVEAL_RADIUS,
+} from "./ui/drawMinimap";
 import { COPY, STONE_ORDER, formatTime, type StoneId } from "./ui/copy";
 import { createMinimapLayoutScheduler } from "./ui/minimapLayout";
 import { QuestState } from "./game/QuestState";
@@ -452,7 +456,7 @@ function applyLocalRunResume(resume: LocalRunResumeState | undefined): void {
   visitedCells.clear();
   for (const key of resume.visitedCells) visitedCells.add(key);
   if (visitedCells.size === 0) {
-    visitedCells.add(`${dungeon.spawn.x},${dungeon.spawn.y}`);
+    revealMinimapCell(dungeon.spawn);
   }
   controller.restorePose(resume.player);
   world.restoreRuntimeProgress(
@@ -1260,16 +1264,24 @@ function updateReadout(): void {
     : "CELL —";
 }
 
-function drawMap(): void {
-  if (dungeon) {
-    drawMinimap(
-      elements.minimap,
-      dungeon,
-      controller.getState().cell,
-      world.getMinimapFeatures(),
-      minimapViewport,
-    );
+/** Reveal floor around a cell for minimap fog-of-war (saved with the run). */
+function revealMinimapCell(cell: { x: number; y: number }): void {
+  if (!dungeon) {
+    visitedCells.add(`${cell.x},${cell.y}`);
+    return;
   }
+  collectExploredAround(dungeon, cell, MINIMAP_REVEAL_RADIUS, visitedCells);
+}
+
+function drawMap(): void {
+  if (!dungeon) return;
+  const player = controller.getState();
+  drawMinimap(elements.minimap, dungeon, player.cell, {
+    features: world.getMinimapFeatures(),
+    viewport: minimapViewport,
+    explored: visitedCells,
+    playerYaw: player.lookYaw,
+  });
 }
 
 function closeEndOverlay(): void {
@@ -1362,8 +1374,7 @@ function syncDomainExplore(extra: { threat?: number } = {}): void {
   if (!dungeon || runTransitionPending) return;
   const player = controller.getState();
   const cell = player.cell ?? dungeon.spawn;
-  const key = `${cell.x},${cell.y}`;
-  visitedCells.add(key);
+  revealMinimapCell(cell);
   const room = roomLabelForCell(dungeon.rooms, cell);
   pendingExploreRoom = room;
   pendingExploreExtra = { ...pendingExploreExtra, ...extra };
@@ -1423,7 +1434,7 @@ function activateDungeon(
   elements.seed.value = nextDungeon.seed;
   writeSeedToUrl(nextDungeon.seed);
   visitedCells.clear();
-  visitedCells.add(`${nextDungeon.spawn.x},${nextDungeon.spawn.y}`);
+  collectExploredAround(nextDungeon, nextDungeon.spawn, MINIMAP_REVEAL_RADIUS, visitedCells);
   const mood = applyDungeonMood(nextDungeon);
   applyAtmosphereFromParams();
   world.setDungeon(dungeon, mood);
@@ -2355,7 +2366,8 @@ let uiInteractQueued = false;
 function frame(now: number): void {
   requestAnimationFrame(frame);
   renderer.info.reset();
-  const delta = Math.min(Math.max(0, (now - lastFrameMs) / 1000), 0.05);
+  const rawFrameGapMs = now - lastFrameMs;
+  const delta = Math.min(Math.max(0, rawFrameGapMs / 1000), 0.05);
   lastFrameMs = now;
   smoothedFrameMs = THREE.MathUtils.lerp(smoothedFrameMs, delta * 1000, 0.08);
   const reducedMotion = REDUCED_MOTION_QUERY.matches;
@@ -2387,7 +2399,7 @@ function frame(now: number): void {
     frameGapProfiler.reset();
     profileWarmupUntil = simulationActive ? now + 1800 : Number.POSITIVE_INFINITY;
   }
-  if (simulationActive && now >= profileWarmupUntil) frameGapProfiler.record(delta * 1000);
+  if (simulationActive && now >= profileWarmupUntil) frameGapProfiler.record(rawFrameGapMs);
   if (!simulationActive) elements.interactionPrompt.hidden = true;
   const pausedFlag = String(!simulationActive);
   if (pausedFlag !== lastPaused) {
