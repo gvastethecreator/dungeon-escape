@@ -184,6 +184,8 @@ const elements = {
   recordPanel: requireElement<HTMLDetailsElement>(".record-panel"),
   modeButtons: [...document.querySelectorAll<HTMLButtonElement>("[data-engine-mode]")],
   audioToggle: requireElement<HTMLButtonElement>("#audio-toggle"),
+  musicToggle: requireElement<HTMLButtonElement>("#music-toggle"),
+  welcomeMusicToggle: requireElement<HTMLButtonElement>("#welcome-music-toggle"),
   crtToggle: requireElement<HTMLButtonElement>("#crt-toggle"),
   editorWorkspace: requireElement<HTMLElement>("#editor-workspace"),
   editorMap: requireElement<HTMLCanvasElement>("#editor-map"),
@@ -316,6 +318,7 @@ let crtEnabled = true;
 let optionsOpen = false;
 let welcomeOpen = true;
 const LAST_LEADERBOARD_NAME_KEY = "dungeon-escape:leaderboard-name";
+const MUSIC_MUTED_KEY = "dungeon-escape:music-muted";
 let leaderboardLoadSequence = 0;
 let pendingLeaderboardSubmission: Omit<LeaderboardSubmissionInput, "playerName"> | null = null;
 let continueDomainState: DungeonDomainState | null = null;
@@ -506,6 +509,41 @@ function setWelcomeOpen(open: boolean): void {
 /** Soft 8-bit scene beds. Menu / end screens keep music while play SFX are paused. */
 function setMusicBed(track: MusicTrack | null): void {
   audio.setMusicTrack(track);
+}
+
+function readStoredMusicMuted(): boolean {
+  try {
+    return localStorage.getItem(MUSIC_MUTED_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function writeStoredMusicMuted(muted: boolean): void {
+  try {
+    localStorage.setItem(MUSIC_MUTED_KEY, muted ? "1" : "0");
+  } catch {
+    // Private mode / blocked storage: preference stays in memory for this session.
+  }
+}
+
+function syncMusicToggleUi(): void {
+  const muted = audio.isMusicMuted;
+  const label = muted ? COPY.hud.musicOff : COPY.hud.musicOn;
+  for (const button of [elements.musicToggle, elements.welcomeMusicToggle]) {
+    button.setAttribute("aria-pressed", String(muted));
+    button.classList.toggle("is-active", !muted);
+    button.textContent = label;
+    button.title = muted ? "Enable music" : "Disable music";
+  }
+}
+
+function setMusicMutedPreference(muted: boolean, options: { playClick?: boolean } = {}): void {
+  audio.setMusicMuted(muted);
+  writeStoredMusicMuted(muted);
+  syncMusicToggleUi();
+  if (options.playClick !== false && !audio.isMuted) audio.play("ui");
+  setStatus(muted ? "Music off." : "Music on.");
 }
 
 function startPlayWithSeed(seed: string, options: { refreshProcedural?: boolean } = {}): void {
@@ -2165,6 +2203,13 @@ elements.audioToggle.addEventListener("click", () => {
     setStatus(muted ? "Audio muted." : "Audio on.");
   });
 });
+function onMusicToggleClick(): void {
+  void audio.unlock().then(() => {
+    setMusicMutedPreference(!audio.isMusicMuted);
+  });
+}
+elements.musicToggle.addEventListener("click", onMusicToggleClick);
+elements.welcomeMusicToggle.addEventListener("click", onMusicToggleClick);
 elements.crtToggle.addEventListener("click", () => {
   crtEnabled = !crtEnabled;
   povPost.setCrtEnabled(crtEnabled);
@@ -2543,6 +2588,9 @@ window.addEventListener("beforeunload", () => {
 });
 resize();
 applyCameraSettings();
+// Restore music preference before the welcome bed is requested.
+audio.setMusicMuted(readStoredMusicMuted());
+syncMusicToggleUi();
 // Welcome owns the first choice. New Game starts play; Custom Run opens Creation.
 setEngineMode("editor", { hydrate: false, persist: false });
 setWelcomeOpen(true);

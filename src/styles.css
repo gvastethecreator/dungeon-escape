@@ -58,14 +58,6 @@ body {
   background: var(--ink);
 }
 
-.crt-filter-defs {
-  position: fixed;
-  width: 0;
-  height: 0;
-  overflow: hidden;
-  pointer-events: none;
-}
-
 button,
 input,
 select,
@@ -150,8 +142,7 @@ kbd {
 }
 
 .app-shell:not(.crt-off) {
-  animation: crt-jitter 2.8s steps(1, end) infinite;
-  filter: url("#crt-phosphor");
+  animation: crt-jitter 5.6s steps(1, end) infinite;
 }
 
 @keyframes crt-jitter {
@@ -163,11 +154,11 @@ kbd {
   }
 
   93% {
-    transform: translate3d(0.24px, 0, 0);
+    transform: translate3d(0.12px, 0, 0);
   }
 
   94% {
-    transform: translate3d(-0.18px, 0.1px, 0);
+    transform: translate3d(-0.09px, 0.05px, 0);
   }
 }
 
@@ -331,6 +322,37 @@ kbd {
 .welcome-actions button:disabled {
   cursor: wait;
   opacity: 0.38;
+}
+
+.welcome-audio {
+  display: flex;
+  justify-content: center;
+  margin-top: 14px;
+}
+
+.welcome-audio button {
+  min-height: 34px;
+  min-width: 8.5rem;
+  padding: 0 14px;
+  border: var(--edge);
+  background: rgb(14 16 16 / 88%);
+  color: var(--ash);
+  font-family: var(--font-pixel);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+}
+
+.welcome-audio button.is-active {
+  border-color: var(--edge-color);
+  color: var(--bone);
+}
+
+.welcome-audio button:hover,
+.welcome-audio button:focus-visible {
+  border-color: var(--bone-dim);
+  color: var(--bone);
+  background: rgb(22 24 24 / 94%);
 }
 
 .welcome-card .welcome-status {
@@ -1186,6 +1208,100 @@ kbd {
   animation: resolve-restored 420ms steps(5);
 }
 
+/* Sprint stamina — compact iron track under the health phial. */
+.stamina-meter {
+  --fill: 100%;
+  --stamina-hi: #d8c38a;
+  --stamina-mid: #9a7b3c;
+  --stamina-lo: #5c4420;
+  --stamina-empty: #3a2a18;
+  display: grid;
+  gap: 4px;
+  width: 88px;
+  padding: 0 2px;
+  filter: drop-shadow(0 2px 6px rgb(0 0 0 / 55%));
+}
+
+.stamina-meter__label {
+  color: rgb(201 197 184 / 72%);
+  font-family: var(--font-pixel);
+  font-size: 8px;
+  letter-spacing: 0.14em;
+  line-height: 1;
+  text-shadow: 0 1px 3px rgb(0 0 0 / 90%);
+}
+
+.stamina-meter__track {
+  position: relative;
+  height: 8px;
+  overflow: hidden;
+  border: 1px solid rgb(201 197 184 / 28%);
+  border-radius: 2px;
+  background: linear-gradient(180deg, rgb(18 16 14 / 92%) 0%, rgb(8 7 6 / 96%) 100%);
+  box-shadow:
+    inset 0 1px 3px rgb(0 0 0 / 70%),
+    0 0 0 1px rgb(0 0 0 / 35%);
+}
+
+.stamina-meter__fill {
+  position: absolute;
+  top: 1px;
+  bottom: 1px;
+  left: 1px;
+  width: var(--fill);
+  max-width: calc(100% - 2px);
+  border-radius: 1px;
+  background: linear-gradient(
+    180deg,
+    var(--stamina-hi) 0%,
+    var(--stamina-mid) 48%,
+    var(--stamina-lo) 100%
+  );
+  box-shadow:
+    inset 0 1px 0 rgb(255 240 200 / 35%),
+    0 0 8px rgb(180 140 60 / 28%);
+  transition: width 80ms linear;
+}
+
+.stamina-meter.is-low {
+  --stamina-hi: #e0a060;
+  --stamina-mid: #a85a28;
+  --stamina-lo: #5c2a12;
+}
+
+.stamina-meter.is-low .stamina-meter__fill {
+  box-shadow:
+    inset 0 1px 0 rgb(255 200 140 / 28%),
+    0 0 10px rgb(200 90 40 / 32%);
+}
+
+.stamina-meter.is-exhausted {
+  --stamina-hi: #8a6a4a;
+  --stamina-mid: #5a3e28;
+  --stamina-lo: #2e1c12;
+}
+
+.stamina-meter.is-exhausted .stamina-meter__label {
+  color: rgb(180 120 90 / 78%);
+}
+
+.stamina-meter.is-exhausted .stamina-meter__fill {
+  box-shadow: inset 0 1px 0 rgb(120 90 60 / 22%);
+}
+
+.stamina-meter.is-draining .stamina-meter__fill {
+  animation: stamina-drain-pulse 520ms ease-in-out infinite alternate;
+}
+
+@keyframes stamina-drain-pulse {
+  from {
+    filter: brightness(1);
+  }
+  to {
+    filter: brightness(1.12);
+  }
+}
+
 .has-relic .stone-sockets {
   box-shadow: 0 0 0 1px rgb(222 216 200 / 18%);
   border-radius: 8px;
@@ -1506,6 +1622,10 @@ kbd {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 6px;
+}
+
+.options-fx #crt-toggle {
+  grid-column: 1 / -1;
 }
 
 .options-fx legend {
@@ -1992,9 +2112,10 @@ kbd {
   inset: 0;
   overflow: hidden;
   background:
-    url("/assets/ui/crt-noise.svg") 0 0 / 96px 96px repeat,
-    radial-gradient(ellipse at center, transparent 64%, rgb(0 0 0 / 10%) 100%);
-  animation: crt-noise-shift 320ms steps(2, end) infinite;
+    url("/assets/ui/crt-noise.svg") 0 0 / 144px 144px repeat,
+    radial-gradient(ellipse at center, transparent 66%, rgb(0 0 0 / 8%) 100%);
+  opacity: 0.72;
+  animation: crt-noise-shift 1.2s steps(1, end) infinite;
   pointer-events: none;
 }
 
@@ -2005,7 +2126,7 @@ kbd {
   pointer-events: none;
   /* Keep scanlines in screen space so the world and HTML HUD share the same
      display surface. */
-  background: repeating-linear-gradient(to bottom, transparent 0 5px, rgb(2 4 4 / 4.2%) 5px 6px);
+  background: repeating-linear-gradient(to bottom, transparent 0 6px, rgb(2 4 4 / 2.8%) 6px 7px);
   mix-blend-mode: multiply;
 }
 

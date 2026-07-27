@@ -40,6 +40,11 @@ describe("GameAudio dungeon soundscape", () => {
     audio.setMusicTrack("lose");
     audio.setMusicTrack(null);
     expect(audio.currentMusic).toBe(null);
+    expect(audio.isMusicMuted).toBe(false);
+    expect(audio.toggleMusicMuted()).toBe(true);
+    expect(audio.isMusicMuted).toBe(true);
+    audio.setMusicMuted(false);
+    expect(audio.isMusicMuted).toBe(false);
     audio.setPaused(true);
     audio.setPaused(false);
 
@@ -81,6 +86,16 @@ describe("GameAudio dungeon soundscape", () => {
     expect(main).toContain('setMusicBed("win")');
     expect(main).toContain('setMusicBed("lose")');
     expect(main).toContain("audio.setMusicTrack");
+    expect(main).toContain("setMusicMutedPreference");
+    expect(main).toContain("welcomeMusicToggle");
+    expect(main).toContain("MUSIC_MUTED_KEY");
+  });
+
+  test("html exposes music mute controls on welcome and options", async () => {
+    const host = await Bun.file(new URL("../index.html", import.meta.url)).text();
+    expect(host).toContain('id="music-toggle"');
+    expect(host).toContain('id="welcome-music-toggle"');
+    expect(host).toContain("MUSIC ON");
   });
 
   test("play loop wires threat and tick into the frame", async () => {
