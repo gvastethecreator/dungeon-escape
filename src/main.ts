@@ -422,6 +422,17 @@ function setWelcomeOpen(open: boolean): void {
   }
 }
 
+function startPlayWithSeed(seed: string, options: { refreshProcedural?: boolean } = {}): void {
+  void audio.unlock();
+  if (options.refreshProcedural) queueNewProceduralSeed();
+  const normalizedSeed = seed.trim() || COPY.hud.seedDefault;
+  elements.seed.value = normalizedSeed;
+  buildDungeon(normalizedSeed);
+  setWelcomeOpen(false);
+  setEngineMode("play", { hydrate: false });
+  setStatus(COPY.status.enterPlay);
+}
+
 function renderLeaderboard(entries: readonly LeaderboardEntry[]): void {
   const fragment = document.createDocumentFragment();
   for (const entry of entries) {
@@ -430,18 +441,31 @@ function renderLeaderboard(entries: readonly LeaderboardEntry[]): void {
     const main = document.createElement("span");
     const name = document.createElement("span");
     const meta = document.createElement("span");
+    const time = document.createElement("span");
+    const seed = document.createElement("button");
     const score = document.createElement("span");
     rank.className = "leaderboard-rank";
     main.className = "leaderboard-main";
     name.className = "leaderboard-name";
     meta.className = "leaderboard-meta";
+    time.className = "leaderboard-time";
+    seed.className = "leaderboard-seed";
+    seed.type = "button";
     score.className = "leaderboard-score";
     rank.textContent = `#${entry.rank}`;
     name.textContent = entry.playerName;
     const escapeTime = formatTime(entry.durationMs / 1000);
-    meta.textContent = `${escapeTime} · ${entry.seed}`;
+    time.textContent = escapeTime;
+    seed.textContent = entry.seed;
+    seed.title = COPY.leaderboard.playSeed(entry.seed);
+    seed.setAttribute("aria-label", COPY.leaderboard.playSeed(entry.seed));
+    seed.addEventListener("click", (event) => {
+      event.preventDefault();
+      startPlayWithSeed(entry.seed);
+    });
     meta.title = `${entry.biome} · ${entry.difficulty} · ${escapeTime} · seed ${entry.seed}`;
     score.textContent = entry.score.toLocaleString("en-US");
+    meta.append(time, document.createTextNode(" · "), seed);
     main.append(name, meta);
     item.append(rank, main, score);
     fragment.append(item);
@@ -1879,14 +1903,7 @@ elements.runSelect.addEventListener("change", () => {
   })();
 });
 elements.welcomeNew.addEventListener("click", () => {
-  void audio.unlock();
-  const freshSeed = makeSeed();
-  queueNewProceduralSeed();
-  elements.seed.value = freshSeed;
-  buildDungeon(freshSeed);
-  setWelcomeOpen(false);
-  setEngineMode("play", { hydrate: false });
-  setStatus(COPY.status.enterPlay);
+  startPlayWithSeed(makeSeed(), { refreshProcedural: true });
 });
 elements.welcomeContinue.addEventListener("click", () => {
   if (!continueDomainState) return;

@@ -30,12 +30,13 @@ describe("persistent leaderboard UI", () => {
     expect(source).toMatch(/mode === "dead"[\s\S]*elements\.leaderboardName/);
   });
 
-  test("ranking rows expose escape time and seed", async () => {
+  test("ranking rows expose escape time and a clickable seed replay", async () => {
     const source = await Bun.file(new URL("../src/main.ts", import.meta.url)).text();
     expect(source).toContain("leaderboard-meta");
+    expect(source).toContain("leaderboard-seed");
     expect(source).toContain("formatTime(entry.durationMs / 1000)");
-    expect(source).toContain("entry.seed");
-    expect(source).toMatch(/\$\{escapeTime\} · \$\{entry\.seed\}/);
+    expect(source).toContain("startPlayWithSeed(entry.seed)");
+    expect(source).toContain("startPlayWithSeed(makeSeed(), { refreshProcedural: true })");
   });
 
   test("responsive styles stack the ranking and name form", async () => {
@@ -43,6 +44,7 @@ describe("persistent leaderboard UI", () => {
     expect(css).toContain(".welcome-leaderboard");
     expect(css).toContain(".leaderboard-list");
     expect(css).toContain(".leaderboard-meta");
+    expect(css).toContain(".leaderboard-seed");
     expect(css).toContain(".end-leaderboard-form");
     expect(css).toMatch(/@media \(max-width: 900px\)[\s\S]*\.welcome-content/);
     expect(css).toMatch(/@media \(max-width: 560px\)[\s\S]*\.end-leaderboard-form > div/);

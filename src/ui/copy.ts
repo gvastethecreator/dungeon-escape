@@ -79,6 +79,7 @@ export const COPY = {
     saving: "Saving…",
     saved: (rank: number, score: number) =>
       `Saved at rank ${rank}. Score ${score.toLocaleString("en-US")}.`,
+    playSeed: (seed: string) => `Play seed ${seed}`,
   },
   hud: {
     map: "MAP",
