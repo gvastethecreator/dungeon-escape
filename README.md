@@ -43,4 +43,4 @@ Dungeon Escape is a standalone local application with a verified build and test 
 
 ## License
 
-No project-wide license has been selected yet. Confirm the licensing of the included audio pack before distributing release assets.
+No project-wide license has been selected yet.

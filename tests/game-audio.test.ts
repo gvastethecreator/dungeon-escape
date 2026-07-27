@@ -30,6 +30,9 @@ describe("GameAudio dungeon soundscape", () => {
     audio.tick(0.016);
     audio.playFootstep("water");
     audio.playDoor("open", { x: 0, y: 1, z: 0 });
+    audio.playChest({ x: 0.5, y: 1, z: -0.5 });
+    audio.playPickup({ kind: "time-freeze", position: { x: 1, y: 1, z: 0 } });
+    audio.playPickup({ kind: "luminous-ward", position: { x: 1, y: 1, z: 0 } });
     audio.playEnemyHit({ x: 1.2, y: 1, z: -2 });
     audio.setPaused(true);
     audio.setPaused(false);
@@ -52,6 +55,12 @@ describe("GameAudio dungeon soundscape", () => {
     expect(source).toContain("setThreatDistance");
     expect(source).toContain("step-water-a.opus");
     expect(source).toContain("door-open.opus");
+    expect(source).toContain("pickup-time-freeze.opus");
+    expect(source).toContain("pickup-ward.opus");
+    expect(source).toContain("chest-open.opus");
+    expect(source).toContain("win.opus");
+    expect(source).toContain("lose.opus");
+    expect(source).toContain("PICKUP_ASSETS");
     expect(source).toContain("CREATURE_VOICE_ASSETS");
   });
 
@@ -61,6 +70,7 @@ describe("GameAudio dungeon soundscape", () => {
     expect(main).toContain("audio.tick(delta)");
     expect(main).toContain("audio.playEnemyHit");
     expect(main).toContain("audio.playDoor");
+    expect(main).toContain("audio.playChest");
     expect(main).toContain("audio.playFootstep");
     expect(main).toContain("audio.syncWorld(world.getAudioFrame())");
     expect(main).toContain("now - lastAudioFrameSync >= 125");

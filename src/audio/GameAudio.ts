@@ -90,6 +90,18 @@ const AUDIO_ASSETS = {
     gain: 0.55,
     spatial: { refDistance: 1.5, maxDistance: 11, rolloff: 1.25 },
   },
+  "pickup-time-freeze": {
+    file: "pickup-time-freeze.opus",
+    group: "sfx",
+    gain: 0.7,
+    spatial: { refDistance: 1.6, maxDistance: 14, rolloff: 1.2 },
+  },
+  "pickup-ward": {
+    file: "pickup-ward.opus",
+    group: "sfx",
+    gain: 0.68,
+    spatial: { refDistance: 1.6, maxDistance: 14, rolloff: 1.2 },
+  },
   "enemy-alert": {
     file: "enemy-alert.opus",
     group: "threat",
@@ -144,7 +156,21 @@ const AUDIO_ASSETS = {
     gain: 0.5,
     spatial: { refDistance: 2, maxDistance: 18, rolloff: 1.4 },
   },
+  "chest-open": {
+    file: "chest-open.opus",
+    group: "sfx",
+    gain: 0.52,
+    spatial: { refDistance: 1.8, maxDistance: 15, rolloff: 1.35 },
+  },
+  "chest-reward": {
+    file: "chest-reward.opus",
+    group: "sfx",
+    gain: 0.48,
+    spatial: { refDistance: 1.8, maxDistance: 14, rolloff: 1.3 },
+  },
   damage: { file: "damage.opus", group: "sfx", gain: 0.68 },
+  lose: { file: "lose.opus", group: "sfx", gain: 0.74 },
+  win: { file: "win.opus", group: "sfx", gain: 0.72 },
   "portal-open": {
     file: "portal-open.opus",
     group: "sfx",
@@ -165,14 +191,21 @@ const CREATURE_VOICE_ASSETS: Readonly<Record<CreatureVoice, AudioAssetId>> = {
   vermin: "enemy-vermin",
 };
 
+const PICKUP_ASSETS: Readonly<Record<CollectedPickupAudio["kind"], AudioAssetId>> = {
+  stone: "pickup-stone",
+  resolve: "pickup-resolve",
+  "time-freeze": "pickup-time-freeze",
+  "luminous-ward": "pickup-ward",
+};
+
 const CUE_ASSETS: Readonly<Record<Exclude<AudioCue, "step" | "pickup">, AudioAssetId>> = {
   ui: "ui-metal",
   mode: "ui-metal",
   forge: "ui-metal",
   spawn: "portal-open",
   damage: "damage",
-  win: "portal-open",
-  lose: "damage",
+  win: "win",
+  lose: "lose",
   enemyGrowl: "enemy-growl",
   enemyAttack: "enemy-attack",
   torch: "torch-crackle",
@@ -278,17 +311,17 @@ export class GameAudio {
     this.playAsset(kind === "open" ? "door-open" : "door-close", position);
   }
 
+  playChest(position: AudioPosition): void {
+    this.playAsset("chest-open", position);
+    this.playAsset("chest-reward", position);
+  }
+
   playPickup(pickup: CollectedPickupAudio | null): void {
     if (!pickup) {
       this.play("pickup");
       return;
     }
-    this.playAsset(
-      pickup.kind === "stone" || pickup.kind === "luminous-ward"
-        ? "pickup-stone"
-        : "pickup-resolve",
-      pickup.position,
-    );
+    this.playAsset(PICKUP_ASSETS[pickup.kind], pickup.position);
   }
 
   playPortal(position: AudioPosition | null): void {
