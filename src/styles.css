@@ -1855,30 +1855,15 @@ kbd {
   pointer-events: none;
 }
 
-.crt-overlay::before,
-.crt-overlay::after {
+.crt-overlay::before {
   position: absolute;
   inset: 0;
   content: "";
   pointer-events: none;
-}
-
-/* A small fixed subset of Shader Boy Mini's CRT model: scanlines plus an RGB
-   aperture grille. Both stay in screen space so the world and HTML HUD share
-   the same display surface. */
-.crt-overlay::before {
+  /* Keep scanlines in screen space so the world and HTML HUD share the same
+     display surface. */
   background: repeating-linear-gradient(to bottom, transparent 0 5px, rgb(2 4 4 / 4.2%) 5px 6px);
   mix-blend-mode: multiply;
-}
-
-.crt-overlay::after {
-  background: repeating-linear-gradient(
-    to right,
-    rgb(255 72 72 / 1.4%) 0 4px,
-    rgb(82 255 154 / 0.9%) 4px 8px,
-    rgb(96 142 255 / 1.4%) 8px 12px
-  );
-  mix-blend-mode: soft-light;
 }
 
 @keyframes crt-noise-shift {
