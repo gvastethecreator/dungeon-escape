@@ -2205,6 +2205,11 @@ kbd {
   text-shadow: 0 0 10px rgb(74 215 229 / 58%);
 }
 
+/* Author `display: grid` overrides UA [hidden]; keep timers off until active. */
+.time-freeze-status[hidden] {
+  display: none;
+}
+
 .time-freeze-status__label {
   color: rgb(185 251 255 / 72%);
   font-size: 9px;
@@ -2235,6 +2240,10 @@ kbd {
   line-height: 1;
   text-align: right;
   text-shadow: 0 0 10px rgb(185 232 121 / 58%);
+}
+
+.luminous-ward-status[hidden] {
+  display: none;
 }
 
 .luminous-ward-status__label {
