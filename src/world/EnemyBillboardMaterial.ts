@@ -1,15 +1,67 @@
 import * as THREE from "three";
+import type { DungeonMood } from "../systems/DungeonMood";
 import type { EnemyAnimationDefinition } from "./EnemySpriteAtlas";
 
-export function createEnemyBillboardMaterial(map: THREE.Texture): THREE.MeshStandardMaterial {
+export type EnemyBiomeTintSource = Pick<
+  DungeonMood,
+  "id" | "surfaceTint" | "surfaceStrength" | "keyColor" | "lanternColor"
+>;
+
+export interface EnemyBiomeMaterialPalette {
+  diffuse: THREE.Color;
+  lowLightFill: THREE.Color;
+  tintStrength: number;
+}
+
+const ENEMY_NEUTRAL_ALBEDO = new THREE.Color(0xf2eee6);
+const ENEMY_TINT_CHANNEL_FLOOR = 0.68;
+
+/** Keep hue while removing value differences that could crush a dark sprite atlas. */
+function normalizedChroma(hex: number): THREE.Color {
+  const color = new THREE.Color(hex);
+  const peak = Math.max(color.r, color.g, color.b, 0.0001);
+  return color.multiplyScalar(1 / peak);
+}
+
+/**
+ * Restrained biome palette for enemy atlas cards.
+ * Surface color has the largest weight; authored key and practical light colors
+ * add the local illumination hue without turning the whole sprite emissive.
+ */
+export function resolveEnemyBiomeMaterialPalette(
+  mood: EnemyBiomeTintSource,
+): EnemyBiomeMaterialPalette {
+  const surface = normalizedChroma(mood.surfaceTint);
+  const keyLight = normalizedChroma(mood.keyColor);
+  const practicalLight = normalizedChroma(mood.lanternColor);
+  const illumination = keyLight.lerp(practicalLight, 0.62);
+  const biomeColor = surface.lerp(illumination, 0.38);
+  const tintStrength = THREE.MathUtils.clamp(0.18 + mood.surfaceStrength * 0.16, 0.2, 0.3);
+  const diffuse = ENEMY_NEUTRAL_ALBEDO.clone().lerp(biomeColor, tintStrength);
+  diffuse.r = Math.max(diffuse.r, ENEMY_TINT_CHANNEL_FLOOR);
+  diffuse.g = Math.max(diffuse.g, ENEMY_TINT_CHANNEL_FLOOR);
+  diffuse.b = Math.max(diffuse.b, ENEMY_TINT_CHANNEL_FLOOR);
+
+  // A tiny mood-colored floor keeps shadowed pixels coherent. Scene lights
+  // still provide nearly all visible illumination and preserve depth.
+  const lowLightFill = illumination.lerp(surface, 0.24);
+  const fillPeak = Math.max(lowLightFill.r, lowLightFill.g, lowLightFill.b, 0.0001);
+  lowLightFill.multiplyScalar(0.026 / fillPeak);
+
+  return { diffuse, lowLightFill, tintStrength };
+}
+
+export function createEnemyBillboardMaterial(
+  map: THREE.Texture,
+  mood: EnemyBiomeTintSource,
+): THREE.MeshStandardMaterial {
   const atlasFrame = new THREE.Vector4(0, 0, 1, 1);
+  const palette = resolveEnemyBiomeMaterialPalette(mood);
   const material = new THREE.MeshStandardMaterial({
     map,
-    // Near-white multiply so biome atlas colors stay legible (frost ice, molten
-    // magma, fungal spores, etc.). A grey multiply washed every mood into ash.
-    color: 0xf2eee6,
-    emissive: 0x060504,
-    emissiveIntensity: 0.12,
+    color: palette.diffuse,
+    emissive: palette.lowLightFill,
+    emissiveIntensity: 0.1,
     roughness: 0.96,
     metalness: 0,
     transparent: true,
@@ -21,6 +73,10 @@ export function createEnemyBillboardMaterial(map: THREE.Texture): THREE.MeshStan
   });
   material.name = "Lit enemy billboard material";
   material.userData.enemyAtlasFrame = atlasFrame;
+  material.userData.enemyBiomeMood = mood.id;
+  material.userData.enemyBiomeTintStrength = palette.tintStrength;
+  material.userData.enemyBiomeSurfaceTint = mood.surfaceTint;
+  material.userData.enemyBiomeLightTint = mood.lanternColor;
   material.onBeforeCompile = (shader) => {
     shader.uniforms.uEnemyAtlasFrame = { value: atlasFrame };
     shader.vertexShader = shader.vertexShader
