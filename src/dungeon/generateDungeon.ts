@@ -231,13 +231,77 @@ function connectRooms(
   return [...treeEdges, ...loops];
 }
 
-function carveCorridor(
+type CorridorStyle = "elbow" | "rounded";
+
+function carveManhattanSegment(
+  grid: Uint8Array[],
+  from: GridCell,
+  to: GridCell,
+  radius: number,
+): void {
+  // The rounded path is sampled on a grid. Resolve each sample with two
+  // cardinal segments so a one-cell hall never relies on diagonal contact.
+  const corner = { x: to.x, y: from.y };
+  carveLine(grid, from, corner, radius);
+  carveLine(grid, corner, to, radius);
+}
+
+export function carveRoundedCorridor(
   grid: Uint8Array[],
   from: GridCell,
   to: GridCell,
   radius: number,
   horizontalFirst: boolean,
 ): void {
+  const dx = to.x - from.x;
+  const dy = to.y - from.y;
+  if (!dx || !dy) {
+    carveLine(grid, from, to, radius);
+    return;
+  }
+
+  const sx = Math.sign(dx);
+  const sy = Math.sign(dy);
+  const turnRadius = Math.min(3, Math.max(1, Math.floor(Math.min(Math.abs(dx), Math.abs(dy)) / 3)));
+  const startAngle = horizontalFirst ? -sy * (Math.PI / 2) : sx > 0 ? Math.PI : 0;
+  const sweep = horizontalFirst ? sx * sy * (Math.PI / 2) : -sx * sy * (Math.PI / 2);
+  const center = horizontalFirst
+    ? { x: to.x - sx * turnRadius, y: from.y + sy * turnRadius }
+    : { x: from.x + sx * turnRadius, y: to.y - sy * turnRadius };
+  const entry = horizontalFirst
+    ? { x: to.x - sx * turnRadius, y: from.y }
+    : { x: from.x, y: to.y - sy * turnRadius };
+  const exit = horizontalFirst
+    ? { x: to.x, y: from.y + sy * turnRadius }
+    : { x: from.x + sx * turnRadius, y: to.y };
+
+  carveManhattanSegment(grid, from, entry, radius);
+  let previous = entry;
+  for (let step = 1; step <= 8; step += 1) {
+    const angle = startAngle + (sweep * step) / 8;
+    const point = {
+      x: Math.round(center.x + Math.cos(angle) * turnRadius),
+      y: Math.round(center.y + Math.sin(angle) * turnRadius),
+    };
+    carveManhattanSegment(grid, previous, point, radius);
+    previous = point;
+  }
+  carveManhattanSegment(grid, previous, exit, radius);
+  carveManhattanSegment(grid, exit, to, radius);
+}
+
+function carveCorridor(
+  grid: Uint8Array[],
+  from: GridCell,
+  to: GridCell,
+  radius: number,
+  horizontalFirst: boolean,
+  style: CorridorStyle,
+): void {
+  if (style === "rounded") {
+    carveRoundedCorridor(grid, from, to, radius, horizontalFirst);
+    return;
+  }
   const corner = horizontalFirst ? { x: to.x, y: from.y } : { x: from.x, y: to.y };
   carveLine(grid, from, corner, radius);
   carveLine(grid, corner, to, radius);
@@ -360,7 +424,14 @@ export function generateDungeon(
     const left = rooms[edge.left];
     const right = rooms[edge.right];
     if (left && right)
-      carveCorridor(grid, left.center, right.center, options.corridorRadius, random.chance(0.5));
+      carveCorridor(
+        grid,
+        left.center,
+        right.center,
+        options.corridorRadius,
+        random.chance(0.5),
+        random.chance(0.34) ? "rounded" : "elbow",
+      );
   });
 
   const entranceRoom = selectEntrance(rooms);
