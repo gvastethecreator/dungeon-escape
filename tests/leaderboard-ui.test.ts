@@ -32,8 +32,11 @@ describe("persistent leaderboard UI", () => {
 
   test("ranking rows expose escape time and a clickable seed replay", async () => {
     const source = await Bun.file(new URL("../src/main.ts", import.meta.url)).text();
-    expect(source).toContain("leaderboard-meta");
+    expect(source).toContain("leaderboard-body");
+    expect(source).toContain("leaderboard-stats");
     expect(source).toContain("leaderboard-seed");
+    expect(source).toContain('createLeaderboardStat("Time", time)');
+    expect(source).toContain('createLeaderboardStat("Seed", seed)');
     expect(source).toContain("formatTime(entry.durationMs / 1000)");
     expect(source).toContain("startPlayWithSeed(entry.seed)");
     expect(source).toContain("startPlayWithSeed(makeSeed(), { refreshProcedural: true })");
@@ -43,8 +46,10 @@ describe("persistent leaderboard UI", () => {
     const css = await Bun.file(new URL("../src/styles.css", import.meta.url)).text();
     expect(css).toContain(".welcome-leaderboard");
     expect(css).toContain(".leaderboard-list");
-    expect(css).toContain(".leaderboard-meta");
+    expect(css).toContain(".leaderboard-body");
+    expect(css).toContain(".leaderboard-stats");
     expect(css).toContain(".leaderboard-seed");
+    expect(css).toContain("min-height: 0");
     expect(css).toContain(".end-leaderboard-form");
     expect(css).toMatch(/@media \(max-width: 900px\)[\s\S]*\.welcome-content/);
     expect(css).toMatch(/@media \(max-width: 560px\)[\s\S]*\.end-leaderboard-form > div/);
