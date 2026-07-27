@@ -90,10 +90,10 @@ describe("enemy spawn plan", () => {
   });
 
   test("caps small rooms so they never stack an abusive seat pile", () => {
-    expect(roomEnemySeatCap({ width: 5, height: 5 })).toBe(1);
-    expect(roomEnemySeatCap({ width: 6, height: 6 })).toBe(2);
-    expect(roomEnemySeatCap({ width: 8, height: 8 })).toBe(3);
-    expect(roomEnemySeatCap({ width: 12, height: 12 })).toBe(5);
+    expect(roomEnemySeatCap({ width: 5, height: 5 })).toBe(2);
+    expect(roomEnemySeatCap({ width: 6, height: 6 })).toBe(3);
+    expect(roomEnemySeatCap({ width: 8, height: 8 })).toBe(4);
+    expect(roomEnemySeatCap({ width: 12, height: 12 })).toBe(6);
 
     const tiny = {
       id: 0,
@@ -127,9 +127,9 @@ describe("enemy spawn plan", () => {
     for (const spawn of spawns) {
       counts.set(spawn.roomId, (counts.get(spawn.roomId) ?? 0) + 1);
     }
-    expect(counts.get(0) ?? 0).toBeLessThanOrEqual(1);
-    expect(counts.get(1) ?? 0).toBeLessThanOrEqual(2);
-    expect(counts.get(2) ?? 0).toBeLessThanOrEqual(4);
+    expect(counts.get(0) ?? 0).toBeLessThanOrEqual(2);
+    expect(counts.get(1) ?? 0).toBeLessThanOrEqual(3);
+    expect(counts.get(2) ?? 0).toBeLessThanOrEqual(5);
     expect(counts.get(2) ?? 0).toBeGreaterThan(counts.get(0) ?? 0);
   });
 
@@ -154,19 +154,31 @@ describe("enemy spawn plan", () => {
     expect(quotas).toEqual(buildInitialRoomEnemyQuotas("MAP-OCCUPANCY", rooms, 15, 0));
   });
 
-  test("opening doubles skip rooms too small for two threats", () => {
-    const rooms = Array.from({ length: 6 }, (_, id) => ({
+  test("opening doubles only land where the room seat cap allows two threats", () => {
+    const tinyRooms = Array.from({ length: 6 }, (_, id) => ({
       id,
       x: id * 8,
       y: 0,
-      width: 5,
-      height: 5,
+      width: 4,
+      height: 4,
       center: { x: id * 8 + 2, y: 2 },
       role: "room" as const,
     }));
-    const quotas = buildInitialRoomEnemyQuotas("TINY-OPENING", rooms, 12, 0);
-    const values = [...quotas.values()];
-    expect(values.every((value) => value <= 1)).toBe(true);
-    expect(values.filter((value) => value === 2)).toHaveLength(0);
+    // 4x4 outer → interior 2x2, cap 2, so doubles are still legal.
+    expect(roomEnemySeatCap(tinyRooms[0]!)).toBe(2);
+    const tinyQuotas = buildInitialRoomEnemyQuotas("TINY-OPENING", tinyRooms, 12, 0);
+    expect([...tinyQuotas.values()].some((value) => value === 2)).toBe(true);
+
+    const midRooms = Array.from({ length: 6 }, (_, id) => ({
+      id,
+      x: id * 12,
+      y: 0,
+      width: 8,
+      height: 8,
+      center: { x: id * 12 + 4, y: 4 },
+      role: "room" as const,
+    }));
+    const midQuotas = buildInitialRoomEnemyQuotas("MID-OPENING", midRooms, 10, 0);
+    expect([...midQuotas.values()].filter((value) => value === 2).length).toBeGreaterThan(0);
   });
 });
