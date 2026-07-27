@@ -28,7 +28,7 @@ interface AtlasManifest {
 describe("enemy atlas runtime contract", () => {
   test("runtime frame data matches the shipped manifest", async () => {
     const manifestFile = Bun.file(
-      new URL("../public/assets/sprites/enemies-v5/manifest.json", import.meta.url),
+      new URL("../public/assets/sprites/enemies-v6/manifest.json", import.meta.url),
     );
     const manifest = JSON.parse(await manifestFile.text()) as AtlasManifest;
 
@@ -65,7 +65,7 @@ describe("enemy atlas runtime contract", () => {
 
     for (const moodId of listDungeonMoodIds()) {
       const src = enemyAtlasSrcForMood(moodId);
-      expect(src).toBe(`/assets/sprites/enemies-v5/biomes/${moodId}-enemies.png`);
+      expect(src).toBe(`/assets/sprites/enemies-v6/biomes/${moodId}-enemies.png`);
       const animations = enemyAnimationsForMood(moodId);
       for (const kind of ENEMY_ROSTER) {
         expect(animations[kind].src).toBe(src);

@@ -18,7 +18,7 @@ export interface EnemyAnimationDefinition {
 
 /**
  * Runtime roster for the Dungeon. The row order matches the production atlas
- * manifest under public/assets/sprites/enemies-v5/.
+ * manifest under public/assets/sprites/enemies-v6/ (same layout as v5).
  */
 export const ENEMY_ROSTER = [
   "carrion",
@@ -36,15 +36,18 @@ export const ENEMY_ROSTER = [
 
 export type EnemyRosterKind = (typeof ENEMY_ROSTER)[number];
 
-/** Canonical base sheet (12th atlas). Biome variants live under biomes/. */
-export const ENEMY_ATLAS_SRC = "/assets/sprites/enemies-v5/iron-ash-enemies-v5.png";
+/**
+ * Canonical HQ base sheet from blackflag original roster (same art as v5).
+ * Biome subspecies variants live under enemies-v6/biomes/.
+ */
+export const ENEMY_ATLAS_SRC = "/assets/sprites/enemies-v6/iron-ash-enemies-v6.png";
 export const ENEMY_ATLAS_SIZE = [1280, 3520] as const;
 export const ENEMY_CELL_SIZE = 320;
 const ENEMY_ANIMATION_FPS = 8;
 
 export function enemyAtlasSrcForMood(moodId: DungeonMoodId | string): string {
   const id = parseDungeonMoodId(moodId) ?? "ash";
-  return `/assets/sprites/enemies-v5/biomes/${id}-enemies.png`;
+  return `/assets/sprites/enemies-v6/biomes/${id}-enemies.png`;
 }
 
 export function listEnemyAtlasSources(): readonly string[] {
@@ -82,13 +85,27 @@ function buildEnemyAnimations(src: string): Record<EnemyRosterKind, EnemyAnimati
   };
 }
 
-/** Default animations (base iron-ash sheet). Prefer enemyAnimationsForMood at runtime. */
+/**
+ * Layout + fallback animations (canonical base sheet).
+ * Play / Forge / editor should call `enemyAnimationsForMood` so each biome
+ * loads its dedicated atlas under `enemies-v6/biomes/`.
+ */
 export const ENEMY_ANIMATIONS = buildEnemyAnimations(ENEMY_ATLAS_SRC);
+
+const moodAnimationCache = new Map<
+  string,
+  Record<EnemyRosterKind, EnemyAnimationDefinition>
+>();
 
 export function enemyAnimationsForMood(
   moodId: DungeonMoodId | string,
 ): Record<EnemyRosterKind, EnemyAnimationDefinition> {
-  return buildEnemyAnimations(enemyAtlasSrcForMood(moodId));
+  const src = enemyAtlasSrcForMood(moodId);
+  const cached = moodAnimationCache.get(src);
+  if (cached) return cached;
+  const built = buildEnemyAnimations(src);
+  moodAnimationCache.set(src, built);
+  return built;
 }
 
 export function enemyAnimationFrameIndex(

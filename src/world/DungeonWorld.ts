@@ -3536,11 +3536,12 @@ export class DungeonWorld {
       sharedShadowBatch.renderOrder = 1;
       sharedShadowBatch.frustumCulled = true;
     }
+    const moodAnimations = enemyAnimationsForMood(this.activeMood.id);
     for (const kind of kinds) {
       const specs = actorSpecs.filter((spec) => spec.kind === kind);
       if (specs.length === 0) continue;
       const kindArchetype = ENEMY_ARCHETYPES[kind];
-      const animation = enemyAnimationsForMood(this.activeMood.id)[kind];
+      const animation = moodAnimations[kind];
       const texture = this.assets.enemyAnimation(animation);
       const material = createEnemyBillboardMaterial(texture);
       setEnemyBillboardFrame(material, animation, 0);

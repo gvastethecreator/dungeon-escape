@@ -5,9 +5,11 @@ export function createEnemyBillboardMaterial(map: THREE.Texture): THREE.MeshStan
   const atlasFrame = new THREE.Vector4(0, 0, 1, 1);
   const material = new THREE.MeshStandardMaterial({
     map,
-    color: 0xc8c4b8,
-    emissive: 0x050403,
-    emissiveIntensity: 0.16,
+    // Near-white multiply so biome atlas colors stay legible (frost ice, molten
+    // magma, fungal spores, etc.). A grey multiply washed every mood into ash.
+    color: 0xf2eee6,
+    emissive: 0x060504,
+    emissiveIntensity: 0.12,
     roughness: 0.96,
     metalness: 0,
     transparent: true,
@@ -41,7 +43,7 @@ export function createEnemyBillboardMaterial(map: THREE.Texture): THREE.MeshStan
         "diffuseColor.a *= clamp(vEnemyVisibility, 0.0, 1.0);\n#include <alphatest_fragment>",
       );
   };
-  material.customProgramCacheKey = () => "enemy-billboard-opacity-atlas-v3";
+  material.customProgramCacheKey = () => "enemy-billboard-opacity-atlas-v4";
   return material;
 }
 

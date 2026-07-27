@@ -14,4 +14,11 @@ describe("Creation enemy preview", () => {
     expect(source).toContain("spriteMetrics.bottomPaddingRatio");
     expect(source).not.toContain("archetype.width * 0.74");
   });
+
+  test("loads the active theme biome enemy atlas", () => {
+    expect(source).toContain('from "../world/EnemySpriteAtlas"');
+    expect(source).toContain("enemyAnimationsForMood(d.params.themeKey)");
+    expect(source).toContain("enemyMoodAnims[kind]");
+    expect(source).not.toContain("ENEMY_ANIMATIONS[kind]");
+  });
 });
