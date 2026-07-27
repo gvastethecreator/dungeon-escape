@@ -20,6 +20,7 @@ export const COPY = {
     stone: (name: string) => name,
     flask: "HEALTH RESTORED",
     timeFreeze: "TIME FROZEN",
+    luminousWard: "WARD STONE",
   },
   interaction: {
     openChest: "OPEN CHEST",
@@ -41,6 +42,7 @@ export const COPY = {
     portalOpen: "The portal thrums open. Reach the special gate.",
     stoneFound: (name: string, found: number, total: number) => `${name} bound · ${found}/${total}`,
     timeFreeze: "Time frozen for 20 seconds.",
+    luminousWard: "Ward active for 30 seconds.",
     won: "You escaped through the portal.",
     dead: "Keep distance. Shadows strike on contact.",
     hydrate: (seed: string) => `Hydrate backend · seed ${seed}`,

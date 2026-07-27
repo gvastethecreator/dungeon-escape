@@ -5,7 +5,7 @@ export type RunMode = "playing" | "dead" | "won";
 
 /** Subset of WorldUpdate needed for session rules (no Three). */
 export interface SessionWorldUpdate {
-  collectedPickupKind?: "stone" | "resolve" | "time-freeze" | null;
+  collectedPickupKind?: "stone" | "resolve" | "time-freeze" | "luminous-ward" | null;
   collectedStoneId: StoneId | null;
   stonesFound: number;
   stonesTotal: number;
@@ -37,6 +37,7 @@ export interface RunSessionEffects {
     restoreResolve?: boolean;
     stoneId?: StoneId;
     timeFreeze?: boolean;
+    luminousWard?: boolean;
   };
   endOverlay?: "dead" | "won";
   flash?: "event" | "damage";
@@ -125,6 +126,13 @@ export function applyWorldUpdate(
   if (update.collectedPickupKind === "time-freeze") {
     effects.status = COPY.status.timeFreeze;
     effects.pickup = { label: COPY.pickup.timeFreeze, timeFreeze: true };
+    effects.playPickup = true;
+    effects.flash = "event";
+  }
+
+  if (update.collectedPickupKind === "luminous-ward") {
+    effects.status = COPY.status.luminousWard;
+    effects.pickup = { label: COPY.pickup.luminousWard, luminousWard: true };
     effects.playPickup = true;
     effects.flash = "event";
   }

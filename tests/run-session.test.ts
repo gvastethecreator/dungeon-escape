@@ -116,6 +116,23 @@ describe("RunSession applyWorldUpdate", () => {
     expect(fx.flash).toBe("event");
   });
 
+  test("emits the luminous ward pickup feedback without changing health", () => {
+    const session = createRunSession(64);
+    const quest = new QuestState();
+    quest.start(0);
+    const fx = applyWorldUpdate(
+      session,
+      quest,
+      emptyUpdate({ collectedPickupKind: "luminous-ward" }),
+    );
+
+    expect(session.resolve).toBe(64);
+    expect(fx.pickup).toEqual({ label: COPY.pickup.luminousWard, luminousWard: true });
+    expect(fx.status).toBe(COPY.status.luminousWard);
+    expect(fx.playPickup).toBe(true);
+    expect(fx.flash).toBe("event");
+  });
+
   test("keeps a quest-sealed exit active", () => {
     const session = createRunSession();
     const quest = new QuestState();

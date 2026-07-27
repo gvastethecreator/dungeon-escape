@@ -19,6 +19,7 @@ export const MINIMAP_COLORS = {
   stoneCollected: "#1d2f30",
   pickup: "#6a9a4f",
   timeFreeze: "#72e7ef",
+  luminousWard: "#b9e879",
   relic: "#8a4fb0",
   door: "#3a3d3a",
   player: "#f0ebe0",
@@ -174,6 +175,20 @@ function drawFeatures(
     context.lineTo(cx, cy + r);
     context.lineTo(cx - r * 0.72, cy);
     context.closePath();
+    context.fill();
+  }
+
+  if (features.luminousWard) {
+    const [cx, cy] = cellCenter(features.luminousWard);
+    const r = Math.max(2, cellSize * 0.58);
+    context.strokeStyle = COLORS.luminousWard;
+    context.lineWidth = Math.max(1, cellSize * 0.16);
+    context.beginPath();
+    context.arc(cx, cy, r, 0, Math.PI * 2);
+    context.stroke();
+    context.fillStyle = COLORS.luminousWard;
+    context.beginPath();
+    context.arc(cx, cy, Math.max(1.2, r * 0.34), 0, Math.PI * 2);
     context.fill();
   }
 

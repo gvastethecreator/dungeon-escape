@@ -124,6 +124,8 @@ const elements = {
   runTimer: requireElement<HTMLTimeElement>("#run-timer"),
   timeFreezeStatus: requireElement<HTMLElement>("#time-freeze-status"),
   timeFreezeValue: requireElement<HTMLTimeElement>("#time-freeze-value"),
+  luminousWardStatus: requireElement<HTMLElement>("#luminous-ward-status"),
+  luminousWardValue: requireElement<HTMLTimeElement>("#luminous-ward-value"),
   hazardStatus: requireElement<HTMLElement>("#hazard-status"),
   playObjective: requireElement<HTMLElement>("#play-objective"),
   stoneCount: requireElement<HTMLElement>("#stone-count"),
@@ -242,6 +244,7 @@ let mapExpanded = false;
 let lastMapDraw = 0;
 let lastRunTimerSecond = -1;
 let lastTimeFreezeDisplay = "";
+let lastLuminousWardDisplay = "";
 let lastHazardKind: HazardSurfaceEffect["kind"] | undefined;
 /**
  * Cached minimap viewport (CSS size + clamped DPR). Refreshed on resize so the
@@ -529,7 +532,9 @@ function applyPersistedRunSession(persisted: PersistedRunSession): void {
   restoreRunSession(session, quest, persisted);
   world.restoreSession(persisted.foundStoneIds);
   lastTimeFreezeDisplay = "";
+  lastLuminousWardDisplay = "";
   syncTimeFreezeHud();
+  syncLuminousWardHud();
   syncSessionMirrors();
   elements.shell.dataset.mode = session.runMode;
   elements.shell.dataset.relic = String(quest.portalOpen);
@@ -609,6 +614,25 @@ function syncTimeFreezeHud(remaining = world.timeFreezeRemaining): void {
   elements.timeFreezeValue.dateTime = `PT${seconds.toFixed(1)}S`;
   elements.timeFreezeValue.setAttribute("aria-label", `${display} time freeze remaining`);
   elements.timeFreezeStatus.toggleAttribute("data-urgent", seconds <= 5);
+}
+
+function syncLuminousWardHud(remaining = world.luminousWardRemaining): void {
+  const seconds = Math.max(0, remaining);
+  const active = seconds > 0.0001;
+  elements.luminousWardStatus.hidden = !active;
+  elements.shell.dataset.luminousWard = active ? "true" : "false";
+  if (!active) {
+    lastLuminousWardDisplay = "";
+    elements.luminousWardStatus.removeAttribute("data-urgent");
+    return;
+  }
+  const display = `${seconds.toFixed(1)}s`;
+  if (display === lastLuminousWardDisplay) return;
+  lastLuminousWardDisplay = display;
+  elements.luminousWardValue.textContent = display;
+  elements.luminousWardValue.dateTime = `PT${seconds.toFixed(1)}S`;
+  elements.luminousWardValue.setAttribute("aria-label", `${display} ward remaining`);
+  elements.luminousWardStatus.toggleAttribute("data-urgent", seconds <= 5);
 }
 
 function syncHazardStatus(effect: HazardSurfaceEffect): void {
@@ -861,22 +885,27 @@ function showPickupFeedback(
   restoreResolve = false,
   stoneId?: StoneId,
   timeFreeze = false,
+  luminousWard = false,
 ): void {
   elements.pickupFeedbackText.textContent = label;
-  elements.pickupFeedbackKicker.textContent = timeFreeze
-    ? COPY.pickup.timeFreeze
-    : restoreResolve
-      ? COPY.pickup.flask
-      : stoneId
-        ? COPY.pickup.small
-        : COPY.pickup.notice;
-  elements.pickupFeedback.dataset.kind = timeFreeze
-    ? "time-freeze"
-    : restoreResolve
-      ? "flask"
-      : stoneId
-        ? "stone"
-        : "notice";
+  elements.pickupFeedbackKicker.textContent = luminousWard
+    ? COPY.pickup.luminousWard
+    : timeFreeze
+      ? COPY.pickup.timeFreeze
+      : restoreResolve
+        ? COPY.pickup.flask
+        : stoneId
+          ? COPY.pickup.small
+          : COPY.pickup.notice;
+  elements.pickupFeedback.dataset.kind = luminousWard
+    ? "luminous-ward"
+    : timeFreeze
+      ? "time-freeze"
+      : restoreResolve
+        ? "flask"
+        : stoneId
+          ? "stone"
+          : "notice";
   if (stoneId) elements.pickupFeedback.dataset.stone = stoneId;
   else delete elements.pickupFeedback.dataset.stone;
   elements.pickupFeedback.classList.add("is-active");
@@ -1086,7 +1115,9 @@ function activateDungeon(
   applyAtmosphereFromParams();
   world.setDungeon(dungeon, mood);
   lastTimeFreezeDisplay = "";
+  lastLuminousWardDisplay = "";
   syncTimeFreezeHud(0);
+  syncLuminousWardHud(0);
   controller.setSurfaceMovement(1, 1);
   lastHazardKind = undefined;
   syncHazardStatus({ kind: null, label: "", damage: 0, movementScale: 1, traction: 1 });
@@ -1132,6 +1163,7 @@ function activateDungeon(
   else showEndOverlay(session.runMode);
   updateResolve();
   syncTimeFreezeHud();
+  syncLuminousWardHud();
   updateObjective();
   // Intro objective: appears at run start, then fades so the scene stays clean.
   if (engineMode === "play" && session.runMode === "playing" && !quest.portalOpen) {
@@ -1447,6 +1479,7 @@ export interface DungeonRuntimeState {
   hasRelic?: boolean;
   stonesFound?: number;
   timeFreezeRemaining?: number;
+  luminousWardRemaining?: number;
   resolve?: number;
   mode?: "playing" | "dead" | "won";
   engineMode?: EngineMode;
@@ -1535,6 +1568,7 @@ function getRuntimeState(): DungeonRuntimeState {
     hasRelic: world.hasRelic,
     stonesFound: world.stonesFound,
     timeFreezeRemaining: Number(world.timeFreezeRemaining.toFixed(2)),
+    luminousWardRemaining: Number(world.luminousWardRemaining.toFixed(2)),
     resolve: Number(resolve.toFixed(1)),
     mode: runMode,
     engineMode,
@@ -1985,6 +2019,7 @@ function frame(now: number): void {
       result.interactPressed || uiInteractQueued,
     );
     syncTimeFreezeHud(worldUpdate.timeFreezeRemaining);
+    syncLuminousWardHud(worldUpdate.luminousWardRemaining);
     controller.setSurfaceMovement(
       worldUpdate.surfaceEffect.movementScale,
       worldUpdate.surfaceEffect.traction,
@@ -2028,6 +2063,7 @@ function frame(now: number): void {
         Boolean(effects.pickup.restoreResolve),
         effects.pickup.stoneId,
         Boolean(effects.pickup.timeFreeze),
+        Boolean(effects.pickup.luminousWard),
       );
     }
     if (effects.playEnemyHit) {
@@ -2056,6 +2092,7 @@ function frame(now: number): void {
     currentThreatDistance = worldUpdate.nearestThreat;
   }
   syncTimeFreezeHud();
+  syncLuminousWardHud();
   syncRunTimer();
 
   damageTimer = Math.max(0, damageTimer - delta);
