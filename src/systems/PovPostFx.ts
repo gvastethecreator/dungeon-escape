@@ -2,35 +2,61 @@ import * as THREE from "three";
 
 export const POV_VIGNETTE_STRENGTH = 0.1;
 export const POV_VIGNETTE_INNER_RADIUS = 0.62;
+export const POV_CRT_HISTORY_WEIGHT = 0.28;
+export const POV_CRT_HALATION_STRENGTH = 0.24;
+
+const FULLSCREEN_VERTEX_SHADER = /* glsl */ `
+  varying vec2 vUv;
+  void main() {
+    vUv = uv;
+    gl_Position = vec4(position.xy, 0.0, 1.0);
+  }
+`;
+
+function createPostTarget(depthBuffer: boolean): THREE.WebGLRenderTarget {
+  const target = new THREE.WebGLRenderTarget(1, 1, {
+    minFilter: THREE.LinearFilter,
+    magFilter: THREE.LinearFilter,
+    depthBuffer,
+    stencilBuffer: false,
+  });
+  target.texture.generateMipmaps = false;
+  target.texture.colorSpace = THREE.NoColorSpace;
+  return target;
+}
 
 /**
  * Full-screen post pass: mild outward (pincushion) lens warp + radial chromatic aberration.
  * Renders the main scene into a target, then composites to the canvas.
  */
 export class PovPostFx {
-  private readonly target: THREE.WebGLRenderTarget;
+  private readonly sceneTarget: THREE.WebGLRenderTarget;
+  private readonly historyTargets = [createPostTarget(false), createPostTarget(false)] as const;
   private readonly fsScene = new THREE.Scene();
+  private readonly copyScene = new THREE.Scene();
   private readonly fsCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
   private readonly material: THREE.ShaderMaterial;
+  private readonly copyMaterial: THREE.ShaderMaterial;
+  private readonly geometry = new THREE.PlaneGeometry(2, 2);
   private readonly mesh: THREE.Mesh;
+  private readonly copyMesh: THREE.Mesh;
   private width = 1;
   private height = 1;
   private enabled = true;
+  private crtEnabled = true;
+  private historyReadIndex = 0;
+  private historyReady = false;
   private animateGrain = true;
 
   constructor() {
-    this.target = new THREE.WebGLRenderTarget(1, 1, {
-      minFilter: THREE.LinearFilter,
-      magFilter: THREE.LinearFilter,
-      depthBuffer: true,
-      stencilBuffer: false,
-    });
-    this.target.texture.generateMipmaps = false;
-    this.target.texture.colorSpace = THREE.NoColorSpace;
+    this.sceneTarget = createPostTarget(true);
 
     this.material = new THREE.ShaderMaterial({
       uniforms: {
-        tDiffuse: { value: this.target.texture },
+        tDiffuse: { value: this.sceneTarget.texture },
+        tHistory: { value: this.historyTargets[0].texture },
+        uHistoryReady: { value: 0 },
+        uCrtEnabled: { value: 1 },
         uCurvature: { value: 0.032 },
         uChromatic: { value: 0 },
         uCriticalRed: { value: 0 },
@@ -39,16 +65,13 @@ export class PovPostFx {
         uTime: { value: 0 },
         uResolution: { value: new THREE.Vector2(1, 1) },
       },
-      vertexShader: /* glsl */ `
-        varying vec2 vUv;
-        void main() {
-          vUv = uv;
-          gl_Position = vec4(position.xy, 0.0, 1.0);
-        }
-      `,
+      vertexShader: FULLSCREEN_VERTEX_SHADER,
       fragmentShader: /* glsl */ `
         precision mediump float;
         uniform sampler2D tDiffuse;
+        uniform sampler2D tHistory;
+        uniform float uHistoryReady;
+        uniform float uCrtEnabled;
         uniform float uCurvature;
         uniform float uChromatic;
         uniform float uCriticalRed;
@@ -57,6 +80,33 @@ export class PovPostFx {
         uniform float uTime;
         uniform vec2 uResolution;
         varying vec2 vUv;
+
+        float luma(vec3 color) {
+          return dot(color, vec3(0.299, 0.587, 0.114));
+        }
+
+        float random(vec2 seed) {
+          return fract(sin(dot(seed, vec2(12.9898, 78.233))) * 43758.5453);
+        }
+
+        vec3 crtHalation(vec2 uv, vec3 center) {
+          vec2 nearStep = vec2(1.45, 1.15) / max(uResolution, vec2(1.0));
+          vec2 wideStep = vec2(4.25, 3.5) / max(uResolution, vec2(1.0));
+          vec3 nearGlow = center * 0.34;
+          nearGlow += texture2D(tDiffuse, uv + vec2(nearStep.x, 0.0)).rgb * 0.15;
+          nearGlow += texture2D(tDiffuse, uv - vec2(nearStep.x, 0.0)).rgb * 0.15;
+          nearGlow += texture2D(tDiffuse, uv + vec2(0.0, nearStep.y)).rgb * 0.13;
+          nearGlow += texture2D(tDiffuse, uv - vec2(0.0, nearStep.y)).rgb * 0.13;
+
+          vec3 wideGlow = texture2D(tDiffuse, uv + wideStep).rgb * 0.08;
+          wideGlow += texture2D(tDiffuse, uv + vec2(-wideStep.x, wideStep.y)).rgb * 0.08;
+          wideGlow += texture2D(tDiffuse, uv + vec2(wideStep.x, -wideStep.y)).rgb * 0.08;
+          wideGlow += texture2D(tDiffuse, uv - wideStep).rgb * 0.08;
+
+          float highlight = smoothstep(0.28, 0.9, luma(center));
+          vec3 warm = vec3(1.12, 0.88, 0.68);
+          return (nearGlow * 0.74 + wideGlow * 0.26) * warm * highlight;
+        }
 
         // Pincushion warp (edges pull outward): opposite of inward barrel.
         // Positive k → sample closer to center at the frame edge so the scene
@@ -74,15 +124,21 @@ export class PovPostFx {
 
         void main() {
           float k = uCurvature;
-          float ca = uChromatic;
+          float crtFrame = floor(uTime * 24.0);
+          float jitterGate = step(0.965, random(vec2(crtFrame, 7.0)));
+          vec2 crtJitter = vec2(
+            (random(vec2(crtFrame, 13.0)) - 0.5) * jitterGate * uCrtEnabled * 0.42 / max(uResolution.x, 1.0),
+            0.0
+          );
+          float ca = uChromatic + uCrtEnabled * 0.00034;
 
-          vec2 uvG = pincushion(vUv, k);
+          vec2 uvG = pincushion(vUv + crtJitter, k);
           // Radial chromatic: R/B pull slightly along the same warp direction.
           vec2 centered = vUv * 2.0 - 1.0;
           float len = length(centered);
           vec2 radial = len > 1e-4 ? centered / len : vec2(0.0);
-          vec2 uvR = pincushion(vUv + radial * ca, k);
-          vec2 uvB = pincushion(vUv - radial * ca, k);
+          vec2 uvR = pincushion(vUv + crtJitter + radial * ca, k);
+          vec2 uvB = pincushion(vUv + crtJitter - radial * ca, k);
 
           // Soft edge clamp — avoids hard wrap seams at the frame border.
           float maskR = step(0.0, uvR.x) * step(uvR.x, 1.0) * step(0.0, uvR.y) * step(uvR.y, 1.0);
@@ -99,16 +155,26 @@ export class PovPostFx {
           if (maskB < 0.5) b = fallback.b;
 
           vec3 baseColor = vec3(r, g, b);
-          float luma = dot(baseColor, vec3(0.299, 0.587, 0.114));
+          baseColor += crtHalation(uvG, fallback) * uCrtEnabled * ${POV_CRT_HALATION_STRENGTH.toFixed(2)};
+          float baseLuma = luma(baseColor);
           vec3 criticalColor = vec3(
-            max(baseColor.r, luma * 0.82),
+            max(baseColor.r, baseLuma * 0.82),
             baseColor.g * 0.48,
             baseColor.b * 0.42
           );
           vec3 gradedColor = mix(baseColor, criticalColor, uCriticalRed);
+          vec3 historyColor = texture2D(tHistory, clamp(uvG, 0.0, 1.0)).rgb;
+          vec3 decayedHistory = historyColor * vec3(0.93, 0.95, 0.92);
+          float historyDelta = max(luma(decayedHistory) - luma(gradedColor), 0.0);
+          float persistence = smoothstep(0.012, 0.24, historyDelta) *
+            uHistoryReady * uCrtEnabled * ${POV_CRT_HISTORY_WEIGHT.toFixed(2)};
+          gradedColor = mix(gradedColor, max(gradedColor, decayedHistory), persistence);
           float grainSeed = dot(floor(gl_FragCoord.xy), vec2(12.9898, 78.233)) + floor(uTime * 24.0);
           float grain = fract(sin(grainSeed) * 43758.5453) - 0.5;
           gradedColor += grain * uGrain;
+          float scanPhase = cos(gl_FragCoord.y * 1.5707963) * 0.5 + 0.5;
+          float scanBeam = mix(0.94, 1.015, smoothstep(0.12, 0.82, luma(gradedColor)));
+          gradedColor *= mix(1.0, mix(scanBeam, 1.0, scanPhase), uCrtEnabled * 0.42);
           // Soft peripheral falloff: clear center, slight black only near frame edges.
           vec2 vignetteUv = vUv * 2.0 - 1.0;
           vignetteUv.x *= 0.82;
@@ -122,12 +188,32 @@ export class PovPostFx {
       toneMapped: false,
     });
 
-    this.mesh = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), this.material);
+    this.copyMaterial = new THREE.ShaderMaterial({
+      uniforms: { tDiffuse: { value: this.historyTargets[0].texture } },
+      vertexShader: FULLSCREEN_VERTEX_SHADER,
+      fragmentShader: /* glsl */ `
+        precision mediump float;
+        uniform sampler2D tDiffuse;
+        varying vec2 vUv;
+        void main() {
+          gl_FragColor = texture2D(tDiffuse, vUv);
+        }
+      `,
+      depthTest: false,
+      depthWrite: false,
+      toneMapped: false,
+    });
+
+    this.mesh = new THREE.Mesh(this.geometry, this.material);
     this.mesh.frustumCulled = false;
     this.fsScene.add(this.mesh);
+    this.copyMesh = new THREE.Mesh(this.geometry, this.copyMaterial);
+    this.copyMesh.frustumCulled = false;
+    this.copyScene.add(this.copyMesh);
   }
 
   setEnabled(value: boolean): void {
+    if (this.enabled !== value) this.resetCrtHistory();
     this.enabled = value;
   }
 
@@ -135,14 +221,32 @@ export class PovPostFx {
     return this.enabled;
   }
 
+  setCrtEnabled(value: boolean): void {
+    if (this.crtEnabled === value) return;
+    this.crtEnabled = value;
+    this.material.uniforms.uCrtEnabled.value = value ? 1 : 0;
+    this.resetCrtHistory();
+  }
+
+  isCrtEnabled(): boolean {
+    return this.crtEnabled;
+  }
+
+  resetCrtHistory(): void {
+    this.historyReady = false;
+    this.material.uniforms.uHistoryReady.value = 0;
+  }
+
   setSize(width: number, height: number, pixelRatio: number): void {
-    const w = Math.max(1, Math.floor(width * pixelRatio));
-    const h = Math.max(1, Math.floor(height * pixelRatio));
+    const w = Math.max(1, Math.round(width * pixelRatio));
+    const h = Math.max(1, Math.round(height * pixelRatio));
     if (w === this.width && h === this.height) return;
     this.width = w;
     this.height = h;
-    this.target.setSize(w, h);
+    this.sceneTarget.setSize(w, h);
+    this.historyTargets.forEach((target) => target.setSize(w, h));
     this.material.uniforms.uResolution.value.set(w, h);
+    this.resetCrtHistory();
   }
 
   setParams(
@@ -160,7 +264,10 @@ export class PovPostFx {
   }
 
   async compileAsync(renderer: THREE.WebGLRenderer): Promise<void> {
-    await renderer.compileAsync(this.fsScene, this.fsCamera);
+    await Promise.all([
+      renderer.compileAsync(this.fsScene, this.fsCamera),
+      renderer.compileAsync(this.copyScene, this.fsCamera),
+    ]);
   }
 
   async compileSceneAsync(
@@ -169,7 +276,7 @@ export class PovPostFx {
     camera: THREE.Camera,
   ): Promise<void> {
     const previousTarget = renderer.getRenderTarget();
-    renderer.setRenderTarget(this.target);
+    renderer.setRenderTarget(this.sceneTarget);
     try {
       await renderer.compileAsync(scene, camera);
     } finally {
@@ -192,16 +299,35 @@ export class PovPostFx {
     const prevAutoClear = renderer.autoClear;
     if (this.animateGrain) this.material.uniforms.uTime.value = performance.now() * 0.001;
 
-    renderer.setRenderTarget(this.target);
+    renderer.setRenderTarget(this.sceneTarget);
     renderer.autoClear = true;
     renderer.clear();
     renderer.render(scene, camera);
 
     // Scene already tone-mapped into the RT; composite without a second grade.
-    renderer.setRenderTarget(null);
     renderer.toneMapping = THREE.NoToneMapping;
     renderer.autoClear = true;
-    renderer.render(this.fsScene, this.fsCamera);
+
+    if (this.crtEnabled) {
+      const historyWriteIndex = 1 - this.historyReadIndex;
+      const historyRead = this.historyTargets[this.historyReadIndex];
+      const historyWrite = this.historyTargets[historyWriteIndex];
+      this.material.uniforms.tHistory.value = historyRead.texture;
+      this.material.uniforms.uHistoryReady.value = this.historyReady ? 1 : 0;
+
+      renderer.setRenderTarget(historyWrite);
+      renderer.clear();
+      renderer.render(this.fsScene, this.fsCamera);
+
+      this.copyMaterial.uniforms.tDiffuse.value = historyWrite.texture;
+      renderer.setRenderTarget(null);
+      renderer.render(this.copyScene, this.fsCamera);
+      this.historyReadIndex = historyWriteIndex;
+      this.historyReady = true;
+    } else {
+      renderer.setRenderTarget(null);
+      renderer.render(this.fsScene, this.fsCamera);
+    }
 
     renderer.toneMapping = prevTone;
     renderer.autoClear = prevAutoClear;
@@ -209,9 +335,12 @@ export class PovPostFx {
   }
 
   dispose(): void {
-    this.target.dispose();
+    this.sceneTarget.dispose();
+    this.historyTargets.forEach((target) => target.dispose());
     this.material.dispose();
-    this.mesh.geometry.dispose();
+    this.copyMaterial.dispose();
+    this.geometry.dispose();
     this.fsScene.remove(this.mesh);
+    this.copyScene.remove(this.copyMesh);
   }
 }

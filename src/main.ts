@@ -38,6 +38,7 @@ import { PovPostFx } from "./systems/PovPostFx";
 import { computeCriticalHealthFeel } from "./systems/CriticalHealthFeel";
 import { FrameGapProfiler, type FrameGapSnapshot } from "./systems/FrameGapProfiler";
 import { collectVisibleRenderInventory } from "./systems/RenderInventory";
+import { resolveRenderPixelRatio } from "./systems/RenderScale";
 import { readVisualQaState } from "./systems/VisualQaState";
 import { computePovFeel, decayHitTrauma, PovFeelState, samplePovShake } from "./systems/povFeel";
 import { drawMinimap } from "./ui/drawMinimap";
@@ -221,8 +222,8 @@ renderer.toneMappingExposure = 1.18;
 // Soft shadows + many torch lights stutter on mid GPUs; keep maps off for play smoothness.
 renderer.shadowMap.enabled = false;
 renderer.shadowMap.type = THREE.PCFShadowMap;
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.25));
-// The post pass renders twice. Keep renderer.info across both draws, then
+renderer.setPixelRatio(resolveRenderPixelRatio(window.devicePixelRatio, 1.25));
+// The CRT path draws the scene plus two full-screen passes. Keep renderer.info across all draws, then
 // reset once per animation frame so diagnostics describe the real scene cost.
 renderer.info.autoReset = false;
 
@@ -1297,6 +1298,7 @@ function buildDungeon(
   seed = elements.seed.value,
   options: { persistBuild?: boolean; persistedSession?: PersistedRunSession } = {},
 ): DungeonRuntimeState {
+  povPost.resetCrtHistory();
   const normalizedSeed = seed.trim() || COPY.hud.seedDefault;
   const params = readEditorParams();
   try {
@@ -1549,7 +1551,7 @@ function resize(): void {
   // Play draws the scene plus a full-screen lens pass. Keep its buffer at 1x
   // so a first run does not silently retain the editor's higher DPR.
   const dprCap = engineMode === "play" ? (width <= 760 ? 0.85 : 1) : width <= 760 ? 0.92 : 1.25;
-  const dpr = Math.min(window.devicePixelRatio, dprCap);
+  const dpr = resolveRenderPixelRatio(window.devicePixelRatio, dprCap);
   renderer.setPixelRatio(dpr);
   renderer.setSize(width, height, false);
   povPost.setSize(width, height, dpr);
@@ -1973,12 +1975,13 @@ elements.audioToggle.addEventListener("click", () => {
 });
 elements.crtToggle.addEventListener("click", () => {
   crtEnabled = !crtEnabled;
+  povPost.setCrtEnabled(crtEnabled);
   elements.shell.classList.toggle("crt-off", !crtEnabled);
   elements.crtToggle.setAttribute("aria-pressed", String(crtEnabled));
   elements.crtToggle.classList.toggle("is-active", crtEnabled);
   elements.crtToggle.textContent = crtEnabled ? COPY.hud.crtOn : COPY.hud.crtOff;
   playCue("ui");
-  setStatus(crtEnabled ? "Soft CRT on." : "CRT off.");
+  setStatus(crtEnabled ? "CRT on." : "CRT off.");
 });
 elements.retry.addEventListener("click", () => {
   buildDungeon();
