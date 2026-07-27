@@ -6,7 +6,13 @@ import { createDungeonArch, createDungeonDoor, doorwayPlacement } from "../src/w
 import { createDungeonMaterials } from "../src/world/MaterialLibrary";
 import { createReliquaryAltar } from "../src/world/ReliquaryAltar";
 import { roomTheme } from "../src/world/RoomArtDirection";
-import { ENEMY_ANIMATIONS, ENEMY_ROSTER } from "../src/world/EnemySpriteAtlas";
+import {
+  ENEMY_ANIMATIONS,
+  ENEMY_ROSTER,
+  enemyAnimationsForMood,
+  enemyAtlasSrcForMood,
+} from "../src/world/EnemySpriteAtlas";
+import { listDungeonMoodIds } from "../src/systems/DungeonMood";
 import { createForgeProp } from "../src/world/ForgePropFactory";
 import { createResolveFlask, createSkullSeal } from "../src/world/ItemFactory";
 import { createRoomSurfaceMaterials } from "../src/world/RoomSurfaceMaterials";
@@ -83,7 +89,7 @@ describe("professional world kit", () => {
   test("enemy atlas uses four 320px frames for each measured silhouette", () => {
     for (const [row, kind] of ENEMY_ROSTER.entries()) {
       const animation = ENEMY_ANIMATIONS[kind];
-      expect(animation.src).toBe("/assets/sprites/enemies-v5/iron-ash-enemies-v5.png");
+      expect(animation.src).toBe("/assets/sprites/enemies-v6/iron-ash-enemies-v6.png");
       expect(animation.size).toEqual([1280, 3520]);
       expect(animation.frames).toHaveLength(4);
       expect(animation.frames).toEqual([
@@ -92,6 +98,17 @@ describe("professional world kit", () => {
         { x: 640, y: row * 320, w: 320, h: 320 },
         { x: 960, y: row * 320, w: 320, h: 320 },
       ]);
+    }
+  });
+
+  test("every biome resolves a dedicated enemy atlas with shared frame layout", () => {
+    for (const moodId of listDungeonMoodIds()) {
+      const animations = enemyAnimationsForMood(moodId);
+      expect(animations.goblin.src).toBe(enemyAtlasSrcForMood(moodId));
+      for (const kind of ENEMY_ROSTER) {
+        expect(animations[kind].frames).toEqual(ENEMY_ANIMATIONS[kind].frames);
+        expect(animations[kind].size).toEqual(ENEMY_ANIMATIONS[kind].size);
+      }
     }
   });
 

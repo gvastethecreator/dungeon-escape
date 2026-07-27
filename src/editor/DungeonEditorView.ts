@@ -177,7 +177,7 @@ export class DungeonEditorView {
     try {
       const moodIds = listDungeonMoodIds();
       const [baseEnemies, items, ...rest] = await Promise.all([
-        loadImage("/assets/sprites/enemies-v5/iron-ash-enemies-v5.png"),
+        loadImage("/assets/sprites/enemies-v6/iron-ash-enemies-v6.png"),
         loadImage("/assets/sprites/iron-ash-items.png"),
         ...moodIds.map((id) => loadImage(enemyAtlasSrcForMood(id)).catch(() => null)),
         ...(["ember", "ash", "crypt", "verdant"] as const).map((id) =>
@@ -517,20 +517,22 @@ export class DungeonEditorView {
       context.fill();
     }
 
-    const enemyPreviewImage = this.getEnemyPreviewImage();
+    const enemyPreview = this.getEnemyPreviewImage();
     const enemyFrames = enemyAnimationsForMood(this.mood.id);
+    const biomeEnemyArt = this.biomeEnemyImages.has(this.mood.id);
     for (const spawn of projection.enemySpawns) {
       const point = center(spawn.cell);
       const frame = (enemyFrames[spawn.kind] ?? ENEMY_ANIMATIONS[spawn.kind]).frames[0];
-      if (!enemyPreviewImage || !frame) continue;
+      if (!enemyPreview || !frame) continue;
       const iconHeight = Math.max(10, Math.min(30, view.scale * (2.5 + spawn.tier * 0.24)));
       const iconWidth = iconHeight;
       context.save();
-      context.globalAlpha = 0.68;
+      // Full-color biome sheet when available; muted silhouette only as fallback.
+      context.globalAlpha = biomeEnemyArt ? 0.9 : 0.68;
       context.shadowColor = `#${this.mood.surfaceTint.toString(16).padStart(6, "0")}`;
       context.shadowBlur = Math.max(1.5, iconHeight * 0.12);
       context.drawImage(
-        enemyPreviewImage,
+        enemyPreview,
         frame.x,
         frame.y,
         frame.w,
