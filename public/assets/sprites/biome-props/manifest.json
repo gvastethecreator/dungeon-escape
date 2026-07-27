@@ -1,0 +1,1831 @@
+{
+  "model": "ZhengPeng7/BiRefNet",
+  "sheets": [
+    {
+      "biome": "ancient",
+      "source": "assets-source/imagegen/biome-props/ancient-sprites-src.png",
+      "output": "public/assets/sprites/biome-props/ancient-props.png",
+      "size": [
+        1536,
+        1024
+      ],
+      "grid": {
+        "columns": 3,
+        "rows": 2,
+        "cell": 512,
+        "border": 4
+      },
+      "model": "ZhengPeng7/BiRefNet",
+      "alpha": {
+        "low": 60,
+        "high": 150
+      },
+      "frames": [
+        {
+          "index": 0,
+          "row": 0,
+          "column": 0,
+          "x": 0,
+          "y": 0,
+          "w": 512,
+          "h": 512,
+          "background_rgb": [
+            126,
+            125,
+            124
+          ],
+          "bbox": [
+            74,
+            40,
+            479,
+            461
+          ],
+          "alpha_zero_ratio": 0.449875,
+          "alpha_partial_ratio": 0.000633,
+          "alpha_opaque_ratio": 0.549492,
+          "edge_nonzero": 0
+        },
+        {
+          "index": 1,
+          "row": 0,
+          "column": 1,
+          "x": 512,
+          "y": 0,
+          "w": 512,
+          "h": 512,
+          "background_rgb": [
+            126,
+            125,
+            124
+          ],
+          "bbox": [
+            77,
+            20,
+            435,
+            473
+          ],
+          "alpha_zero_ratio": 0.649612,
+          "alpha_partial_ratio": 0.001396,
+          "alpha_opaque_ratio": 0.348991,
+          "edge_nonzero": 0
+        },
+        {
+          "index": 2,
+          "row": 0,
+          "column": 2,
+          "x": 1024,
+          "y": 0,
+          "w": 512,
+          "h": 512,
+          "background_rgb": [
+            126,
+            125,
+            124
+          ],
+          "bbox": [
+            109,
+            35,
+            347,
+            480
+          ],
+          "alpha_zero_ratio": 0.67831,
+          "alpha_partial_ratio": 0.000874,
+          "alpha_opaque_ratio": 0.320816,
+          "edge_nonzero": 0
+        },
+        {
+          "index": 3,
+          "row": 1,
+          "column": 0,
+          "x": 0,
+          "y": 512,
+          "w": 512,
+          "h": 512,
+          "background_rgb": [
+            126,
+            125,
+            124
+          ],
+          "bbox": [
+            125,
+            34,
+            414,
+            445
+          ],
+          "alpha_zero_ratio": 0.657337,
+          "alpha_partial_ratio": 0.000595,
+          "alpha_opaque_ratio": 0.342068,
+          "edge_nonzero": 0
+        },
+        {
+          "index": 4,
+          "row": 1,
+          "column": 1,
+          "x": 512,
+          "y": 512,
+          "w": 512,
+          "h": 512,
+          "background_rgb": [
+            126,
+            125,
+            124
+          ],
+          "bbox": [
+            102,
+            23,
+            394,
+            448
+          ],
+          "alpha_zero_ratio": 0.542465,
+          "alpha_partial_ratio": 0.000793,
+          "alpha_opaque_ratio": 0.456741,
+          "edge_nonzero": 0
+        },
+        {
+          "index": 5,
+          "row": 1,
+          "column": 2,
+          "x": 1024,
+          "y": 512,
+          "w": 512,
+          "h": 512,
+          "background_rgb": [
+            126,
+            125,
+            124
+          ],
+          "bbox": [
+            4,
+            41,
+            421,
+            449
+          ],
+          "alpha_zero_ratio": 0.573303,
+          "alpha_partial_ratio": 0.001122,
+          "alpha_opaque_ratio": 0.425575,
+          "edge_nonzero": 0
+        }
+      ]
+    },
+    {
+      "biome": "molten",
+      "source": "assets-source/imagegen/biome-props/molten-sprites-src.png",
+      "output": "public/assets/sprites/biome-props/molten-props.png",
+      "size": [
+        1536,
+        1024
+      ],
+      "grid": {
+        "columns": 3,
+        "rows": 2,
+        "cell": 512,
+        "border": 4
+      },
+      "model": "ZhengPeng7/BiRefNet",
+      "alpha": {
+        "low": 60,
+        "high": 150
+      },
+      "frames": [
+        {
+          "index": 0,
+          "row": 0,
+          "column": 0,
+          "x": 0,
+          "y": 0,
+          "w": 512,
+          "h": 512,
+          "background_rgb": [
+            127,
+            126,
+            125
+          ],
+          "bbox": [
+            97,
+            64,
+            503,
+            473
+          ],
+          "alpha_zero_ratio": 0.505833,
+          "alpha_partial_ratio": 0.000671,
+          "alpha_opaque_ratio": 0.493496,
+          "edge_nonzero": 0
+        },
+        {
+          "index": 1,
+          "row": 0,
+          "column": 1,
+          "x": 512,
+          "y": 0,
+          "w": 512,
+          "h": 512,
+          "background_rgb": [
+            127,
+            126,
+            125
+          ],
+          "bbox": [
+            124,
+            46,
+            409,
+            508
+          ],
+          "alpha_zero_ratio": 0.719666,
+          "alpha_partial_ratio": 0.002823,
+          "alpha_opaque_ratio": 0.277512,
+          "edge_nonzero": 0
+        },
+        {
+          "index": 2,
+          "row": 0,
+          "column": 2,
+          "x": 1024,
+          "y": 0,
+          "w": 512,
+          "h": 512,
+          "background_rgb": [
+            127,
+            126,
+            125
+          ],
+          "bbox": [
+            138,
+            40,
+            337,
+            497
+          ],
+          "alpha_zero_ratio": 0.780544,
+          "alpha_partial_ratio": 0.000999,
+          "alpha_opaque_ratio": 0.218456,
+          "edge_nonzero": 0
+        },
+        {
+          "index": 3,
+          "row": 1,
+          "column": 0,
+          "x": 0,
+          "y": 512,
+          "w": 512,
+          "h": 512,
+          "background_rgb": [
+            127,
+            126,
+            125
+          ],
+          "bbox": [
+            75,
+            95,
+            502,
+            417
+          ],
+          "alpha_zero_ratio": 0.675354,
+          "alpha_partial_ratio": 0.000813,
+          "alpha_opaque_ratio": 0.323833,
+          "edge_nonzero": 0
+        },
+        {
+          "index": 4,
+          "row": 1,
+          "column": 1,
+          "x": 512,
+          "y": 512,
+          "w": 512,
+          "h": 512,
+          "background_rgb": [
+            127,
+            126,
+            125
+          ],
+          "bbox": [
+            12,
+            4,
+            503,
+            424
+          ],
+          "alpha_zero_ratio": 0.635506,
+          "alpha_partial_ratio": 0.001263,
+          "alpha_opaque_ratio": 0.363232,
+          "edge_nonzero": 0
+        },
+        {
+          "index": 5,
+          "row": 1,
+          "column": 2,
+          "x": 1024,
+          "y": 512,
+          "w": 512,
+          "h": 512,
+          "background_rgb": [
+            127,
+            126,
+            125
+          ],
+          "bbox": [
+            44,
+            116,
+            436,
+            428
+          ],
+          "alpha_zero_ratio": 0.625633,
+          "alpha_partial_ratio": 0.001102,
+          "alpha_opaque_ratio": 0.373264,
+          "edge_nonzero": 0
+        }
+      ]
+    },
+    {
+      "biome": "frost",
+      "source": "assets-source/imagegen/biome-props/frost-sprites-src.png",
+      "output": "public/assets/sprites/biome-props/frost-props.png",
+      "size": [
+        1536,
+        1024
+      ],
+      "grid": {
+        "columns": 3,
+        "rows": 2,
+        "cell": 512,
+        "border": 4
+      },
+      "model": "ZhengPeng7/BiRefNet",
+      "alpha": {
+        "low": 60,
+        "high": 150
+      },
+      "frames": [
+        {
+          "index": 0,
+          "row": 0,
+          "column": 0,
+          "x": 0,
+          "y": 0,
+          "w": 512,
+          "h": 512,
+          "background_rgb": [
+            115,
+            115,
+            115
+          ],
+          "bbox": [
+            89,
+            68,
+            508,
+            472
+          ],
+          "alpha_zero_ratio": 0.516369,
+          "alpha_partial_ratio": 0.000946,
+          "alpha_opaque_ratio": 0.482685,
+          "edge_nonzero": 0
+        },
+        {
+          "index": 1,
+          "row": 0,
+          "column": 1,
+          "x": 512,
+          "y": 0,
+          "w": 512,
+          "h": 512,
+          "background_rgb": [
+            115,
+            115,
+            115
+          ],
+          "bbox": [
+            4,
+            76,
+            395,
+            481
+          ],
+          "alpha_zero_ratio": 0.703022,
+          "alpha_partial_ratio": 0.000988,
+          "alpha_opaque_ratio": 0.29599,
+          "edge_nonzero": 0
+        },
+        {
+          "index": 2,
+          "row": 0,
+          "column": 2,
+          "x": 1024,
+          "y": 0,
+          "w": 512,
+          "h": 512,
+          "background_rgb": [
+            115,
+            115,
+            115
+          ],
+          "bbox": [
+            8,
+            92,
+            417,
+            468
+          ],
+          "alpha_zero_ratio": 0.826344,
+          "alpha_partial_ratio": 0.001774,
+          "alpha_opaque_ratio": 0.171883,
+          "edge_nonzero": 0
+        },
+        {
+          "index": 3,
+          "row": 1,
+          "column": 0,
+          "x": 0,
+          "y": 512,
+          "w": 512,
+          "h": 512,
+          "background_rgb": [
+            115,
+            115,
+            115
+          ],
+          "bbox": [
+            103,
+            37,
+            453,
+            405
+          ],
+          "alpha_zero_ratio": 0.73764,
+          "alpha_partial_ratio": 0.001144,
+          "alpha_opaque_ratio": 0.261215,
+          "edge_nonzero": 0
+        },
+        {
+          "index": 4,
+          "row": 1,
+          "column": 1,
+          "x": 512,
+          "y": 512,
+          "w": 512,
+          "h": 512,
+          "background_rgb": [
+            115,
+            115,
+            115
+          ],
+          "bbox": [
+            35,
+            228,
+            468,
+            406
+          ],
+          "alpha_zero_ratio": 0.811729,
+          "alpha_partial_ratio": 0.000515,
+          "alpha_opaque_ratio": 0.187756,
+          "edge_nonzero": 0
+        },
+        {
+          "index": 5,
+          "row": 1,
+          "column": 2,
+          "x": 1024,
+          "y": 512,
+          "w": 512,
+          "h": 512,
+          "background_rgb": [
+            115,
+            115,
+            115
+          ],
+          "bbox": [
+            51,
+            29,
+            398,
+            407
+          ],
+          "alpha_zero_ratio": 0.673389,
+          "alpha_partial_ratio": 0.000683,
+          "alpha_opaque_ratio": 0.325928,
+          "edge_nonzero": 0
+        }
+      ]
+    },
+    {
+      "biome": "grim",
+      "source": "assets-source/imagegen/biome-props/grim-sprites-src.png",
+      "output": "public/assets/sprites/biome-props/grim-props.png",
+      "size": [
+        1536,
+        1024
+      ],
+      "grid": {
+        "columns": 3,
+        "rows": 2,
+        "cell": 512,
+        "border": 4
+      },
+      "model": "ZhengPeng7/BiRefNet",
+      "alpha": {
+        "low": 60,
+        "high": 150
+      },
+      "frames": [
+        {
+          "index": 0,
+          "row": 0,
+          "column": 0,
+          "x": 0,
+          "y": 0,
+          "w": 512,
+          "h": 512,
+          "background_rgb": [
+            125,
+            124,
+            123
+          ],
+          "bbox": [
+            99,
+            61,
+            463,
+            508
+          ],
+          "alpha_zero_ratio": 0.564232,
+          "alpha_partial_ratio": 0.001362,
+          "alpha_opaque_ratio": 0.434406,
+          "edge_nonzero": 0
+        },
+        {
+          "index": 1,
+          "row": 0,
+          "column": 1,
+          "x": 512,
+          "y": 0,
+          "w": 512,
+          "h": 512,
+          "background_rgb": [
+            125,
+            124,
+            123
+          ],
+          "bbox": [
+            56,
+            48,
+            470,
+            508
+          ],
+          "alpha_zero_ratio": 0.603283,
+          "alpha_partial_ratio": 0.003006,
+          "alpha_opaque_ratio": 0.393711,
+          "edge_nonzero": 0
+        },
+        {
+          "index": 2,
+          "row": 0,
+          "column": 2,
+          "x": 1024,
+          "y": 0,
+          "w": 512,
+          "h": 512,
+          "background_rgb": [
+            125,
+            124,
+            123
+          ],
+          "bbox": [
+            117,
+            54,
+            337,
+            508
+          ],
+          "alpha_zero_ratio": 0.802765,
+          "alpha_partial_ratio": 0.004124,
+          "alpha_opaque_ratio": 0.193111,
+          "edge_nonzero": 0
+        },
+        {
+          "index": 3,
+          "row": 1,
+          "column": 0,
+          "x": 0,
+          "y": 512,
+          "w": 512,
+          "h": 512,
+          "background_rgb": [
+            125,
+            124,
+            123
+          ],
+          "bbox": [
+            59,
+            75,
+            494,
+            445
+          ],
+          "alpha_zero_ratio": 0.694458,
+          "alpha_partial_ratio": 0.001011,
+          "alpha_opaque_ratio": 0.304531,
+          "edge_nonzero": 0
+        },
+        {
+          "index": 4,
+          "row": 1,
+          "column": 1,
+          "x": 512,
+          "y": 512,
+          "w": 512,
+          "h": 512,
+          "background_rgb": [
+            125,
+            124,
+            123
+          ],
+          "bbox": [
+            104,
+            4,
+            410,
+            443
+          ],
+          "alpha_zero_ratio": 0.698303,
+          "alpha_partial_ratio": 0.000732,
+          "alpha_opaque_ratio": 0.300964,
+          "edge_nonzero": 0
+        },
+        {
+          "index": 5,
+          "row": 1,
+          "column": 2,
+          "x": 1024,
+          "y": 512,
+          "w": 512,
+          "h": 512,
+          "background_rgb": [
+            125,
+            124,
+            123
+          ],
+          "bbox": [
+            46,
+            4,
+            415,
+            450
+          ],
+          "alpha_zero_ratio": 0.677795,
+          "alpha_partial_ratio": 0.003311,
+          "alpha_opaque_ratio": 0.318893,
+          "edge_nonzero": 0
+        }
+      ]
+    },
+    {
+      "biome": "verdant",
+      "source": "assets-source/imagegen/biome-props/verdant-sprites-src.png",
+      "output": "public/assets/sprites/biome-props/verdant-props.png",
+      "size": [
+        1536,
+        1024
+      ],
+      "grid": {
+        "columns": 3,
+        "rows": 2,
+        "cell": 512,
+        "border": 4
+      },
+      "model": "ZhengPeng7/BiRefNet",
+      "alpha": {
+        "low": 60,
+        "high": 150
+      },
+      "frames": [
+        {
+          "index": 0,
+          "row": 0,
+          "column": 0,
+          "x": 0,
+          "y": 0,
+          "w": 512,
+          "h": 512,
+          "background_rgb": [
+            126,
+            126,
+            127
+          ],
+          "bbox": [
+            92,
+            76,
+            493,
+            481
+          ],
+          "alpha_zero_ratio": 0.588276,
+          "alpha_partial_ratio": 0.013943,
+          "alpha_opaque_ratio": 0.397781,
+          "edge_nonzero": 0
+        },
+        {
+          "index": 1,
+          "row": 0,
+          "column": 1,
+          "x": 512,
+          "y": 0,
+          "w": 512,
+          "h": 512,
+          "background_rgb": [
+            126,
+            126,
+            127
+          ],
+          "bbox": [
+            79,
+            52,
+            446,
+            483
+          ],
+          "alpha_zero_ratio": 0.481792,
+          "alpha_partial_ratio": 0.001678,
+          "alpha_opaque_ratio": 0.516529,
+          "edge_nonzero": 0
+        },
+        {
+          "index": 2,
+          "row": 0,
+          "column": 2,
+          "x": 1024,
+          "y": 0,
+          "w": 512,
+          "h": 512,
+          "background_rgb": [
+            126,
+            126,
+            127
+          ],
+          "bbox": [
+            46,
+            46,
+            425,
+            508
+          ],
+          "alpha_zero_ratio": 0.704845,
+          "alpha_partial_ratio": 0.009018,
+          "alpha_opaque_ratio": 0.286137,
+          "edge_nonzero": 0
+        },
+        {
+          "index": 3,
+          "row": 1,
+          "column": 0,
+          "x": 0,
+          "y": 512,
+          "w": 512,
+          "h": 512,
+          "background_rgb": [
+            126,
+            126,
+            127
+          ],
+          "bbox": [
+            56,
+            62,
+            496,
+            437
+          ],
+          "alpha_zero_ratio": 0.655369,
+          "alpha_partial_ratio": 0.006329,
+          "alpha_opaque_ratio": 0.338303,
+          "edge_nonzero": 0
+        },
+        {
+          "index": 4,
+          "row": 1,
+          "column": 1,
+          "x": 512,
+          "y": 512,
+          "w": 512,
+          "h": 512,
+          "background_rgb": [
+            126,
+            126,
+            127
+          ],
+          "bbox": [
+            115,
+            28,
+            403,
+            448
+          ],
+          "alpha_zero_ratio": 0.670197,
+          "alpha_partial_ratio": 0.00182,
+          "alpha_opaque_ratio": 0.327984,
+          "edge_nonzero": 0
+        },
+        {
+          "index": 5,
+          "row": 1,
+          "column": 2,
+          "x": 1024,
+          "y": 512,
+          "w": 512,
+          "h": 512,
+          "background_rgb": [
+            126,
+            126,
+            127
+          ],
+          "bbox": [
+            37,
+            4,
+            402,
+            450
+          ],
+          "alpha_zero_ratio": 0.683254,
+          "alpha_partial_ratio": 0.004295,
+          "alpha_opaque_ratio": 0.31245,
+          "edge_nonzero": 0
+        }
+      ]
+    },
+    {
+      "biome": "ash",
+      "source": "assets-source/imagegen/biome-props/ash-sprites-src.png",
+      "output": "public/assets/sprites/biome-props/ash-props.png",
+      "size": [
+        1536,
+        1024
+      ],
+      "grid": {
+        "columns": 3,
+        "rows": 2,
+        "cell": 512,
+        "border": 4
+      },
+      "model": "ZhengPeng7/BiRefNet",
+      "alpha": {
+        "low": 60,
+        "high": 150
+      },
+      "frames": [
+        {
+          "index": 0,
+          "row": 0,
+          "column": 0,
+          "x": 0,
+          "y": 0,
+          "w": 512,
+          "h": 512,
+          "background_rgb": [
+            127,
+            126,
+            125
+          ],
+          "bbox": [
+            170,
+            50,
+            454,
+            505
+          ],
+          "alpha_zero_ratio": 0.511265,
+          "alpha_partial_ratio": 0.00042,
+          "alpha_opaque_ratio": 0.488316,
+          "edge_nonzero": 0
+        },
+        {
+          "index": 1,
+          "row": 0,
+          "column": 1,
+          "x": 512,
+          "y": 0,
+          "w": 512,
+          "h": 512,
+          "background_rgb": [
+            127,
+            126,
+            125
+          ],
+          "bbox": [
+            120,
+            41,
+            421,
+            498
+          ],
+          "alpha_zero_ratio": 0.643703,
+          "alpha_partial_ratio": 0.000595,
+          "alpha_opaque_ratio": 0.355701,
+          "edge_nonzero": 0
+        },
+        {
+          "index": 2,
+          "row": 0,
+          "column": 2,
+          "x": 1024,
+          "y": 0,
+          "w": 512,
+          "h": 512,
+          "background_rgb": [
+            127,
+            126,
+            125
+          ],
+          "bbox": [
+            91,
+            13,
+            287,
+            508
+          ],
+          "alpha_zero_ratio": 0.828247,
+          "alpha_partial_ratio": 0.003029,
+          "alpha_opaque_ratio": 0.168724,
+          "edge_nonzero": 0
+        },
+        {
+          "index": 3,
+          "row": 1,
+          "column": 0,
+          "x": 0,
+          "y": 512,
+          "w": 512,
+          "h": 512,
+          "background_rgb": [
+            127,
+            126,
+            125
+          ],
+          "bbox": [
+            98,
+            119,
+            508,
+            424
+          ],
+          "alpha_zero_ratio": 0.713184,
+          "alpha_partial_ratio": 0.001144,
+          "alpha_opaque_ratio": 0.285671,
+          "edge_nonzero": 0
+        },
+        {
+          "index": 4,
+          "row": 1,
+          "column": 1,
+          "x": 512,
+          "y": 512,
+          "w": 512,
+          "h": 512,
+          "background_rgb": [
+            127,
+            126,
+            125
+          ],
+          "bbox": [
+            4,
+            82,
+            438,
+            431
+          ],
+          "alpha_zero_ratio": 0.555511,
+          "alpha_partial_ratio": 0.000771,
+          "alpha_opaque_ratio": 0.443718,
+          "edge_nonzero": 0
+        },
+        {
+          "index": 5,
+          "row": 1,
+          "column": 2,
+          "x": 1024,
+          "y": 512,
+          "w": 512,
+          "h": 512,
+          "background_rgb": [
+            127,
+            126,
+            125
+          ],
+          "bbox": [
+            67,
+            4,
+            325,
+            448
+          ],
+          "alpha_zero_ratio": 0.700291,
+          "alpha_partial_ratio": 0.001114,
+          "alpha_opaque_ratio": 0.298595,
+          "edge_nonzero": 0
+        }
+      ]
+    },
+    {
+      "biome": "iron",
+      "source": "assets-source/imagegen/biome-props/iron-sprites-src.png",
+      "output": "public/assets/sprites/biome-props/iron-props.png",
+      "size": [
+        1536,
+        1024
+      ],
+      "grid": {
+        "columns": 3,
+        "rows": 2,
+        "cell": 512,
+        "border": 4
+      },
+      "model": "ZhengPeng7/BiRefNet",
+      "alpha": {
+        "low": 60,
+        "high": 150
+      },
+      "frames": [
+        {
+          "index": 0,
+          "row": 0,
+          "column": 0,
+          "x": 0,
+          "y": 0,
+          "w": 512,
+          "h": 512,
+          "background_rgb": [
+            121,
+            120,
+            119
+          ],
+          "bbox": [
+            72,
+            38,
+            482,
+            459
+          ],
+          "alpha_zero_ratio": 0.61335,
+          "alpha_partial_ratio": 0.000568,
+          "alpha_opaque_ratio": 0.386082,
+          "edge_nonzero": 0
+        },
+        {
+          "index": 1,
+          "row": 0,
+          "column": 1,
+          "x": 512,
+          "y": 0,
+          "w": 512,
+          "h": 512,
+          "background_rgb": [
+            121,
+            120,
+            119
+          ],
+          "bbox": [
+            88,
+            64,
+            436,
+            423
+          ],
+          "alpha_zero_ratio": 0.529266,
+          "alpha_partial_ratio": 0.000179,
+          "alpha_opaque_ratio": 0.470554,
+          "edge_nonzero": 0
+        },
+        {
+          "index": 2,
+          "row": 0,
+          "column": 2,
+          "x": 1024,
+          "y": 0,
+          "w": 512,
+          "h": 512,
+          "background_rgb": [
+            121,
+            120,
+            119
+          ],
+          "bbox": [
+            84,
+            42,
+            341,
+            481
+          ],
+          "alpha_zero_ratio": 0.7896,
+          "alpha_partial_ratio": 0.001053,
+          "alpha_opaque_ratio": 0.209347,
+          "edge_nonzero": 0
+        },
+        {
+          "index": 3,
+          "row": 1,
+          "column": 0,
+          "x": 0,
+          "y": 512,
+          "w": 512,
+          "h": 512,
+          "background_rgb": [
+            121,
+            120,
+            119
+          ],
+          "bbox": [
+            40,
+            80,
+            491,
+            436
+          ],
+          "alpha_zero_ratio": 0.576221,
+          "alpha_partial_ratio": 0.001038,
+          "alpha_opaque_ratio": 0.422741,
+          "edge_nonzero": 0
+        },
+        {
+          "index": 4,
+          "row": 1,
+          "column": 1,
+          "x": 512,
+          "y": 512,
+          "w": 512,
+          "h": 512,
+          "background_rgb": [
+            121,
+            120,
+            119
+          ],
+          "bbox": [
+            55,
+            51,
+            442,
+            442
+          ],
+          "alpha_zero_ratio": 0.448166,
+          "alpha_partial_ratio": 0.000954,
+          "alpha_opaque_ratio": 0.55088,
+          "edge_nonzero": 0
+        },
+        {
+          "index": 5,
+          "row": 1,
+          "column": 2,
+          "x": 1024,
+          "y": 512,
+          "w": 512,
+          "h": 512,
+          "background_rgb": [
+            121,
+            120,
+            119
+          ],
+          "bbox": [
+            19,
+            25,
+            453,
+            447
+          ],
+          "alpha_zero_ratio": 0.519012,
+          "alpha_partial_ratio": 0.001469,
+          "alpha_opaque_ratio": 0.479519,
+          "edge_nonzero": 0
+        }
+      ]
+    },
+    {
+      "biome": "obsidian",
+      "source": "assets-source/imagegen/biome-props/obsidian-sprites-src.png",
+      "output": "public/assets/sprites/biome-props/obsidian-props.png",
+      "size": [
+        1536,
+        1024
+      ],
+      "grid": {
+        "columns": 3,
+        "rows": 2,
+        "cell": 512,
+        "border": 4
+      },
+      "model": "ZhengPeng7/BiRefNet",
+      "alpha": {
+        "low": 60,
+        "high": 150
+      },
+      "frames": [
+        {
+          "index": 0,
+          "row": 0,
+          "column": 0,
+          "x": 0,
+          "y": 0,
+          "w": 512,
+          "h": 512,
+          "background_rgb": [
+            124,
+            123,
+            122
+          ],
+          "bbox": [
+            83,
+            34,
+            508,
+            495
+          ],
+          "alpha_zero_ratio": 0.642376,
+          "alpha_partial_ratio": 0.000534,
+          "alpha_opaque_ratio": 0.35709,
+          "edge_nonzero": 0
+        },
+        {
+          "index": 1,
+          "row": 0,
+          "column": 1,
+          "x": 512,
+          "y": 0,
+          "w": 512,
+          "h": 512,
+          "background_rgb": [
+            124,
+            123,
+            122
+          ],
+          "bbox": [
+            131,
+            20,
+            377,
+            501
+          ],
+          "alpha_zero_ratio": 0.730251,
+          "alpha_partial_ratio": 0.000702,
+          "alpha_opaque_ratio": 0.269047,
+          "edge_nonzero": 0
+        },
+        {
+          "index": 2,
+          "row": 0,
+          "column": 2,
+          "x": 1024,
+          "y": 0,
+          "w": 512,
+          "h": 512,
+          "background_rgb": [
+            124,
+            123,
+            122
+          ],
+          "bbox": [
+            57,
+            25,
+            379,
+            490
+          ],
+          "alpha_zero_ratio": 0.54739,
+          "alpha_partial_ratio": 0.001255,
+          "alpha_opaque_ratio": 0.451355,
+          "edge_nonzero": 0
+        },
+        {
+          "index": 3,
+          "row": 1,
+          "column": 0,
+          "x": 0,
+          "y": 512,
+          "w": 512,
+          "h": 512,
+          "background_rgb": [
+            124,
+            123,
+            122
+          ],
+          "bbox": [
+            117,
+            38,
+            452,
+            462
+          ],
+          "alpha_zero_ratio": 0.662682,
+          "alpha_partial_ratio": 0.000767,
+          "alpha_opaque_ratio": 0.336552,
+          "edge_nonzero": 0
+        },
+        {
+          "index": 4,
+          "row": 1,
+          "column": 1,
+          "x": 512,
+          "y": 512,
+          "w": 512,
+          "h": 512,
+          "background_rgb": [
+            124,
+            123,
+            122
+          ],
+          "bbox": [
+            94,
+            59,
+            415,
+            457
+          ],
+          "alpha_zero_ratio": 0.62537,
+          "alpha_partial_ratio": 0.000546,
+          "alpha_opaque_ratio": 0.374084,
+          "edge_nonzero": 0
+        },
+        {
+          "index": 5,
+          "row": 1,
+          "column": 2,
+          "x": 1024,
+          "y": 512,
+          "w": 512,
+          "h": 512,
+          "background_rgb": [
+            124,
+            123,
+            122
+          ],
+          "bbox": [
+            60,
+            21,
+            374,
+            471
+          ],
+          "alpha_zero_ratio": 0.734623,
+          "alpha_partial_ratio": 0.001282,
+          "alpha_opaque_ratio": 0.264095,
+          "edge_nonzero": 0
+        }
+      ]
+    },
+    {
+      "biome": "sunken",
+      "source": "assets-source/imagegen/biome-props/sunken-sprites-src.png",
+      "output": "public/assets/sprites/biome-props/sunken-props.png",
+      "size": [
+        1536,
+        1024
+      ],
+      "grid": {
+        "columns": 3,
+        "rows": 2,
+        "cell": 512,
+        "border": 4
+      },
+      "model": "ZhengPeng7/BiRefNet",
+      "alpha": {
+        "low": 60,
+        "high": 150
+      },
+      "frames": [
+        {
+          "index": 0,
+          "row": 0,
+          "column": 0,
+          "x": 0,
+          "y": 0,
+          "w": 512,
+          "h": 512,
+          "background_rgb": [
+            126,
+            125,
+            124
+          ],
+          "bbox": [
+            93,
+            51,
+            485,
+            461
+          ],
+          "alpha_zero_ratio": 0.53043,
+          "alpha_partial_ratio": 0.000904,
+          "alpha_opaque_ratio": 0.468666,
+          "edge_nonzero": 0
+        },
+        {
+          "index": 1,
+          "row": 0,
+          "column": 1,
+          "x": 512,
+          "y": 0,
+          "w": 512,
+          "h": 512,
+          "background_rgb": [
+            126,
+            125,
+            124
+          ],
+          "bbox": [
+            58,
+            36,
+            474,
+            458
+          ],
+          "alpha_zero_ratio": 0.471413,
+          "alpha_partial_ratio": 0.001427,
+          "alpha_opaque_ratio": 0.527161,
+          "edge_nonzero": 0
+        },
+        {
+          "index": 2,
+          "row": 0,
+          "column": 2,
+          "x": 1024,
+          "y": 0,
+          "w": 512,
+          "h": 512,
+          "background_rgb": [
+            126,
+            125,
+            124
+          ],
+          "bbox": [
+            122,
+            36,
+            283,
+            479
+          ],
+          "alpha_zero_ratio": 0.832634,
+          "alpha_partial_ratio": 0.002357,
+          "alpha_opaque_ratio": 0.165009,
+          "edge_nonzero": 0
+        },
+        {
+          "index": 3,
+          "row": 1,
+          "column": 0,
+          "x": 0,
+          "y": 512,
+          "w": 512,
+          "h": 512,
+          "background_rgb": [
+            126,
+            125,
+            124
+          ],
+          "bbox": [
+            66,
+            76,
+            503,
+            426
+          ],
+          "alpha_zero_ratio": 0.608097,
+          "alpha_partial_ratio": 0.002789,
+          "alpha_opaque_ratio": 0.389114,
+          "edge_nonzero": 0
+        },
+        {
+          "index": 4,
+          "row": 1,
+          "column": 1,
+          "x": 512,
+          "y": 512,
+          "w": 512,
+          "h": 512,
+          "background_rgb": [
+            126,
+            125,
+            124
+          ],
+          "bbox": [
+            78,
+            58,
+            413,
+            447
+          ],
+          "alpha_zero_ratio": 0.593563,
+          "alpha_partial_ratio": 0.001091,
+          "alpha_opaque_ratio": 0.405346,
+          "edge_nonzero": 0
+        },
+        {
+          "index": 5,
+          "row": 1,
+          "column": 2,
+          "x": 1024,
+          "y": 512,
+          "w": 512,
+          "h": 512,
+          "background_rgb": [
+            126,
+            125,
+            124
+          ],
+          "bbox": [
+            26,
+            68,
+            423,
+            455
+          ],
+          "alpha_zero_ratio": 0.473034,
+          "alpha_partial_ratio": 0.001095,
+          "alpha_opaque_ratio": 0.525871,
+          "edge_nonzero": 0
+        }
+      ]
+    },
+    {
+      "biome": "fungal",
+      "source": "assets-source/imagegen/biome-props/fungal-sprites-src.png",
+      "output": "public/assets/sprites/biome-props/fungal-props.png",
+      "size": [
+        1536,
+        1024
+      ],
+      "grid": {
+        "columns": 3,
+        "rows": 2,
+        "cell": 512,
+        "border": 4
+      },
+      "model": "ZhengPeng7/BiRefNet",
+      "alpha": {
+        "low": 60,
+        "high": 150
+      },
+      "frames": [
+        {
+          "index": 0,
+          "row": 0,
+          "column": 0,
+          "x": 0,
+          "y": 0,
+          "w": 512,
+          "h": 512,
+          "background_rgb": [
+            122,
+            121,
+            120
+          ],
+          "bbox": [
+            83,
+            62,
+            464,
+            480
+          ],
+          "alpha_zero_ratio": 0.511887,
+          "alpha_partial_ratio": 0.000694,
+          "alpha_opaque_ratio": 0.487419,
+          "edge_nonzero": 0
+        },
+        {
+          "index": 1,
+          "row": 0,
+          "column": 1,
+          "x": 512,
+          "y": 0,
+          "w": 512,
+          "h": 512,
+          "background_rgb": [
+            122,
+            121,
+            120
+          ],
+          "bbox": [
+            119,
+            40,
+            409,
+            500
+          ],
+          "alpha_zero_ratio": 0.624367,
+          "alpha_partial_ratio": 0.000313,
+          "alpha_opaque_ratio": 0.37532,
+          "edge_nonzero": 0
+        },
+        {
+          "index": 2,
+          "row": 0,
+          "column": 2,
+          "x": 1024,
+          "y": 0,
+          "w": 512,
+          "h": 512,
+          "background_rgb": [
+            122,
+            121,
+            120
+          ],
+          "bbox": [
+            28,
+            56,
+            423,
+            499
+          ],
+          "alpha_zero_ratio": 0.697815,
+          "alpha_partial_ratio": 0.016945,
+          "alpha_opaque_ratio": 0.28524,
+          "edge_nonzero": 0
+        },
+        {
+          "index": 3,
+          "row": 1,
+          "column": 0,
+          "x": 0,
+          "y": 512,
+          "w": 512,
+          "h": 512,
+          "background_rgb": [
+            122,
+            121,
+            120
+          ],
+          "bbox": [
+            91,
+            33,
+            446,
+            446
+          ],
+          "alpha_zero_ratio": 0.648918,
+          "alpha_partial_ratio": 0.001534,
+          "alpha_opaque_ratio": 0.349548,
+          "edge_nonzero": 0
+        },
+        {
+          "index": 4,
+          "row": 1,
+          "column": 1,
+          "x": 512,
+          "y": 512,
+          "w": 512,
+          "h": 512,
+          "background_rgb": [
+            122,
+            121,
+            120
+          ],
+          "bbox": [
+            107,
+            19,
+            400,
+            446
+          ],
+          "alpha_zero_ratio": 0.65126,
+          "alpha_partial_ratio": 0.000668,
+          "alpha_opaque_ratio": 0.348072,
+          "edge_nonzero": 0
+        },
+        {
+          "index": 5,
+          "row": 1,
+          "column": 2,
+          "x": 1024,
+          "y": 512,
+          "w": 512,
+          "h": 512,
+          "background_rgb": [
+            122,
+            121,
+            120
+          ],
+          "bbox": [
+            43,
+            39,
+            404,
+            449
+          ],
+          "alpha_zero_ratio": 0.554768,
+          "alpha_partial_ratio": 0.000774,
+          "alpha_opaque_ratio": 0.444458,
+          "edge_nonzero": 0
+        }
+      ]
+    },
+    {
+      "biome": "backrooms",
+      "source": "assets-source/imagegen/biome-props/backrooms-sprites-src.png",
+      "output": "public/assets/sprites/biome-props/backrooms-props.png",
+      "size": [
+        1536,
+        1024
+      ],
+      "grid": {
+        "columns": 3,
+        "rows": 2,
+        "cell": 512,
+        "border": 4
+      },
+      "model": "ZhengPeng7/BiRefNet",
+      "alpha": {
+        "low": 60,
+        "high": 150
+      },
+      "frames": [
+        {
+          "index": 0,
+          "row": 0,
+          "column": 0,
+          "x": 0,
+          "y": 0,
+          "w": 512,
+          "h": 512,
+          "background_rgb": [
+            127,
+            126,
+            125
+          ],
+          "bbox": [
+            59,
+            170,
+            508,
+            372
+          ],
+          "alpha_zero_ratio": 0.659481,
+          "alpha_partial_ratio": 0.00145,
+          "alpha_opaque_ratio": 0.339069,
+          "edge_nonzero": 0
+        },
+        {
+          "index": 1,
+          "row": 0,
+          "column": 1,
+          "x": 512,
+          "y": 0,
+          "w": 512,
+          "h": 512,
+          "background_rgb": [
+            127,
+            126,
+            125
+          ],
+          "bbox": [
+            4,
+            95,
+            460,
+            457
+          ],
+          "alpha_zero_ratio": 0.53241,
+          "alpha_partial_ratio": 0.001751,
+          "alpha_opaque_ratio": 0.465839,
+          "edge_nonzero": 0
+        },
+        {
+          "index": 2,
+          "row": 0,
+          "column": 2,
+          "x": 1024,
+          "y": 0,
+          "w": 512,
+          "h": 512,
+          "background_rgb": [
+            127,
+            126,
+            125
+          ],
+          "bbox": [
+            82,
+            100,
+            422,
+            438
+          ],
+          "alpha_zero_ratio": 0.706802,
+          "alpha_partial_ratio": 0.001553,
+          "alpha_opaque_ratio": 0.291645,
+          "edge_nonzero": 0
+        },
+        {
+          "index": 3,
+          "row": 1,
+          "column": 0,
+          "x": 0,
+          "y": 512,
+          "w": 512,
+          "h": 512,
+          "background_rgb": [
+            127,
+            126,
+            125
+          ],
+          "bbox": [
+            54,
+            66,
+            495,
+            394
+          ],
+          "alpha_zero_ratio": 0.588223,
+          "alpha_partial_ratio": 0.001728,
+          "alpha_opaque_ratio": 0.410049,
+          "edge_nonzero": 0
+        },
+        {
+          "index": 4,
+          "row": 1,
+          "column": 1,
+          "x": 512,
+          "y": 512,
+          "w": 512,
+          "h": 512,
+          "background_rgb": [
+            127,
+            126,
+            125
+          ],
+          "bbox": [
+            53,
+            78,
+            485,
+            399
+          ],
+          "alpha_zero_ratio": 0.672398,
+          "alpha_partial_ratio": 0.002953,
+          "alpha_opaque_ratio": 0.32465,
+          "edge_nonzero": 0
+        },
+        {
+          "index": 5,
+          "row": 1,
+          "column": 2,
+          "x": 1024,
+          "y": 512,
+          "w": 512,
+          "h": 512,
+          "background_rgb": [
+            127,
+            126,
+            125
+          ],
+          "bbox": [
+            33,
+            53,
+            406,
+            409
+          ],
+          "alpha_zero_ratio": 0.586658,
+          "alpha_partial_ratio": 0.002228,
+          "alpha_opaque_ratio": 0.411114,
+          "edge_nonzero": 0
+        }
+      ]
+    }
+  ]
+}
