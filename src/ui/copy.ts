@@ -43,7 +43,7 @@ export const COPY = {
     stoneFound: (name: string, found: number, total: number) => `${name} bound · ${found}/${total}`,
     timeFreeze: "Time frozen for 20 seconds.",
     luminousWard: "Ward active for 30 seconds.",
-    won: "You escaped through the portal.",
+    won: "You escaped the dungeon",
     dead: "Keep distance. Shadows strike on contact.",
     hydrate: (seed: string) => `Hydrate backend · seed ${seed}`,
     generation: (profile: string, mood: string) =>
@@ -57,7 +57,7 @@ export const COPY = {
   },
   end: {
     winKicker: "Portal escape",
-    winTitle: "The threshold yields",
+    winTitle: "You escaped the dungeon",
     winLead: "All four stones are bound. The exit is open.",
     winCopy: (totalSec: number, stones: string) =>
       `Escape in ${formatTime(totalSec)}. Stones: ${stones}`,

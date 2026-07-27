@@ -58,6 +58,8 @@ describe("Play HUD structure (Ash Binding)", () => {
     expect(COPY.pickup.luminousWard).toBe("WARD STONE");
     expect(COPY.status.luminousWard).toContain("30 seconds");
     expect(COPY.end.loseTitle).toBe("You Died");
+    expect(COPY.end.winTitle).toBe("You escaped the dungeon");
+    expect(COPY.status.won).toBe("You escaped the dungeon");
     expect(COPY.end.winLead).toBe("All four stones are bound. The exit is open.");
     expect(COPY.end.retry).toBe("Try again");
     expect(COPY.end.newDungeon).toBe("New dungeon");
@@ -99,8 +101,10 @@ describe("Play HUD structure (Ash Binding)", () => {
     expect(css).toContain(".play-progress");
     expect(css).toContain(".run-timer");
     expect(css).toContain(".time-freeze-status");
+    expect(css).toContain(".time-freeze-status[hidden]");
     expect(css).toContain("time-freeze-pulse");
     expect(css).toContain(".luminous-ward-status");
+    expect(css).toContain(".luminous-ward-status[hidden]");
     expect(css).toContain("luminous-ward-pulse");
     expect(css).toContain(".map-toggle");
     expect(css).toContain(".hazard-status");
