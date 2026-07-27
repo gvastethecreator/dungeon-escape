@@ -24,7 +24,7 @@ import {
   selectDepthSpreadRoomIds,
   selectForgeMagicStonePlacements,
 } from "./layoutTuning";
-import { ENEMY_ARCHETYPES } from "../world/EnemyArchetypes";
+import { getEnemySpriteRenderMetrics } from "../world/EnemyArchetypes";
 import { selectEnemyKindsForSpawns } from "../world/EnemySpawnPlan";
 import { ENEMY_ANIMATIONS } from "../world/EnemySpriteAtlas";
 import { createMagicStone } from "../world/MagicStoneKit";
@@ -2111,6 +2111,7 @@ function installEditorAlbedoLift(material) {
         "#include <map_fragment>\ndiffuseColor.rgb = pow(max(diffuseColor.rgb, vec3(0.0)), vec3(editorAlbedoGamma)) * editorAlbedoGain;",
       );
   };
+  material.customProgramCacheKey = () => "editor-albedo-lift-v1";
 }
 installEditorAlbedoLift(matFloor);
 installEditorAlbedoLift(matStone);
@@ -3406,12 +3407,12 @@ function buildScene(d) {
     const X = wx(sp.x),
       Z = wz(sp.y);
     const kind = selectedEnemyKinds[index] || "goblin";
-    const archetype = ENEMY_ARCHETYPES[kind];
+    const spriteMetrics = getEnemySpriteRenderMetrics(kind);
     const sprite = new THREE.Sprite(enemyMaterial(kind));
     sprite.name = `Enemy preview ${kind}`;
-    sprite.center.set(0.5, 0.04);
+    sprite.center.set(0.5, spriteMetrics.bottomPaddingRatio);
     sprite.position.set(X, 0.06, Z);
-    sprite.scale.set(archetype.width * 0.74, archetype.height * 0.74, 1);
+    sprite.scale.set(spriteMetrics.planeWidth * 0.74, spriteMetrics.planeHeight * 0.74, 1);
     sprite.renderOrder = 4;
     sprite.userData = { kind, tier: sp.tier, roomId: sp.roomId };
     enemyRoot.add(sprite);

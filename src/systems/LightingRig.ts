@@ -146,8 +146,20 @@ export class LightingRig {
     return this.materialFill.intensity;
   }
 
-  update(delta: number, player: THREE.Vector3, nearestThreat: number | null): void {
+  getLanternPosition(target = new THREE.Vector3()): THREE.Vector3 {
+    return target.copy(this.playerFill.position);
+  }
+
+  update(
+    delta: number,
+    player: THREE.Vector3,
+    nearestThreat: number | null,
+    viewForward?: THREE.Vector3,
+  ): void {
     this.target.copy(player);
+    if (viewForward) {
+      this.target.addScaledVector(viewForward, -PLAYER_LANTERN_TUNING.backwardOffset);
+    }
     this.target.y += 0.82;
     this.playerFill.position.lerp(this.target, 1 - Math.exp(-10 * delta));
     const threat = nearestThreat !== null && nearestThreat < 6 ? 1 - nearestThreat / 6 : 0;

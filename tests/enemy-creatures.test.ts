@@ -2,7 +2,9 @@ import { describe, expect, test } from "bun:test";
 
 import {
   ENEMY_ARCHETYPES,
+  ENEMY_SPRITE_METRICS,
   enemyGroundY,
+  getEnemySpriteRenderMetrics,
   getEnemyMotion,
   isHumanoidEnemy,
   isLowProfileEnemy,
@@ -109,9 +111,30 @@ describe("enemy roster v5", () => {
       const archetype = ENEMY_ARCHETYPES[kind];
       expect(archetype.detectionRange).toBeGreaterThanOrEqual(14);
       expect(archetype.speed).toBeGreaterThanOrEqual(0.7);
-      expect(archetype.width / archetype.height).toBeGreaterThan(0.55);
-      const base = archetype.height / 2 + 0.02;
+      const sprite = getEnemySpriteRenderMetrics(kind);
+      const base = sprite.planeHeight / 2 - sprite.bottomPaddingRatio * sprite.planeHeight + 0.02;
       expect(enemyGroundY(kind)).toBeCloseTo(base + archetype.hoverOffset, 5);
     }
+  });
+
+  test("alpha bounds recover the intended visible size without stretching", () => {
+    for (const kind of ENEMY_ROSTER) {
+      const body = ENEMY_ARCHETYPES[kind];
+      const alpha = ENEMY_SPRITE_METRICS[kind];
+      const render = getEnemySpriteRenderMetrics(kind);
+      expect(render.planeWidth * (alpha.opaqueWidth / alpha.frameSize)).toBeCloseTo(body.width, 5);
+      expect(render.planeHeight * (alpha.opaqueHeight / alpha.frameSize)).toBeCloseTo(
+        body.height,
+        5,
+      );
+    }
+  });
+
+  test("corrects the reported goblin, ghost, shadow, and carrion proportions", () => {
+    expect(ENEMY_ARCHETYPES.goblin.height).toBeLessThanOrEqual(1.55);
+    expect(ENEMY_ARCHETYPES.goblin.width).toBeLessThan(1);
+    expect(getEnemySpriteRenderMetrics("ghost").planeWidth).toBeGreaterThan(1.8);
+    expect(getEnemySpriteRenderMetrics("white-eyed-shadow").planeWidth).toBeGreaterThan(2);
+    expect(ENEMY_ARCHETYPES.carrion.width / ENEMY_ARCHETYPES.carrion.height).toBeGreaterThan(1.4);
   });
 });

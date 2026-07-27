@@ -10,11 +10,13 @@ export const MAX_DYNAMIC_FIRE_LIGHTS = 10;
 export const PLAYER_LANTERN_TUNING = Object.freeze({
   color: 0xd0a064,
   /** Local exploration fill: readable at one room radius, dark beyond it. */
-  intensity: 144,
+  intensity: 42,
   /** Reaches the next corridor decision while keeping distant rooms dark. */
   range: 24,
-  decay: 1.65,
-  threatBoost: 6,
+  decay: 1.15,
+  /** Keeps the point source out of walls when the camera reaches its collision radius. */
+  backwardOffset: 0.85,
+  threatBoost: 4,
 });
 
 export const MATERIAL_FILL_TUNING = Object.freeze({

@@ -8,6 +8,7 @@ import {
   liftTextureRoughnessRgba,
   normalMapRgbaFromAlbedo,
   registerTextureSource,
+  textureEdgeMismatchRgba,
 } from "../src/world/TextureTreatment";
 
 describe("texture seam treatment", () => {
@@ -44,6 +45,19 @@ describe("texture seam treatment", () => {
     const texture = new THREE.Texture();
     registerTextureSource(texture, "/assets/textures/biomes/ash/floor.png", { seam: "edge-blend" });
     expect(texture.userData.seamTreatment).toBe("edge-blend-wrap");
+  });
+
+  test("measures a clean wrap without another destructive blend", () => {
+    const size = 16;
+    const data = new Uint8ClampedArray(size * size * 4);
+    for (let y = 0; y < size; y += 1) {
+      for (let x = 0; x < size; x += 1) {
+        const i = (y * size + x) * 4;
+        const value = x === 0 || x === size - 1 || y === 0 || y === size - 1 ? 80 : 160;
+        data.set([value, value, value, 255], i);
+      }
+    }
+    expect(textureEdgeMismatchRgba(data, size)).toBe(0);
   });
 
   test("normal maps encode outward Z and react to albedo height", () => {

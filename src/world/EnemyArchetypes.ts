@@ -13,7 +13,9 @@ export type EnemyBehavior =
 export type EnemySilhouette = "humanoid" | "creature" | "spectral";
 
 export interface EnemyArchetype {
+  /** Intended visible body width in world meters, after transparent atlas padding. */
   width: number;
+  /** Intended visible body height in world meters, after transparent atlas padding. */
   height: number;
   speed: number;
   detectionRange: number;
@@ -33,8 +35,8 @@ export interface EnemyArchetype {
  */
 export const ENEMY_ARCHETYPES: Readonly<Record<EnemyKind, EnemyArchetype>> = {
   carrion: {
-    width: 1.72,
-    height: 1.22,
+    width: 1.38,
+    height: 0.95,
     speed: 1.55,
     detectionRange: 15,
     preferredRange: 0.78,
@@ -47,8 +49,8 @@ export const ENEMY_ARCHETYPES: Readonly<Record<EnemyKind, EnemyArchetype>> = {
     hoverOffset: 0,
   },
   goblin: {
-    width: 1.55,
-    height: 1.95,
+    width: 0.88,
+    height: 1.55,
     speed: 1.95,
     detectionRange: 17,
     preferredRange: 0.88,
@@ -61,8 +63,8 @@ export const ENEMY_ARCHETYPES: Readonly<Record<EnemyKind, EnemyArchetype>> = {
     hoverOffset: 0,
   },
   ghost: {
-    width: 1.3,
-    height: 2.28,
+    width: 0.9,
+    height: 1.95,
     speed: 0.92,
     detectionRange: 20,
     preferredRange: 1.5,
@@ -75,8 +77,8 @@ export const ENEMY_ARCHETYPES: Readonly<Record<EnemyKind, EnemyArchetype>> = {
     hoverOffset: 0.22,
   },
   ratling: {
-    width: 1.56,
-    height: 1.56,
+    width: 0.95,
+    height: 1.2,
     speed: 1.78,
     detectionRange: 15,
     preferredRange: 0.7,
@@ -89,8 +91,8 @@ export const ENEMY_ARCHETYPES: Readonly<Record<EnemyKind, EnemyArchetype>> = {
     hoverOffset: 0,
   },
   husk: {
-    width: 1.28,
-    height: 2.26,
+    width: 0.78,
+    height: 1.95,
     speed: 0.72,
     detectionRange: 14,
     preferredRange: 1.1,
@@ -103,8 +105,8 @@ export const ENEMY_ARCHETYPES: Readonly<Record<EnemyKind, EnemyArchetype>> = {
     hoverOffset: 0,
   },
   imp: {
-    width: 1.02,
-    height: 1.2,
+    width: 0.9,
+    height: 1.05,
     speed: 1.58,
     detectionRange: 18,
     preferredRange: 2.35,
@@ -117,8 +119,8 @@ export const ENEMY_ARCHETYPES: Readonly<Record<EnemyKind, EnemyArchetype>> = {
     hoverOffset: 0.26,
   },
   "zombie-orc": {
-    width: 1.78,
-    height: 2.55,
+    width: 1.35,
+    height: 2.2,
     speed: 0.76,
     detectionRange: 16,
     preferredRange: 1.2,
@@ -131,8 +133,8 @@ export const ENEMY_ARCHETYPES: Readonly<Record<EnemyKind, EnemyArchetype>> = {
     hoverOffset: 0,
   },
   spider: {
-    width: 1.88,
-    height: 1.04,
+    width: 1.55,
+    height: 0.75,
     speed: 1.68,
     detectionRange: 16,
     preferredRange: 0.72,
@@ -145,8 +147,8 @@ export const ENEMY_ARCHETYPES: Readonly<Record<EnemyKind, EnemyArchetype>> = {
     hoverOffset: 0,
   },
   "bone-slime": {
-    width: 1.56,
-    height: 1.48,
+    width: 1.25,
+    height: 1,
     speed: 0.82,
     detectionRange: 15,
     preferredRange: 1.02,
@@ -159,8 +161,8 @@ export const ENEMY_ARCHETYPES: Readonly<Record<EnemyKind, EnemyArchetype>> = {
     hoverOffset: 0,
   },
   "white-eyed-shadow": {
-    width: 1.3,
-    height: 2.34,
+    width: 0.82,
+    height: 1.95,
     speed: 1.18,
     detectionRange: 20,
     preferredRange: 1.72,
@@ -173,8 +175,8 @@ export const ENEMY_ARCHETYPES: Readonly<Record<EnemyKind, EnemyArchetype>> = {
     hoverOffset: 0,
   },
   "carrion-stalker": {
-    width: 1.84,
-    height: 1.28,
+    width: 1.48,
+    height: 1.08,
     speed: 1.74,
     detectionRange: 16,
     preferredRange: 0.7,
@@ -187,6 +189,95 @@ export const ENEMY_ARCHETYPES: Readonly<Record<EnemyKind, EnemyArchetype>> = {
     hoverOffset: 0,
   },
 };
+
+export interface EnemySpriteMetrics {
+  frameSize: number;
+  opaqueWidth: number;
+  opaqueHeight: number;
+  topPadding: number;
+  bottomPadding: number;
+}
+
+/** Union alpha bounds measured across the four 320 px frames in each v5 atlas row. */
+export const ENEMY_SPRITE_METRICS: Readonly<Record<EnemyKind, EnemySpriteMetrics>> = {
+  carrion: {
+    frameSize: 320,
+    opaqueWidth: 288,
+    opaqueHeight: 276,
+    topPadding: 28,
+    bottomPadding: 16,
+  },
+  goblin: {
+    frameSize: 320,
+    opaqueWidth: 184,
+    opaqueHeight: 288,
+    topPadding: 16,
+    bottomPadding: 16,
+  },
+  ghost: { frameSize: 320, opaqueWidth: 147, opaqueHeight: 288, topPadding: 16, bottomPadding: 16 },
+  ratling: {
+    frameSize: 320,
+    opaqueWidth: 288,
+    opaqueHeight: 288,
+    topPadding: 16,
+    bottomPadding: 16,
+  },
+  husk: { frameSize: 320, opaqueWidth: 135, opaqueHeight: 288, topPadding: 16, bottomPadding: 16 },
+  imp: { frameSize: 320, opaqueWidth: 256, opaqueHeight: 256, topPadding: 32, bottomPadding: 32 },
+  "zombie-orc": {
+    frameSize: 320,
+    opaqueWidth: 246,
+    opaqueHeight: 288,
+    topPadding: 16,
+    bottomPadding: 16,
+  },
+  spider: {
+    frameSize: 320,
+    opaqueWidth: 288,
+    opaqueHeight: 181,
+    topPadding: 123,
+    bottomPadding: 16,
+  },
+  "bone-slime": {
+    frameSize: 320,
+    opaqueWidth: 288,
+    opaqueHeight: 288,
+    topPadding: 16,
+    bottomPadding: 16,
+  },
+  "white-eyed-shadow": {
+    frameSize: 320,
+    opaqueWidth: 127,
+    opaqueHeight: 288,
+    topPadding: 16,
+    bottomPadding: 16,
+  },
+  "carrion-stalker": {
+    frameSize: 320,
+    opaqueWidth: 288,
+    opaqueHeight: 288,
+    topPadding: 16,
+    bottomPadding: 16,
+  },
+};
+
+export interface EnemySpriteRenderMetrics {
+  planeWidth: number;
+  planeHeight: number;
+  bottomPaddingRatio: number;
+  topPaddingRatio: number;
+}
+
+export function getEnemySpriteRenderMetrics(kind: EnemyKind): EnemySpriteRenderMetrics {
+  const sprite = ENEMY_SPRITE_METRICS[kind];
+  const body = ENEMY_ARCHETYPES[kind];
+  return {
+    planeWidth: body.width / (sprite.opaqueWidth / sprite.frameSize),
+    planeHeight: body.height / (sprite.opaqueHeight / sprite.frameSize),
+    bottomPaddingRatio: sprite.bottomPadding / sprite.frameSize,
+    topPaddingRatio: sprite.topPadding / sprite.frameSize,
+  };
+}
 
 export interface EnemyMotion {
   forward: number;
@@ -306,5 +397,18 @@ export function getEnemyMotion(
 
 export function enemyGroundY(kind: EnemyKind): number {
   const archetype = ENEMY_ARCHETYPES[kind];
-  return archetype.height / 2 + 0.02 + archetype.hoverOffset;
+  const sprite = getEnemySpriteRenderMetrics(kind);
+  return (
+    sprite.planeHeight / 2 -
+    sprite.bottomPaddingRatio * sprite.planeHeight +
+    0.02 +
+    archetype.hoverOffset
+  );
+}
+
+export function enemyCeilingY(kind: EnemyKind, wallHeight: number, clearance = 0.38): number {
+  const sprite = getEnemySpriteRenderMetrics(kind);
+  return (
+    wallHeight - clearance - sprite.planeHeight / 2 + sprite.topPaddingRatio * sprite.planeHeight
+  );
 }

@@ -213,6 +213,7 @@ const povFeel = new PovFeelState();
 const audio = new GameAudio();
 const playerPosition = new THREE.Vector3();
 const audioForward = new THREE.Vector3();
+const lanternForward = new THREE.Vector3();
 const cameraShakeEuler = new THREE.Euler(0, 0, 0, "YXZ");
 // Cached once — reading matchMedia every frame is wasteful and some browsers do
 // non-trivial work on each call. The live MediaQueryList keeps .matches current.
@@ -1939,7 +1940,8 @@ function frame(now: number): void {
   } else {
     audio.setThreatDistance(null);
   }
-  lighting.update(delta, playerPosition, currentThreatDistance);
+  camera.getWorldDirection(lanternForward);
+  lighting.update(delta, playerPosition, currentThreatDistance, lanternForward);
 
   // POV lens + stress: mild outward warp always; sprint widens it; threat shakes + chromatic fringe.
   const maxSpeed = PLAYER_MOVE_SPEED * PLAYER_SPRINT_MULT;

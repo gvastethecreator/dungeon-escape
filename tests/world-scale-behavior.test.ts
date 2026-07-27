@@ -1,6 +1,11 @@
 import { describe, expect, test } from "bun:test";
 
-import { ENEMY_ARCHETYPES, enemyGroundY, getEnemyMotion } from "../src/world/EnemyArchetypes";
+import {
+  ENEMY_ARCHETYPES,
+  enemyGroundY,
+  getEnemyMotion,
+  getEnemySpriteRenderMetrics,
+} from "../src/world/EnemyArchetypes";
 import { selectDistributedTorchIndices } from "../src/world/TorchDistribution";
 import { computeTorchLod } from "../src/world/TorchLod";
 import { FORGE_CORRIDOR_WIDTHS, roomBandMeters } from "../src/forge/layoutTuning";
@@ -9,11 +14,14 @@ describe("world scale and behavior contracts", () => {
   test("enemy silhouettes stay grounded and within the room scale", () => {
     const hoverKinds = new Set(["ghost", "imp"]);
     for (const [kind, archetype] of Object.entries(ENEMY_ARCHETYPES)) {
-      expect(archetype.height).toBeGreaterThanOrEqual(0.8);
+      expect(archetype.height).toBeGreaterThanOrEqual(0.7);
       expect(archetype.height).toBeLessThan(2.8);
       expect(archetype.width).toBeLessThan(1.9);
-      expect(archetype.width / archetype.height).toBeGreaterThan(0.55);
-      const groundBias = enemyGroundY(kind as keyof typeof ENEMY_ARCHETYPES) - archetype.height / 2;
+      const enemyKind = kind as keyof typeof ENEMY_ARCHETYPES;
+      const sprite = getEnemySpriteRenderMetrics(enemyKind);
+      const groundBias =
+        enemyGroundY(enemyKind) -
+        (sprite.planeHeight / 2 - sprite.bottomPaddingRatio * sprite.planeHeight);
       if (hoverKinds.has(kind)) {
         expect(groundBias).toBeGreaterThan(0.02);
       } else {
@@ -23,9 +31,9 @@ describe("world scale and behavior contracts", () => {
   });
 
   test("humanoids read at adult scale while carrion stays low and broad", () => {
-    expect(ENEMY_ARCHETYPES.husk.height).toBeGreaterThanOrEqual(2.2);
+    expect(ENEMY_ARCHETYPES.husk.height).toBeGreaterThanOrEqual(1.9);
     expect(ENEMY_ARCHETYPES["zombie-orc"].height).toBeGreaterThan(ENEMY_ARCHETYPES.husk.height);
-    expect(ENEMY_ARCHETYPES.carrion.height).toBeLessThan(1.3);
+    expect(ENEMY_ARCHETYPES.carrion.height).toBeLessThan(1.1);
     expect(ENEMY_ARCHETYPES.carrion.width).toBeGreaterThan(ENEMY_ARCHETYPES.carrion.height);
     expect(ENEMY_ARCHETYPES["carrion-stalker"].height).toBeLessThan(1.4);
     expect(ENEMY_ARCHETYPES["carrion-stalker"].width).toBeGreaterThan(

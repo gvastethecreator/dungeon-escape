@@ -98,8 +98,18 @@ describe("atmosphere props — hanging chain/vine", () => {
     expect(chain.name).toBe("Hanging chain");
     // Links descend below the anchor (negative Y).
     const links = chain.getObjectsByProperty("name", "Chain link");
-    expect(links.length).toBeGreaterThan(0);
+    expect(links.length).toBeGreaterThanOrEqual(4);
+    expect(chain.getObjectByName("Chain mount")).toBeDefined();
+    expect(chain.getObjectByName("Chain anchor eye")).toBeDefined();
     for (const link of links) expect(link.position.y).toBeLessThanOrEqual(0);
+    for (let index = 1; index < links.length; index += 1) {
+      expect(Math.abs(links[index]!.position.y - links[index - 1]!.position.y)).toBeLessThan(0.22);
+      expect(Math.abs(links[index]!.rotation.y - links[index - 1]!.rotation.y)).toBeCloseTo(
+        Math.PI / 2,
+      );
+      expect(links[index]!.rotation.x).toBe(0);
+    }
+    expect(links.at(-1)!.position.y).toBeLessThan(-1.7);
     for (const material of materialsOf(chain)) expect(material).toBe(materials.iron);
   });
 
@@ -107,6 +117,8 @@ describe("atmosphere props — hanging chain/vine", () => {
     const materials = createDungeonMaterials();
     const vine = createHanging(materials, "vine", 2.4, 1);
     expect(vine.name).toBe("Hanging vine");
+    expect(vine.getObjectByName("Vine stem")).toBeDefined();
+    expect(vine.getObjectsByProperty("name", "Vine segment")).toHaveLength(0);
     expect(vine.getObjectsByProperty("name", "Vine tendril").length).toBeGreaterThan(0);
     for (const material of materialsOf(vine)) expect(material).toBe(materials.wood);
   });
