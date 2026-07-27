@@ -11,6 +11,7 @@ import { getDungeonMood, listDungeonMoodIds } from "../systems/DungeonMood";
 import { biomeTextureUrl } from "../world/AssetLibrary";
 import { ITEM_FRAMES } from "../world/AssetLibrary";
 import { ENEMY_ANIMATIONS } from "../world/EnemySpriteAtlas";
+import { resolveEditorLightingProfile, type EditorLightingProfile } from "./EditorLightingProfiles";
 
 interface EditorViewOptions {
   onSelectSpawn(cell: GridCell): void;
@@ -30,6 +31,13 @@ function loadImage(url: string): Promise<HTMLImageElement> {
     image.onerror = () => reject(new Error(`Failed to load editor texture ${url}`));
     image.src = url;
   });
+}
+
+function rgbaFromHex(value: number, alpha: number): string {
+  const red = (value >> 16) & 0xff;
+  const green = (value >> 8) & 0xff;
+  const blue = value & 0xff;
+  return `rgba(${red}, ${green}, ${blue}, ${alpha})`;
 }
 
 export class DungeonEditorView {
@@ -55,6 +63,7 @@ export class DungeonEditorView {
   private readonly stoneImages = new Map<string, HTMLImageElement>();
   private texturesReady = false;
   private mood: DungeonMood = getDungeonMood("ash");
+  private lighting: EditorLightingProfile = resolveEditorLightingProfile("ash");
   private readonly biomeImages = new Map<
     DungeonMoodId,
     { floor: HTMLImageElement; wall: HTMLImageElement }
@@ -124,6 +133,7 @@ export class DungeonEditorView {
 
   private applyMood(mood: DungeonMood): void {
     this.mood = mood;
+    this.lighting = resolveEditorLightingProfile(mood.id);
     this.enemyTintImage = null;
     this.enemyTintMood = null;
     const cached = this.biomeImages.get(mood.id);
@@ -203,7 +213,10 @@ export class DungeonEditorView {
   ): void {
     if (image && this.texturesReady) {
       // Full tile sample — iron-ash maps are authored as seamless floor/wall tiles.
+      context.save();
+      context.filter = `brightness(${this.lighting.mapBrightness}) contrast(${this.lighting.mapContrast}) saturate(${this.lighting.mapSaturation})`;
       context.drawImage(image, 0, 0, image.width, image.height, x, y, size, size);
+      context.restore();
       if (tint) {
         context.fillStyle = tint;
         context.fillRect(x, y, size, size);
@@ -274,6 +287,7 @@ export class DungeonEditorView {
       }
     }
 
+    this.drawMapLighting(context, projection, view);
     for (const room of projection.rooms) this.drawRoomIdentity(context, room, view);
     this.drawForgeFeatures(context, projection, view);
 
@@ -333,6 +347,102 @@ export class DungeonEditorView {
     const stripe = Math.max(1, size * 0.16);
     const offset = (phase % 3) * stripe;
     context.fillRect(x, y + ((size * 0.3 + offset) % Math.max(1, size - stripe)), size, stripe);
+  }
+
+  /**
+   * Plan view needs a readability light separate from play's physical light.
+   * Keep it clipped to the dungeon footprint, preserve the biome hue, and use
+   * structural rims to show shape when an authored atlas is very dark.
+   */
+  private drawMapLighting(
+    context: CanvasRenderingContext2D,
+    projection: DungeonEditorProjection,
+    view: ViewTransform,
+  ): void {
+    const mapX = view.originX;
+    const mapY = view.originY;
+    const mapWidth = projection.width * view.scale;
+    const mapHeight = projection.height * view.scale;
+    const centerX = mapX + mapWidth * 0.5;
+    const centerY = mapY + mapHeight * 0.5;
+    const radius = Math.max(mapWidth, mapHeight) * 0.72;
+
+    context.save();
+    context.beginPath();
+    context.rect(mapX, mapY, mapWidth, mapHeight);
+    context.clip();
+    context.globalCompositeOperation = "screen";
+
+    const ambient = context.createRadialGradient(centerX, centerY, 0, centerX, centerY, radius);
+    ambient.addColorStop(0, rgbaFromHex(this.mood.surfaceTint, this.lighting.mapAmbientOpacity));
+    ambient.addColorStop(
+      0.56,
+      rgbaFromHex(this.mood.mistColor, this.lighting.mapAmbientOpacity * 0.44),
+    );
+    ambient.addColorStop(1, rgbaFromHex(this.mood.mistColor, 0));
+    context.fillStyle = ambient;
+    context.fillRect(mapX, mapY, mapWidth, mapHeight);
+
+    const cellAt = (x: number, y: number): number => {
+      if (x < 0 || y < 0 || x >= projection.width || y >= projection.height)
+        return EDITOR_CELL_KIND.empty;
+      return projection.cells[y * projection.width + x] ?? EDITOR_CELL_KIND.empty;
+    };
+    context.strokeStyle = rgbaFromHex(this.mood.surfaceTint, this.lighting.mapEdgeOpacity);
+    context.lineWidth = Math.max(0.65, Math.min(1.8, view.scale * 0.12));
+    context.beginPath();
+    for (let y = 0; y < projection.height; y += 1) {
+      for (let x = 0; x < projection.width; x += 1) {
+        const kind = cellAt(x, y);
+        if (kind === EDITOR_CELL_KIND.empty) continue;
+        const px = mapX + x * view.scale;
+        const py = mapY + y * view.scale;
+        const right = cellAt(x + 1, y);
+        const below = cellAt(x, y + 1);
+        if (
+          right !== kind &&
+          (right === EDITOR_CELL_KIND.empty ||
+            right === EDITOR_CELL_KIND.wall ||
+            kind === EDITOR_CELL_KIND.wall)
+        ) {
+          context.moveTo(px + view.scale, py);
+          context.lineTo(px + view.scale, py + view.scale);
+        }
+        if (
+          below !== kind &&
+          (below === EDITOR_CELL_KIND.empty ||
+            below === EDITOR_CELL_KIND.wall ||
+            kind === EDITOR_CELL_KIND.wall)
+        ) {
+          context.moveTo(px, py + view.scale);
+          context.lineTo(px + view.scale, py + view.scale);
+        }
+      }
+    }
+    context.stroke();
+
+    const drawGlow = (cell: GridCell, color: number, strength: number, size: number): void => {
+      const x = mapX + (cell.x + 0.5) * view.scale;
+      const y = mapY + (cell.y + 0.5) * view.scale;
+      const gradient = context.createRadialGradient(x, y, 0, x, y, size);
+      gradient.addColorStop(0, rgbaFromHex(color, strength));
+      gradient.addColorStop(0.42, rgbaFromHex(color, strength * 0.3));
+      gradient.addColorStop(1, rgbaFromHex(color, 0));
+      context.fillStyle = gradient;
+      context.fillRect(x - size, y - size, size * 2, size * 2);
+    };
+    const glowSize = Math.max(5, view.scale * 3.4);
+    for (const torch of projection.torches)
+      drawGlow(torch, this.mood.lanternColor, this.lighting.mapGlowOpacity, glowSize);
+    for (const stone of projection.stones)
+      drawGlow(
+        stone.cell,
+        this.mood.mistColor,
+        this.lighting.mapGlowOpacity * 0.64,
+        glowSize * 0.82,
+      );
+
+    context.restore();
   }
 
   private drawRoomIdentity(

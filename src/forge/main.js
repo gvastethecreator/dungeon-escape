@@ -30,6 +30,7 @@ import { ENEMY_ANIMATIONS } from "../world/EnemySpriteAtlas";
 import { createMagicStone } from "../world/MagicStoneKit";
 import { auditAndRepairForgeSurface } from "./SurfaceGeometryAudit";
 import { resolveForgeRenderQuality } from "./ForgeRenderQuality";
+import { resolveEditorLightingProfile } from "../editor/EditorLightingProfiles";
 
 /* ================================================================
    DUNGEON FORGE — procedural dungeon generator core + showcase
@@ -1636,6 +1637,10 @@ const LIGHT_K = 4 * Math.PI;
 /* painted-miniature light rig: warm key with soft shadows, cool ambient */
 const hemi = new THREE.HemisphereLight(0x2e3a52, 0x0a0b10, 0.55);
 scene.add(hemi);
+/* Static editor fill keeps the underside of walls and props readable. It is
+   one shared light for the whole preview, never one light per cell. */
+const editorFill = new THREE.AmbientLight(0x9bb6b6, 0);
+scene.add(editorFill);
 const dirL = new THREE.DirectionalLight(0xffe8c8, 0.85);
 dirL.position.set(72, 78, 46);
 dirL.castShadow = renderQuality.directionalShadows;
@@ -1715,10 +1720,11 @@ const POST = (() => {
       uTime: { value: 0 },
       uBloom: { value: 0.9 },
       uTilt: { value: 1.0 },
+      uExposure: { value: 1.8 },
     },
     vertexShader: V,
     fragmentShader: `
-    varying vec2 vUv; uniform sampler2D tS, tB; uniform vec2 uRes; uniform float uTime, uBloom, uTilt;
+    varying vec2 vUv; uniform sampler2D tS, tB; uniform vec2 uRes; uniform float uTime, uBloom, uTilt, uExposure;
     void main(){
       vec2 px = 1.0 / uRes;
       vec3 col = texture2D(tS, vUv).rgb;
@@ -1734,6 +1740,10 @@ const POST = (() => {
       b += texture2D(tS, vUv + vec2(-px.x*r, -px.y*r*0.6)).rgb * 0.15;
       col = mix(col, b, min(1.0, band));
       col += texture2D(tB, vUv).rgb * uBloom;
+      /* The scene target is linear HDR. Apply a compact filmic exposure before
+         the grade so dark biome albedos retain shape instead of falling below
+         the final gamma curve; bright practicals still compress cleanly. */
+      col = vec3(1.0) - exp(-col * uExposure);
       float lum = dot(col, vec3(0.299, 0.587, 0.114));
       col = mix(col, col * vec3(0.90, 0.97, 1.12), (1.0 - smoothstep(0.0, 0.4, lum)) * 0.38);
       col = mix(col, col * vec3(1.07, 1.01, 0.93), smoothstep(0.45, 1.0, lum) * 0.28);
@@ -2082,13 +2092,49 @@ const matFloor = new THREE.MeshStandardMaterial({
   roughness: 0.94,
   metalness: 0.02,
 });
+function installEditorAlbedoLift(material) {
+  const lift = {
+    gain: { value: 1.08 },
+    gamma: { value: 0.92 },
+  };
+  material.userData.editorAlbedoLift = lift;
+  material.onBeforeCompile = (shader) => {
+    shader.uniforms.editorAlbedoGain = lift.gain;
+    shader.uniforms.editorAlbedoGamma = lift.gamma;
+    shader.fragmentShader = shader.fragmentShader
+      .replace(
+        "#include <common>",
+        "#include <common>\nuniform float editorAlbedoGain;\nuniform float editorAlbedoGamma;",
+      )
+      .replace(
+        "#include <map_fragment>",
+        "#include <map_fragment>\ndiffuseColor.rgb = pow(max(diffuseColor.rgb, vec3(0.0)), vec3(editorAlbedoGamma)) * editorAlbedoGain;",
+      );
+  };
+}
+installEditorAlbedoLift(matFloor);
+installEditorAlbedoLift(matStone);
 function applyForgeBiomeMaterials(themeKey) {
   const key = BIOME_TEX[themeKey] ? themeKey : "ash";
   const maps = BIOME_TEX[key];
+  const profile = resolveEditorLightingProfile(key);
   matFloor.map = maps.floor;
+  matFloor.color.setScalar(1.08);
+  matFloor.roughness = profile.floorRoughness;
   matFloor.needsUpdate = true;
   matStone.map = maps.wall;
+  matStone.color.setScalar(1.04);
+  matStone.roughness = profile.wallRoughness;
   matStone.needsUpdate = true;
+  const gamma = Math.max(0.74, Math.min(0.98, 1 - (profile.surfaceGain - 1) * 0.09));
+  const gain = 0.98 + profile.surfaceGain * 0.13;
+  matFloor.userData.editorAlbedoLift.gain.value = gain;
+  matFloor.userData.editorAlbedoLift.gamma.value = gamma;
+  matStone.userData.editorAlbedoLift.gain.value = gain * 0.98;
+  matStone.userData.editorAlbedoLift.gamma.value = gamma;
+  matTrim.roughness = profile.trimRoughness;
+  matTrim.metalness = profile.trimMetalness;
+  matTrim.needsUpdate = true;
 }
 const matTrim = new THREE.MeshStandardMaterial({
   name: "forge-black-iron",
@@ -2710,7 +2756,15 @@ function buildMesh(set, geo, mat, mode, dur, shadow) {
      some without compiles to two program variants and can trip the renderer's
      attribute fast-path; giving every InstancedMesh a colour buffer keeps them
      all on one variant. (Originally a hard r128 crash; cheap insurance since.) */
-  for (let i = 0; i < alloc; i++) mesh.setColorAt(i, _c.set(i < set.n ? set.col[i] : 0xffffff));
+  const liftStructuralPalette = mat === matFloor || mat === matStone;
+  const paletteGain = Math.max(1, Math.sqrt(activeEditorLightingProfile.surfaceGain) * 1.2);
+  for (let i = 0; i < alloc; i++) {
+    const color = i < set.n ? set.col[i] : 0xffffff;
+    mesh.setColorAt(
+      i,
+      _c.set(liftStructuralPalette ? liftEditorPalette(color, paletteGain) : color),
+    );
+  }
   if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
   if (shadow === 1) {
     mesh.castShadow = true;
@@ -2756,6 +2810,7 @@ let group = null;
 let meshes = {};
 let overlay = null;
 let lights = [];
+let activeEditorLightingProfile = resolveEditorLightingProfile("ash");
 let floorColorsBase = null,
   floorColorsHeat = null;
 let animT = Infinity,
@@ -2772,6 +2827,12 @@ let fx = {
 };
 let levelGeos = [];
 const lerpC = (a, b, t) => _c.set(a).lerp(new THREE.Color(b), t).getHex();
+function liftEditorPalette(color, gain = 1) {
+  _c.set(color);
+  const max = Math.max(_c.r, _c.g, _c.b, 0.0001);
+  _c.multiplyScalar(Math.min(gain, 0.9 / max));
+  return _c.getHex();
+}
 
 function disposeLevel() {
   if (group) {
@@ -2814,13 +2875,21 @@ function disposeLevel() {
 }
 
 function applyThemeEnv(TH) {
+  const profile = resolveEditorLightingProfile(
+    themeSel === "auto" ? resolveTheme(D?.seed ?? 0) : themeSel,
+  );
   scene.fog.color.set(TH.fog);
   curBg.set(TH.bg);
   hemi.color.set(TH.hemi[0]);
   hemi.groundColor.set(TH.hemi[1]);
   hemi.intensity = TH.hemi[2] * LIGHT_K;
+  editorFill.color.set(TH.hemi[0]).lerp(new THREE.Color(0xffffff), 0.38);
+  editorFill.intensity = profile.ambientGain * LIGHT_K;
   dirL.color.set(TH.dir[0]);
-  dirL.intensity = TH.dir[1] * LIGHT_K;
+  dirL.intensity = TH.dir[1] * LIGHT_K * profile.keyGain;
+  renderer.toneMappingExposure = profile.exposure;
+  POST.fin.uniforms.uExposure.value = Math.max(1.7, 1.22 + profile.surfaceGain * 0.72);
+  scene.fog.density = TH.fogD * profile.fogScale;
   document.documentElement.style.setProperty("--ember", TH.accent);
 }
 
@@ -2869,6 +2938,7 @@ function buildScene(d) {
   disposeLevel();
   D = d;
   const TH = THEMES[d.params.themeKey];
+  activeEditorLightingProfile = resolveEditorLightingProfile(d.params.themeKey);
   const accC = parseInt(TH.accent.slice(1), 16);
   applyForgeBiomeMaterials(d.params.themeKey);
   applyThemeEnv(TH);
@@ -3961,7 +4031,9 @@ if (innerWidth < 640) {
 function applyHeat(on) {
   if (!meshes.floor) return;
   const src = on ? floorColorsHeat : floorColorsBase;
-  for (let i = 0; i < src.length; i++) meshes.floor.setColorAt(i, _c.set(src[i]));
+  const paletteGain = Math.max(1, Math.sqrt(activeEditorLightingProfile.surfaceGain) * 1.2);
+  for (let i = 0; i < src.length; i++)
+    meshes.floor.setColorAt(i, _c.set(liftEditorPalette(src[i], paletteGain)));
   if (meshes.floor.instanceColor) meshes.floor.instanceColor.needsUpdate = true;
 }
 function settleAll() {
