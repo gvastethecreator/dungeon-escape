@@ -433,28 +433,44 @@ function startPlayWithSeed(seed: string, options: { refreshProcedural?: boolean 
   setStatus(COPY.status.enterPlay);
 }
 
+function createLeaderboardStat(label: string, value: HTMLElement): HTMLElement {
+  const stat = document.createElement("span");
+  const labelEl = document.createElement("span");
+  stat.className = "leaderboard-stat";
+  labelEl.className = "leaderboard-stat__label";
+  labelEl.textContent = label;
+  stat.append(labelEl, value);
+  return stat;
+}
+
 function renderLeaderboard(entries: readonly LeaderboardEntry[]): void {
   const fragment = document.createDocumentFragment();
   for (const entry of entries) {
     const item = document.createElement("li");
     const rank = document.createElement("span");
-    const main = document.createElement("span");
+    const body = document.createElement("div");
+    const top = document.createElement("div");
     const name = document.createElement("span");
-    const meta = document.createElement("span");
+    const score = document.createElement("span");
+    const stats = document.createElement("div");
     const time = document.createElement("span");
     const seed = document.createElement("button");
-    const score = document.createElement("span");
+
     rank.className = "leaderboard-rank";
-    main.className = "leaderboard-main";
+    body.className = "leaderboard-body";
+    top.className = "leaderboard-top";
     name.className = "leaderboard-name";
-    meta.className = "leaderboard-meta";
+    score.className = "leaderboard-score";
+    stats.className = "leaderboard-stats";
     time.className = "leaderboard-time";
     seed.className = "leaderboard-seed";
     seed.type = "button";
-    score.className = "leaderboard-score";
-    rank.textContent = `#${entry.rank}`;
-    name.textContent = entry.playerName;
+
     const escapeTime = formatTime(entry.durationMs / 1000);
+    rank.textContent = String(entry.rank);
+    name.textContent = entry.playerName;
+    name.title = `${entry.biome} · ${entry.difficulty}`;
+    score.textContent = entry.score.toLocaleString("en-US");
     time.textContent = escapeTime;
     seed.textContent = entry.seed;
     seed.title = COPY.leaderboard.playSeed(entry.seed);
@@ -463,11 +479,11 @@ function renderLeaderboard(entries: readonly LeaderboardEntry[]): void {
       event.preventDefault();
       startPlayWithSeed(entry.seed);
     });
-    meta.title = `${entry.biome} · ${entry.difficulty} · ${escapeTime} · seed ${entry.seed}`;
-    score.textContent = entry.score.toLocaleString("en-US");
-    meta.append(time, document.createTextNode(" · "), seed);
-    main.append(name, meta);
-    item.append(rank, main, score);
+
+    top.append(name, score);
+    stats.append(createLeaderboardStat("Time", time), createLeaderboardStat("Seed", seed));
+    body.append(top, stats);
+    item.append(rank, body);
     fragment.append(item);
   }
   elements.leaderboardList.replaceChildren(fragment);
