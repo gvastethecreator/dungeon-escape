@@ -4,11 +4,28 @@ import { ENEMY_DANGER_TIER } from "../game/DifficultyDirector";
 import type { EnemyKind } from "./EnemyArchetypes";
 import { ENEMY_ROSTER } from "./EnemySpriteAtlas";
 
+/**
+ * Chebyshev gap (in cells) between planned seats. Two enemies never share a
+ * tight corner of the same room when the interior still has free space.
+ */
+export const MIN_SPAWN_CELL_SEPARATION = 3;
+
 export interface PlannedEnemySpawn {
   cell: GridCell;
   tier: number;
   roomId: number;
   pass: number;
+}
+
+function markSpawnNeighborhood(used: Set<string>, cell: GridCell, separation: number): void {
+  const radius = Math.max(0, separation - 1);
+  for (let y = cell.y - radius; y <= cell.y + radius; y += 1) {
+    for (let x = cell.x - radius; x <= cell.x + radius; x += 1) {
+      if (Math.max(Math.abs(x - cell.x), Math.abs(y - cell.y)) <= radius) {
+        used.add(`${x},${y}`);
+      }
+    }
+  }
 }
 
 /**
@@ -85,8 +102,8 @@ export function buildDistributedEnemySpawns(
       attempts += 1;
       const cell = candidates.find((candidate) => !used.has(`${candidate.x},${candidate.y}`));
       if (!cell) continue;
-      const key = `${cell.x},${cell.y}`;
-      used.add(key);
+      // Reserve a neighborhood so later seats land farther apart than one tile.
+      markSpawnNeighborhood(used, cell, MIN_SPAWN_CELL_SEPARATION);
       const rank = rankById.get(room.id) ?? 0;
       // Opening seats stay basic. Every two later passes bumps the danger band
       // so reinforcements get stronger every couple of room pulses.

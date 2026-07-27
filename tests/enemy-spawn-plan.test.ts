@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 
 import {
+  MIN_SPAWN_CELL_SEPARATION,
   buildDistributedEnemySpawns,
   buildInitialRoomEnemyQuotas,
   selectEnemyKindsForSpawns,
@@ -49,6 +50,14 @@ describe("enemy spawn plan", () => {
     expect(first.slice(0, 3).every((spawn) => spawn.pass === 0)).toBe(true);
     expect(first.slice(3, 6).every((spawn) => spawn.pass === 1)).toBe(true);
     expect(first.every((spawn) => spawn.tier >= 0 && spawn.tier <= 4)).toBe(true);
+    for (let index = 0; index < first.length; index += 1) {
+      for (let other = index + 1; other < first.length; other += 1) {
+        const a = first[index]!.cell;
+        const b = first[other]!.cell;
+        const chebyshev = Math.max(Math.abs(a.x - b.x), Math.abs(a.y - b.y));
+        expect(chebyshev).toBeGreaterThanOrEqual(MIN_SPAWN_CELL_SEPARATION);
+      }
+    }
   });
 
   test("raises danger tiers every two later reinforcement passes", () => {
