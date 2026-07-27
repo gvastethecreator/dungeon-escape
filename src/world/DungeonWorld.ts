@@ -38,7 +38,8 @@ import {
   type SurfaceTheme,
 } from "./RoomSurfaceMaterials";
 import { createForgeChest, createForgeProp, getForgePropScale } from "./ForgePropFactory";
-import { createResolveFlask, setPickupOpacity } from "./ItemFactory";
+import { createResolveFlask, preparePickupOpacity, setPickupOpacity } from "./ItemFactory";
+import { PickupBurstPool } from "./PickupBurstPool";
 import {
   createCobwebGeometry,
   createCobwebMaterial,
@@ -72,10 +73,7 @@ import {
 } from "../game/DifficultyDirector";
 import { FIRE_LIGHT_TUNING, MAX_DYNAMIC_FIRE_LIGHTS } from "../systems/LightTuning";
 import { hasGridLineOfSight } from "./LightOcclusion";
-import {
-  HazardTileSystem,
-  type HazardSurfaceEffect,
-} from "./HazardTileSystem";
+import { HazardTileSystem, type HazardSurfaceEffect } from "./HazardTileSystem";
 import {
   collectRoomInteriorSeats,
   collectRoomWallSeats,
@@ -288,14 +286,6 @@ interface ChestActor {
   potion: PickupActor;
   opened: boolean;
   openness: number;
-}
-
-interface PickupBurst {
-  root: THREE.Group;
-  ring: THREE.Mesh<THREE.RingGeometry, THREE.MeshBasicMaterial>;
-  sparks: THREE.Points<THREE.BufferGeometry, THREE.PointsMaterial>;
-  age: number;
-  duration: number;
 }
 
 interface FireEffect {
@@ -753,7 +743,8 @@ export class DungeonWorld {
   private readonly doors: DoorActor[] = [];
   private readonly pickups: PickupActor[] = [];
   private readonly chests: ChestActor[] = [];
-  private readonly pickupBursts: PickupBurst[] = [];
+  private pickupBurstPool: PickupBurstPool | null = null;
+  private readonly pickupBurstWarmupPosition = new THREE.Vector3();
   private readonly fireEffects: FireEffect[] = [];
   private dynamicFireLightCount = 0;
   private readonly solidCells = new Map<string, GridCell>();
@@ -883,6 +874,10 @@ export class DungeonWorld {
     this.addAtmosphereProps(dungeon);
     this.addMarkers(dungeon);
     this.addActors(dungeon, stonePlacements);
+    const pickupBurstAnchor = gridToWorld(dungeon, dungeon.spawn, this.tileSize);
+    this.pickupBurstWarmupPosition.set(pickupBurstAnchor.x, 0.4, pickupBurstAnchor.z);
+    this.pickupBurstPool = new PickupBurstPool(4);
+    this.group.add(this.pickupBurstPool.root);
     this.applyMoodToPracticalLights(mood);
     this.stats.floorTiles = floorCells.length;
     this.stats.wallTiles = wallCells.length;
@@ -934,20 +929,11 @@ export class DungeonWorld {
       for (let index = 0; index < this.enemyReserve.length; index += 1) {
         const enemy = this.enemyReserve[index]!;
         if (immediate && !enemy.startsActive) continue;
-        if (
-          !isEnemyKindUnlocked(
-            enemy.kind,
-            this.difficultyElapsed,
-            this.difficultyState,
-          )
-        )
+        if (!isEnemyKindUnlocked(enemy.kind, this.difficultyElapsed, this.difficultyState))
           continue;
         const distance = Math.hypot(enemy.position.x - player.x, enemy.position.z - player.z);
         if (!immediate && distance < this.difficultyState.safeSpawnDistance) continue;
-        if (
-          !immediate &&
-          hasGridLineOfSight(this.dungeon, player, enemy.position, this.tileSize)
-        )
+        if (!immediate && hasGridLineOfSight(this.dungeon, player, enemy.position, this.tileSize))
           continue;
         candidates.push(index);
       }
@@ -1150,7 +1136,11 @@ export class DungeonWorld {
         pickup.object.scale.copy(pickup.baseScale).multiplyScalar(pop);
         pickup.object.rotation.y += delta * (2.8 + progress * 5);
         setPickupOpacity(pickup.object, 1 - progress);
-        if (progress >= 1) pickup.object.visible = false;
+        if (pickup.stoneSignal) pickup.stoneSignal.light.intensity = 0;
+        if (progress >= 1) {
+          if (pickup.kind === "stone") pickup.object.scale.setScalar(0.001);
+          else pickup.object.visible = false;
+        }
         continue;
       }
       if (!pickup.available) continue;
@@ -1169,7 +1159,7 @@ export class DungeonWorld {
       if (horizontalDistance(pickup.object.position, player) > 1.18) continue;
       pickup.collected = true;
       pickup.collectTime = 0;
-      this.spawnPickupBurst(pickup.object.position, pickup.kind);
+      this.pickupBurstPool?.trigger(pickup.object.position, pickup.kind);
       collectedPickup = {
         kind: pickup.kind,
         position: {
@@ -1179,6 +1169,7 @@ export class DungeonWorld {
         },
       };
       if (pickup.kind === "stone" && pickup.stoneId) {
+        if (pickup.stoneSignal) pickup.stoneSignal.light.intensity = 0;
         this.collectedStones.add(pickup.stoneId);
         collectedStoneId = pickup.stoneId;
         if (this.collectedStones.size >= STONE_ORDER.length) this.openPortal();
@@ -1187,7 +1178,7 @@ export class DungeonWorld {
       }
     }
 
-    this.updatePickupBursts(delta);
+    this.pickupBurstPool?.update(delta);
 
     if (this.portalRoot) {
       if (this.portalLight) {
@@ -1227,70 +1218,6 @@ export class DungeonWorld {
       reachedOpenExit: atExit && this.portalOpen,
       nearestThreat: Number.isFinite(nearestThreat) ? nearestThreat : null,
     };
-  }
-
-  private spawnPickupBurst(position: THREE.Vector3, kind: PickupActor["kind"]): void {
-    const color = kind === "resolve" ? 0xb52a3d : 0xc9b97b;
-    const root = new THREE.Group();
-    root.name = `${kind} pickup burst`;
-    root.position.copy(position);
-    const ring = new THREE.Mesh(
-      new THREE.RingGeometry(0.16, 0.21, 18),
-      new THREE.MeshBasicMaterial({
-        color,
-        transparent: true,
-        opacity: 0.72,
-        depthWrite: false,
-        blending: THREE.AdditiveBlending,
-        side: THREE.DoubleSide,
-        toneMapped: false,
-      }),
-    );
-    ring.name = "Pickup expanding ring";
-    ring.rotation.x = -Math.PI / 2;
-    const positions = new Float32Array(14 * 3);
-    for (let index = 0; index < 14; index += 1) {
-      const angle = (index / 14) * Math.PI * 2 + position.x * 0.17 + position.z * 0.11;
-      const radius = 0.12 + (index % 4) * 0.035;
-      positions[index * 3] = Math.cos(angle) * radius;
-      positions[index * 3 + 1] = 0.04 + (index % 5) * 0.035;
-      positions[index * 3 + 2] = Math.sin(angle) * radius;
-    }
-    const sparkGeometry = new THREE.BufferGeometry();
-    sparkGeometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
-    const sparks = new THREE.Points(
-      sparkGeometry,
-      new THREE.PointsMaterial({
-        color,
-        size: kind === "resolve" ? 0.075 : 0.06,
-        transparent: true,
-        opacity: 0.88,
-        depthWrite: false,
-        blending: THREE.AdditiveBlending,
-        sizeAttenuation: true,
-      }),
-    );
-    sparks.name = "Pickup rising sparks";
-    root.add(ring, sparks);
-    this.group.add(root);
-    this.pickupBursts.push({ root, ring, sparks, age: 0, duration: 0.56 });
-  }
-
-  private updatePickupBursts(delta: number): void {
-    for (let index = this.pickupBursts.length - 1; index >= 0; index -= 1) {
-      const burst = this.pickupBursts[index]!;
-      burst.age += delta;
-      const progress = THREE.MathUtils.clamp(burst.age / burst.duration, 0, 1);
-      const eased = 1 - Math.pow(1 - progress, 2);
-      burst.root.scale.setScalar(0.72 + eased * 1.9);
-      burst.root.position.y += delta * (0.34 + progress * 0.26);
-      burst.ring.material.opacity = (1 - progress) * 0.72;
-      burst.sparks.material.opacity = (1 - progress) * 0.88;
-      if (progress < 1) continue;
-      this.group.remove(burst.root);
-      disposeObject(burst.root);
-      this.pickupBursts.splice(index, 1);
-    }
   }
 
   private updateEnemyAnimationFrames(): void {
@@ -1398,6 +1325,10 @@ export class DungeonWorld {
     if (this.liquidKit) tickLiquidSections(this.liquidKit.surfaces, this.elapsed);
   }
 
+  setPickupEffectsWarmupVisible(visible: boolean): void {
+    this.pickupBurstPool?.setWarmupVisible(visible, this.pickupBurstWarmupPosition);
+  }
+
   /** True when all four magic stones are bound (portal open). */
   get hasRelic(): boolean {
     return this.portalOpen;
@@ -1421,10 +1352,12 @@ export class DungeonWorld {
       const collected = restored.has(pickup.stoneId);
       pickup.collected = collected;
       pickup.collectTime = collected ? 1 : 0;
-      pickup.object.visible = !collected;
+      pickup.object.visible = true;
       pickup.object.position.y = pickup.baseY;
-      pickup.object.scale.copy(pickup.baseScale);
-      setPickupOpacity(pickup.object, 1);
+      pickup.object.scale.copy(pickup.baseScale).multiplyScalar(collected ? 0.001 : 1);
+      setPickupOpacity(pickup.object, collected ? 0 : 1);
+      if (pickup.stoneSignal)
+        pickup.stoneSignal.light.intensity = collected ? 0 : pickup.stoneSignal.baseLightIntensity;
     }
     this.setPortalOpen(restored.size === STONE_ORDER.length);
   }
@@ -2484,6 +2417,7 @@ export class DungeonWorld {
     const anchor = new THREE.Vector3(0, 0.91, 0.02);
     kit.root.localToWorld(anchor);
     const item = createResolveFlask(this.materials);
+    preparePickupOpacity(item);
     item.name = "Resolve flask from chest";
     const baseScale = new THREE.Vector3(0.64, 0.64, 0.64);
     const baseY = anchor.y + 0.08;
@@ -3610,6 +3544,7 @@ export class DungeonWorld {
     stonePlacements.forEach((placement) => {
       const { stoneId } = placement;
       const stone = createMagicStone(stoneId, this.materials, this.stoneTextures.get(stoneId));
+      preparePickupOpacity(stone.root);
       const p = gridToWorld(dungeon, placement.cell, this.tileSize);
       stone.root.position.set(p.x + placement.offsetX, 0, p.z + placement.offsetZ);
       this.pickups.push({
@@ -3887,7 +3822,11 @@ export class DungeonWorld {
     this.doors.length = 0;
     this.pickups.length = 0;
     this.chests.length = 0;
-    this.pickupBursts.length = 0;
+    if (this.pickupBurstPool) {
+      this.group.remove(this.pickupBurstPool.root);
+      this.pickupBurstPool.dispose();
+      this.pickupBurstPool = null;
+    }
     this.fireEffects.length = 0;
     this.dynamicFireLightCount = 0;
     this.solidCells.clear();

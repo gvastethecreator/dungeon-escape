@@ -39,12 +39,7 @@ import { computeCriticalHealthFeel } from "./systems/CriticalHealthFeel";
 import { FrameGapProfiler, type FrameGapSnapshot } from "./systems/FrameGapProfiler";
 import { collectVisibleRenderInventory } from "./systems/RenderInventory";
 import { readVisualQaState } from "./systems/VisualQaState";
-import {
-  computePovFeel,
-  decayHitTrauma,
-  PovFeelState,
-  samplePovShake,
-} from "./systems/povFeel";
+import { computePovFeel, decayHitTrauma, PovFeelState, samplePovShake } from "./systems/povFeel";
 import { drawMinimap } from "./ui/drawMinimap";
 import { COPY, STONE_ORDER, formatTime, type StoneId } from "./ui/copy";
 import { createMinimapLayoutScheduler } from "./ui/minimapLayout";
@@ -419,12 +414,20 @@ function startRendererWarmup(sequence: number, readyMessage: string): void {
   window.requestAnimationFrame(() => {
     if (sequence !== renderWarmupSequence) return;
     const startedAt = performance.now();
+    world.setPickupEffectsWarmupVisible(true);
     void (async () => {
-      // Precompile both output paths used by the POV pass. The fixed light count
-      // then keeps the same shader set valid as the player crosses rooms.
-      await renderer.compileAsync(scene, camera);
-      await povPost.compileSceneAsync(renderer, scene, camera);
-      await povPost.compileAsync(renderer);
+      try {
+        // Precompile both output paths used by the POV pass. The fixed light count
+        // then keeps the same shader set valid as the player crosses rooms.
+        await renderer.compileAsync(scene, camera);
+        await povPost.compileSceneAsync(renderer, scene, camera);
+        await povPost.compileAsync(renderer);
+        // One locked-control draw uploads the pooled burst geometry as part of
+        // warmup, instead of doing that work in the stone collection frame.
+        povPost.render(renderer, scene, camera);
+      } finally {
+        world.setPickupEffectsWarmupVisible(false);
+      }
     })()
       .then(() => {
         if (sequence !== renderWarmupSequence) return;
@@ -677,7 +680,7 @@ function pushParamsToDomain(
   const result = domainBridge.setParams(params);
   if (result.ok) return true;
   setStatus(`${source}: ${result.error.message}`);
-    return false;
+  return false;
 }
 
 function applyDungeonDomainToForm(state: DungeonDomainState): void {
@@ -726,7 +729,7 @@ async function refreshRunSelect(): Promise<void> {
       err instanceof Error ? err.message : String(err),
     );
   }
-  }
+}
 
 function playCue(cue: AudioCue): void {
   void audio.unlock().then(() => audio.play(cue));
@@ -826,6 +829,8 @@ function triggerDamageFeedback(knockback: { x: number; z: number } | null): void
   else controller.applyKnockback(0, 0);
 }
 
+let pickupFeedbackAnimation: Animation | null = null;
+
 function showPickupFeedback(label: string, restoreResolve = false, stoneId?: StoneId): void {
   elements.pickupFeedbackText.textContent = label;
   elements.pickupFeedbackKicker.textContent = restoreResolve
@@ -836,9 +841,26 @@ function showPickupFeedback(label: string, restoreResolve = false, stoneId?: Sto
   elements.pickupFeedback.dataset.kind = restoreResolve ? "flask" : stoneId ? "stone" : "notice";
   if (stoneId) elements.pickupFeedback.dataset.stone = stoneId;
   else delete elements.pickupFeedback.dataset.stone;
-  elements.pickupFeedback.classList.remove("is-active");
-  void elements.pickupFeedback.offsetWidth;
   elements.pickupFeedback.classList.add("is-active");
+  pickupFeedbackAnimation?.cancel();
+  pickupFeedbackAnimation = elements.pickupFeedback.animate(
+    [
+      { opacity: 0, transform: "translate(-50%, 12px)", offset: 0 },
+      { opacity: 1, transform: "translate(-50%, 0)", offset: 0.14 },
+      { opacity: 1, transform: "translate(-50%, 0)", offset: 0.68 },
+      { opacity: 0, transform: "translate(-50%, -8px)", offset: 1 },
+    ],
+    {
+      duration: REDUCED_MOTION_QUERY.matches ? 1 : 900,
+      easing: "steps(8, end)",
+      fill: "both",
+    },
+  );
+  pickupFeedbackAnimation.addEventListener(
+    "finish",
+    () => elements.pickupFeedback.classList.remove("is-active"),
+    { once: true },
+  );
   if (restoreResolve) {
     elements.playVitals.classList.remove("is-restored");
     void elements.playVitals.offsetWidth;
