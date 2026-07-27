@@ -1686,7 +1686,6 @@ kbd {
 
 .pickup-feedback.is-active {
   visibility: visible;
-  animation: pickup-feedback 900ms steps(8) both;
 }
 
 .crt-overlay {
@@ -2262,22 +2261,6 @@ kbd {
   }
   65% {
     transform: translate(3px, -1px);
-  }
-}
-
-@keyframes pickup-feedback {
-  0% {
-    opacity: 0;
-    transform: translate(-50%, 12px);
-  }
-  14%,
-  68% {
-    opacity: 1;
-    transform: translate(-50%, 0);
-  }
-  100% {
-    opacity: 0;
-    transform: translate(-50%, -8px);
   }
 }
 
