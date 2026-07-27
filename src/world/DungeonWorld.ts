@@ -286,6 +286,8 @@ interface PickupActor {
   revealTime: number;
   baseY: number;
   baseScale: THREE.Vector3;
+  /** Chest rewards that activate after their reveal without a proximity check. */
+  autoCollect?: boolean;
   stoneSignal?: {
     light: THREE.PointLight;
     glow: THREE.Mesh;
@@ -309,7 +311,7 @@ interface ChestActor {
   id: string;
   root: THREE.Group;
   lid: THREE.Group;
-  potion: PickupActor;
+  reward: PickupActor;
   opened: boolean;
   openness: number;
 }
@@ -664,9 +666,19 @@ function nearestEnemyDistance(enemies: readonly EnemyActor[], player: THREE.Vect
 }
 
 export const CHEST_INTERACTION_DISTANCE = 1.9;
+export const PICKUP_COLLECTION_DISTANCE = 1.18;
+export type ChestRewardKind = "resolve" | "time-freeze" | "luminous-ward";
 
 export function canInteractWithChest(distance: number, opened: boolean): boolean {
   return !opened && Number.isFinite(distance) && distance <= CHEST_INTERACTION_DISTANCE;
+}
+
+export function chestRewardAutoActivates(kind: ChestRewardKind): boolean {
+  return kind === "time-freeze" || kind === "luminous-ward";
+}
+
+export function canCollectPickup(distance: number, autoCollect = false): boolean {
+  return autoCollect || (Number.isFinite(distance) && distance <= PICKUP_COLLECTION_DISTANCE);
 }
 
 function deterministicLosAge(phase: number): number {
@@ -1165,28 +1177,28 @@ export class DungeonWorld {
         delta,
       );
       chest.lid.rotation.x = -1.18 * chest.openness;
-      if (!chest.opened || chest.potion.available || chest.potion.collected) continue;
-      chest.potion.revealTime += delta;
-      const reveal = THREE.MathUtils.clamp(chest.potion.revealTime / 0.52, 0, 1);
+      if (!chest.opened || chest.reward.available || chest.reward.collected) continue;
+      chest.reward.revealTime += delta;
+      const reveal = THREE.MathUtils.clamp(chest.reward.revealTime / 0.52, 0, 1);
       const eased = 1 - Math.pow(1 - reveal, 3);
-      chest.potion.object.visible = true;
-      chest.potion.object.position.y = chest.potion.baseY - 0.34 + eased * 0.34;
-      chest.potion.object.rotation.y += delta * (2.2 + reveal * 2.4);
-      chest.potion.object.scale
-        .copy(chest.potion.baseScale)
+      chest.reward.object.visible = true;
+      chest.reward.object.position.y = chest.reward.baseY - 0.34 + eased * 0.34;
+      chest.reward.object.rotation.y += delta * (2.2 + reveal * 2.4);
+      chest.reward.object.scale
+        .copy(chest.reward.baseScale)
         .multiplyScalar(0.62 + eased * 0.38 + Math.sin(reveal * Math.PI) * 0.16);
       if (reveal >= 1) {
-        chest.potion.available = true;
-        chest.potion.object.scale.copy(chest.potion.baseScale);
+        chest.reward.available = true;
+        chest.reward.object.scale.copy(chest.reward.baseScale);
       }
     }
     if (nearestChest) {
       interactionPrompt = "open-chest";
       if (interactPressed) {
         nearestChest.opened = true;
-        nearestChest.potion.revealTime = 0;
-        nearestChest.potion.object.visible = true;
-        nearestChest.potion.object.position.y = nearestChest.potion.baseY - 0.34;
+        nearestChest.reward.revealTime = 0;
+        nearestChest.reward.object.visible = true;
+        nearestChest.reward.object.position.y = nearestChest.reward.baseY - 0.34;
         chestSound = {
           position: {
             x: nearestChest.root.position.x,
@@ -1242,7 +1254,8 @@ export class DungeonWorld {
         }
         pickup.stoneSignal.crown.scale.setScalar(0.96 + pulse * 0.08);
       }
-      if (horizontalDistance(pickup.object.position, player) > 1.18) continue;
+      if (!canCollectPickup(horizontalDistance(pickup.object.position, player), pickup.autoCollect))
+        continue;
       pickup.collected = true;
       pickup.collectTime = 0;
       this.pickupBurstPool?.trigger(pickup.object.position, pickup.kind);
@@ -1508,10 +1521,10 @@ export class DungeonWorld {
       .filter((pickup) => pickup.kind === "resolve" && pickup.available && !pickup.collected)
       .map((pickup) => toCell(pickup.object.position));
     const timeFreeze = this.pickups.find(
-      (pickup) => pickup.kind === "time-freeze" && pickup.available && !pickup.collected,
+      (pickup) => pickup.kind === "time-freeze" && !pickup.collected,
     );
     const luminousWard = this.pickups.find(
-      (pickup) => pickup.kind === "luminous-ward" && pickup.available && !pickup.collected,
+      (pickup) => pickup.kind === "luminous-ward" && !pickup.collected,
     );
     return {
       doors,
@@ -2517,9 +2530,15 @@ export class DungeonWorld {
     );
   }
 
-  private addInteractiveChest(dungeon: DungeonData, prop: ForgePropMetadata): void {
+  private addInteractiveChest(
+    dungeon: DungeonData,
+    prop: ForgePropMetadata,
+    rewardKind: ChestRewardKind = "resolve",
+  ): void {
     const kit = createForgeChest(this.materials);
-    kit.root.name = `Potion chest ${prop.x},${prop.y}`;
+    kit.root.name = `${rewardKind} chest ${prop.x},${prop.y}`;
+    kit.root.userData.rewardKind = rewardKind;
+    kit.root.userData.autoActivatesReward = chestRewardAutoActivates(rewardKind);
     this.forgePropRootMatrix(dungeon, prop).decompose(
       kit.root.position,
       kit.root.quaternion,
@@ -2531,16 +2550,23 @@ export class DungeonWorld {
 
     const anchor = new THREE.Vector3(0, 0.91, 0.02);
     kit.root.localToWorld(anchor);
-    const item = createResolveFlask(this.materials);
+    const item =
+      rewardKind === "time-freeze"
+        ? createTimeFreezeRelic(this.materials)
+        : rewardKind === "luminous-ward"
+          ? createLuminousWardStone(this.materials)
+          : createResolveFlask(this.materials);
     preparePickupOpacity(item);
-    item.name = "Resolve flask from chest";
-    const baseScale = new THREE.Vector3(0.64, 0.64, 0.64);
+    item.name = `${rewardKind} reward from chest`;
+    const rewardScale =
+      rewardKind === "resolve" ? 0.64 : rewardKind === "time-freeze" ? 0.54 : 0.52;
+    const baseScale = new THREE.Vector3(rewardScale, rewardScale, rewardScale);
     const baseY = anchor.y + 0.08;
     item.position.set(anchor.x, baseY - 0.34, anchor.z);
     item.scale.copy(baseScale);
     item.visible = false;
-    const potion: PickupActor = {
-      kind: "resolve",
+    const reward: PickupActor = {
+      kind: rewardKind,
       object: item,
       collected: false,
       collectTime: 0,
@@ -2548,13 +2574,27 @@ export class DungeonWorld {
       revealTime: 0,
       baseY,
       baseScale,
+      autoCollect: chestRewardAutoActivates(rewardKind),
     };
-    this.pickups.push(potion);
+    if (rewardKind === "time-freeze") {
+      reward.timeFreezeSignal = {
+        light: item.getObjectByName("Time freeze pickup light") as THREE.PointLight,
+        baseIntensity: 1.35,
+      };
+    } else if (rewardKind === "luminous-ward") {
+      reward.luminousWardSignal = {
+        light: item.getObjectByName("Luminous ward pickup light") as THREE.PointLight,
+        glow: item.getObjectByName("Luminous ward pickup halo") as THREE.Mesh,
+        baseIntensity: 2.2,
+        baseGlowOpacity: 0.28,
+      };
+    }
+    this.pickups.push(reward);
     this.chests.push({
       id: `${dungeon.seedHash}:${prop.x},${prop.y}`,
       root: kit.root,
       lid: kit.lid,
-      potion,
+      reward,
       opened: false,
       openness: 0,
     });
@@ -3708,7 +3748,8 @@ export class DungeonWorld {
     let timeFreezeCell: GridCell | null = null;
     if (freezeRoom) {
       const candidates = collectRoomInteriorSeats(dungeon, freezeRoom).filter(
-        (cell) => !pickupExcluded.has(`${cell.x},${cell.y}`),
+        (cell) =>
+          !pickupExcluded.has(`${cell.x},${cell.y}`) && !isProtectedTraversalCell(dungeon, cell),
       );
       timeFreezeCell =
         pickSpreadSeats(candidates, 1, dungeon.seedHash + freezeRoom.id * 43)[0] ??
@@ -3728,28 +3769,19 @@ export class DungeonWorld {
     if (timeFreezeCell) {
       pickupExcluded.add(`${timeFreezeCell.x},${timeFreezeCell.y}`);
       this.objectiveClearanceCells.add(`${timeFreezeCell.x},${timeFreezeCell.y}`);
-      const relic = createTimeFreezeRelic(this.materials);
-      preparePickupOpacity(relic);
-      const p = gridToWorld(dungeon, timeFreezeCell, this.tileSize);
-      relic.position.set(p.x, 0, p.z);
-      const baseScale = new THREE.Vector3(0.72, 0.72, 0.72);
-      relic.scale.copy(baseScale);
-      this.pickups.push({
-        kind: "time-freeze",
-        object: relic,
-        collected: false,
-        collectTime: 0,
-        available: true,
-        revealTime: 1,
-        baseY: 0,
-        baseScale,
-        timeFreezeSignal: {
-          light: relic.getObjectByName("Time freeze pickup light") as THREE.PointLight,
-          baseIntensity: 1.35,
+      this.addInteractiveChest(
+        dungeon,
+        {
+          kind: "chest",
+          x: timeFreezeCell.x,
+          y: timeFreezeCell.y,
+          roomId: freezeRoom?.id ?? -1,
+          rot: ((dungeon.seedHash + timeFreezeCell.x * 3 + timeFreezeCell.y) % 4) * (Math.PI / 2),
+          scale: 0.92,
+          v: (freezeRoom?.id ?? 0) % 3,
         },
-      });
-      this.group.add(relic);
-      this.stats.props += 1;
+        "time-freeze",
+      );
     }
 
     const wardRooms = rankedRooms.filter((room) => !stoneRoomSet.has(room) && room !== freezeRoom);
@@ -3780,30 +3812,20 @@ export class DungeonWorld {
     if (luminousWardCell) {
       pickupExcluded.add(`${luminousWardCell.x},${luminousWardCell.y}`);
       this.objectiveClearanceCells.add(`${luminousWardCell.x},${luminousWardCell.y}`);
-      const ward = createLuminousWardStone(this.materials);
-      preparePickupOpacity(ward);
-      const p = gridToWorld(dungeon, luminousWardCell, this.tileSize);
-      ward.position.set(p.x, 0, p.z);
-      const baseScale = new THREE.Vector3(0.78, 0.78, 0.78);
-      ward.scale.copy(baseScale);
-      this.pickups.push({
-        kind: "luminous-ward",
-        object: ward,
-        collected: false,
-        collectTime: 0,
-        available: true,
-        revealTime: 1,
-        baseY: 0,
-        baseScale,
-        luminousWardSignal: {
-          light: ward.getObjectByName("Luminous ward pickup light") as THREE.PointLight,
-          glow: ward.getObjectByName("Luminous ward pickup halo") as THREE.Mesh,
-          baseIntensity: 2.2,
-          baseGlowOpacity: 0.28,
+      this.addInteractiveChest(
+        dungeon,
+        {
+          kind: "chest",
+          x: luminousWardCell.x,
+          y: luminousWardCell.y,
+          roomId: wardRoom?.id ?? -1,
+          rot:
+            ((dungeon.seedHash + luminousWardCell.x + luminousWardCell.y * 5) % 4) * (Math.PI / 2),
+          scale: 0.92,
+          v: (wardRoom?.id ?? 0) % 3,
         },
-      });
-      this.group.add(ward);
-      this.stats.props += 1;
+        "luminous-ward",
+      );
     }
 
     const authoredSpawns = dungeon.forge?.spawns.length

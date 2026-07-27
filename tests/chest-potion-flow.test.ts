@@ -1,7 +1,13 @@
 import { describe, expect, test } from "bun:test";
 import * as THREE from "three";
 
-import { canInteractWithChest, CHEST_INTERACTION_DISTANCE } from "../src/world/DungeonWorld";
+import {
+  canCollectPickup,
+  canInteractWithChest,
+  chestRewardAutoActivates,
+  CHEST_INTERACTION_DISTANCE,
+  PICKUP_COLLECTION_DISTANCE,
+} from "../src/world/DungeonWorld";
 import { createForgeChest } from "../src/world/ForgePropFactory";
 import { createResolveFlask } from "../src/world/ItemFactory";
 import { createDungeonMaterials } from "../src/world/MaterialLibrary";
@@ -12,6 +18,15 @@ describe("chest potion flow", () => {
     expect(canInteractWithChest(CHEST_INTERACTION_DISTANCE + 0.001, false)).toBe(false);
     expect(canInteractWithChest(0.5, true)).toBe(false);
     expect(canInteractWithChest(Number.NaN, false)).toBe(false);
+  });
+
+  test("automatically collects and activates both power rewards after their chest reveal", () => {
+    expect(chestRewardAutoActivates("time-freeze")).toBe(true);
+    expect(chestRewardAutoActivates("luminous-ward")).toBe(true);
+    expect(chestRewardAutoActivates("resolve")).toBe(false);
+    expect(canCollectPickup(Number.POSITIVE_INFINITY, true)).toBe(true);
+    expect(canCollectPickup(PICKUP_COLLECTION_DISTANCE, false)).toBe(true);
+    expect(canCollectPickup(PICKUP_COLLECTION_DISTANCE + 0.001, false)).toBe(false);
   });
 
   test("keeps the lid on a real rear hinge for the open animation", () => {
