@@ -119,6 +119,7 @@ const THEMES = {
     flameCore: 0xfff3c8,
     torchLight: [0xff8c3a, 1.5, 9.5],
     cloth: 0x7d2c26,
+    corridorArc: 0.28,
     pools: null,
     particles: { kind: 0, color: 0xaab4cc, n: 110 },
     nameA: ["Sunken", "Forgotten", "Silent", "Hollow", "Elder", "Broken", "Nameless", "Fallen"],
@@ -151,6 +152,7 @@ const THEMES = {
     flameCore: 0xffe9b0,
     torchLight: [0xff7326, 1.7, 10],
     cloth: 0x7d2416,
+    corridorArc: 0.18,
     pools: { mode: 0, colA: 0x2b0d05, colB: 0xff5a1f, glow: 1.55, amount: 0.16, pits: 2 },
     particles: { kind: 1, color: 0xffa050, n: 240 },
     nameA: [
@@ -183,6 +185,7 @@ const THEMES = {
     flameCore: 0xe8f7ff,
     torchLight: [0x6fc4ff, 1.35, 9.5],
     cloth: 0x2b4d70,
+    corridorArc: 0.46,
     pools: { mode: 1, colA: 0x4a86c0, colB: 0xbfe4ff, glow: 0.55, amount: 0 },
     lakes: true,
     icicles: true,
@@ -226,6 +229,7 @@ const THEMES = {
     flameCore: 0xe9ffd0,
     torchLight: [0x77d94a, 1.35, 9],
     cloth: 0x33461f,
+    corridorArc: 0.5,
     pools: { mode: 3, colA: 0x0a1207, colB: 0x41602c, glow: 0.6, amount: 0.05, pits: 1 },
     graveyards: true,
     bones: true,
@@ -260,6 +264,7 @@ const THEMES = {
     flameCore: 0xe6fff0,
     torchLight: [0x4ad98e, 1.3, 9],
     cloth: 0x1f5038,
+    corridorArc: 0.58,
     pools: { mode: 2, colA: 0x0c3532, colB: 0x2fa38a, glow: 0.6, amount: 0.05, pits: 1 },
     roots: true,
     shafts: true,
@@ -303,6 +308,7 @@ const THEMES = {
     flameCore: 0xffd0b3,
     torchLight: [0xd95855, 1.3, 8.6],
     cloth: 0x5f1f3b,
+    corridorArc: 0.36,
     pools: { mode: 0, colA: 0x180713, colB: 0x8f2949, glow: 0.72, amount: 0.05, pits: 1 },
     particles: { kind: 1, color: 0xc17d9c, n: 180 },
     nameA: ["Glassbound", "Black", "Shattered", "Violet", "Riven", "Jagged", "Burned"],
@@ -326,6 +332,7 @@ const THEMES = {
     flameCore: 0xd9fff6,
     torchLight: [0x54b8ae, 1.2, 9.2],
     cloth: 0x1f4d4b,
+    corridorArc: 0.42,
     pools: { mode: 2, colA: 0x092e32, colB: 0x287b78, glow: 0.38, amount: 0.11, pits: 2 },
     lakes: true,
     particles: { kind: 2, color: 0x8bc4b5, n: 210 },
@@ -350,6 +357,7 @@ const THEMES = {
     flameCore: 0xdffff8,
     torchLight: [0x4ccab1, 1.25, 8.8],
     cloth: 0x492551,
+    corridorArc: 0.56,
     pools: { mode: 3, colA: 0x150b19, colB: 0x3e766f, glow: 0.58, amount: 0.06, pits: 1 },
     roots: true,
     particles: { kind: 4, color: 0x78d6c0, n: 250 },
@@ -375,6 +383,7 @@ const THEMES = {
     flameCore: 0xffffd5,
     torchLight: [0xe1d99b, 1.15, 9.4],
     cloth: 0x6b633b,
+    corridorArc: 0.04,
     pools: null,
     particles: { kind: 0, color: 0xcfc58a, n: 105 },
     nameA: ["Endless", "Vacant", "Yellow", "Flickering", "Stagnant", "Lost", "Silent"],
@@ -899,6 +908,45 @@ function tryGenerate(seed, params) {
     const o = offs(w);
     for (let y = Math.min(y0, y1); y <= Math.max(y0, y1); y++) for (const k of o) stamp(x + k, y);
   };
+  const carveManhattan = (from, to, w) => {
+    if (from.x !== to.x) hLine(from.x, to.x, from.y, w);
+    if (from.y !== to.y) vLine(from.y, to.y, to.x, w);
+  };
+  const roundedCorridor = (A, B, w, horizontalFirst) => {
+    const dx = B.cx - A.cx,
+      dy = B.cy - A.cy;
+    if (!dx || !dy) {
+      carveManhattan({ x: A.cx, y: A.cy }, { x: B.cx, y: B.cy }, w);
+      return;
+    }
+    const sx = Math.sign(dx),
+      sy = Math.sign(dy),
+      turnRadius = Math.min(3, Math.max(1, Math.floor(Math.min(Math.abs(dx), Math.abs(dy)) / 3)));
+    const startAngle = horizontalFirst ? -sy * (Math.PI / 2) : sx > 0 ? Math.PI : 0;
+    const sweep = horizontalFirst ? sx * sy * (Math.PI / 2) : -sx * sy * (Math.PI / 2);
+    const center = horizontalFirst
+      ? { x: B.cx - sx * turnRadius, y: A.cy + sy * turnRadius }
+      : { x: A.cx + sx * turnRadius, y: B.cy - sy * turnRadius };
+    const entry = horizontalFirst
+      ? { x: B.cx - sx * turnRadius, y: A.cy }
+      : { x: A.cx, y: B.cy - sy * turnRadius };
+    const exit = horizontalFirst
+      ? { x: B.cx, y: A.cy + sy * turnRadius }
+      : { x: A.cx + sx * turnRadius, y: B.cy };
+    carveManhattan({ x: A.cx, y: A.cy }, entry, w);
+    let previous = entry;
+    for (let step = 1; step <= 8; step++) {
+      const angle = startAngle + (sweep * step) / 8;
+      const point = {
+        x: Math.round(center.x + Math.cos(angle) * turnRadius),
+        y: Math.round(center.y + Math.sin(angle) * turnRadius),
+      };
+      carveManhattan(previous, point, w);
+      previous = point;
+    }
+    carveManhattan(previous, exit, w);
+    carveManhattan(exit, { x: B.cx, y: B.cy }, w);
+  };
 
   for (const e of edges) {
     const A = rooms[e.a],
@@ -924,12 +972,17 @@ function tryGenerate(seed, params) {
         (Math.max(A.cy - A.h / 2, B.cy - B.h / 2) + Math.min(A.cy + A.h / 2, B.cy + B.h / 2)) / 2,
       );
       hLine(A.cx, B.cx, y, w);
-    } else if (rng.chance(0.5)) {
-      hLine(A.cx, B.cx, A.cy, w);
-      vLine(A.cy, B.cy, B.cx, w);
     } else {
-      vLine(A.cy, B.cy, A.cx, w);
-      hLine(A.cx, B.cx, B.cy, w);
+      const horizontalFirst = rng.chance(0.5);
+      if (Math.min(dx, dy) >= 3 && rng.chance(TH.corridorArc ?? 0.34)) {
+        roundedCorridor(A, B, w, horizontalFirst);
+      } else if (horizontalFirst) {
+        hLine(A.cx, B.cx, A.cy, w);
+        vLine(A.cy, B.cy, B.cx, w);
+      } else {
+        vLine(A.cy, B.cy, A.cx, w);
+        hLine(A.cx, B.cx, B.cy, w);
+      }
     }
   }
 
@@ -2551,7 +2604,10 @@ GEO.pillar = mergeGeos([
   xg(chamferBox(0.55, 0.14, 0.55, 0.03), 0, 1.72, 0, 0, 0, 0, 1),
 ]);
 GEO.archPost = chamferBox(0.24, 1.74, 0.24, 0.045);
-GEO.archLintel = chamferBox(1, 0.22, 0.36, 0.05);
+GEO.archLintel = mergeGeos([
+  xg(new THREE.TorusGeometry(0.46, 0.11, 5, 14, Math.PI), 0, -0.15, 0, 0, 0, 0, 1),
+  xg(new THREE.BoxGeometry(0.86, 0.14, 0.36), 0, -0.16, 0, 0, 0, 0, 1),
+]);
 GEO.torch = mergeGeos([
   xg(new THREE.BoxGeometry(0.07, 0.36, 0.07), 0, 0.16, 0.07, -0.42, 0, 0, 1),
   xg(new THREE.CylinderGeometry(0.11, 0.05, 0.16, 7), 0, 0.36, 0.15, 0, 0, 0, 1),
