@@ -15,6 +15,7 @@
     "lint": "oxlint .",
     "fmt": "oxfmt .",
     "fmt:check": "oxfmt --check .",
+    "audit:enemy-atlases": "python scripts/audit-enemy-atlases-v8.py --write-package-metadata",
     "generate:biome-textures": "bun run scripts/generate-biome-textures.ts",
     "bake:biome-pbr": ".venv-pbr\\Scripts\\python.exe scripts/bake-biome-pbr.py",
     "db:migrate:local": "wrangler d1 migrations apply LEADERBOARD_DB --local",

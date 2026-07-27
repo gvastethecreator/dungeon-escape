@@ -1,0 +1,94 @@
+{
+  "version": 1,
+  "kind": "biome-enemy-source-assignments",
+  "source_type": "imported-existing-art",
+  "raw_sources_are_immutable": true,
+  "raw_root": "_src/strips-biome",
+  "assignment_semantics": "destination biome -> raw source folder",
+  "moods": [
+    "ancient",
+    "molten",
+    "frost",
+    "grim",
+    "verdant",
+    "ash",
+    "iron",
+    "obsidian",
+    "sunken",
+    "fungal",
+    "backrooms"
+  ],
+  "roster": [
+    "carrion",
+    "goblin",
+    "ghost",
+    "ratling",
+    "husk",
+    "imp",
+    "zombie-orc",
+    "spider",
+    "bone-slime",
+    "white-eyed-shadow",
+    "carrion-stalker"
+  ],
+  "default_source_folder": "same-as-destination",
+  "overrides": {
+    "carrion": {
+      "molten": "fungal",
+      "frost": "grim",
+      "grim": "sunken",
+      "iron": "molten",
+      "sunken": "iron",
+      "fungal": "frost"
+    },
+    "ghost": {
+      "ancient": "obsidian",
+      "verdant": "ancient",
+      "obsidian": "verdant"
+    },
+    "ratling": {
+      "molten": "iron",
+      "iron": "molten"
+    },
+    "imp": {
+      "grim": "sunken",
+      "verdant": "ash",
+      "ash": "grim",
+      "sunken": "verdant"
+    },
+    "zombie-orc": {
+      "iron": "sunken",
+      "sunken": "fungal",
+      "fungal": "iron"
+    },
+    "spider": {
+      "ancient": "grim",
+      "grim": "ancient",
+      "ash": "obsidian",
+      "obsidian": "ash"
+    },
+    "bone-slime": {
+      "ancient": "sunken",
+      "verdant": "ancient",
+      "sunken": "verdant"
+    },
+    "white-eyed-shadow": {
+      "ancient": "fungal",
+      "iron": "sunken",
+      "sunken": "ancient",
+      "fungal": "iron"
+    },
+    "carrion-stalker": {
+      "ancient": "sunken",
+      "grim": "verdant",
+      "verdant": "grim",
+      "sunken": "ancient"
+    }
+  },
+  "review_basis": [
+    ".scratch/enemies-v8/DETAIL-CONTRACT.md",
+    ".scratch/enemies-v8/RADICAL-PROMPTS.md",
+    ".scratch/enemies-v8/audit/roster-first-frames.png"
+  ],
+  "notes": "The raw folders preserve the import layout. This map corrects biome placement without renaming or deleting source files."
+}
