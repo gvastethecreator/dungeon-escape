@@ -107,6 +107,7 @@ import {
 } from "./LiquidSectionKit";
 import { createSpecialRoomSignals } from "./SpecialRoomSignalKit";
 import { getBiomeDecorationProfile } from "./BiomeDecorationProfile";
+import { WALL_DECOR_COUNT } from "./WallDecorSlots";
 
 export { knockbackAwayFrom } from "./knockback";
 
@@ -2520,21 +2521,41 @@ export class DungeonWorld {
 
   private registerSolidBounds(bounds: THREE.Box3, cell: GridCell): void {
     if (bounds.isEmpty()) return;
+    // Inset the solid slightly so decorative edges and fat AABBs do not glue the
+    // player to a prop after a jump. Keep a usable core for low crates/benches.
+    const inset = 0.05;
+    let minX = bounds.min.x + inset;
+    let maxX = bounds.max.x - inset;
+    let minZ = bounds.min.z + inset;
+    let maxZ = bounds.max.z - inset;
+    if (maxX - minX < 0.14) {
+      const cx = (bounds.min.x + bounds.max.x) * 0.5;
+      minX = cx - 0.07;
+      maxX = cx + 0.07;
+    }
+    if (maxZ - minZ < 0.14) {
+      const cz = (bounds.min.z + bounds.max.z) * 0.5;
+      minZ = cz - 0.07;
+      maxZ = cz + 0.07;
+    }
+    const minY = bounds.min.y;
+    // Slightly lower than visual max so feet clear the bulk of jumpable props.
+    const maxY = Math.max(minY + 0.1, bounds.max.y - 0.05);
     this.solidCells.set(`${cell.x},${cell.y}`, { ...cell });
     this.solidColliders.push({
-      minX: bounds.min.x,
-      maxX: bounds.max.x,
-      minY: bounds.min.y,
-      maxY: bounds.max.y,
-      minZ: bounds.min.z,
-      maxZ: bounds.max.z,
+      minX,
+      maxX,
+      minY,
+      maxY,
+      minZ,
+      maxZ,
     });
-    if (bounds.max.y > 0.14) {
+    if (maxY > 0.14) {
       this.staticContactShadowPlacements.push({
-        x: (bounds.min.x + bounds.max.x) * 0.5,
-        z: (bounds.min.z + bounds.max.z) * 0.5,
-        width: bounds.max.x - bounds.min.x,
-        depth: bounds.max.z - bounds.min.z,
+        x: (minX + maxX) * 0.5,
+        z: (minZ + maxZ) * 0.5,
+        width: maxX - minX,
+        depth: maxZ - minZ,
       });
     }
   }
@@ -3148,12 +3169,8 @@ export class DungeonWorld {
     random: ReturnType<typeof createSeededRandom>,
   ): void {
     const profile = getBiomeDecorationProfile(this.activeMood.id);
-    const placements: Array<Array<{ seat: ReturnType<typeof collectRoomWallSeats>[number] }>> = [
-      [],
-      [],
-      [],
-      [],
-    ];
+    const placements: Array<Array<{ seat: ReturnType<typeof collectRoomWallSeats>[number] }>> =
+      Array.from({ length: WALL_DECOR_COUNT }, () => []);
     const occupied = new Set<string>();
     for (const room of dungeon.rooms) {
       if (room.role !== "room") continue;
@@ -3165,13 +3182,15 @@ export class DungeonWorld {
       if (seats.length === 0) continue;
       const area = room.width * room.height;
       const count = Math.min(
-        3,
-        Math.max(1, Math.round((area / 42) * this.decorDensity * profile.wallDecorDensity)),
+        4,
+        Math.max(1, Math.round((area / 38) * this.decorDensity * profile.wallDecorDensity)),
       );
       const selected = pickSpreadSeats(seats, count, dungeon.seedHash + room.id * 41);
       selected.forEach((seat, index) => {
         occupied.add(`${seat.cell.x},${seat.cell.y}`);
-        const frame = Math.abs(room.id * 3 + index + Math.floor(random.next() * 4)) % 4;
+        const frame =
+          Math.abs(room.id * 7 + index * 3 + Math.floor(random.next() * WALL_DECOR_COUNT)) %
+          WALL_DECOR_COUNT;
         placements[frame]!.push({ seat });
       });
     }
@@ -3179,15 +3198,17 @@ export class DungeonWorld {
     for (const [frame, cells] of placements.entries()) {
       if (cells.length === 0) continue;
       const textures = this.assets.biomeWallDecorPbr(this.activeMood.id, frame);
+      // Paintings/reliefs read fully lit; cracks/stains stay slightly subdued.
+      const litSlots = frame <= 1 || frame === 18 || frame === 12 || frame === 4;
       const material = createWallSpriteMaterial(
         textures,
         this.activeMood,
         profile.doorRoughness + 0.04,
-        frame < 2 ? 1 : 0.76,
+        litSlots ? 1 : 0.78,
       );
-      material.polygonOffset = frame >= 2;
-      material.polygonOffsetFactor = frame >= 2 ? -3 : 0;
-      material.polygonOffsetUnits = frame >= 2 ? -3 : 0;
+      material.polygonOffset = !litSlots;
+      material.polygonOffsetFactor = !litSlots ? -3 : 0;
+      material.polygonOffsetUnits = !litSlots ? -3 : 0;
       const spriteSize = 1.72 * profile.wallDecorScale;
       const geometry = new THREE.PlaneGeometry(spriteSize, spriteSize);
       const batch = new THREE.InstancedMesh(geometry, material, cells.length);

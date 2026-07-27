@@ -59,6 +59,19 @@ export function overlapsColliderHeight(
   return verticalRange.maxY > colliderMinY && verticalRange.minY < colliderMaxY;
 }
 
+/**
+ * True when the capsule feet have cleared the top of a finite-height prop.
+ * Full-height blockers (missing maxY) never vault.
+ */
+export function feetClearColliderTop(
+  collider: WorldCollider,
+  feetY: number,
+  margin = 0.05,
+): boolean {
+  if (collider.maxY === undefined || !Number.isFinite(collider.maxY)) return false;
+  return feetY >= collider.maxY - margin;
+}
+
 export function gridToWorld(dungeon: DungeonGrid, cell: GridCell, tileSize: number): WorldPoint {
   return {
     x: (cell.x - (dungeon.width - 1) / 2) * tileSize,
