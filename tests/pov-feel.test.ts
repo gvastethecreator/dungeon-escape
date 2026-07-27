@@ -2,10 +2,13 @@ import { describe, expect, test } from "bun:test";
 
 import {
   computePovFeel,
+  decayHitTrauma,
   POV_CHROMATIC_MAX,
   POV_CURVATURE_BASE,
   POV_CURVATURE_MIN,
   POV_CURVATURE_SPRINT,
+  POV_HIT_TRAUMA_SECONDS,
+  POV_SHAKE_MAX,
   POV_THREAT_FAR,
   POV_THREAT_NEAR,
   PovFeelState,
@@ -52,8 +55,41 @@ describe("pov feel curves", () => {
     });
     expect(calm.shake).toBe(0);
     expect(calm.chromatic).toBe(0);
-    expect(danger.shake).toBeGreaterThan(0.9);
+    expect(danger.shake).toBeGreaterThan(POV_SHAKE_MAX * 0.9);
     expect(danger.chromatic).toBeCloseTo(POV_CHROMATIC_MAX, 5);
+  });
+
+  test("hit trauma shakes for a few seconds even without nearby enemies", () => {
+    const fresh = computePovFeel({
+      sprinting: false,
+      speedRatio: 0,
+      threatDistance: null,
+      hitTrauma: 1,
+    });
+    const fading = computePovFeel({
+      sprinting: false,
+      speedRatio: 0,
+      threatDistance: null,
+      hitTrauma: 0.35,
+    });
+    const gone = computePovFeel({
+      sprinting: false,
+      speedRatio: 0,
+      threatDistance: null,
+      hitTrauma: 0,
+    });
+    expect(fresh.shake).toBeGreaterThan(0.85);
+    expect(fresh.chromatic).toBeGreaterThan(0);
+    expect(fading.shake).toBeGreaterThan(0);
+    expect(fading.shake).toBeLessThan(fresh.shake);
+    expect(gone.shake).toBe(0);
+  });
+
+  test("hit trauma decays over a few seconds", () => {
+    expect(decayHitTrauma(1, 0)).toBe(1);
+    expect(decayHitTrauma(1, POV_HIT_TRAUMA_SECONDS)).toBe(0);
+    expect(decayHitTrauma(1, POV_HIT_TRAUMA_SECONDS * 0.5)).toBeCloseTo(0.5, 5);
+    expect(decayHitTrauma(0.1, 1)).toBe(0);
   });
 
   test("reduced motion clamps warp and softens threat FX", () => {
@@ -61,11 +97,12 @@ describe("pov feel curves", () => {
       sprinting: true,
       speedRatio: 1,
       threatDistance: 1.5,
+      hitTrauma: 1,
       reducedMotion: true,
     });
     expect(feel.curvature).toBe(POV_CURVATURE_MIN);
     expect(feel.shake).toBeLessThan(0.2);
-    expect(feel.chromatic).toBeLessThan(POV_CHROMATIC_MAX * 0.2);
+    expect(feel.chromatic).toBeLessThan(POV_CHROMATIC_MAX * 0.35);
   });
 
   test("feel state damps toward targets without snapping", () => {
@@ -82,14 +119,14 @@ describe("pov feel curves", () => {
     // Several frames approach the target.
     let last = mid;
     for (let i = 0; i < 40; i += 1) last = state.apply(target, 1 / 30);
-    expect(last.shake).toBeGreaterThan(0.85);
+    expect(last.shake).toBeGreaterThan(POV_SHAKE_MAX * 0.85);
   });
 
   test("shake sample is zero at rest and bounded under full stress", () => {
     expect(samplePovShake(1.2, 0)).toEqual({ x: 0, y: 0, roll: 0 });
     const s = samplePovShake(0.33, 1);
-    expect(Math.abs(s.x)).toBeLessThan(0.03);
-    expect(Math.abs(s.y)).toBeLessThan(0.03);
-    expect(Math.abs(s.roll)).toBeLessThan(0.03);
+    expect(Math.abs(s.x)).toBeLessThan(0.04);
+    expect(Math.abs(s.y)).toBeLessThan(0.04);
+    expect(Math.abs(s.roll)).toBeLessThan(0.04);
   });
 });

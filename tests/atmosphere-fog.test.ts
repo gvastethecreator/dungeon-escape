@@ -110,6 +110,27 @@ describe("soft ground fog", () => {
     atmosphere.dispose();
   });
 
+  test("ceiling precipitation spawns near the slab and uses drip motion", () => {
+    const scene = new THREE.Scene();
+    const atmosphere = new AtmosphereSystem(scene, 2.4, SOFT_FOG_DEFAULT_WALL_HEIGHT);
+    atmosphere.setDungeon(generateDungeon("CEIL-DRIP", { roomTarget: 10 }), getDungeonMood("grim"));
+    const profile = getBiomeParticleProfile("grim");
+    const ceiling = scene.getObjectByName(
+      `Biome particles: ${profile.ceiling.name}`,
+    ) as THREE.Points;
+    expect(ceiling).toBeDefined();
+    const material = ceiling.material as THREE.ShaderMaterial;
+    expect(material.uniforms.uMotion.value).toBe(8);
+    expect(material.uniforms.uOpacity.value).toBe(profile.ceiling.opacity);
+    const positions = ceiling.geometry.getAttribute("position") as THREE.BufferAttribute;
+    expect(positions.count).toBeGreaterThanOrEqual(profile.ceiling.minCount);
+    let minY = Number.POSITIVE_INFINITY;
+    for (let i = 0; i < positions.count; i += 1) minY = Math.min(minY, positions.getY(i));
+    // Seed near the ceiling so fallers read as slab debris, not floor dust.
+    expect(minY).toBeGreaterThan(SOFT_FOG_DEFAULT_WALL_HEIGHT * 0.85);
+    atmosphere.dispose();
+  });
+
   test("particle layers vary size and carry phase, tint, time, and viewer wake", () => {
     const scene = new THREE.Scene();
     const atmosphere = new AtmosphereSystem(scene, 2.4);
@@ -168,13 +189,19 @@ describe("soft ground fog", () => {
     }
     expect(fineMax).toBeGreaterThan(fineMin);
 
+    const ceiling = scene.getObjectByName(
+      `Biome particles: ${profile.ceiling.name}`,
+    ) as THREE.Points;
+    expect(ceiling).toBeDefined();
+
     atmosphere.update(1.25, { x: 3, y: 1.6, z: -2 });
     expect(supportMat.uniforms.uTime.value).toBeGreaterThan(0);
     expect(supportMat.uniforms.uViewer.value.x).toBe(3);
     expect(supportMat.uniforms.uViewer.value.z).toBe(-2);
     expect(atmosphere.stats.motes).toBe(
       support.geometry.getAttribute("position").count +
-        signature.geometry.getAttribute("position").count,
+        signature.geometry.getAttribute("position").count +
+        ceiling.geometry.getAttribute("position").count,
     );
 
     atmosphere.dispose();

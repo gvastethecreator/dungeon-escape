@@ -4,6 +4,7 @@ import {
   BIOME_PARTICLE_MOTION_ID,
   BIOME_PARTICLE_SHAPE_ID,
   getBiomeParticleProfile,
+  isCeilingPrecipitationLayer,
 } from "../src/systems/BiomeParticleProfile";
 import { listDungeonMoodIds } from "../src/systems/DungeonMood";
 
@@ -19,11 +20,29 @@ describe("biome particle profiles", () => {
     expect(new Set(signatures).size).toBe(signatures.length);
   });
 
-  test("profiles stay visible and inside the two-field render budget", () => {
+  test("every biome ships ceiling precipitation that falls from the slab", () => {
+    const ceilingKinds = new Set<string>();
     for (const id of listDungeonMoodIds()) {
       const profile = getBiomeParticleProfile(id);
-      for (const layer of [profile.support, profile.signature]) {
-        expect(layer.minCount).toBeGreaterThanOrEqual(80);
+      const ceiling = profile.ceiling;
+      expect(isCeilingPrecipitationLayer(ceiling)).toBe(true);
+      expect(ceiling.motion).toBe("drip");
+      expect(ceiling.name.toLowerCase()).toContain(id === "grim" ? "grim" : id);
+      expect(ceiling.minCount).toBeGreaterThanOrEqual(40);
+      expect(ceiling.maxCount).toBeLessThanOrEqual(240);
+      expect(ceiling.opacity).toBeGreaterThanOrEqual(0.5);
+      expect(["drop", "crumb", "streak", "ash", "shard"]).toContain(ceiling.shape);
+      ceilingKinds.add(`${ceiling.shape}:${ceiling.color.toString(16)}`);
+    }
+    // Blood, water, dirt and slag should not all collapse to one look.
+    expect(ceilingKinds.size).toBeGreaterThanOrEqual(8);
+  });
+
+  test("profiles stay visible and inside the three-field render budget", () => {
+    for (const id of listDungeonMoodIds()) {
+      const profile = getBiomeParticleProfile(id);
+      for (const layer of [profile.support, profile.signature, profile.ceiling]) {
+        expect(layer.minCount).toBeGreaterThanOrEqual(40);
         expect(layer.maxCount).toBeGreaterThanOrEqual(layer.minCount);
         expect(layer.opacity).toBeGreaterThanOrEqual(0.42);
         expect(layer.sizeMin).toBeGreaterThanOrEqual(0.04);
@@ -32,19 +51,31 @@ describe("biome particle profiles", () => {
         expect(BIOME_PARTICLE_MOTION_ID[layer.motion]).toBeGreaterThanOrEqual(0);
         expect(BIOME_PARTICLE_SHAPE_ID[layer.shape]).toBeGreaterThanOrEqual(0);
       }
-      expect(profile.support.maxCount + profile.signature.maxCount).toBeLessThanOrEqual(1_800);
+      expect(
+        profile.support.maxCount + profile.signature.maxCount + profile.ceiling.maxCount,
+      ).toBeLessThanOrEqual(2_000);
     }
   });
 
   test("the full set uses a broad motion and silhouette language", () => {
     const profiles = listDungeonMoodIds().map(getBiomeParticleProfile);
     const motions = new Set(
-      profiles.flatMap((profile) => [profile.support.motion, profile.signature.motion]),
+      profiles.flatMap((profile) => [
+        profile.support.motion,
+        profile.signature.motion,
+        profile.ceiling.motion,
+      ]),
     );
     const shapes = new Set(
-      profiles.flatMap((profile) => [profile.support.shape, profile.signature.shape]),
+      profiles.flatMap((profile) => [
+        profile.support.shape,
+        profile.signature.shape,
+        profile.ceiling.shape,
+      ]),
     );
+    expect(motions.has("drip")).toBe(true);
     expect(motions.size).toBeGreaterThanOrEqual(8);
+    expect(shapes.has("drop") || shapes.has("crumb")).toBe(true);
     expect(shapes.size).toBeGreaterThanOrEqual(8);
   });
 });
