@@ -50,7 +50,7 @@ export interface DungeonAudioFrame {
 }
 
 export interface CollectedPickupAudio {
-  kind: "stone" | "resolve";
+  kind: "stone" | "resolve" | "time-freeze";
   position: AudioPosition;
 }
 

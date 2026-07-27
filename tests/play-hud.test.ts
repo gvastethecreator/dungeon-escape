@@ -14,6 +14,8 @@ describe("Play HUD structure (Ash Binding)", () => {
     expect(host).toContain('class="stone-sockets"');
     expect(host).toContain('class="play-progress"');
     expect(host).toContain('id="run-timer"');
+    expect(host).toContain('id="time-freeze-status"');
+    expect(host).toContain('id="time-freeze-value"');
     expect(host).toContain('id="hazard-status"');
     expect(host).toContain('datetime="PT0S"');
     expect(host).toContain("stone-socket__empty");
@@ -49,6 +51,8 @@ describe("Play HUD structure (Ash Binding)", () => {
     expect(COPY.hud.mapShrink).toBe("SHRINK");
     expect(COPY.pickup.small).toBe("BOUND");
     expect(COPY.pickup.flask).toBe("HEALTH RESTORED");
+    expect(COPY.pickup.timeFreeze).toBe("TIME FROZEN");
+    expect(COPY.status.timeFreeze).toContain("20 seconds");
     expect(COPY.end.loseTitle).toBe("You Died");
     expect(COPY.end.winLead).toBe("All four stones are bound. The exit is open.");
     expect(COPY.end.retry).toBe("Try again");
@@ -90,6 +94,8 @@ describe("Play HUD structure (Ash Binding)", () => {
     expect(css).toContain(".stone-socket.is-bound .stone-socket__gem");
     expect(css).toContain(".play-progress");
     expect(css).toContain(".run-timer");
+    expect(css).toContain(".time-freeze-status");
+    expect(css).toContain("time-freeze-pulse");
     expect(css).toContain(".map-toggle");
     expect(css).toContain(".hazard-status");
     expect(css).toContain(".play-objective.is-visible");

@@ -204,6 +204,142 @@ export function createResolveFlask(materials: DungeonMaterials): THREE.Group {
 }
 
 /**
+ * A compact time-freeze relic: an iron hourglass frame around an emissive ice
+ * core, with clock hands and orbit rings that read at pickup distance.
+ */
+export function createTimeFreezeRelic(materials: DungeonMaterials): THREE.Group {
+  const root = new THREE.Group();
+  root.name = "Three-dimensional time freeze relic";
+
+  const iron = materials.iron.clone();
+  iron.color.setHex(0x527985);
+  iron.roughness = 0.78;
+  iron.metalness = 0.52;
+  const brass = materials.brass.clone();
+  brass.color.setHex(0x9da46e);
+  brass.roughness = 0.64;
+  const ice = materials.ice.clone();
+  ice.color.setHex(0x78dce6);
+  ice.emissive.setHex(0x1b9eac);
+  ice.emissiveIntensity = 1.65;
+  ice.roughness = 0.34;
+  const glowMaterial = new THREE.MeshBasicMaterial({
+    color: 0x65e9f3,
+    transparent: true,
+    opacity: 0.26,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+    toneMapped: false,
+    side: THREE.DoubleSide,
+  });
+
+  const frame = new THREE.Group();
+  frame.name = "Time freeze hourglass frame";
+  const topCap = mesh(
+    new THREE.CylinderGeometry(0.25, 0.29, 0.09, 12),
+    brass,
+    "Time freeze top cap",
+  );
+  topCap.position.y = 0.88;
+  const bottomCap = mesh(
+    new THREE.CylinderGeometry(0.29, 0.25, 0.09, 12),
+    brass,
+    "Time freeze bottom cap",
+  );
+  bottomCap.position.y = 0.08;
+  const topRing = mesh(new THREE.TorusGeometry(0.245, 0.035, 6, 16), iron, "Time freeze top ring");
+  topRing.rotation.x = Math.PI / 2;
+  topRing.position.y = 0.8;
+  const bottomRing = topRing.clone();
+  bottomRing.name = "Time freeze bottom ring";
+  bottomRing.position.y = 0.16;
+  const leftRail = mesh(new THREE.BoxGeometry(0.055, 0.78, 0.055), iron, "Time freeze left rail");
+  leftRail.position.set(-0.25, 0.47, 0);
+  leftRail.rotation.z = -0.12;
+  const rightRail = leftRail.clone();
+  rightRail.name = "Time freeze right rail";
+  rightRail.position.x = 0.25;
+  rightRail.rotation.z = 0.12;
+  frame.add(topCap, bottomCap, topRing, bottomRing, leftRail, rightRail);
+
+  const core = mesh(new THREE.OctahedronGeometry(0.23, 1), ice, "Time freeze frozen core");
+  core.position.y = 0.48;
+  core.rotation.set(0.24, 0.42, 0.08);
+  const coreBand = mesh(
+    new THREE.TorusGeometry(0.205, 0.018, 5, 14),
+    brass,
+    "Time freeze core band",
+  );
+  coreBand.rotation.x = Math.PI / 2;
+  coreBand.position.y = 0.48;
+
+  const handMaterial = materials.ice.clone();
+  handMaterial.color.setHex(0xc3fbff);
+  handMaterial.emissive.setHex(0x43cdd7);
+  handMaterial.emissiveIntensity = 1.2;
+  const handMinute = mesh(
+    new THREE.BoxGeometry(0.024, 0.17, 0.018),
+    handMaterial,
+    "Time freeze minute hand",
+  );
+  handMinute.position.set(0, 0.55, 0.23);
+  handMinute.rotation.z = -0.55;
+  const handHour = mesh(
+    new THREE.BoxGeometry(0.02, 0.11, 0.02),
+    handMaterial,
+    "Time freeze hour hand",
+  );
+  handHour.position.set(0.01, 0.43, 0.232);
+  handHour.rotation.z = 0.8;
+
+  const orbit = mesh(
+    new THREE.TorusGeometry(0.43, 0.018, 5, 18),
+    glowMaterial,
+    "Time freeze orbit halo",
+  );
+  orbit.rotation.x = Math.PI / 2;
+  orbit.position.y = 0.48;
+  const verticalHalo = mesh(
+    new THREE.TorusGeometry(0.36, 0.014, 5, 16),
+    glowMaterial,
+    "Time freeze vertical halo",
+  );
+  verticalHalo.rotation.x = Math.PI / 2;
+  verticalHalo.rotation.z = Math.PI / 2;
+  verticalHalo.position.y = 0.48;
+  const pickupLight = new THREE.PointLight(0x72e7ef, 1.35, 5.2, 2.1);
+  pickupLight.name = "Time freeze pickup light";
+  pickupLight.position.y = 0.48;
+
+  const pickupAnchor = new THREE.Object3D();
+  pickupAnchor.name = "Time freeze pickup anchor";
+  pickupAnchor.position.y = 0.48;
+  const glowAnchor = new THREE.Object3D();
+  glowAnchor.name = "Time freeze glow anchor";
+  glowAnchor.position.set(0, 0.48, 0.26);
+
+  root.add(
+    frame,
+    core,
+    coreBand,
+    handMinute,
+    handHour,
+    orbit,
+    verticalHalo,
+    pickupLight,
+    pickupAnchor,
+    glowAnchor,
+  );
+  root.userData.pickupKind = "time-freeze";
+  root.userData.sculptRuntime = {
+    rootMotionNode: root,
+    sockets: { pickup: pickupAnchor, glow: glowAnchor },
+    colliders: [{ type: "sphere", radius: 0.42, offset: [0, 0.48, 0], isTrigger: true }],
+  };
+  return root;
+}
+
+/**
  * Locks the pickup into its fade-capable shader variant before renderer warmup.
  * Runtime opacity changes can then reuse the compiled program.
  */
