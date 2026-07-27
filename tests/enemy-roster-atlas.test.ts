@@ -1,10 +1,14 @@
 import { describe, expect, test } from "bun:test";
 
+import { listDungeonMoodIds } from "../src/systems/DungeonMood";
 import {
   ENEMY_ANIMATIONS,
   ENEMY_ATLAS_SRC,
   ENEMY_ROSTER,
   enemyAnimationFrameIndex,
+  enemyAnimationsForMood,
+  enemyAtlasSrcForMood,
+  listEnemyAtlasSources,
   type EnemyAtlasFrame,
 } from "../src/world/EnemySpriteAtlas";
 
@@ -52,5 +56,25 @@ describe("enemy atlas runtime contract", () => {
     expect(enemyAnimationFrameIndex("goblin", 0.25)).toBe(2);
     expect(enemyAnimationFrameIndex("goblin", 0.375)).toBe(3);
     expect(enemyAnimationFrameIndex("goblin", 0.5)).toBe(0);
+  });
+
+  test("each biome ships a dedicated enemy atlas plus the base sheet", async () => {
+    const sources = listEnemyAtlasSources();
+    expect(sources).toHaveLength(1 + listDungeonMoodIds().length);
+    expect(sources[0]).toBe(ENEMY_ATLAS_SRC);
+
+    for (const moodId of listDungeonMoodIds()) {
+      const src = enemyAtlasSrcForMood(moodId);
+      expect(src).toBe(`/assets/sprites/enemies-v5/biomes/${moodId}-enemies.png`);
+      const animations = enemyAnimationsForMood(moodId);
+      for (const kind of ENEMY_ROSTER) {
+        expect(animations[kind].src).toBe(src);
+        expect(animations[kind].frames).toHaveLength(4);
+        expect(animations[kind].size).toEqual([1280, 3520]);
+      }
+      const file = Bun.file(new URL(`../public${src}`, import.meta.url));
+      expect(await file.exists()).toBe(true);
+      expect(file.size).toBeGreaterThan(500_000);
+    }
   });
 });

@@ -10,7 +10,11 @@ import type { DungeonMood, DungeonMoodId } from "../systems/DungeonMood";
 import { getDungeonMood, listDungeonMoodIds } from "../systems/DungeonMood";
 import { biomeTextureUrl } from "../world/AssetLibrary";
 import { ITEM_FRAMES } from "../world/AssetLibrary";
-import { ENEMY_ANIMATIONS } from "../world/EnemySpriteAtlas";
+import {
+  ENEMY_ANIMATIONS,
+  enemyAnimationsForMood,
+  enemyAtlasSrcForMood,
+} from "../world/EnemySpriteAtlas";
 import { resolveEditorLightingProfile, type EditorLightingProfile } from "./EditorLightingProfiles";
 
 interface EditorViewOptions {
@@ -59,6 +63,7 @@ export class DungeonEditorView {
   private enemyImage: HTMLImageElement | null = null;
   private enemyTintImage: HTMLCanvasElement | null = null;
   private enemyTintMood: DungeonMoodId | null = null;
+  private readonly biomeEnemyImages = new Map<DungeonMoodId, HTMLImageElement>();
   private itemImage: HTMLImageElement | null = null;
   private readonly stoneImages = new Map<string, HTMLImageElement>();
   private texturesReady = false;
@@ -170,19 +175,27 @@ export class DungeonEditorView {
 
   private async loadFeatureImages(): Promise<void> {
     try {
-      const [enemies, items, ...stones] = await Promise.all([
+      const moodIds = listDungeonMoodIds();
+      const [baseEnemies, items, ...rest] = await Promise.all([
         loadImage("/assets/sprites/enemies-v5/iron-ash-enemies-v5.png"),
         loadImage("/assets/sprites/iron-ash-items.png"),
+        ...moodIds.map((id) => loadImage(enemyAtlasSrcForMood(id)).catch(() => null)),
         ...(["ember", "ash", "crypt", "verdant"] as const).map((id) =>
           loadImage(`/assets/sprites/keyed/${id}-sheet.png`),
         ),
       ]);
-      this.enemyImage = enemies;
+      this.enemyImage = baseEnemies;
       this.enemyTintImage = null;
       this.enemyTintMood = null;
+      this.biomeEnemyImages.clear();
+      moodIds.forEach((id, index) => {
+        const image = rest[index];
+        if (image) this.biomeEnemyImages.set(id, image);
+      });
       this.itemImage = items;
+      const stoneOffset = moodIds.length;
       (["ember", "ash", "crypt", "verdant"] as const).forEach((id, index) => {
-        const image = stones[index];
+        const image = rest[stoneOffset + index];
         if (image) this.stoneImages.set(id, image);
       });
       this.draw();
@@ -505,9 +518,10 @@ export class DungeonEditorView {
     }
 
     const enemyPreviewImage = this.getEnemyPreviewImage();
+    const enemyFrames = enemyAnimationsForMood(this.mood.id);
     for (const spawn of projection.enemySpawns) {
       const point = center(spawn.cell);
-      const frame = ENEMY_ANIMATIONS[spawn.kind].frames[0];
+      const frame = (enemyFrames[spawn.kind] ?? ENEMY_ANIMATIONS[spawn.kind]).frames[0];
       if (!enemyPreviewImage || !frame) continue;
       const iconHeight = Math.max(10, Math.min(30, view.scale * (2.5 + spawn.tier * 0.24)));
       const iconWidth = iconHeight;
@@ -596,8 +610,13 @@ export class DungeonEditorView {
     }
   }
 
-  /** Dark biome-tinted atlas: Creation reveals threat silhouettes, not the full roster art. */
-  private getEnemyPreviewImage(): HTMLCanvasElement | null {
+  /**
+   * Editor threat icons: prefer the biome enemy atlas when loaded; fall back to a
+   * dark tint of the base roster so the map stays readable without full art.
+   */
+  private getEnemyPreviewImage(): HTMLImageElement | HTMLCanvasElement | null {
+    const biomeSheet = this.biomeEnemyImages.get(this.mood.id);
+    if (biomeSheet) return biomeSheet;
     if (!this.enemyImage) return null;
     if (this.enemyTintImage && this.enemyTintMood === this.mood.id) return this.enemyTintImage;
     const canvas = document.createElement("canvas");

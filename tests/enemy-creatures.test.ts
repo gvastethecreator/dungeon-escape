@@ -20,7 +20,7 @@ describe("enemy roster v5", () => {
     expect(Object.keys(ENEMY_ARCHETYPES)).toEqual([...ENEMY_ROSTER]);
     for (const kind of ENEMY_ROSTER) {
       const animation = ENEMY_ANIMATIONS[kind];
-      expect(animation.src).toContain("iron-ash-enemies-v5.png");
+      expect(animation.src).toMatch(/enemies-v5\/(iron-ash-enemies-v5|biomes\/.+-enemies)\.png$/);
       expect(animation.frames).toHaveLength(4);
       expect(animation.fps).toBe(8);
       expect(animation.loop).toBe(true);
