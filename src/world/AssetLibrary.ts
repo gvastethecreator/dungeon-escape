@@ -6,7 +6,12 @@ import {
   registerTextureSource,
   resolveTextureSource,
 } from "./TextureTreatment";
-import { ENEMY_ANIMATIONS, type EnemyAnimationDefinition } from "./EnemySpriteAtlas";
+import {
+  ENEMY_ANIMATIONS,
+  ENEMY_ATLAS_SRC,
+  ENEMY_ATLAS_SIZE,
+  type EnemyAnimationDefinition,
+} from "./EnemySpriteAtlas";
 
 export interface AtlasFrame {
   x: number;
@@ -271,8 +276,8 @@ export class AssetLibrary {
 
   enemy(frame: SourcedAtlasFrame): THREE.Texture {
     return this.atlasFrame(
-      frame.src ?? "/assets/sprites/iron-ash-enemies.png",
-      frame.size ?? [1744, 902],
+      frame.src ?? ENEMY_ATLAS_SRC,
+      frame.size ?? ENEMY_ATLAS_SIZE,
       frame,
     );
   }
