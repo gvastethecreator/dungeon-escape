@@ -29,12 +29,27 @@ import { biomeTintedLightColor } from "../src/world/DungeonWorld";
 
 describe("integrated dungeon lighting", () => {
   test("player lantern reaches mid-corridor without washing out torch contrast", () => {
-    expect(PLAYER_LANTERN_TUNING.intensity).toBeGreaterThanOrEqual(136);
-    expect(PLAYER_LANTERN_TUNING.intensity).toBeLessThanOrEqual(152);
+    expect(PLAYER_LANTERN_TUNING.intensity).toBeGreaterThanOrEqual(38);
+    expect(PLAYER_LANTERN_TUNING.intensity).toBeLessThanOrEqual(46);
     expect(PLAYER_LANTERN_TUNING.range).toBeGreaterThanOrEqual(23);
     expect(PLAYER_LANTERN_TUNING.range).toBeLessThanOrEqual(25);
-    expect(PLAYER_LANTERN_TUNING.decay).toBeGreaterThanOrEqual(1.55);
-    expect(PLAYER_LANTERN_TUNING.decay).toBeLessThan(1.8);
+    expect(PLAYER_LANTERN_TUNING.decay).toBeGreaterThanOrEqual(1.05);
+    expect(PLAYER_LANTERN_TUNING.decay).toBeLessThan(1.25);
+    expect(PLAYER_LANTERN_TUNING.backwardOffset).toBeGreaterThanOrEqual(0.75);
+    expect(PLAYER_LANTERN_TUNING.backwardOffset).toBeLessThanOrEqual(1);
+  });
+
+  test("player lantern stays behind the view to cap close-wall highlights", () => {
+    const scene = new THREE.Scene();
+    const rig = new LightingRig(scene);
+    const player = new THREE.Vector3(2, 1.62, 4);
+    const forward = new THREE.Vector3(0, 0, -1);
+    rig.update(1, player, null, forward);
+    const light = rig.getLanternPosition();
+    expect(light.z).toBeGreaterThan(player.z);
+    expect(light.z - player.z).toBeCloseTo(PLAYER_LANTERN_TUNING.backwardOffset, 2);
+    expect(light.y).toBeGreaterThan(player.y);
+    rig.dispose();
   });
 
   test("default exposure keeps floor edges readable in the darkest authored mood", () => {

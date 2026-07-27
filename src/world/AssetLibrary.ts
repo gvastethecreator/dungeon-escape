@@ -39,6 +39,14 @@ export interface BiomeSurfaceTextures {
   ceiling: BiomeLayerTextures;
 }
 
+/** Flat wall sprite plus its authored material response. */
+export interface WallSpriteTextures {
+  albedo: THREE.Texture;
+  normal: THREE.Texture;
+  rough: THREE.Texture;
+  depth: THREE.Texture;
+}
+
 const loader = new THREE.TextureLoader();
 
 function pixelTexture(
@@ -241,13 +249,24 @@ export class AssetLibrary {
 
   /** Four lit wall sprites per biome: two paintings, one fissure, one seal/stain. */
   biomeWallDecor(mood: DungeonMoodId, index: number): THREE.Texture {
+    return this.biomeWallDecorPbr(mood, index).albedo;
+  }
+
+  biomeWallDecorPbr(mood: DungeonMoodId, index: number): WallSpriteTextures {
     const frame = Math.abs(index) % 4;
-    return this.atlasFrame(biomeWallDecorTextureUrl(mood), [1024, 256], {
+    const crop = {
       x: frame * 256,
       y: 0,
       w: 256,
       h: 256,
-    });
+    };
+    const base = biomeWallDecorTextureUrl(mood).replace(/\.png$/, "");
+    return {
+      albedo: this.atlasFrame(`${base}.png`, [1024, 256], crop),
+      normal: this.atlasFrame(`${base}-normal.png`, [1024, 256], crop, false),
+      rough: this.atlasFrame(`${base}-rough.png`, [1024, 256], crop, false),
+      depth: this.atlasFrame(`${base}-depth.png`, [1024, 256], crop, false),
+    };
   }
 
   enemy(frame: SourcedAtlasFrame): THREE.Texture {
@@ -284,14 +303,25 @@ export class AssetLibrary {
   }
 
   wallArt(index: number): THREE.Texture {
+    return this.wallArtPbr(index).albedo;
+  }
+
+  wallArtPbr(index: number): WallSpriteTextures {
     const x = (index % 2) * 512;
     const y = Math.floor(index / 2) * 512;
-    return this.atlasFrame("/assets/sprites/iron-ash-wall-art.webp", [1024, 1024], {
+    const crop = {
       x,
       y,
       w: 512,
       h: 512,
-    });
+    };
+    const base = "/assets/sprites/iron-ash-wall-art";
+    return {
+      albedo: this.atlasFrame(`${base}.webp`, [1024, 1024], crop),
+      normal: this.atlasFrame(`${base}-normal.png`, [1024, 1024], crop, false),
+      rough: this.atlasFrame(`${base}-rough.png`, [1024, 1024], crop, false),
+      depth: this.atlasFrame(`${base}-depth.png`, [1024, 1024], crop, false),
+    };
   }
 
   dispose(): void {
@@ -302,15 +332,16 @@ export class AssetLibrary {
     source: string,
     size: readonly [number, number],
     frame: AtlasFrame,
+    color = true,
   ): THREE.Texture {
-    const key = `${source}:${size[0]}x${size[1]}:${frame.x},${frame.y},${frame.w},${frame.h}`;
+    const key = `${source}:${size[0]}x${size[1]}:${frame.x},${frame.y},${frame.w},${frame.h}:${color ? "srgb" : "data"}`;
     const cached = this.atlasCache.get(key);
     if (cached) return cached;
     const texture = loader.load(source);
     texture.name = `${source}#${frame.x},${frame.y},${frame.w},${frame.h}`;
-    texture.colorSpace = THREE.SRGBColorSpace;
-    texture.magFilter = THREE.NearestFilter;
-    texture.minFilter = THREE.NearestMipmapNearestFilter;
+    texture.colorSpace = color ? THREE.SRGBColorSpace : THREE.NoColorSpace;
+    texture.magFilter = color ? THREE.NearestFilter : THREE.LinearFilter;
+    texture.minFilter = color ? THREE.NearestMipmapNearestFilter : THREE.LinearMipmapLinearFilter;
     texture.generateMipmaps = true;
     texture.wrapS = THREE.ClampToEdgeWrapping;
     texture.wrapT = THREE.ClampToEdgeWrapping;

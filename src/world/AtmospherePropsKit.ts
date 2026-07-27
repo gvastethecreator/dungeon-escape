@@ -238,11 +238,7 @@ export function createBonePile(materials: DungeonMaterials, variant = 0): THREE.
 
 // ─── Hanging chain / vine ────────────────────────────────────────────────────
 
-/**
- * Hangs from the ceiling. A vertical run of short cylinders (links) in `iron`
- * (chain) or `wood` (vine/root). The group's origin is the ceiling anchor; the
- * chain extends downward by `length` meters.
- */
+/** Hangs from the ceiling; the group origin is the ceiling anchor. */
 export type HangingKind = "chain" | "vine";
 
 export function createHanging(
@@ -254,22 +250,38 @@ export function createHanging(
   const root = new THREE.Group();
   root.name = kind === "chain" ? "Hanging chain" : "Hanging vine";
   const material = kind === "chain" ? materials.iron : materials.wood;
-  const linkCount = Math.max(3, Math.round(length / 0.32));
-  const linkHeight = length / linkCount;
-  for (let i = 0; i < linkCount; i += 1) {
-    const link = mesh(
-      new THREE.TorusGeometry(0.07, 0.022, 5, 8),
-      material,
-      kind === "chain" ? "Chain link" : "Vine segment",
-    );
-    // Alternate link orientation like a real chain.
-    link.rotation.x = Math.PI / 2 + ((i % 2) * Math.PI) / 2;
-    // Hang downward from the anchor: top link at y=0, last at y=-length.
-    link.position.set(0, -linkHeight * (i + 0.5), 0);
-    root.add(link);
-  }
-  if (kind === "vine") {
-    // A couple of stray leaf-tendrils off the vine for organic read.
+  if (kind === "chain") {
+    const mount = mesh(new THREE.CylinderGeometry(0.12, 0.12, 0.055, 8), material, "Chain mount");
+    mount.position.y = -0.028;
+    root.add(mount);
+    const anchor = mesh(new THREE.TorusGeometry(0.078, 0.022, 6, 10), material, "Chain anchor eye");
+    anchor.position.y = -0.13;
+    root.add(anchor);
+
+    const spacing = 0.19;
+    const linkCount = Math.max(4, Math.ceil((length - 0.32) / spacing) + 1);
+    const linkGeometry = new THREE.TorusGeometry(0.075, 0.018, 6, 10);
+    linkGeometry.scale(1, 1.32, 1);
+    for (let i = 0; i < linkCount; i += 1) {
+      const link = mesh(linkGeometry, material, "Chain link");
+      // Torus starts in XY: both rotations stay vertical and cross at 90 degrees.
+      link.rotation.y = (i % 2) * (Math.PI / 2);
+      link.position.set(0, -0.22 - i * spacing, 0);
+      root.add(link);
+    }
+  } else {
+    const sway = ((variant % 3) - 1) * 0.035;
+    const curve = new THREE.CatmullRomCurve3([
+      new THREE.Vector3(0, 0, 0),
+      new THREE.Vector3(0.035 + sway, -length * 0.28, -0.02),
+      new THREE.Vector3(-0.045, -length * 0.58, 0.025 + sway),
+      new THREE.Vector3(0.025 - sway, -length, -0.015),
+    ]);
+    root.add(mesh(new THREE.TubeGeometry(curve, 12, 0.027, 5, false), material, "Vine stem"));
+    const knot = mesh(new THREE.SphereGeometry(0.065, 7, 5), material, "Vine ceiling knot");
+    knot.position.y = -0.025;
+    root.add(knot);
+    const linkHeight = length / 8;
     const stray = variant % 2;
     for (let i = 0; i < 2 + stray; i += 1) {
       const leaf = mesh(new THREE.ConeGeometry(0.05, 0.32, 4), materials.wood, "Vine tendril");
