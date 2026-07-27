@@ -28,6 +28,34 @@ function markSpawnNeighborhood(used: Set<string>, cell: GridCell, separation: nu
   }
 }
 
+/** Walkable interior area used for room-size threat budgets. */
+export function roomInteriorArea(room: Pick<DungeonRoom, "width" | "height">): number {
+  const innerW = Math.max(0, room.width - 2);
+  const innerH = Math.max(0, room.height - 2);
+  return innerW * innerH;
+}
+
+/**
+ * Hard seat budget for a room. Tiny closets stay at one threat; only large
+ * chambers can stack several reserves without feeling abusive.
+ */
+export function roomEnemySeatCap(room: Pick<DungeonRoom, "width" | "height">): number {
+  const innerW = Math.max(0, room.width - 2);
+  const innerH = Math.max(0, room.height - 2);
+  const area = innerW * innerH;
+  const minSide = Math.min(innerW, innerH);
+  if (area <= 0) return 0;
+  // Closets / tight nooks: a single actor is enough.
+  if (minSide <= 2 || area <= 12) return 1;
+  // Small combat rooms: opening seat + at most one reserve.
+  if (minSide <= 3 || area <= 25) return 2;
+  // Mid rooms keep a light multi-seat stack.
+  if (area <= 42) return 3;
+  if (area <= 64) return 4;
+  if (area <= 100) return 5;
+  return 6;
+}
+
 /**
  * Assigns the opening room quota. A preferred room (normally the entrance)
  * consumes the first empty slot, while the seed rotates every other vacancy
@@ -60,13 +88,25 @@ export function buildInitialRoomEnemyQuotas(
   const doubleRooms = Math.min(occupiedTarget, Math.max(0, requested - occupiedTarget));
   const quotas = new Map<number, 0 | 1 | 2>(rooms.map((room) => [room.id, 0]));
   const occupied = shuffled.slice(emptyRooms, emptyRooms + occupiedTarget);
-  occupied.forEach((room, index) => quotas.set(room.id, index < doubleRooms ? 2 : 1));
+  // Seed every occupied room with one seat if the room can hold it.
+  for (const room of occupied) {
+    if (roomEnemySeatCap(room) >= 1) quotas.set(room.id, 1);
+  }
+  // Second opening seat only in rooms large enough for two threats.
+  let remainingDoubles = doubleRooms;
+  for (const room of occupied) {
+    if (remainingDoubles <= 0) break;
+    if (roomEnemySeatCap(room) < 2) continue;
+    quotas.set(room.id, 2);
+    remainingDoubles -= 1;
+  }
   return quotas;
 }
 
 /**
  * Fills the full room set in shuffled passes. Each room gets a point before a
  * second point enters that room, which prevents wave reserves from clustering.
+ * Room size caps stop small interiors from stacking an abusive reserve pile.
  */
 export function buildDistributedEnemySpawns(
   seed: string,
@@ -77,6 +117,8 @@ export function buildDistributedEnemySpawns(
   if (rooms.length === 0 || count <= 0) return [];
   const random = createSeededRandom(`${seed}:enemy-cells`);
   const rankById = new Map(rooms.map((room, index) => [room.id, index]));
+  const seatCapById = new Map(rooms.map((room) => [room.id, roomEnemySeatCap(room)]));
+  const seatsByRoom = new Map<number, number>(rooms.map((room) => [room.id, 0]));
   const used = new Set(excludedCellKeys);
   const result: PlannedEnemySpawn[] = [];
   let attempts = 0;
@@ -89,6 +131,9 @@ export function buildDistributedEnemySpawns(
       [pass[index], pass[swap]] = [pass[swap]!, pass[index]!];
     }
     for (const room of pass) {
+      const seated = seatsByRoom.get(room.id) ?? 0;
+      const cap = seatCapById.get(room.id) ?? 0;
+      if (seated >= cap) continue;
       const candidates: GridCell[] = [];
       for (let y = room.y + 1; y <= room.y + room.height - 2; y += 1) {
         for (let x = room.x + 1; x <= room.x + room.width - 2; x += 1) {
@@ -112,6 +157,7 @@ export function buildDistributedEnemySpawns(
       const tier =
         passIndex < 2 ? 0 : Math.min(4, Math.max(1, Math.max(passTier, distanceTier)));
       result.push({ cell, tier, roomId: room.id, pass: passIndex });
+      seatsByRoom.set(room.id, seated + 1);
       placedThisPass += 1;
       if (result.length >= count) break;
     }
