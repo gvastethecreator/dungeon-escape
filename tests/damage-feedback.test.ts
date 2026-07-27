@@ -60,4 +60,12 @@ describe("damage feedback — HUD markup and styles", () => {
     expect(src).toContain("worldUpdate.knockback");
     expect(src).toContain("DAMAGE_WASH_SECONDS");
   });
+
+  test("main arms hit trauma so the camera keeps shaking after a hit", async () => {
+    const src = await Bun.file(new URL("../src/main.ts", import.meta.url)).text();
+    expect(src).toContain("hitTrauma = 1");
+    expect(src).toContain("decayHitTrauma");
+    expect(src).toContain("hitTrauma: simulationActive ? hitTrauma : 0");
+  });
 });
+

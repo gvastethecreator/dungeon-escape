@@ -10,6 +10,11 @@ export interface PovFeelInput {
   speedRatio: number;
   /** Nearest hostile distance in world units, or null when none nearby. */
   threatDistance: number | null;
+  /**
+   * Residual hit trauma 0..1. Starts at 1 on damage and decays over a few
+   * seconds so the camera keeps shaking after the impact.
+   */
+  hitTrauma?: number;
   /** System preference: cut motion intensity hard. */
   reducedMotion?: boolean;
 }
@@ -32,11 +37,17 @@ export const POV_CURVATURE_MIN = 0.02;
 
 /** Chromatic at full threat (screen UV units). */
 export const POV_CHROMATIC_MAX = 0.002;
+/** Extra chromatic while hit trauma is full. */
+export const POV_HIT_CHROMATIC = 0.0018;
 /** Threat band: outside far → zero CA/shake; inside near → full. */
-export const POV_THREAT_FAR = 7.5;
-export const POV_THREAT_NEAR = 2.1;
-/** Peak camera shake (meters / radians scale applied by consumer). */
-export const POV_SHAKE_MAX = 1;
+export const POV_THREAT_FAR = 6.5;
+export const POV_THREAT_NEAR = 1.85;
+/** Peak camera shake from threat alone (0..1). */
+export const POV_SHAKE_MAX = 0.72;
+/** Peak camera shake contribution from a fresh hit. */
+export const POV_HIT_SHAKE = 1;
+/** How long full hit trauma takes to decay to zero (seconds). */
+export const POV_HIT_TRAUMA_SECONDS = 3.1;
 
 export function threatProximity(distance: number | null): number {
   if (distance === null || !Number.isFinite(distance)) return 0;
@@ -46,25 +57,34 @@ export function threatProximity(distance: number | null): number {
 }
 
 /**
- * Map locomotion + threat into post/camera targets.
- * Sprint widens the lens a little; threat adds shake + chromatic fringe.
+ * Map locomotion + threat + hit trauma into post/camera targets.
+ * Close enemies shake a little; a hit keeps the lens unstable for a few seconds.
  */
 export function computePovFeel(input: PovFeelInput): PovFeelTarget {
   const reduced = input.reducedMotion === true;
   const speed = clamp01(input.speedRatio);
   const sprintBlend = input.sprinting ? 1 : speed * 0.35;
   const threat = threatProximity(input.threatDistance);
+  const hit = clamp01(input.hitTrauma ?? 0);
+  // Ease-out so the last second of trauma still reads without a hard cut.
+  const hitFeel = hit * hit * (3 - 2 * hit);
 
   let curvature = POV_CURVATURE_BASE + POV_CURVATURE_SPRINT * sprintBlend * (0.45 + 0.55 * speed);
   curvature = Math.max(POV_CURVATURE_MIN, curvature);
+  curvature += hitFeel * 0.012;
 
-  let chromatic = POV_CHROMATIC_MAX * smoothstep(0.08, 1, threat);
-  let shake = POV_SHAKE_MAX * smoothstep(0.12, 1, threat);
+  const threatShake = POV_SHAKE_MAX * smoothstep(0.1, 1, threat);
+  const hitShake = POV_HIT_SHAKE * hitFeel;
+  // Threat is subtle; hits own the stronger band. Combined and capped.
+  let shake = Math.min(1, Math.max(threatShake, hitShake * 0.55) + hitShake * 0.45);
+
+  let chromatic =
+    POV_CHROMATIC_MAX * smoothstep(0.08, 1, threat) + POV_HIT_CHROMATIC * hitFeel;
 
   if (reduced) {
     curvature = POV_CURVATURE_MIN;
     chromatic *= 0.15;
-    shake *= 0.12;
+    shake *= 0.14;
   }
 
   return {
@@ -91,7 +111,8 @@ export class PovFeelState {
     this.current = {
       curvature: this.current.curvature + (target.curvature - this.current.curvature) * t,
       chromatic: this.current.chromatic + (target.chromatic - this.current.chromatic) * t,
-      shake: this.current.shake + (target.shake - this.current.shake) * t,
+      // Hits should land faster than ambient threat ramps.
+      shake: this.current.shake + (target.shake - this.current.shake) * Math.min(1, t * 1.65),
     };
     return this.current;
   }
@@ -103,7 +124,7 @@ export class PovFeelState {
 
 /**
  * Deterministic shake offsets from time + amplitude.
- * Returns position meters and roll radians — small on purpose.
+ * Returns position meters and roll radians — readable under stress, still small.
  */
 export function samplePovShake(
   timeSec: number,
@@ -121,13 +142,21 @@ export function samplePovShake(
     Math.sin(t * 37.9 + 0.9) * 0.35 +
     Math.sin(t * 53.4 + 1.3) * 0.15;
   const roll = Math.sin(t * 15.4 + 0.6) * 0.55 + Math.sin(t * 29.8 + 2.4) * 0.45;
-  const posScale = 0.014 * a;
-  const rollScale = 0.012 * a;
+  // Slightly stronger than before so close threats and hits are felt, not guessed.
+  const posScale = 0.022 * a;
+  const rollScale = 0.018 * a;
   return {
     x: x * posScale,
-    y: y * posScale * 0.85,
+    y: y * posScale * 0.9,
     roll: roll * rollScale,
   };
+}
+
+/** Linear hit-trauma decay over {@link POV_HIT_TRAUMA_SECONDS}. */
+export function decayHitTrauma(current: number, deltaSeconds: number): number {
+  if (current <= 0) return 0;
+  const step = Math.max(0, deltaSeconds) / POV_HIT_TRAUMA_SECONDS;
+  return Math.max(0, current - step);
 }
 
 function clamp01(value: number): number {
