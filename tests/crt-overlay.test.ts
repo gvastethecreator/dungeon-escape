@@ -31,16 +31,15 @@ describe("minimal full-shell CRT", () => {
     expect(css).toMatch(/\.app-shell:not\(\.crt-off\)\s*\{[^}]*filter:\s*url\("#crt-phosphor"\);/s);
   });
 
-  test("uses a restrained fixed RGB grille and scanlines", async () => {
+  test("keeps scanlines and noise without an RGB grille mask", async () => {
     const css = await readProjectFile("src/styles.css");
 
     expect(css).toMatch(/\.crt-overlay::before\s*\{[^}]*repeating-linear-gradient/s);
-    expect(css).toMatch(/\.crt-overlay::after\s*\{[^}]*repeating-linear-gradient/s);
-    expect(css).toContain("rgb(255 72 72 / 1.4%) 0 4px");
-    expect(css).toContain("rgb(82 255 154 / 0.9%) 4px 8px");
-    expect(css).toContain("rgb(96 142 255 / 1.4%) 8px 12px");
     expect(css).toMatch(/\.crt-overlay::before\s*\{[^}]*mix-blend-mode:\s*multiply;/s);
-    expect(css).toMatch(/\.crt-overlay::after\s*\{[^}]*mix-blend-mode:\s*soft-light;/s);
+    expect(css).not.toContain(".crt-overlay::after");
+    expect(css).not.toContain("rgb(255 72 72 / 1.4%)");
+    expect(css).not.toContain("rgb(82 255 154 / 0.9%)");
+    expect(css).not.toContain("rgb(96 142 255 / 1.4%)");
     expect(css).toContain('url("/assets/ui/crt-noise.svg")');
     expect(css).toMatch(/@keyframes\s+crt-noise-shift/);
     expect(css).toMatch(/@keyframes\s+crt-jitter/);
