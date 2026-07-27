@@ -38,7 +38,12 @@ import {
   type SurfaceTheme,
 } from "./RoomSurfaceMaterials";
 import { createForgeChest, createForgeProp, getForgePropScale } from "./ForgePropFactory";
-import { createResolveFlask, preparePickupOpacity, setPickupOpacity } from "./ItemFactory";
+import {
+  createResolveFlask,
+  createTimeFreezeRelic,
+  preparePickupOpacity,
+  setPickupOpacity,
+} from "./ItemFactory";
 import { PickupBurstPool } from "./PickupBurstPool";
 import {
   createCobwebGeometry,
@@ -105,6 +110,8 @@ import {
 } from "./LiquidSectionKit";
 import { createSpecialRoomSignals } from "./SpecialRoomSignalKit";
 import { getBiomeDecorationProfile } from "./BiomeDecorationProfile";
+import { activateTimeFreeze, isTimeFreezeActive, tickTimeFreeze } from "../game/TimeFreeze";
+import { TimeFreezeVfx } from "./TimeFreezeVfx";
 
 export { knockbackAwayFrom } from "./knockback";
 
@@ -232,6 +239,7 @@ interface EnemyActor {
   scaleX: number;
   scaleY: number;
   roll: number;
+  yaw: number;
   phaseEpoch: number;
   phaseVisibility: number;
   /** Smooth reveal used when the difficulty director adds a threat. */
@@ -261,7 +269,7 @@ interface DoorActor {
 }
 
 interface PickupActor {
-  kind: "stone" | "resolve";
+  kind: "stone" | "resolve" | "time-freeze";
   stoneId?: StoneId;
   object: THREE.Object3D;
   collected: boolean;
@@ -276,6 +284,10 @@ interface PickupActor {
     crown: THREE.Mesh;
     baseLightIntensity: number;
     baseGlowOpacity: number;
+  };
+  timeFreezeSignal?: {
+    light: THREE.PointLight;
+    baseIntensity: number;
   };
 }
 
@@ -313,9 +325,11 @@ export interface WorldUpdate {
   collectedStoneId: StoneId | null;
   /** Position is kept for the presentation layer that plays the collection source. */
   collectedPickup: {
-    kind: "stone" | "resolve";
+    kind: "stone" | "resolve" | "time-freeze";
     position: { x: number; y: number; z: number };
   } | null;
+  /** Remaining gameplay seconds in the active time-freeze field. */
+  timeFreezeRemaining: number;
   stonesFound: number;
   stonesTotal: number;
   portalOpen: boolean;
@@ -624,6 +638,15 @@ function horizontalDistance(left: THREE.Vector3, right: THREE.Vector3): number {
   return Math.hypot(left.x - right.x, left.z - right.z);
 }
 
+function nearestEnemyDistance(enemies: readonly EnemyActor[], player: THREE.Vector3): number {
+  let nearest = Number.POSITIVE_INFINITY;
+  for (const enemy of enemies) {
+    if (enemy.scaleX <= 0.001 || enemy.scaleY <= 0.001) continue;
+    nearest = Math.min(nearest, horizontalDistance(enemy.position, player));
+  }
+  return nearest;
+}
+
 export const CHEST_INTERACTION_DISTANCE = 1.9;
 
 export function canInteractWithChest(distance: number, opened: boolean): boolean {
@@ -744,6 +767,7 @@ export class DungeonWorld {
   private readonly pickups: PickupActor[] = [];
   private readonly chests: ChestActor[] = [];
   private pickupBurstPool: PickupBurstPool | null = null;
+  private timeFreezeVfx: TimeFreezeVfx | null = null;
   private readonly pickupBurstWarmupPosition = new THREE.Vector3();
   private readonly fireEffects: FireEffect[] = [];
   private dynamicFireLightCount = 0;
@@ -775,9 +799,11 @@ export class DungeonWorld {
   };
   private lockedExitCooldown = 0;
   private elapsed = 0;
+  private enemySimulationElapsed = 0;
   private enemyAnimationElapsed = 0;
   private difficultyElapsed = 0;
   private difficultySecond = -1;
+  private timeFreezeSeconds = 0;
   private difficultyRoomCount = 1;
   private enemyActivationRandom = createSeededRandom("difficulty-activation");
   private readonly stoneTextures = new Map<StoneId, THREE.Texture>();
@@ -820,6 +846,8 @@ export class DungeonWorld {
     this.enemyAnimationElapsed = 0;
     this.difficultyElapsed = 0;
     this.difficultySecond = -1;
+    this.timeFreezeSeconds = 0;
+    this.enemySimulationElapsed = 0;
     this.ensureStoneTextures();
     const biomeSurfaces = this.assets.getBiomeSurfaces(mood.id);
     applyBiomeMaps(this.surfaceMaterials, biomeSurfaces, mood.id);
@@ -876,7 +904,7 @@ export class DungeonWorld {
     this.addActors(dungeon, stonePlacements);
     const pickupBurstAnchor = gridToWorld(dungeon, dungeon.spawn, this.tileSize);
     this.pickupBurstWarmupPosition.set(pickupBurstAnchor.x, 0.4, pickupBurstAnchor.z);
-    this.pickupBurstPool = new PickupBurstPool(4);
+    this.pickupBurstPool = new PickupBurstPool(6);
     this.group.add(this.pickupBurstPool.root);
     this.applyMoodToPracticalLights(mood);
     this.stats.floorTiles = floorCells.length;
@@ -967,9 +995,14 @@ export class DungeonWorld {
     interactPressed = false,
   ): WorldUpdate {
     this.lockedExitCooldown = Math.max(0, this.lockedExitCooldown - delta);
-    this.enemyAnimationElapsed += Math.max(0, delta);
-    this.difficultyElapsed += Math.max(0, delta);
-    this.updateDifficulty(player);
+    this.timeFreezeSeconds = tickTimeFreeze(this.timeFreezeSeconds, delta);
+    const enemiesFrozen = isTimeFreezeActive(this.timeFreezeSeconds);
+    if (!enemiesFrozen) {
+      this.enemyAnimationElapsed += Math.max(0, delta);
+      this.enemySimulationElapsed += Math.max(0, delta);
+      this.difficultyElapsed += Math.max(0, delta);
+      this.updateDifficulty(player);
+    }
     let resolveGain = 0;
     let collectedStoneId: StoneId | null = null;
     let collectedPickup: WorldUpdate["collectedPickup"] = null;
@@ -978,14 +1011,23 @@ export class DungeonWorld {
     let interactionPrompt: WorldUpdate["interactionPrompt"] = null;
 
     // Combat + locomotion (sim) separate from instanced matrix writes (view).
-    const sim = tickEnemySim(this.enemies as EnemySimBody[], {
-      delta,
-      elapsed: this.elapsed,
-      player,
-      dungeon: this.dungeon,
-      solidColliders: this.solidColliders,
-      tileSize: this.tileSize,
-    });
+    const sim = enemiesFrozen
+      ? {
+          damage: 0,
+          nearestThreat: nearestEnemyDistance(this.enemies, player),
+          knockX: 0,
+          knockZ: 0,
+          knockHits: 0,
+          attacker: null,
+        }
+      : tickEnemySim(this.enemies as EnemySimBody[], {
+          delta,
+          elapsed: this.enemySimulationElapsed,
+          player,
+          dungeon: this.dungeon,
+          solidColliders: this.solidColliders,
+          tileSize: this.tileSize,
+        });
     const surfaceEffect = this.hazardTiles?.sample(delta, player) ?? {
       kind: null,
       label: "",
@@ -1011,12 +1053,17 @@ export class DungeonWorld {
     this.updateEnemyAnimationFrames();
 
     for (const enemy of this.enemies) {
-      enemy.spawnReveal = Math.min(
-        1,
-        enemy.spawnReveal + delta / Math.max(0.1, this.difficultyState.revealSeconds),
-      );
+      if (!enemiesFrozen) {
+        enemy.spawnReveal = Math.min(
+          1,
+          enemy.spawnReveal + delta / Math.max(0.1, this.difficultyState.revealSeconds),
+        );
+      }
       const archetype = ENEMY_ARCHETYPES[enemy.kind];
-      const yaw = Math.atan2(player.x - enemy.position.x, player.z - enemy.position.z);
+      const yaw = enemiesFrozen
+        ? enemy.yaw
+        : Math.atan2(player.x - enemy.position.x, player.z - enemy.position.z);
+      if (!enemiesFrozen) enemy.yaw = yaw;
       this.tempEuler.set(0, yaw, enemy.roll);
       this.tempQuaternion.setFromEuler(this.tempEuler);
       this.tempScale.set(enemy.scaleX, enemy.scaleY, 1);
@@ -1140,6 +1187,7 @@ export class DungeonWorld {
         if (progress >= 1) {
           if (pickup.kind === "stone") pickup.object.scale.setScalar(0.001);
           else pickup.object.visible = false;
+          if (pickup.timeFreezeSignal) pickup.timeFreezeSignal.light.intensity = 0;
         }
         continue;
       }
@@ -1147,6 +1195,10 @@ export class DungeonWorld {
       pickup.object.position.y =
         pickup.baseY + Math.sin(this.elapsed * 2.4 + pickup.object.id) * 0.08;
       pickup.object.rotation.y += delta * 0.72;
+      if (pickup.timeFreezeSignal) {
+        const pulse = 0.88 + Math.sin(this.elapsed * 2.9 + pickup.object.id) * 0.12;
+        pickup.timeFreezeSignal.light.intensity = pickup.timeFreezeSignal.baseIntensity * pulse;
+      }
       if (pickup.stoneSignal) {
         const pulse = 0.88 + Math.sin(this.elapsed * 2.9 + pickup.object.id) * 0.12;
         pickup.stoneSignal.light.intensity = pickup.stoneSignal.baseLightIntensity * pulse;
@@ -1173,8 +1225,10 @@ export class DungeonWorld {
         this.collectedStones.add(pickup.stoneId);
         collectedStoneId = pickup.stoneId;
         if (this.collectedStones.size >= STONE_ORDER.length) this.openPortal();
-      } else {
+      } else if (pickup.kind === "resolve") {
         resolveGain += 28;
+      } else {
+        this.timeFreezeSeconds = activateTimeFreeze();
       }
     }
 
@@ -1203,6 +1257,7 @@ export class DungeonWorld {
       collectedRelic: this.collectedStones.size >= STONE_ORDER.length && collectedStoneId !== null,
       collectedStoneId,
       collectedPickup,
+      timeFreezeRemaining: this.timeFreezeSeconds,
       stonesFound: this.collectedStones.size,
       stonesTotal: STONE_ORDER.length,
       portalOpen: this.portalOpen,
@@ -1238,6 +1293,7 @@ export class DungeonWorld {
 
   updateEffects(delta: number, viewerPosition?: THREE.Vector3Like): void {
     this.elapsed += delta;
+    this.timeFreezeVfx?.update(this.timeFreezeSeconds, this.elapsed, this.enemies);
     this.hazardTiles?.update(delta);
     const losInterval = 0.12; // ~8 Hz LOS refresh — enough for occlusion feel, cheap on large forge maps
     for (const effect of this.fireEffects) {
@@ -1343,6 +1399,10 @@ export class DungeonWorld {
     return this.portalOpen;
   }
 
+  get timeFreezeRemaining(): number {
+    return this.timeFreezeSeconds;
+  }
+
   restoreSession(foundStoneIds: readonly StoneId[]): void {
     const restored = new Set(foundStoneIds.filter((id) => STONE_ORDER.includes(id)));
     this.collectedStones.clear();
@@ -1400,12 +1460,16 @@ export class DungeonWorld {
     const pickups = this.pickups
       .filter((pickup) => pickup.kind === "resolve" && pickup.available && !pickup.collected)
       .map((pickup) => toCell(pickup.object.position));
+    const timeFreeze = this.pickups.find(
+      (pickup) => pickup.kind === "time-freeze" && pickup.available && !pickup.collected,
+    );
     return {
       doors,
       fires,
       enemies,
       stones,
       pickups,
+      timeFreeze: timeFreeze ? toCell(timeFreeze.object.position) : undefined,
       spawn: dungeon ? { x: dungeon.spawn.x, y: dungeon.spawn.y } : { x: 0, y: 0 },
     };
   }
@@ -3580,6 +3644,63 @@ export class DungeonWorld {
     this.difficultyRoomCount = Math.max(1, enemyRooms.length);
     const kinds: readonly EnemyKind[] = ENEMY_ROSTER;
 
+    const pickupExcluded = new Set([
+      ...this.solidCells.keys(),
+      ...this.hazardCells,
+      ...this.objectiveClearanceCells,
+      ...stonePlacements.map((placement) => `${placement.cell.x},${placement.cell.y}`),
+    ]);
+    const freezeRooms = rankedRooms.filter((room) => !stoneRoomSet.has(room));
+    const freezeRoom =
+      freezeRooms[Math.floor(freezeRooms.length * 0.58)] ??
+      rankedRooms[Math.floor(rankedRooms.length * 0.58)];
+    let timeFreezeCell: GridCell | null = null;
+    if (freezeRoom) {
+      const candidates = collectRoomInteriorSeats(dungeon, freezeRoom).filter(
+        (cell) => !pickupExcluded.has(`${cell.x},${cell.y}`),
+      );
+      timeFreezeCell =
+        pickSpreadSeats(candidates, 1, dungeon.seedHash + freezeRoom.id * 43)[0] ??
+        findNearestPropCell(dungeon, freezeRoom.center, pickupExcluded, 8);
+    }
+    if (!timeFreezeCell) {
+      for (let y = 0; y < dungeon.height && !timeFreezeCell; y += 1) {
+        for (let x = 0; x < dungeon.width; x += 1) {
+          const cell = { x, y };
+          if (dungeon.grid[y]?.[x] !== FLOOR) continue;
+          if (pickupExcluded.has(`${x},${y}`) || isProtectedTraversalCell(dungeon, cell)) continue;
+          timeFreezeCell = cell;
+          break;
+        }
+      }
+    }
+    if (timeFreezeCell) {
+      pickupExcluded.add(`${timeFreezeCell.x},${timeFreezeCell.y}`);
+      this.objectiveClearanceCells.add(`${timeFreezeCell.x},${timeFreezeCell.y}`);
+      const relic = createTimeFreezeRelic(this.materials);
+      preparePickupOpacity(relic);
+      const p = gridToWorld(dungeon, timeFreezeCell, this.tileSize);
+      relic.position.set(p.x, 0, p.z);
+      const baseScale = new THREE.Vector3(0.72, 0.72, 0.72);
+      relic.scale.copy(baseScale);
+      this.pickups.push({
+        kind: "time-freeze",
+        object: relic,
+        collected: false,
+        collectTime: 0,
+        available: true,
+        revealTime: 1,
+        baseY: 0,
+        baseScale,
+        timeFreezeSignal: {
+          light: relic.getObjectByName("Time freeze pickup light") as THREE.PointLight,
+          baseIntensity: 1.35,
+        },
+      });
+      this.group.add(relic);
+      this.stats.props += 1;
+    }
+
     const authoredSpawns = dungeon.forge?.spawns.length
       ? dungeon.forge.spawns
           .filter((spawn) => !this.isObjectiveClearanceCell(spawn))
@@ -3609,6 +3730,7 @@ export class DungeonWorld {
     const excludedSpawnCells = new Set([
       ...this.solidCells.keys(),
       ...this.hazardCells,
+      ...this.objectiveClearanceCells,
       `${dungeon.spawn.x},${dungeon.spawn.y}`,
       `${dungeon.exit.x},${dungeon.exit.y}`,
       ...stonePlacements.map((placement) => `${placement.cell.x},${placement.cell.y}`),
@@ -3730,6 +3852,7 @@ export class DungeonWorld {
           scaleX: spec.width,
           scaleY: spec.height,
           roll: 0,
+          yaw: 0,
           phaseEpoch: -1,
           phaseVisibility: 1,
           spawnReveal: 0,
@@ -3778,6 +3901,9 @@ export class DungeonWorld {
       this.group.add(sharedShadowBatch);
     }
 
+    this.timeFreezeVfx = new TimeFreezeVfx(actorSpecs.length);
+    this.group.add(this.timeFreezeVfx.root);
+
     const entrance = gridToWorld(dungeon, dungeon.spawn, this.tileSize);
     this.activateEnemiesToTarget(entrance, true);
 
@@ -3790,6 +3916,7 @@ export class DungeonWorld {
           const candidates = collectRoomInteriorSeats(dungeon, room).filter(
             (cell) =>
               !this.solidCells.has(`${cell.x},${cell.y}`) &&
+              !this.objectiveClearanceCells.has(`${cell.x},${cell.y}`) &&
               !isProtectedTraversalCell(dungeon, cell),
           );
           const cell = pickSpreadSeats(candidates, 1, dungeon.seedHash + room.id * 29)[0];
@@ -3816,8 +3943,10 @@ export class DungeonWorld {
     this.enemyAnimationBatches.clear();
     this.movingEnemyKinds.clear();
     this.enemyAnimationElapsed = 0;
+    this.enemySimulationElapsed = 0;
     this.difficultyElapsed = 0;
     this.difficultySecond = -1;
+    this.timeFreezeSeconds = 0;
     this.difficultyRoomCount = 1;
     this.doors.length = 0;
     this.pickups.length = 0;
@@ -3826,6 +3955,11 @@ export class DungeonWorld {
       this.group.remove(this.pickupBurstPool.root);
       this.pickupBurstPool.dispose();
       this.pickupBurstPool = null;
+    }
+    if (this.timeFreezeVfx) {
+      this.group.remove(this.timeFreezeVfx.root);
+      this.timeFreezeVfx.dispose();
+      this.timeFreezeVfx = null;
     }
     this.fireEffects.length = 0;
     this.dynamicFireLightCount = 0;

@@ -19,6 +19,7 @@ export const COPY = {
     /** Gothic body label — sentence case only. */
     stone: (name: string) => name,
     flask: "HEALTH RESTORED",
+    timeFreeze: "TIME FROZEN",
   },
   interaction: {
     openChest: "OPEN CHEST",
@@ -39,6 +40,7 @@ export const COPY = {
     portalSealed: "The portal is sealed. Four magic stones are required.",
     portalOpen: "The portal thrums open. Reach the special gate.",
     stoneFound: (name: string, found: number, total: number) => `${name} bound · ${found}/${total}`,
+    timeFreeze: "Time frozen for 20 seconds.",
     won: "You escaped through the portal.",
     dead: "Keep distance. Shadows strike on contact.",
     hydrate: (seed: string) => `Hydrate backend · seed ${seed}`,
