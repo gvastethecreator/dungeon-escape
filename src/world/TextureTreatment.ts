@@ -121,6 +121,24 @@ export function edgeBlendSeamlessRgba(
   }
 }
 
+/** Mean RGB mismatch across opposite borders; zero is a perfect wrap. */
+export function textureEdgeMismatchRgba(data: Uint8ClampedArray, size: number): number {
+  let error = 0;
+  let samples = 0;
+  for (let offset = 0; offset < size; offset += 1) {
+    for (let channel = 0; channel < 3; channel += 1) {
+      const left = offset * size * 4 + channel;
+      const right = (offset * size + size - 1) * 4 + channel;
+      const top = offset * 4 + channel;
+      const bottom = ((size - 1) * size + offset) * 4 + channel;
+      error += Math.abs(data[left]! - data[right]!);
+      error += Math.abs(data[top]! - data[bottom]!);
+      samples += 2;
+    }
+  }
+  return samples > 0 ? error / samples : 0;
+}
+
 export function edgeBlendSeamlessCanvas(
   image: CanvasImageSource,
   blendRatio = 0.16,
@@ -135,7 +153,10 @@ export function edgeBlendSeamlessCanvas(
   context.imageSmoothingEnabled = false;
   context.drawImage(image, 0, 0, size, size);
   const imageData = context.getImageData(0, 0, size, size);
-  edgeBlendSeamlessRgba(imageData.data, size, blendRatio);
+  // Baked maps already match at the border. Keep their edge detail intact.
+  if (textureEdgeMismatchRgba(imageData.data, size) > 2) {
+    edgeBlendSeamlessRgba(imageData.data, size, blendRatio);
+  }
   context.putImageData(imageData, 0, 0);
   return canvas;
 }

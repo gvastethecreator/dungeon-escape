@@ -6,7 +6,7 @@ import { createSeededRandom } from "../core/random";
 import { FLOOR, WALL } from "../dungeon/generateDungeon";
 import { gridToWorld, worldToGrid, type WorldCollider } from "../dungeon/gridCollision";
 import type { DungeonData, DungeonRoom, ForgePropMetadata, GridCell } from "../dungeon/types";
-import { AssetLibrary } from "./AssetLibrary";
+import { AssetLibrary, type WallSpriteTextures } from "./AssetLibrary";
 import {
   ENEMY_ANIMATIONS,
   ENEMY_ROSTER,
@@ -44,7 +44,9 @@ import {
 } from "./AtmospherePropsKit";
 import {
   ENEMY_ARCHETYPES,
+  enemyCeilingY,
   enemyGroundY,
+  getEnemySpriteRenderMetrics,
   isLowProfileEnemy,
   type EnemyKind,
 } from "./EnemyArchetypes";
@@ -380,21 +382,31 @@ function createFloorTileGeometry(footprint: number): THREE.BoxGeometry {
   return new THREE.BoxGeometry(footprint, 0.1, footprint);
 }
 
-/** One beveled-looking picture frame merged into a single support geometry. */
-function createPictureFrameGeometry(width: number, height: number): THREE.BufferGeometry {
-  const rail = Math.min(width, height) * 0.035;
-  const depth = 0.055;
-  const parts = [
-    new THREE.BoxGeometry(width + rail * 2, rail, depth).translate(0, height / 2 + rail / 2, 0),
-    new THREE.BoxGeometry(width + rail * 2, rail, depth).translate(0, -height / 2 - rail / 2, 0),
-    new THREE.BoxGeometry(rail, height, depth).translate(-width / 2 - rail / 2, 0, 0),
-    new THREE.BoxGeometry(rail, height, depth).translate(width / 2 + rail / 2, 0, 0),
-  ];
-  const merged = mergeGeometries(parts, false);
-  parts.forEach((part) => {
-    if (part !== merged) part.dispose();
+function createWallSpriteMaterial(
+  textures: WallSpriteTextures,
+  mood: DungeonMood,
+  roughness: number,
+  opacity = 1,
+): THREE.MeshStandardMaterial {
+  const material = new THREE.MeshStandardMaterial({
+    map: textures.albedo,
+    normalMap: textures.normal,
+    roughnessMap: textures.rough,
+    color: new THREE.Color(mood.surfaceTint).lerp(new THREE.Color(0xffffff), 0.72),
+    transparent: true,
+    opacity,
+    alphaTest: opacity < 1 ? 0.16 : 0.1,
+    depthWrite: opacity >= 1,
+    side: THREE.DoubleSide,
+    roughness: THREE.MathUtils.clamp(roughness, 0.78, 1),
+    metalness: 0,
+    envMapIntensity: THREE.MathUtils.clamp(mood.environmentIntensity * 1.1, 0.08, 0.32),
   });
-  return merged ?? new THREE.BoxGeometry(width + rail * 2, height + rail * 2, depth);
+  // Keep the sprite planar. Depth remains available for later parallax work.
+  material.normalScale.set(0.24, 0.24);
+  material.userData.depthTexture = textures.depth;
+  material.userData.wallSpritePbr = true;
+  return material;
 }
 
 function transformedGeometry(
@@ -1895,21 +1907,17 @@ export class DungeonWorld {
       }
     }
 
-    const artGeometry = new THREE.PlaneGeometry(2.15, 2.45);
+    const artGeometry = new THREE.PlaneGeometry(2.3, 2.3);
+    const wallSpriteRoughness = getBiomeDecorationProfile(this.activeMood.id).doorRoughness + 0.04;
     for (const [mapIndex, matrices] of classicWallArtPlacements) {
-      const material = new THREE.MeshStandardMaterial({
-        map: this.assets.wallArt(mapIndex),
-        color: new THREE.Color(this.activeMood.surfaceTint).lerp(new THREE.Color(0xffffff), 0.66),
-        transparent: true,
-        alphaTest: 0.1,
-        side: THREE.DoubleSide,
-        roughness: 0.9,
-        metalness: 0.01,
-        envMapIntensity: 0.22,
-      });
+      const material = createWallSpriteMaterial(
+        this.assets.wallArtPbr(mapIndex),
+        this.activeMood,
+        wallSpriteRoughness,
+      );
       const batch = new THREE.InstancedMesh(artGeometry, material, matrices.length);
       batch.name = `Room wall artwork ${mapIndex + 1}`;
-      batch.castShadow = true;
+      batch.castShadow = false;
       batch.receiveShadow = true;
       matrices.forEach((matrix, index) => batch.setMatrixAt(index, matrix));
       batch.instanceMatrix.needsUpdate = true;
@@ -3027,75 +3035,37 @@ export class DungeonWorld {
 
     for (const [frame, cells] of placements.entries()) {
       if (cells.length === 0) continue;
-      const map = this.assets.biomeWallDecor(this.activeMood.id, frame);
-      const material = new THREE.MeshStandardMaterial({
-        map,
-        color: new THREE.Color(this.activeMood.surfaceTint).lerp(new THREE.Color(0xffffff), 0.76),
-        transparent: true,
-        opacity: frame < 2 ? 1 : 0.76,
-        alphaTest: frame < 2 ? 0.1 : 0.16,
-        depthWrite: frame < 2,
-        side: THREE.DoubleSide,
-        roughness: 0.9,
-        metalness: 0.01,
-        envMapIntensity: 0.22,
-        polygonOffset: frame >= 2,
-        polygonOffsetFactor: frame >= 2 ? -3 : 0,
-        polygonOffsetUnits: frame >= 2 ? -3 : 0,
-      });
-      const geometry = new THREE.PlaneGeometry(
-        1.55 * profile.wallDecorScale,
-        1.72 * profile.wallDecorScale,
+      const textures = this.assets.biomeWallDecorPbr(this.activeMood.id, frame);
+      const material = createWallSpriteMaterial(
+        textures,
+        this.activeMood,
+        profile.doorRoughness + 0.04,
+        frame < 2 ? 1 : 0.76,
       );
+      material.polygonOffset = frame >= 2;
+      material.polygonOffsetFactor = frame >= 2 ? -3 : 0;
+      material.polygonOffsetUnits = frame >= 2 ? -3 : 0;
+      const spriteSize = 1.72 * profile.wallDecorScale;
+      const geometry = new THREE.PlaneGeometry(spriteSize, spriteSize);
       const batch = new THREE.InstancedMesh(geometry, material, cells.length);
       batch.name = `${this.activeMood.label} wall decor ${frame + 1}`;
-      batch.castShadow = frame < 2;
+      batch.castShadow = false;
       batch.receiveShadow = true;
-      const frameMatrices: THREE.Matrix4[] = [];
       cells.forEach(({ seat }, index) => {
         const p = gridToWorld(dungeon, seat.cell, this.tileSize);
         const offset = wallHugWorldOffset(seat.intoDx, seat.intoDy, this.tileSize, 0.055);
         this.tempPosition.set(p.x + offset.x, 1.75 + ((index + frame) % 3) * 0.12, p.z + offset.z);
         this.tempEuler.set(0, facingRotation(seat.intoDx, seat.intoDy), 0, "YXZ");
         this.tempQuaternion.setFromEuler(this.tempEuler);
-        const scaleX = 0.88 + random.next() * 0.24;
-        const scaleY = 0.88 + random.next() * 0.24;
-        this.tempScale.set(scaleX, scaleY, 1);
+        const spriteScale = 0.9 + random.next() * 0.2;
+        this.tempScale.set(spriteScale, spriteScale, 1);
         this.tempMatrix.compose(this.tempPosition, this.tempQuaternion, this.tempScale);
         batch.setMatrixAt(index, this.tempMatrix);
-        if (frame < 2) {
-          frameMatrices.push(
-            new THREE.Matrix4().compose(
-              new THREE.Vector3(
-                this.tempPosition.x - seat.intoDx * 0.042,
-                this.tempPosition.y,
-                this.tempPosition.z - seat.intoDy * 0.042,
-              ),
-              this.tempQuaternion.clone(),
-              new THREE.Vector3(scaleX, scaleY, 1),
-            ),
-          );
-        }
       });
       batch.instanceMatrix.needsUpdate = true;
       batch.computeBoundingBox();
       batch.computeBoundingSphere();
       this.group.add(batch);
-      if (frameMatrices.length > 0) {
-        const frames = new THREE.InstancedMesh(
-          createPictureFrameGeometry(1.55 * profile.wallDecorScale, 1.72 * profile.wallDecorScale),
-          this.materials.wood,
-          frameMatrices.length,
-        );
-        frames.name = `${this.activeMood.label} wall decor dimensional frames`;
-        frames.castShadow = true;
-        frames.receiveShadow = true;
-        frameMatrices.forEach((matrix, index) => frames.setMatrixAt(index, matrix));
-        frames.instanceMatrix.needsUpdate = true;
-        frames.computeBoundingBox();
-        frames.computeBoundingSphere();
-        this.group.add(frames);
-      }
       this.stats.props += cells.length;
     }
   }
@@ -3534,12 +3504,11 @@ export class DungeonWorld {
     );
     const actorSpecs = spawnRecords.map((spawn, index) => {
       const kind = selectedKinds[index] ?? kinds[index % kinds.length] ?? "goblin";
-      const archetype = ENEMY_ARCHETYPES[kind];
-      const width = archetype.width;
-      const height = archetype.height;
+      const sprite = getEnemySpriteRenderMetrics(kind);
+      const width = sprite.planeWidth;
+      const height = sprite.planeHeight;
       const p = gridToWorld(dungeon, spawn.cell, this.tileSize);
-      const spawnY =
-        kind === "imp" ? this.wallHeight - archetype.height / 2 - 0.38 : enemyGroundY(kind);
+      const spawnY = kind === "imp" ? enemyCeilingY(kind, this.wallHeight) : enemyGroundY(kind);
       return {
         kind,
         width,

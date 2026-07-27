@@ -29,7 +29,19 @@ from PIL import Image
 ROOT = Path(__file__).resolve().parents[1]
 BIOMES = ROOT / "public" / "assets" / "textures" / "biomes"
 SURFACES = ("floor", "wall", "ceiling")
-BIOME_IDS = ("ancient", "molten", "frost", "grim", "verdant", "ash", "iron")
+BIOME_IDS = (
+    "ancient",
+    "molten",
+    "frost",
+    "grim",
+    "verdant",
+    "ash",
+    "iron",
+    "obsidian",
+    "sunken",
+    "fungal",
+    "backrooms",
+)
 OUT_SIZE = 512
 BLEND = 0.14
 
@@ -44,6 +56,13 @@ def load_rgb(path: Path) -> np.ndarray:
 def save_png(path: Path, rgb: np.ndarray) -> None:
     Image.fromarray(rgb, mode="RGB").save(path, optimize=True)
     print(f"  wrote {path.relative_to(ROOT)} ({path.stat().st_size // 1024} KB)")
+
+
+def border_mismatch(arr: np.ndarray) -> float:
+    rgb = arr[..., :3].astype(np.float32)
+    horizontal = np.abs(rgb[:, 0] - rgb[:, -1]).mean()
+    vertical = np.abs(rgb[0] - rgb[-1]).mean()
+    return float(max(horizontal, vertical))
 
 
 def edge_blend_seamless(arr: np.ndarray, blend_ratio: float = BLEND) -> np.ndarray:
@@ -103,7 +122,7 @@ def depth_to_normal(height: np.ndarray, strength: float = 3.6) -> np.ndarray:
     nx /= length
     ny /= length
     nz /= length
-    return np.stack(
+    encoded = np.stack(
         [
             ((nx * 0.5 + 0.5) * 255).clip(0, 255),
             ((ny * 0.5 + 0.5) * 255).clip(0, 255),
@@ -111,6 +130,11 @@ def depth_to_normal(height: np.ndarray, strength: float = 3.6) -> np.ndarray:
         ],
         axis=-1,
     ).astype(np.uint8)
+    encoded = edge_blend_seamless(encoded, BLEND * 0.65)
+    # Blending RGB normals shortens them. Restore unit length after the seam pass.
+    vector = encoded.astype(np.float32) / 255.0 * 2.0 - 1.0
+    vector /= np.linalg.norm(vector, axis=2, keepdims=True) + 1e-8
+    return np.clip(np.rint((vector * 0.5 + 0.5) * 255), 0, 255).astype(np.uint8)
 
 
 def roughness_from_height(albedo: np.ndarray, height: np.ndarray) -> np.ndarray:
@@ -127,7 +151,7 @@ def process_one(albedo_path: Path, write_albedo: bool) -> None:
     parent = albedo_path.parent
     print(f"bake {albedo_path.relative_to(ROOT)}")
     raw = load_rgb(albedo_path)
-    albedo = edge_blend_seamless(raw, BLEND)
+    albedo = raw if border_mismatch(raw) <= 2 else edge_blend_seamless(raw, BLEND)
     height = height_from_albedo(albedo)
     normal = depth_to_normal(height, strength=3.6)
     rough = roughness_from_height(albedo, height)
@@ -149,12 +173,19 @@ def main() -> int:
         help="Overwrite albedo with seamless version (default true)",
     )
     parser.add_argument("--keep-albedo", action="store_true", help="Do not overwrite albedo.png")
+    parser.add_argument(
+        "--biomes",
+        nargs="+",
+        choices=BIOME_IDS,
+        default=list(BIOME_IDS),
+        help="Only bake the selected biome ids",
+    )
     args = parser.parse_args()
     write_albedo = args.write_albedo and not args.keep_albedo
     print(f"mode=albedo-height seamless write_albedo={write_albedo}")
 
     count = 0
-    for biome in BIOME_IDS:
+    for biome in args.biomes:
         folder = BIOMES / biome
         if not folder.is_dir():
             continue
