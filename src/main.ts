@@ -85,6 +85,7 @@ const elements = {
   welcomeScreen: requireElement<HTMLElement>("#welcome-screen"),
   welcomeNew: requireElement<HTMLButtonElement>("#welcome-new"),
   welcomeContinue: requireElement<HTMLButtonElement>("#welcome-continue"),
+  welcomeCustom: requireElement<HTMLButtonElement>("#welcome-custom"),
   welcomeStatus: requireElement<HTMLElement>("#welcome-status"),
   leaderboardList: requireElement<HTMLOListElement>("#leaderboard-list"),
   leaderboardStatus: requireElement<HTMLElement>("#leaderboard-status"),
@@ -1877,9 +1878,8 @@ elements.welcomeNew.addEventListener("click", () => {
   elements.seed.value = freshSeed;
   buildDungeon(freshSeed);
   setWelcomeOpen(false);
-  setEngineMode("editor", { hydrate: false });
-  setEditorSurface("forge");
-  setStatus("Create a dungeon, then select PLAY.");
+  setEngineMode("play", { hydrate: false });
+  setStatus(COPY.status.enterPlay);
 });
 elements.welcomeContinue.addEventListener("click", () => {
   if (!continueDomainState) return;
@@ -1889,6 +1889,17 @@ elements.welcomeContinue.addEventListener("click", () => {
   setEngineMode("play", { hydrate: false });
   scheduleLocalRunSave(0);
   setStatus(`Continued run · seed ${continueDomainState.seed}. Click the scene to look.`);
+});
+elements.welcomeCustom.addEventListener("click", () => {
+  void audio.unlock();
+  const freshSeed = makeSeed();
+  queueNewProceduralSeed();
+  elements.seed.value = freshSeed;
+  buildDungeon(freshSeed);
+  setWelcomeOpen(false);
+  setEngineMode("editor", { hydrate: false });
+  setEditorSurface("forge");
+  setStatus("Create a dungeon, then select PLAY.");
 });
 elements.optionsResume.addEventListener("click", () => {
   setOptionsOpen(false);
@@ -2347,7 +2358,7 @@ window.addEventListener("beforeunload", () => {
 });
 resize();
 applyCameraSettings();
-// Welcome owns the first choice. New Game opens Creation; Continue opens play.
+// Welcome owns the first choice. New Game starts play; Custom Run opens Creation.
 setEngineMode("editor", { hydrate: false, persist: false });
 setWelcomeOpen(true);
 void refreshLeaderboard();
