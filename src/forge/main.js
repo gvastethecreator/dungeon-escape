@@ -24,7 +24,15 @@ import {
   selectDepthSpreadRoomIds,
   selectForgeMagicStonePlacements,
 } from "./layoutTuning";
-import { getEnemySpriteRenderMetrics } from "../world/EnemyArchetypes";
+import {
+  ENEMY_ARCHETYPES,
+  getEnemySpriteRenderMetrics,
+  isLowProfileEnemy,
+} from "../world/EnemyArchetypes";
+import {
+  createEnemyContactShadowMaterial,
+  resolveEnemyContactShadowLayout,
+} from "../world/EnemyBillboardMaterial";
 import { selectEnemyKindsForSpawns } from "../world/EnemySpawnPlan";
 import { enemyAnimationsForMood } from "../world/EnemySpriteAtlas";
 import { createMagicStone } from "../world/MagicStoneKit";
@@ -769,12 +777,12 @@ function tryGenerate(seed, params) {
   const leaves = [];
   for (let i = 0; i < N; i++)
     if (i !== entrance && i !== boss && rooms[i].degree === 1) leaves.push(i);
-  // Reward branches now cover early, middle and late play instead of piling
-  // every chest into the deepest corner of the graph.
+  // Reward branches cover early through late play so health flasks are not
+  // piled only in the deepest leaves. Two extra bands keep pressure fair.
   selectDepthSpreadRoomIds(
     leaves.map((id) => ({ id, depth: rooms[id].depth })),
     maxDepth,
-    [0.28, 0.48, 0.68, 0.88],
+    [0.18, 0.34, 0.48, 0.62, 0.78, 0.92],
   ).forEach((i) => {
     rooms[i].type = TYPE.TREASURE;
   });
@@ -2428,7 +2436,7 @@ const partMat = new THREE.ShaderMaterial({
       vTint = aTint;
       vPhase = phase;
       gl_Position = projectionMatrix * modelViewMatrix * vec4(p, 1.0);
-      gl_PointSize = clamp(aSize*sizePulse*uZoom, 1.8, 16.0);
+      gl_PointSize = clamp(aSize*sizePulse*uZoom, 1.0, 10.0);
     }`,
   fragmentShader: `
     precision mediump float;
@@ -3456,10 +3464,14 @@ function buildScene(d) {
 
   /* Exact production creatures replace the old crystal/spire spawn markers.
      Keep native Sprite billboarding here: the atlas frame transform lives on
-     each shared kind texture and stays correct while the Forge camera orbits. */
+     each shared kind texture and stays correct while the Forge camera orbits.
+     Pivot at opaque feet (or opaque crown for ceiling imps) so basals and
+     contact shadows sit on the correct plane. */
   const enemyRoot = new THREE.Group();
   enemyRoot.name = "Production enemy preview";
   const enemyMaterials = new Map();
+  const forgeWallHeight = 2.2;
+  const enemyScaleMul = 0.74;
   // Soft theme wash — keep biome atlas hue readable (not a flat grey mask).
   const enemyPreviewTint = new THREE.Color(0xf4f0e8)
     .lerp(new THREE.Color(TH.accent), 0.12)
@@ -3469,6 +3481,9 @@ function buildScene(d) {
     d.spawns.map((spawn) => spawn.tier),
   );
   const enemyMoodAnims = enemyAnimationsForMood(d.params.themeKey);
+  const enemyShadowMaterial = createEnemyContactShadowMaterial();
+  enemyShadowMaterial.name = "Forge enemy contact shadow material";
+  fx.enemyMaterials.push(enemyShadowMaterial);
   const enemyMaterial = (kind) => {
     const cached = enemyMaterials.get(kind);
     if (cached) return cached;
@@ -3504,15 +3519,46 @@ function buildScene(d) {
     const X = wx(sp.x),
       Z = wz(sp.y);
     const kind = selectedEnemyKinds[index] || "goblin";
-    const spriteMetrics = getEnemySpriteRenderMetrics(kind);
+    const archetype = ENEMY_ARCHETYPES[kind];
+    const spriteMetrics = getEnemySpriteRenderMetrics(kind, d.params.themeKey);
+    const planeW = spriteMetrics.planeWidth * enemyScaleMul;
+    const planeH = spriteMetrics.planeHeight * enemyScaleMul;
     const sprite = new THREE.Sprite(enemyMaterial(kind));
     sprite.name = `Enemy preview ${kind}`;
-    sprite.center.set(0.5, spriteMetrics.bottomPaddingRatio);
-    sprite.position.set(X, 0.06, Z);
-    sprite.scale.set(spriteMetrics.planeWidth * 0.74, spriteMetrics.planeHeight * 0.74, 1);
+    const ceilingMounted = kind === "imp";
+    if (ceilingMounted) {
+      // Pivot on opaque crown so the body hangs into the room under the cap.
+      sprite.center.set(0.5, 1 - spriteMetrics.topPaddingRatio);
+      sprite.position.set(X, forgeWallHeight - 0.18, Z);
+    } else {
+      // Pivot on opaque feet; hoverOffset lifts spectral / airborne bodies.
+      sprite.center.set(0.5, spriteMetrics.bottomPaddingRatio);
+      sprite.position.set(X, 0.035 + archetype.hoverOffset * enemyScaleMul, Z);
+    }
+    sprite.scale.set(planeW, planeH, 1);
     sprite.renderOrder = 4;
-    sprite.userData = { kind, tier: sp.tier, roomId: sp.roomId };
+    sprite.userData = { kind, tier: sp.tier, roomId: sp.roomId, ceilingMounted };
     enemyRoot.add(sprite);
+
+    const feetY = ceilingMounted
+      ? sprite.position.y -
+        planeH * (1 - spriteMetrics.topPaddingRatio - spriteMetrics.bottomPaddingRatio)
+      : sprite.position.y;
+    const shadowLayout = resolveEnemyContactShadowLayout({
+      bodyWidth: archetype.width * enemyScaleMul,
+      lowProfile: isLowProfileEnemy(kind),
+      feetY,
+      visibility: 1,
+      spectral: archetype.silhouette === "spectral",
+    });
+    const shadow = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), enemyShadowMaterial);
+    shadow.name = `Enemy contact shadow ${kind}`;
+    shadow.rotation.x = -Math.PI / 2;
+    shadow.position.set(X, shadowLayout.y, Z);
+    shadow.scale.set(shadowLayout.width, shadowLayout.depth, 1);
+    shadow.renderOrder = 1;
+    shadow.frustumCulled = true;
+    enemyRoot.add(shadow);
   });
   fx.enemyRoot = enemyRoot;
   group.add(enemyRoot);
@@ -4057,10 +4103,14 @@ function setThemeSel(t) {
     .querySelectorAll("#chips .chip")
     .forEach((ch) => ch.classList.toggle("on", ch.dataset.t === t));
 }
+function moodChannel(seed, salt) {
+  return (Math.imul((seed >>> 0) ^ salt, 2654435761) >>> 0);
+}
 function resolveTheme(seed) {
   if (themeSel !== "random") return themeSel;
-  const hash = Math.imul(seed ^ 0x9e37, 2654435761) >>> 0;
-  return hash % 23 === 0 ? "backrooms" : REGULAR_THEME_KEYS[hash % REGULAR_THEME_KEYS.length];
+  // Match runtime resolveDungeonMood: backrooms ~8%, all regular themes reachable.
+  if (moodChannel(seed, 0xa5a5a5a5) % 100 < 8) return "backrooms";
+  return REGULAR_THEME_KEYS[moodChannel(seed, 0xb7e15163) % REGULAR_THEME_KEYS.length];
 }
 
 /* -------- object-layer toggles (all on by default) -------- */
