@@ -68,6 +68,18 @@ export const COPY = {
     newDungeon: "New dungeon",
     next: "Another run",
   },
+  leaderboard: {
+    title: "Hall of Escapes",
+    loading: "Reading local records…",
+    empty: "No completed escapes yet.",
+    unavailable: "Local records are unavailable.",
+    nameLabel: "Name for the hall",
+    namePlaceholder: "Wanderer",
+    submit: "Save score",
+    saving: "Saving…",
+    saved: (rank: number, score: number) =>
+      `Saved at rank ${rank}. Score ${score.toLocaleString("en-US")}.`,
+  },
   hud: {
     map: "MAP",
     mapExpand: "EXPAND",
