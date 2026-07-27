@@ -8,9 +8,9 @@ import { gridToWorld, worldToGrid, type WorldCollider } from "../dungeon/gridCol
 import type { DungeonData, DungeonRoom, ForgePropMetadata, GridCell } from "../dungeon/types";
 import { AssetLibrary, type WallSpriteTextures } from "./AssetLibrary";
 import {
-  ENEMY_ANIMATIONS,
   ENEMY_ROSTER,
   enemyAnimationFrameIndex,
+  enemyAnimationsForMood,
   type EnemyAnimationDefinition,
 } from "./EnemySpriteAtlas";
 import { selectEnemyKindsForSpawns } from "./EnemySpawnPlan";
@@ -3540,7 +3540,7 @@ export class DungeonWorld {
       const specs = actorSpecs.filter((spec) => spec.kind === kind);
       if (specs.length === 0) continue;
       const kindArchetype = ENEMY_ARCHETYPES[kind];
-      const animation = ENEMY_ANIMATIONS[kind];
+      const animation = enemyAnimationsForMood(this.activeMood.id)[kind];
       const texture = this.assets.enemyAnimation(animation);
       const material = createEnemyBillboardMaterial(texture);
       setEnemyBillboardFrame(material, animation, 0);
