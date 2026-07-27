@@ -89,7 +89,7 @@ describe("professional world kit", () => {
   test("enemy atlas uses four 320px frames for each measured silhouette", () => {
     for (const [row, kind] of ENEMY_ROSTER.entries()) {
       const animation = ENEMY_ANIMATIONS[kind];
-      expect(animation.src).toBe("/assets/sprites/enemies-v6/iron-ash-enemies-v6.png");
+      expect(animation.src).toBe("/assets/sprites/enemies-v8/iron-ash-enemies-v8.png");
       expect(animation.size).toEqual([1280, 3520]);
       expect(animation.frames).toHaveLength(4);
       expect(animation.frames).toEqual([

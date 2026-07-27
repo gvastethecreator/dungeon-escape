@@ -15,12 +15,12 @@ import {
   enemyAnimationFrameIndex,
 } from "../src/world/EnemySpriteAtlas";
 
-describe("enemy roster v5", () => {
+describe("enemy roster v8", () => {
   test("ships the complete front-facing roster with four-frame animation rows", () => {
     expect(Object.keys(ENEMY_ARCHETYPES)).toEqual([...ENEMY_ROSTER]);
     for (const kind of ENEMY_ROSTER) {
       const animation = ENEMY_ANIMATIONS[kind];
-      expect(animation.src).toMatch(/enemies-v6\/(iron-ash-enemies-v6|biomes\/.+-enemies)\.png$/);
+      expect(animation.src).toMatch(/enemies-v8\/(iron-ash-enemies-v8|biomes\/.+-enemies)\.png$/);
       expect(animation.frames).toHaveLength(4);
       expect(animation.fps).toBe(8);
       expect(animation.loop).toBe(true);
@@ -30,7 +30,7 @@ describe("enemy roster v5", () => {
 
   test("atlas png ships with the app", async () => {
     const file = Bun.file(
-      new URL("../public/assets/sprites/enemies-v6/iron-ash-enemies-v6.png", import.meta.url),
+      new URL("../public/assets/sprites/enemies-v8/iron-ash-enemies-v8.png", import.meta.url),
     );
     expect(await file.exists()).toBe(true);
     expect(file.size).toBeGreaterThan(1_000_000);

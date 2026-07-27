@@ -177,7 +177,7 @@ export class DungeonEditorView {
     try {
       const moodIds = listDungeonMoodIds();
       const [baseEnemies, items, ...rest] = await Promise.all([
-        loadImage("/assets/sprites/enemies-v6/iron-ash-enemies-v6.png"),
+        loadImage("/assets/sprites/enemies-v8/iron-ash-enemies-v8.png"),
         loadImage("/assets/sprites/iron-ash-items.png"),
         ...moodIds.map((id) => loadImage(enemyAtlasSrcForMood(id)).catch(() => null)),
         ...(["ember", "ash", "crypt", "verdant"] as const).map((id) =>
