@@ -9,11 +9,11 @@ export const MAX_DYNAMIC_FIRE_LIGHTS = 10;
 
 export const PLAYER_LANTERN_TUNING = Object.freeze({
   color: 0xd0a064,
-  /** Strong close fill around the body; steeper decay keeps distant rooms dark. */
-  intensity: 76,
-  /** One room of useful light, then fog and physical decay take over. */
-  range: 18,
-  decay: 1.8,
+  /** Strong close fill around the body; inverse-square falloff keeps distant rooms dark. */
+  intensity: 118,
+  /** Useful form light inside the current room, then fog and physical decay take over. */
+  range: 16,
+  decay: 2,
   /** Keeps the point source out of walls when the camera reaches its collision radius. */
   backwardOffset: 0.85,
   threatBoost: 4,
@@ -41,7 +41,7 @@ const PLAYER_FILL_NEUTRAL = new THREE.Color(0xf1d5b5);
  * and bone maps to keep their own color response.
  */
 export function resolvePlayerLanternColor(moodColor: number): number {
-  return new THREE.Color(moodColor).lerp(PLAYER_FILL_NEUTRAL, 0.38).getHex();
+  return new THREE.Color(moodColor).lerp(PLAYER_FILL_NEUTRAL, 0.44).getHex();
 }
 
 export function resolveDungeonExposure(lightLevel: number, moodBias: number): number {
