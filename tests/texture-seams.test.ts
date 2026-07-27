@@ -4,6 +4,7 @@ import * as THREE from "three";
 import { FLOOR, generateDungeon, WALL } from "../src/dungeon/generateDungeon";
 import {
   edgeBlendSeamlessRgba,
+  liftTextureLuminanceRgba,
   normalMapRgbaFromAlbedo,
   registerTextureSource,
 } from "../src/world/TextureTreatment";
@@ -91,5 +92,21 @@ describe("texture seam treatment", () => {
     }
     // Real dungeons always have exposed masonry; faces >> room count.
     expect(faceCount).toBeGreaterThan(dungeon.rooms.length * 4);
+  });
+});
+
+describe("texture luminance treatment", () => {
+  test("lifts a dark albedo to a readable target while keeping contrast", () => {
+    const data = new Uint8ClampedArray([
+      20, 18, 16, 255, 40, 35, 30, 255, 60, 52, 44, 255, 80, 68, 56, 255,
+    ]);
+    liftTextureLuminanceRgba(data, { targetLuma: 0.4, contrast: 1.4, gamma: 0.82 });
+    const luminances = Array.from({ length: 4 }, (_, index) => {
+      const offset = index * 4;
+      return data[offset]! * 0.2126 + data[offset + 1]! * 0.7152 + data[offset + 2]! * 0.0722;
+    });
+    const mean = luminances.reduce((sum, value) => sum + value, 0) / luminances.length / 255;
+    expect(mean).toBeCloseTo(0.4, 1);
+    expect(luminances[3]! - luminances[0]!).toBeGreaterThan(70);
   });
 });
