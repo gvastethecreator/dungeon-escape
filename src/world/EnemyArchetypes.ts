@@ -1,4 +1,5 @@
 import type { EnemyRosterKind } from "./EnemySpriteAtlas";
+import type { DungeonMoodId } from "../systems/DungeonMood";
 
 export type EnemyKind = EnemyRosterKind;
 export type EnemyBehavior =
@@ -261,6 +262,160 @@ export const ENEMY_SPRITE_METRICS: Readonly<Record<EnemyKind, EnemySpriteMetrics
   },
 };
 
+/**
+ * Biome atlases share the same 320 px grid, but their transparent margins are
+ * not identical. These are union alpha bounds across each row's four frames.
+ * Keeping the bounds with the selected mood prevents a frost ghost, fungal
+ * carrion, or molten imp from changing size when the atlas changes.
+ */
+type CompactSpriteMetric = readonly [number, number, number, number];
+const ENEMY_METRIC_ORDER: readonly EnemyKind[] = [
+  "carrion",
+  "goblin",
+  "ghost",
+  "ratling",
+  "husk",
+  "imp",
+  "zombie-orc",
+  "spider",
+  "bone-slime",
+  "white-eyed-shadow",
+  "carrion-stalker",
+];
+
+const BIOME_SPRITE_METRIC_ROWS: Partial<Record<DungeonMoodId, readonly CompactSpriteMetric[]>> = {
+  ancient: [
+    [247, 220, 53, 47],
+    [150, 226, 48, 46],
+    [187, 263, 25, 32],
+    [226, 247, 33, 40],
+    [128, 275, 14, 31],
+    [302, 242, 29, 49],
+    [278, 279, 4, 37],
+    [274, 173, 76, 71],
+    [279, 296, 9, 15],
+    [176, 298, 12, 10],
+    [265, 267, 26, 27],
+  ],
+  backrooms: [
+    [245, 221, 53, 46],
+    [151, 225, 49, 46],
+    [221, 290, 8, 22],
+    [226, 247, 33, 40],
+    [130, 274, 15, 31],
+    [283, 232, 36, 52],
+    [299, 279, 2, 39],
+    [273, 196, 77, 47],
+    [271, 241, 27, 52],
+    [200, 279, 15, 26],
+    [264, 266, 26, 28],
+  ],
+  frost: [
+    [249, 262, 53, 5],
+    [152, 228, 49, 43],
+    [300, 295, 0, 25],
+    [234, 280, 16, 24],
+    [130, 275, 14, 31],
+    [299, 236, 33, 51],
+    [230, 301, 4, 15],
+    [275, 185, 75, 60],
+    [271, 276, 26, 18],
+    [232, 307, 13, 0],
+    [266, 277, 21, 22],
+  ],
+  fungal: [
+    [308, 276, 0, 44],
+    [262, 275, 1, 44],
+    [251, 279, 0, 41],
+    [298, 280, 0, 40],
+    [182, 290, 0, 30],
+    [309, 248, 21, 51],
+    [306, 280, 0, 40],
+    [304, 249, 0, 71],
+    [293, 301, 1, 18],
+    [142, 277, 16, 27],
+    [272, 277, 15, 28],
+  ],
+  grim: [
+    [316, 274, 20, 26],
+    [151, 225, 49, 46],
+    [133, 259, 28, 33],
+    [224, 247, 33, 40],
+    [129, 274, 14, 32],
+    [277, 230, 37, 53],
+    [211, 264, 16, 40],
+    [272, 202, 77, 41],
+    [297, 278, 26, 16],
+    [185, 282, 16, 22],
+    [266, 265, 27, 28],
+  ],
+  iron: [
+    [289, 282, 22, 16],
+    [265, 277, 0, 43],
+    [240, 280, 26, 14],
+    [286, 264, 23, 33],
+    [218, 284, 12, 24],
+    [288, 274, 17, 29],
+    [296, 272, 16, 32],
+    [275, 171, 78, 71],
+    [256, 297, 2, 21],
+    [236, 284, 16, 20],
+    [268, 268, 25, 27],
+  ],
+  molten: [
+    [245, 272, 3, 45],
+    [221, 224, 50, 46],
+    [282, 320, 0, 0],
+    [225, 281, 0, 39],
+    [141, 306, 14, 0],
+    [299, 259, 9, 52],
+    [229, 309, 11, 0],
+    [274, 222, 28, 70],
+    [320, 311, 9, 0],
+    [141, 274, 20, 26],
+    [267, 291, 9, 20],
+  ],
+  obsidian: [
+    [247, 255, 20, 45],
+    [187, 247, 25, 48],
+    [244, 290, 7, 23],
+    [224, 280, 0, 40],
+    [127, 274, 14, 32],
+    [320, 255, 10, 55],
+    [258, 280, 0, 40],
+    [272, 193, 55, 72],
+    [307, 312, 8, 0],
+    [263, 312, 0, 8],
+    [265, 285, 8, 27],
+  ],
+  sunken: [
+    [245, 216, 54, 50],
+    [151, 225, 49, 46],
+    [214, 288, 10, 22],
+    [226, 247, 32, 41],
+    [186, 289, 7, 24],
+    [288, 230, 36, 54],
+    [214, 269, 17, 34],
+    [274, 176, 77, 67],
+    [301, 266, 26, 28],
+    [288, 301, 15, 4],
+    [265, 282, 26, 12],
+  ],
+  verdant: [
+    [245, 249, 26, 45],
+    [167, 244, 30, 46],
+    [214, 279, 23, 18],
+    [227, 264, 17, 39],
+    [149, 289, 0, 31],
+    [279, 235, 31, 54],
+    [214, 278, 3, 39],
+    [274, 218, 31, 71],
+    [271, 315, 5, 0],
+    [173, 283, 26, 11],
+    [267, 266, 27, 27],
+  ],
+};
+
 export interface EnemySpriteRenderMetrics {
   planeWidth: number;
   planeHeight: number;
@@ -268,8 +423,22 @@ export interface EnemySpriteRenderMetrics {
   topPaddingRatio: number;
 }
 
-export function getEnemySpriteRenderMetrics(kind: EnemyKind): EnemySpriteRenderMetrics {
-  const sprite = ENEMY_SPRITE_METRICS[kind];
+export function getEnemySpriteRenderMetrics(
+  kind: EnemyKind,
+  moodId: DungeonMoodId | string = "ash",
+): EnemySpriteRenderMetrics {
+  const row = BIOME_SPRITE_METRIC_ROWS[moodId as DungeonMoodId];
+  const metricIndex = ENEMY_METRIC_ORDER.indexOf(kind);
+  const compact = row?.[metricIndex];
+  const sprite = compact
+    ? {
+        frameSize: 320,
+        opaqueWidth: compact[0],
+        opaqueHeight: compact[1],
+        topPadding: compact[2],
+        bottomPadding: compact[3],
+      }
+    : ENEMY_SPRITE_METRICS[kind];
   const body = ENEMY_ARCHETYPES[kind];
   return {
     planeWidth: body.width / (sprite.opaqueWidth / sprite.frameSize),
@@ -395,9 +564,9 @@ export function getEnemyMotion(
   return { forward: distance > archetype.preferredRange ? 1 : 0, strafe: 0, speedMultiplier: 1 };
 }
 
-export function enemyGroundY(kind: EnemyKind): number {
+export function enemyGroundY(kind: EnemyKind, moodId: DungeonMoodId | string = "ash"): number {
   const archetype = ENEMY_ARCHETYPES[kind];
-  const sprite = getEnemySpriteRenderMetrics(kind);
+  const sprite = getEnemySpriteRenderMetrics(kind, moodId);
   return (
     sprite.planeHeight / 2 -
     sprite.bottomPaddingRatio * sprite.planeHeight +
@@ -406,8 +575,13 @@ export function enemyGroundY(kind: EnemyKind): number {
   );
 }
 
-export function enemyCeilingY(kind: EnemyKind, wallHeight: number, clearance = 0.38): number {
-  const sprite = getEnemySpriteRenderMetrics(kind);
+export function enemyCeilingY(
+  kind: EnemyKind,
+  wallHeight: number,
+  clearance = 0.38,
+  moodId: DungeonMoodId | string = "ash",
+): number {
+  const sprite = getEnemySpriteRenderMetrics(kind, moodId);
   return (
     wallHeight - clearance - sprite.planeHeight / 2 + sprite.topPaddingRatio * sprite.planeHeight
   );

@@ -40,6 +40,7 @@ import {
 import { createForgeChest, createForgeProp, getForgePropScale } from "./ForgePropFactory";
 import {
   createResolveFlask,
+  createLuminousWardStone,
   createTimeFreezeRelic,
   preparePickupOpacity,
   setPickupOpacity,
@@ -112,6 +113,13 @@ import { createSpecialRoomSignals } from "./SpecialRoomSignalKit";
 import { getBiomeDecorationProfile } from "./BiomeDecorationProfile";
 import { activateTimeFreeze, isTimeFreezeActive, tickTimeFreeze } from "../game/TimeFreeze";
 import { TimeFreezeVfx } from "./TimeFreezeVfx";
+import {
+  activateLuminousWard,
+  isLuminousWardActive,
+  LUMINOUS_WARD_REPEL_RADIUS,
+  tickLuminousWard,
+} from "../game/LuminousWard";
+import { LuminousWardVfx } from "./LuminousWardVfx";
 
 export { knockbackAwayFrom } from "./knockback";
 
@@ -269,7 +277,7 @@ interface DoorActor {
 }
 
 interface PickupActor {
-  kind: "stone" | "resolve" | "time-freeze";
+  kind: "stone" | "resolve" | "time-freeze" | "luminous-ward";
   stoneId?: StoneId;
   object: THREE.Object3D;
   collected: boolean;
@@ -288,6 +296,12 @@ interface PickupActor {
   timeFreezeSignal?: {
     light: THREE.PointLight;
     baseIntensity: number;
+  };
+  luminousWardSignal?: {
+    light: THREE.PointLight;
+    glow: THREE.Mesh;
+    baseIntensity: number;
+    baseGlowOpacity: number;
   };
 }
 
@@ -325,11 +339,13 @@ export interface WorldUpdate {
   collectedStoneId: StoneId | null;
   /** Position is kept for the presentation layer that plays the collection source. */
   collectedPickup: {
-    kind: "stone" | "resolve" | "time-freeze";
+    kind: "stone" | "resolve" | "time-freeze" | "luminous-ward";
     position: { x: number; y: number; z: number };
   } | null;
   /** Remaining gameplay seconds in the active time-freeze field. */
   timeFreezeRemaining: number;
+  /** Remaining gameplay seconds in the active luminous ward field. */
+  luminousWardRemaining: number;
   stonesFound: number;
   stonesTotal: number;
   portalOpen: boolean;
@@ -768,6 +784,7 @@ export class DungeonWorld {
   private readonly chests: ChestActor[] = [];
   private pickupBurstPool: PickupBurstPool | null = null;
   private timeFreezeVfx: TimeFreezeVfx | null = null;
+  private luminousWardVfx: LuminousWardVfx | null = null;
   private readonly pickupBurstWarmupPosition = new THREE.Vector3();
   private readonly fireEffects: FireEffect[] = [];
   private dynamicFireLightCount = 0;
@@ -804,6 +821,7 @@ export class DungeonWorld {
   private difficultyElapsed = 0;
   private difficultySecond = -1;
   private timeFreezeSeconds = 0;
+  private luminousWardSeconds = 0;
   private difficultyRoomCount = 1;
   private enemyActivationRandom = createSeededRandom("difficulty-activation");
   private readonly stoneTextures = new Map<StoneId, THREE.Texture>();
@@ -847,6 +865,7 @@ export class DungeonWorld {
     this.difficultyElapsed = 0;
     this.difficultySecond = -1;
     this.timeFreezeSeconds = 0;
+    this.luminousWardSeconds = 0;
     this.enemySimulationElapsed = 0;
     this.ensureStoneTextures();
     const biomeSurfaces = this.assets.getBiomeSurfaces(mood.id);
@@ -951,6 +970,9 @@ export class DungeonWorld {
     if (!this.dungeon) return;
     this.refreshDifficultyState();
     const target = this.difficultyState.targetEnemies;
+    const wardSafeSpawnDistance = isLuminousWardActive(this.luminousWardSeconds)
+      ? Math.max(this.difficultyState.safeSpawnDistance, LUMINOUS_WARD_REPEL_RADIUS + 1)
+      : this.difficultyState.safeSpawnDistance;
     const activatedThisPulse: THREE.Vector3[] = [];
     while (this.enemies.length < target) {
       const candidates: number[] = [];
@@ -960,7 +982,7 @@ export class DungeonWorld {
         if (!isEnemyKindUnlocked(enemy.kind, this.difficultyElapsed, this.difficultyState))
           continue;
         const distance = Math.hypot(enemy.position.x - player.x, enemy.position.z - player.z);
-        if (!immediate && distance < this.difficultyState.safeSpawnDistance) continue;
+        if (!immediate && distance < wardSafeSpawnDistance) continue;
         if (!immediate && hasGridLineOfSight(this.dungeon, player, enemy.position, this.tileSize))
           continue;
         candidates.push(index);
@@ -996,7 +1018,9 @@ export class DungeonWorld {
   ): WorldUpdate {
     this.lockedExitCooldown = Math.max(0, this.lockedExitCooldown - delta);
     this.timeFreezeSeconds = tickTimeFreeze(this.timeFreezeSeconds, delta);
+    this.luminousWardSeconds = tickLuminousWard(this.luminousWardSeconds, delta);
     const enemiesFrozen = isTimeFreezeActive(this.timeFreezeSeconds);
+    const luminousWardActive = isLuminousWardActive(this.luminousWardSeconds);
     if (!enemiesFrozen) {
       this.enemyAnimationElapsed += Math.max(0, delta);
       this.enemySimulationElapsed += Math.max(0, delta);
@@ -1027,6 +1051,7 @@ export class DungeonWorld {
           dungeon: this.dungeon,
           solidColliders: this.solidColliders,
           tileSize: this.tileSize,
+          repelRadius: luminousWardActive ? LUMINOUS_WARD_REPEL_RADIUS : 0,
         });
     const surfaceEffect = this.hazardTiles?.sample(delta, player) ?? {
       kind: null,
@@ -1188,6 +1213,7 @@ export class DungeonWorld {
           if (pickup.kind === "stone") pickup.object.scale.setScalar(0.001);
           else pickup.object.visible = false;
           if (pickup.timeFreezeSignal) pickup.timeFreezeSignal.light.intensity = 0;
+          if (pickup.luminousWardSignal) pickup.luminousWardSignal.light.intensity = 0;
         }
         continue;
       }
@@ -1198,6 +1224,14 @@ export class DungeonWorld {
       if (pickup.timeFreezeSignal) {
         const pulse = 0.88 + Math.sin(this.elapsed * 2.9 + pickup.object.id) * 0.12;
         pickup.timeFreezeSignal.light.intensity = pickup.timeFreezeSignal.baseIntensity * pulse;
+      }
+      if (pickup.luminousWardSignal) {
+        const pulse = 0.88 + Math.sin(this.elapsed * 2.7 + pickup.object.id) * 0.12;
+        pickup.luminousWardSignal.light.intensity = pickup.luminousWardSignal.baseIntensity * pulse;
+        const glowMaterial = pickup.luminousWardSignal.glow.material;
+        if (glowMaterial instanceof THREE.MeshBasicMaterial) {
+          glowMaterial.opacity = pickup.luminousWardSignal.baseGlowOpacity * (0.86 + pulse * 0.2);
+        }
       }
       if (pickup.stoneSignal) {
         const pulse = 0.88 + Math.sin(this.elapsed * 2.9 + pickup.object.id) * 0.12;
@@ -1227,8 +1261,11 @@ export class DungeonWorld {
         if (this.collectedStones.size >= STONE_ORDER.length) this.openPortal();
       } else if (pickup.kind === "resolve") {
         resolveGain += 28;
-      } else {
+      } else if (pickup.kind === "time-freeze") {
         this.timeFreezeSeconds = activateTimeFreeze();
+      } else {
+        if (pickup.luminousWardSignal) pickup.luminousWardSignal.light.intensity = 0;
+        this.luminousWardSeconds = activateLuminousWard();
       }
     }
 
@@ -1258,6 +1295,7 @@ export class DungeonWorld {
       collectedStoneId,
       collectedPickup,
       timeFreezeRemaining: this.timeFreezeSeconds,
+      luminousWardRemaining: this.luminousWardSeconds,
       stonesFound: this.collectedStones.size,
       stonesTotal: STONE_ORDER.length,
       portalOpen: this.portalOpen,
@@ -1294,6 +1332,11 @@ export class DungeonWorld {
   updateEffects(delta: number, viewerPosition?: THREE.Vector3Like): void {
     this.elapsed += delta;
     this.timeFreezeVfx?.update(this.timeFreezeSeconds, this.elapsed, this.enemies);
+    this.luminousWardVfx?.update(
+      this.luminousWardSeconds,
+      this.elapsed,
+      viewerPosition ?? { x: 0, y: 1.5, z: 0 },
+    );
     this.hazardTiles?.update(delta);
     const losInterval = 0.12; // ~8 Hz LOS refresh — enough for occlusion feel, cheap on large forge maps
     for (const effect of this.fireEffects) {
@@ -1403,6 +1446,10 @@ export class DungeonWorld {
     return this.timeFreezeSeconds;
   }
 
+  get luminousWardRemaining(): number {
+    return this.luminousWardSeconds;
+  }
+
   restoreSession(foundStoneIds: readonly StoneId[]): void {
     const restored = new Set(foundStoneIds.filter((id) => STONE_ORDER.includes(id)));
     this.collectedStones.clear();
@@ -1463,6 +1510,9 @@ export class DungeonWorld {
     const timeFreeze = this.pickups.find(
       (pickup) => pickup.kind === "time-freeze" && pickup.available && !pickup.collected,
     );
+    const luminousWard = this.pickups.find(
+      (pickup) => pickup.kind === "luminous-ward" && pickup.available && !pickup.collected,
+    );
     return {
       doors,
       fires,
@@ -1470,6 +1520,7 @@ export class DungeonWorld {
       stones,
       pickups,
       timeFreeze: timeFreeze ? toCell(timeFreeze.object.position) : undefined,
+      luminousWard: luminousWard ? toCell(luminousWard.object.position) : undefined,
       spawn: dungeon ? { x: dungeon.spawn.x, y: dungeon.spawn.y } : { x: 0, y: 0 },
     };
   }
@@ -3701,6 +3752,60 @@ export class DungeonWorld {
       this.stats.props += 1;
     }
 
+    const wardRooms = rankedRooms.filter((room) => !stoneRoomSet.has(room) && room !== freezeRoom);
+    const wardRoom =
+      wardRooms[Math.floor(wardRooms.length * 0.42)] ??
+      rankedRooms.find((room) => !stoneRoomSet.has(room) && room !== freezeRoom);
+    let luminousWardCell: GridCell | null = null;
+    if (wardRoom) {
+      const candidates = collectRoomInteriorSeats(dungeon, wardRoom).filter(
+        (cell) =>
+          !pickupExcluded.has(`${cell.x},${cell.y}`) && !isProtectedTraversalCell(dungeon, cell),
+      );
+      luminousWardCell =
+        pickSpreadSeats(candidates, 1, dungeon.seedHash + wardRoom.id * 61)[0] ??
+        findNearestPropCell(dungeon, wardRoom.center, pickupExcluded, 8);
+    }
+    if (!luminousWardCell) {
+      for (let y = 0; y < dungeon.height && !luminousWardCell; y += 1) {
+        for (let x = 0; x < dungeon.width; x += 1) {
+          const cell = { x, y };
+          if (dungeon.grid[y]?.[x] !== FLOOR) continue;
+          if (pickupExcluded.has(`${x},${y}`) || isProtectedTraversalCell(dungeon, cell)) continue;
+          luminousWardCell = cell;
+          break;
+        }
+      }
+    }
+    if (luminousWardCell) {
+      pickupExcluded.add(`${luminousWardCell.x},${luminousWardCell.y}`);
+      this.objectiveClearanceCells.add(`${luminousWardCell.x},${luminousWardCell.y}`);
+      const ward = createLuminousWardStone(this.materials);
+      preparePickupOpacity(ward);
+      const p = gridToWorld(dungeon, luminousWardCell, this.tileSize);
+      ward.position.set(p.x, 0, p.z);
+      const baseScale = new THREE.Vector3(0.78, 0.78, 0.78);
+      ward.scale.copy(baseScale);
+      this.pickups.push({
+        kind: "luminous-ward",
+        object: ward,
+        collected: false,
+        collectTime: 0,
+        available: true,
+        revealTime: 1,
+        baseY: 0,
+        baseScale,
+        luminousWardSignal: {
+          light: ward.getObjectByName("Luminous ward pickup light") as THREE.PointLight,
+          glow: ward.getObjectByName("Luminous ward pickup halo") as THREE.Mesh,
+          baseIntensity: 2.2,
+          baseGlowOpacity: 0.28,
+        },
+      });
+      this.group.add(ward);
+      this.stats.props += 1;
+    }
+
     const authoredSpawns = dungeon.forge?.spawns.length
       ? dungeon.forge.spawns
           .filter((spawn) => !this.isObjectiveClearanceCell(spawn))
@@ -3776,11 +3881,14 @@ export class DungeonWorld {
     );
     const actorSpecs = plannedSpawns.map((spawn, index) => {
       const kind = selectedKinds[index] ?? kinds[index % kinds.length] ?? "goblin";
-      const sprite = getEnemySpriteRenderMetrics(kind);
+      const sprite = getEnemySpriteRenderMetrics(kind, this.activeMood.id);
       const width = sprite.planeWidth;
       const height = sprite.planeHeight;
       const p = gridToWorld(dungeon, spawn.cell, this.tileSize);
-      const spawnY = kind === "imp" ? enemyCeilingY(kind, this.wallHeight) : enemyGroundY(kind);
+      const spawnY =
+        kind === "imp"
+          ? enemyCeilingY(kind, this.wallHeight, 0.38, this.activeMood.id)
+          : enemyGroundY(kind, this.activeMood.id);
       return {
         kind,
         width,
@@ -3903,6 +4011,9 @@ export class DungeonWorld {
 
     this.timeFreezeVfx = new TimeFreezeVfx(actorSpecs.length);
     this.group.add(this.timeFreezeVfx.root);
+    this.luminousWardVfx = new LuminousWardVfx();
+    this.group.add(this.luminousWardVfx.root);
+    this.stats.lights += 1;
 
     const entrance = gridToWorld(dungeon, dungeon.spawn, this.tileSize);
     this.activateEnemiesToTarget(entrance, true);
@@ -3947,6 +4058,7 @@ export class DungeonWorld {
     this.difficultyElapsed = 0;
     this.difficultySecond = -1;
     this.timeFreezeSeconds = 0;
+    this.luminousWardSeconds = 0;
     this.difficultyRoomCount = 1;
     this.doors.length = 0;
     this.pickups.length = 0;
@@ -3960,6 +4072,11 @@ export class DungeonWorld {
       this.group.remove(this.timeFreezeVfx.root);
       this.timeFreezeVfx.dispose();
       this.timeFreezeVfx = null;
+    }
+    if (this.luminousWardVfx) {
+      this.group.remove(this.luminousWardVfx.root);
+      this.luminousWardVfx.dispose();
+      this.luminousWardVfx = null;
     }
     this.fireEffects.length = 0;
     this.dynamicFireLightCount = 0;

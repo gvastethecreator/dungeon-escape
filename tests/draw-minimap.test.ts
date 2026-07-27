@@ -132,6 +132,7 @@ describe("minimap marker layer", () => {
       enemies: [],
       stones: [],
       pickups: [{ x: 4, y: 2 }],
+      luminousWard: { x: 3, y: 1 },
       relic: { x: 5, y: 2 },
       spawn: { x: 1, y: 2 },
     };
@@ -141,5 +142,9 @@ describe("minimap marker layer", () => {
     expect(strokes.length).toBeGreaterThanOrEqual(2);
     const relicFills = calls.filter((c) => c.op === "fill" && c.fill === MINIMAP_COLORS.relic);
     expect(relicFills.length).toBe(1);
+    const wardSignals = calls.filter(
+      (c) => c.op === "stroke" && c.stroke === MINIMAP_COLORS.luminousWard,
+    );
+    expect(wardSignals.length).toBe(1);
   });
 });
