@@ -8,7 +8,8 @@ import { generateDungeon } from "../src/dungeon/generateDungeon";
 
 describe("magic stone long-range signal", () => {
   test("keeps illumination attached to the pickup and gives it useful reach", () => {
-    const stone = createMagicStone("ember", createDungeonMaterials());
+    const materials = createDungeonMaterials();
+    const stone = createMagicStone("ember", materials);
     stone.root.position.set(12, 0, -7);
     stone.root.updateMatrixWorld(true);
     const lightWorld = stone.light.getWorldPosition(new THREE.Vector3());
@@ -21,6 +22,14 @@ describe("magic stone long-range signal", () => {
     expect(stone.root.getObjectByName("ember distant beacon crown")).toBeDefined();
     expect(stone.root.getObjectByName("ember crystal shard cluster")).toBeDefined();
     expect(stone.root.getObjectByName("ember rim rune ring")).toBeDefined();
+    expect(
+      (
+        stone.root.getObjectByName("ember crystal core") as THREE.Mesh<
+          THREE.BufferGeometry,
+          THREE.MeshStandardMaterial
+        >
+      ).material.map,
+    ).toBe(materials.crystal.map);
     expect(
       stone.root.children.filter((child) => child.userData.compactPreviewOptional).length,
     ).toBe(4);
