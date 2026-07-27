@@ -18,6 +18,7 @@ import { createVolumetricBeam, tickVolumetricBeamTime } from "./VolumetricBeam";
 import { createFloorCampfire } from "./FloorCampfireFactory";
 import { createWallLantern, createWallTorch } from "./WallTorchFactory";
 import {
+  applyBiomeMapsToDungeonMaterials,
   applyMoodToDungeonMaterials,
   createDungeonMaterials,
   disposeDungeonMaterials,
@@ -778,7 +779,9 @@ export class DungeonWorld {
     this.elapsed = 0;
     this.enemyAnimationElapsed = 0;
     this.ensureStoneTextures();
-    applyBiomeMaps(this.surfaceMaterials, this.assets.getBiomeSurfaces(mood.id));
+    const biomeSurfaces = this.assets.getBiomeSurfaces(mood.id);
+    applyBiomeMaps(this.surfaceMaterials, biomeSurfaces);
+    applyBiomeMapsToDungeonMaterials(this.materials, biomeSurfaces, mood.id);
     // Tint for room variation + albedoGain for bright biome maps (frost ice ~2×).
     applyMoodToSurfaceMaterials(
       this.surfaceMaterials,
@@ -1511,20 +1514,20 @@ export class DungeonWorld {
     wallFaceTemplate.dispose();
   }
 
-  /** Opaque wall volume without textured grid — hides behind face panels. */
+  /** Opaque wall volume that closes gaps behind the textured face panels. */
   private addWallCellCaps(dungeon: DungeonData, wallCells: readonly GridCell[]): void {
     if (wallCells.length === 0) return;
     // Slightly smaller than a tile so face panels fully cover the silhouette.
     const core = this.tileSize * 0.96;
     const geometry = new THREE.BoxGeometry(core, this.wallHeight, core);
-    // Untextured dark fill — no UV seams possible.
-    const material = new THREE.MeshStandardMaterial({
-      color: 0x1a1b1c,
-      roughness: 0.96,
-      metalness: 0.02,
-      emissive: 0x050606,
-      emissiveIntensity: 0.15,
-    });
+    // Reuse the biome wall map so exposed caps and corners never become flat
+    // black blocks. The darker multiplier keeps them behind the face panels.
+    const material = this.materials.stone.clone();
+    material.color.multiplyScalar(0.34);
+    material.roughness = Math.max(0.92, material.roughness);
+    material.metalness = 0.02;
+    material.emissive.multiplyScalar(0.22);
+    material.emissiveIntensity = Math.min(0.16, material.emissiveIntensity);
     material.userData.sharedDungeonMaterial = false;
     const mesh = new THREE.InstancedMesh(geometry, material, wallCells.length);
     mesh.name = "Wall core fill";
@@ -2583,10 +2586,7 @@ export class DungeonWorld {
       root.position.set(position.x, this.wallHeight - 0.04, position.z);
       root.rotation.y = index % 2 === 0 ? 0 : Math.PI / 2;
 
-      const frame = new THREE.Mesh(
-        new THREE.BoxGeometry(1.72, 0.08, 0.48),
-        new THREE.MeshStandardMaterial({ color: 0x555143, roughness: 0.72, metalness: 0.2 }),
-      );
+      const frame = new THREE.Mesh(new THREE.BoxGeometry(1.72, 0.08, 0.48), this.materials.iron);
       frame.name = "Fluorescent fixture frame";
       const panel = new THREE.Mesh(
         new THREE.BoxGeometry(1.5, 0.035, 0.31),
@@ -3389,16 +3389,13 @@ export class DungeonWorld {
     bars.castShadow = true;
     bars.receiveShadow = true;
     portal.add(bars);
-    const archRing = new THREE.Mesh(
-      new THREE.TorusGeometry(0.95, 0.08, 8, 28),
-      new THREE.MeshStandardMaterial({
-        color: 0x2a2e32,
-        emissive: 0x121820,
-        emissiveIntensity: 0.25,
-        metalness: 0.55,
-        roughness: 0.55,
-      }),
-    );
+    const portalArchMaterial = this.materials.iron.clone();
+    portalArchMaterial.color.setHex(0x2a2e32);
+    portalArchMaterial.emissive.setHex(0x121820);
+    portalArchMaterial.emissiveIntensity = 0.25;
+    portalArchMaterial.metalness = 0.55;
+    portalArchMaterial.roughness = 0.55;
+    const archRing = new THREE.Mesh(new THREE.TorusGeometry(0.95, 0.08, 8, 28), portalArchMaterial);
     archRing.position.y = 1.65;
     portal.add(archRing);
     const veil = new THREE.Mesh(

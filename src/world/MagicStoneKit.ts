@@ -82,33 +82,32 @@ export function createMagicStone(
   cage.rotation.x = Math.PI / 2;
   cage.position.y = 0.28;
 
-  // Solid mute crystal only. Imagine albedos were busy motif tiles, not gem skin.
-  // Keep `texture` arg for future clean maps; do not auto-bind wallpaper sheets.
+  // Keep the busy concept-sheet crop off the crystal. The shared crystal
+  // material already carries a clean albedo and relief map suited to 3D props.
+  // `texture` remains available for a future authored per-stone skin.
   void texture;
-  const bodyMat = new THREE.MeshStandardMaterial({
-    color: look.body,
-    emissive: look.emissive,
-    emissiveIntensity: 0.48,
-    roughness: 0.74,
-    metalness: 0.1,
-    flatShading: true,
-  });
+  const bodyMat = materials.crystal?.clone() ?? new THREE.MeshStandardMaterial();
+  bodyMat.color.setHex(look.body);
+  bodyMat.emissive.setHex(look.emissive);
+  bodyMat.emissiveIntensity = 0.48;
+  bodyMat.roughness = 0.74;
+  bodyMat.metalness = 0.1;
+  bodyMat.flatShading = true;
   // Octahedron = primary crystal mass from turnaround sheets.
   const core = mesh(new THREE.OctahedronGeometry(0.22, 0), bodyMat, `${stoneId} crystal core`);
   core.position.y = 0.42;
   core.rotation.y = 0.4;
   core.scale.set(1, 1.35, 1);
 
-  const shardMat = new THREE.MeshStandardMaterial({
-    color: look.crystal,
-    emissive: look.emissive,
-    emissiveIntensity: 0.7,
-    roughness: 0.55,
-    metalness: 0.05,
-    transparent: true,
-    opacity: 0.9,
-    flatShading: true,
-  });
+  const shardMat = materials.crystal?.clone() ?? new THREE.MeshStandardMaterial();
+  shardMat.color.setHex(look.crystal);
+  shardMat.emissive.setHex(look.emissive);
+  shardMat.emissiveIntensity = 0.7;
+  shardMat.roughness = 0.55;
+  shardMat.metalness = 0.05;
+  shardMat.transparent = true;
+  shardMat.opacity = 0.9;
+  shardMat.flatShading = true;
   const shardParts: THREE.BufferGeometry[] = [];
   for (let i = 0; i < 3; i += 1) {
     const a = (i / 3) * Math.PI * 2;
@@ -167,13 +166,12 @@ export function createMagicStone(
   light.position.set(0, 0.62, 0);
 
   // Rune studs — identity detail from Imagine sheets.
-  const runeMat = new THREE.MeshStandardMaterial({
-    color: look.crystal,
-    emissive: look.emissive,
-    emissiveIntensity: 0.65,
-    roughness: 0.62,
-    flatShading: true,
-  });
+  const runeMat = materials.crystal?.clone() ?? new THREE.MeshStandardMaterial();
+  runeMat.color.setHex(look.crystal);
+  runeMat.emissive.setHex(look.emissive);
+  runeMat.emissiveIntensity = 0.65;
+  runeMat.roughness = 0.62;
+  runeMat.flatShading = true;
   const runeParts: THREE.BufferGeometry[] = [];
   for (let i = 0; i < 6; i += 1) {
     const a = (i / 6) * Math.PI * 2;

@@ -1,6 +1,10 @@
 import * as THREE from "three";
 import type { DungeonMoodId } from "../systems/DungeonMood";
-import { registerTextureSource, resolveTextureSource } from "./TextureTreatment";
+import {
+  liftTextureLuminanceSource,
+  registerTextureSource,
+  resolveTextureSource,
+} from "./TextureTreatment";
 import { ENEMY_ANIMATIONS, type EnemyAnimationDefinition } from "./EnemySpriteAtlas";
 
 export interface AtlasFrame {
@@ -40,8 +44,12 @@ function pixelTexture(
   source: string,
   colorSpace = true,
   seam: "none" | "mirror" | "edge-blend" = "edge-blend",
+  onLoad?: (texture: THREE.Texture) => void,
 ): THREE.Texture {
-  const texture = loader.load(source, (loaded) => resolveTextureSource(loaded));
+  const texture = loader.load(source, (loaded) => {
+    onLoad?.(loaded);
+    resolveTextureSource(loaded);
+  });
   // Edge-blend makes Imagine/AI maps wrap cleanly; mirror kept for older generated props.
   const mode = source.includes("/generated/") && seam === "edge-blend" ? "mirror" : seam;
   registerTextureSource(texture, source, { seam: mode });
@@ -77,6 +85,20 @@ function biomePath(
   return `/assets/textures/biomes/${mood}/${surface}-${kind}.png`;
 }
 
+const BIOME_ALBEDO_TARGETS: Record<DungeonMoodId, Record<"floor" | "wall" | "ceiling", number>> = {
+  ancient: { floor: 0.38, wall: 0.42, ceiling: 0.28 },
+  molten: { floor: 0.34, wall: 0.36, ceiling: 0.26 },
+  frost: { floor: 0.52, wall: 0.42, ceiling: 0.3 },
+  grim: { floor: 0.38, wall: 0.38, ceiling: 0.3 },
+  verdant: { floor: 0.36, wall: 0.38, ceiling: 0.29 },
+  ash: { floor: 0.36, wall: 0.42, ceiling: 0.29 },
+  iron: { floor: 0.38, wall: 0.4, ceiling: 0.28 },
+  obsidian: { floor: 0.28, wall: 0.3, ceiling: 0.26 },
+  sunken: { floor: 0.36, wall: 0.38, ceiling: 0.34 },
+  fungal: { floor: 0.36, wall: 0.36, ceiling: 0.32 },
+  backrooms: { floor: 0.44, wall: 0.48, ceiling: 0.46 },
+};
+
 function loadBiomeLayer(
   mood: DungeonMoodId,
   surface: "floor" | "wall" | "ceiling",
@@ -84,7 +106,13 @@ function loadBiomeLayer(
   const compact = typeof window !== "undefined" && window.matchMedia("(max-width: 760px)").matches;
   // Light edge-blend on every layer with the same ratio keeps wrap borders locked.
   // (Albedo-only blend was desyncing normal/rough and drawing false tile lines.)
-  const albedo = pixelTexture(biomePath(mood, surface, "albedo"), true, "edge-blend");
+  const albedo = pixelTexture(biomePath(mood, surface, "albedo"), true, "edge-blend", (loaded) =>
+    liftTextureLuminanceSource(loaded, {
+      targetLuma: BIOME_ALBEDO_TARGETS[mood][surface],
+      contrast: mood === "obsidian" || mood === "fungal" ? 1.5 : 1.35,
+      gamma: 0.82,
+    }),
+  );
   const normal = compact
     ? null
     : pixelTexture(biomePath(mood, surface, "normal"), false, "edge-blend");

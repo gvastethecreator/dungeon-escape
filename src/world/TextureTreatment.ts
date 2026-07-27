@@ -147,6 +147,73 @@ function applySeamTreatment(image: CanvasImageSource, mode: SeamMode): CanvasIma
   return image;
 }
 
+export interface TextureLuminanceLevels {
+  targetLuma: number;
+  contrast: number;
+  gamma: number;
+}
+
+export function liftTextureLuminanceRgba(
+  data: Uint8ClampedArray,
+  levels: TextureLuminanceLevels,
+): void {
+  const pixelCount = data.length / 4;
+  if (pixelCount === 0) return;
+  const transformed = new Float32Array(pixelCount * 3);
+  const means = [0, 0, 0];
+
+  for (let pixel = 0; pixel < pixelCount; pixel += 1) {
+    for (let channel = 0; channel < 3; channel += 1) {
+      const value = Math.pow(data[pixel * 4 + channel]! / 255, levels.gamma);
+      transformed[pixel * 3 + channel] = value;
+      means[channel]! += value;
+    }
+  }
+  means.forEach((value, channel) => {
+    means[channel] = value / pixelCount;
+  });
+  const meanLuma = means[0]! * 0.2126 + means[1]! * 0.7152 + means[2]! * 0.0722;
+  const gain = levels.targetLuma / Math.max(0.01, meanLuma);
+
+  for (let pixel = 0; pixel < pixelCount; pixel += 1) {
+    for (let channel = 0; channel < 3; channel += 1) {
+      const centered =
+        means[channel]! + (transformed[pixel * 3 + channel]! - means[channel]!) * levels.contrast;
+      data[pixel * 4 + channel] = Math.round(THREE.MathUtils.clamp(centered * gain, 0, 1) * 255);
+    }
+  }
+}
+
+/**
+ * Normalize a dark authored albedo before sRGB decoding. The transform keeps
+ * each channel mean and raises local contrast around it.
+ */
+export function liftTextureLuminanceSource(
+  texture: THREE.Texture,
+  levels: TextureLuminanceLevels,
+  maxSide = 512,
+): void {
+  if (typeof document === "undefined") return;
+  const image = texture.image as HTMLImageElement | HTMLCanvasElement | undefined;
+  const sourceWidth = image?.width ?? 0;
+  const sourceHeight = image?.height ?? 0;
+  if (!image || sourceWidth === 0 || sourceHeight === 0) return;
+
+  const scale = Math.min(1, maxSide / Math.max(sourceWidth, sourceHeight));
+  const width = Math.max(1, Math.round(sourceWidth * scale));
+  const height = Math.max(1, Math.round(sourceHeight * scale));
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const context = canvas.getContext("2d", { willReadFrequently: true });
+  if (!context) return;
+  context.drawImage(image, 0, 0, width, height);
+  const pixels = context.getImageData(0, 0, width, height);
+  liftTextureLuminanceRgba(pixels.data, levels);
+  context.putImageData(pixels, 0, 0);
+  texture.image = canvas;
+}
+
 function seamLabel(mode: SeamMode): string {
   if (mode === "mirror") return "mirrored-2x2";
   if (mode === "edge-blend") return "edge-blend-wrap";
@@ -198,6 +265,7 @@ export function linkTextureClone(source: THREE.Texture, clone: THREE.Texture): v
     return;
   }
   linkedState.linked.add(clone);
+  clone.userData.linkedTextureSource = source;
   clone.userData.seamTreatment = seamLabel(linkedState.seamMode);
   clone.userData.textureSourcePath = linkedState.sourcePath;
   if (linkedState.resolvedImage) {
@@ -205,6 +273,13 @@ export function linkTextureClone(source: THREE.Texture, clone: THREE.Texture): v
     clone.needsUpdate = true;
   }
   refreshDerivedNormalMap(clone);
+}
+
+export function unlinkTextureClone(clone: THREE.Texture): void {
+  const source = clone.userData.linkedTextureSource as THREE.Texture | undefined;
+  if (!source) return;
+  state(source)?.linked.delete(clone);
+  delete clone.userData.linkedTextureSource;
 }
 
 /** Sobel height → tangent-space normal map (R=X, G=Y, B=Z). Seamless wrap. */

@@ -80,18 +80,17 @@ export function createSpecialRoomSignals(
     const identity = resolveSpecialRoomIdentity(dungeon, room);
     if (!identity || identity === "lake") continue;
     const color = SIGNAL_COLORS[identity];
-    const material = new THREE.MeshStandardMaterial({
-      name: `${identity} room signal material`,
-      color: new THREE.Color(color).multiplyScalar(0.58),
-      emissive: color,
-      emissiveIntensity: identity === "boss" ? 1.4 : 0.92,
-      roughness: 0.64,
-      metalness: 0.18,
-      envMapIntensity: 0.62,
-      polygonOffset: true,
-      polygonOffsetFactor: -2,
-      polygonOffsetUnits: -2,
-    });
+    const material = materials.darkStone.clone();
+    material.name = `${identity} room signal material`;
+    material.color.copy(new THREE.Color(color).multiplyScalar(0.58));
+    material.emissive.setHex(color);
+    material.emissiveIntensity = identity === "boss" ? 1.4 : 0.92;
+    material.roughness = 0.64;
+    material.metalness = 0.18;
+    material.envMapIntensity = 0.62;
+    material.polygonOffset = true;
+    material.polygonOffsetFactor = -2;
+    material.polygonOffsetUnits = -2;
     const signal = new THREE.Mesh(createSignalGeometry(identity), material);
     signal.name = `${identity} room floor signal`;
     const center = gridToWorld(dungeon, room.center, tileSize);

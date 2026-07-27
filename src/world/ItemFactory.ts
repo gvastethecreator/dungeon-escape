@@ -27,12 +27,11 @@ export function createSkullSeal(materials: DungeonMaterials): THREE.Group {
     eye.position.set(x, 0.13, 0.17);
     root.add(eye);
   }
-  const runeMaterial = new THREE.MeshStandardMaterial({
-    color: 0x9b957f,
-    emissive: 0x454135,
-    emissiveIntensity: 1.2,
-    roughness: 0.55,
-  });
+  const runeMaterial = materials.brass.clone();
+  runeMaterial.color.setHex(0x9b957f);
+  runeMaterial.emissive.setHex(0x454135);
+  runeMaterial.emissiveIntensity = 1.2;
+  runeMaterial.roughness = 0.55;
   for (let i = 0; i < 8; i += 1) {
     const rune = mesh(new THREE.BoxGeometry(0.06, 0.13, 0.045), runeMaterial, "Seal rim rune");
     const angle = (i / 8) * Math.PI * 2;
@@ -74,13 +73,12 @@ export function createResolveFlask(materials: DungeonMaterials): THREE.Group {
   iron.color.multiplyScalar(0.72);
   iron.roughness = 0.54;
   iron.metalness = Math.max(iron.metalness, 0.56);
-  const emblem = new THREE.MeshStandardMaterial({
-    color: 0xc7c0a9,
-    emissive: 0x3d3028,
-    emissiveIntensity: 0.5,
-    roughness: 0.42,
-    metalness: 0.34,
-  });
+  const emblem = materials.brass.clone();
+  emblem.color.setHex(0xc7c0a9);
+  emblem.emissive.setHex(0x3d3028);
+  emblem.emissiveIntensity = 0.5;
+  emblem.roughness = 0.42;
+  emblem.metalness = 0.34;
 
   // The sprite reads as a round caged flask. A 14-segment lathe keeps that
   // silhouette at pickup distance without spending a dense asset budget.

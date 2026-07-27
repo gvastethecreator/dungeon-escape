@@ -1,11 +1,29 @@
 import * as THREE from "three";
-import { registerTextureSource, resolveTextureSource } from "./TextureTreatment";
+import type { DungeonMoodId } from "../systems/DungeonMood";
+import type { BiomeLayerTextures, BiomeSurfaceTextures } from "./AssetLibrary";
+import {
+  liftTextureLuminanceSource,
+  linkTextureClone,
+  registerTextureSource,
+  resolveTextureSource,
+  unlinkTextureClone,
+} from "./TextureTreatment";
 
 const textureLoader = new THREE.TextureLoader();
 
 /** PBR family → on-disk folder under /assets/concepts/dungeon-clutter-kit-v1-pbr/. */
 const PBR_FAMILIES = ["aged-oak", "black-iron", "dull-brass", "ash-ceramic"] as const;
 type PbrFamily = (typeof PBR_FAMILIES)[number];
+
+const PBR_ALBEDO_LEVELS: Record<
+  PbrFamily,
+  { targetLuma: number; contrast: number; gamma: number }
+> = {
+  "aged-oak": { targetLuma: 0.52, contrast: 1.55, gamma: 0.72 },
+  "black-iron": { targetLuma: 0.4, contrast: 1.7, gamma: 0.78 },
+  "dull-brass": { targetLuma: 0.56, contrast: 1.45, gamma: 0.78 },
+  "ash-ceramic": { targetLuma: 0.54, contrast: 1.65, gamma: 0.76 },
+};
 
 /**
  * Load a PBR map set from the dungeon clutter concept kit. Albedos use sRGB;
@@ -24,7 +42,10 @@ function loadPbrMaps(
 } {
   if (typeof document === "undefined") return { albedo: null, normal: null, roughness: null };
   const base = `/assets/concepts/dungeon-clutter-kit-v1-pbr/${family}/${family}`;
-  const albedo = textureLoader.load(`${base}_albedo.png`, (loaded) => resolveTextureSource(loaded));
+  const albedo = textureLoader.load(`${base}_albedo.png`, (loaded) => {
+    liftTextureLuminanceSource(loaded, PBR_ALBEDO_LEVELS[family]);
+    resolveTextureSource(loaded);
+  });
   registerTextureSource(albedo, `${base}_albedo.png`, true);
   albedo.colorSpace = THREE.SRGBColorSpace;
   const normal = compact
@@ -65,6 +86,19 @@ export interface DungeonMaterials {
   ice: THREE.MeshStandardMaterial;
 }
 
+const ROLE_BASE_COLORS: Record<keyof DungeonMaterials, number> = {
+  stone: 0xc4c2b8,
+  darkStone: 0x8a8d88,
+  wood: 0xbda88e,
+  iron: 0xa7aaa8,
+  brass: 0xc0a75f,
+  cloth: 0x9f8790,
+  bone: 0xc9c4a6,
+  ceramic: 0xb8b0aa,
+  crystal: 0xa4c3c6,
+  ice: 0xa4c9d0,
+};
+
 const BIOME_TINT_WEIGHT: Record<keyof DungeonMaterials, number> = {
   stone: 0.4,
   darkStone: 0.44,
@@ -76,6 +110,49 @@ const BIOME_TINT_WEIGHT: Record<keyof DungeonMaterials, number> = {
   ceramic: 0.32,
   crystal: 0.14,
   ice: 0.18,
+};
+
+const PROP_ALBEDO_FILL: Record<keyof DungeonMaterials, number> = {
+  stone: 0.5,
+  darkStone: 0.58,
+  wood: 0.38,
+  iron: 0.3,
+  brass: 0.26,
+  cloth: 0.36,
+  bone: 0.24,
+  ceramic: 0.36,
+  crystal: 0,
+  ice: 0,
+};
+
+interface BaseMaterialMaps {
+  map: THREE.Texture | null;
+  bumpMap: THREE.Texture | null;
+  normalMap: THREE.Texture | null;
+  roughnessMap: THREE.Texture | null;
+}
+
+function cloneBiomePropTexture(source: THREE.Texture | null, repeat: number): THREE.Texture | null {
+  if (!source) return null;
+  const clone = source.clone();
+  linkTextureClone(source, clone);
+  clone.repeat.copy(source.repeat).multiplyScalar(repeat);
+  clone.needsUpdate = true;
+  return clone;
+}
+
+const BIOME_MASONRY_RESPONSE: Record<DungeonMoodId, { normalScale: number; roughness: number }> = {
+  ancient: { normalScale: 0.56, roughness: 0.93 },
+  molten: { normalScale: 0.68, roughness: 0.84 },
+  frost: { normalScale: 0.72, roughness: 0.68 },
+  grim: { normalScale: 0.6, roughness: 0.96 },
+  verdant: { normalScale: 0.64, roughness: 0.92 },
+  ash: { normalScale: 0.62, roughness: 0.95 },
+  iron: { normalScale: 0.58, roughness: 0.76 },
+  obsidian: { normalScale: 0.7, roughness: 0.64 },
+  sunken: { normalScale: 0.66, roughness: 0.9 },
+  fungal: { normalScale: 0.68, roughness: 0.9 },
+  backrooms: { normalScale: 0.42, roughness: 0.97 },
 };
 
 /**
@@ -94,14 +171,85 @@ export function applyMoodToDungeonMaterials(
   for (const [key, material] of Object.entries(materials) as Array<
     [keyof DungeonMaterials, THREE.MeshStandardMaterial]
   >) {
-    const baseHex = (material.userData.baseDungeonColor ??= material.color.getHex()) as number;
+    // Browser PBR maps start with a white multiplier. Using that runtime color
+    // as the tint base made wood, iron, brass, and stone converge to one pale
+    // biome color. Keep a stable role color in both PBR and fallback paths.
+    const baseHex = (material.userData.baseDungeonColor ??= ROLE_BASE_COLORS[key]) as number;
     material.color.setHex(baseHex);
     filtered.copy(material.color).multiply(tint);
     material.color.lerp(
       filtered,
       THREE.MathUtils.clamp(safeStrength * BIOME_TINT_WEIGHT[key], 0, 0.52),
     );
+    const albedoFill = PROP_ALBEDO_FILL[key];
+    if (albedoFill > 0) {
+      // Cheap indirect bounce from the actual albedo map. It restores surface
+      // detail in torch gaps while remaining far below emissive prop levels.
+      material.emissive.copy(material.color);
+      material.emissiveMap = material.map;
+      material.emissiveIntensity = albedoFill;
+    }
   }
+}
+
+function bindBiomeLayer(
+  material: THREE.MeshStandardMaterial,
+  layer: BiomeLayerTextures,
+  normalScale: number,
+  roughness: number,
+  repeat: number,
+): void {
+  const base = (material.userData.baseDungeonMaps ??= {
+    map: material.map,
+    bumpMap: material.bumpMap,
+    normalMap: material.normalMap,
+    roughnessMap: material.roughnessMap,
+  } satisfies BaseMaterialMaps) as BaseMaterialMaps;
+
+  const priorClones = material.userData.biomePropTextureClones as THREE.Texture[] | undefined;
+  priorClones?.forEach((texture) => {
+    unlinkTextureClone(texture);
+    texture.dispose();
+  });
+  const albedo = cloneBiomePropTexture(layer.albedo, repeat)!;
+  const rough = cloneBiomePropTexture(layer.rough, repeat);
+  const normal = cloneBiomePropTexture(layer.normal, repeat);
+  material.userData.biomePropTextureClones = [albedo, rough, normal].filter(
+    (texture): texture is THREE.Texture => texture !== null,
+  );
+
+  material.map = albedo;
+  material.roughnessMap = rough;
+  material.roughness = roughness;
+  if (normal) {
+    material.normalMap = normal;
+    material.normalScale.set(normalScale, normalScale);
+    material.bumpMap = null;
+  } else {
+    material.normalMap = null;
+    material.bumpMap = base.bumpMap;
+  }
+  material.needsUpdate = true;
+}
+
+/**
+ * Stone props use the active biome surface pack. Furniture and hardware retain
+ * their wood/metal maps, then receive the restrained role tint above.
+ */
+export function applyBiomeMapsToDungeonMaterials(
+  materials: DungeonMaterials,
+  biome: BiomeSurfaceTextures,
+  moodId: DungeonMoodId,
+): void {
+  const response = BIOME_MASONRY_RESPONSE[moodId];
+  bindBiomeLayer(materials.stone, biome.wall, response.normalScale, response.roughness, 1.25);
+  bindBiomeLayer(
+    materials.darkStone,
+    biome.floor,
+    response.normalScale * 0.9,
+    Math.min(1, response.roughness + 0.04),
+    1.4,
+  );
 }
 
 function surfaceTexture(
@@ -202,16 +350,22 @@ export function createDungeonMaterials({
     generatedAlbedo("/assets/textures/generated/iron-ash-prop-brass-v1.png", [3, 3]);
   const brassHeight = surfaceTexture("metal", true);
   const clothMap = surfaceTexture("cloth");
-  const boneMap = generatedAlbedo("/assets/textures/generated/iron-ash-prop-bone-v1.png", [3, 3]);
+  const boneMap = generatedAlbedo(
+    "/assets/textures/generated/iron-ash-prop-bone-v1.png",
+    [1.5, 1.5],
+  );
   const ceramicMap =
     ceramicPbr.albedo ??
     generatedAlbedo("/assets/textures/generated/iron-ash-prop-ceramic-v1.png", [2, 2]);
   const crystalMap = generatedAlbedo(
     "/assets/textures/generated/iron-ash-prop-crystal-v1.png",
-    [2, 2],
+    [1.25, 1.25],
   );
   const crystalHeight = surfaceTexture("stone", true);
-  const iceMap = generatedAlbedo("/assets/textures/generated/iron-ash-prop-ice-v1.png", [2, 2]);
+  const iceMap = generatedAlbedo(
+    "/assets/textures/generated/iron-ash-prop-ice-v1.png",
+    [1.25, 1.25],
+  );
   const iceHeight = surfaceTexture("stone", true);
   // envMapIntensity assumes low scene.environmentIntensity from LightingRig.
   // Metals need higher material weight; dielectrics stay matte under IBL.
@@ -381,10 +535,16 @@ function buildPbrMaterial(
 export function disposeDungeonMaterials(materials: DungeonMaterials): void {
   const textures = new Set<THREE.Texture>();
   for (const material of Object.values(materials)) {
-    if (material.map) textures.add(material.map);
-    if (material.bumpMap) textures.add(material.bumpMap);
-    if (material.normalMap) textures.add(material.normalMap);
-    if (material.roughnessMap) textures.add(material.roughnessMap);
+    const biomeClones = material.userData.biomePropTextureClones as THREE.Texture[] | undefined;
+    biomeClones?.forEach((texture) => {
+      unlinkTextureClone(texture);
+      textures.add(texture);
+    });
+    const base = material.userData.baseDungeonMaps as BaseMaterialMaps | undefined;
+    const ownedMaps = base
+      ? [base.map, base.bumpMap, base.normalMap, base.roughnessMap]
+      : [material.map, material.bumpMap, material.normalMap, material.roughnessMap];
+    for (const texture of ownedMaps) if (texture) textures.add(texture);
     material.dispose();
   }
   textures.forEach((texture) => texture.dispose());

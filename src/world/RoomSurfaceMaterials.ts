@@ -1,6 +1,10 @@
 import * as THREE from "three";
 import type { BiomeLayerTextures, BiomeSurfaceTextures } from "./AssetLibrary";
-import { enableDungeonSurfaceShader, linkTextureClone } from "./TextureTreatment";
+import {
+  enableDungeonSurfaceShader,
+  linkTextureClone,
+  unlinkTextureClone,
+} from "./TextureTreatment";
 
 /** Mesh-UV normals with per-cell UV offset for continuous tiling. */
 const NORMAL_SCALE = new THREE.Vector2(0.45, 0.45);
@@ -183,9 +187,11 @@ function assignLayerMaps(
 
   // Only dispose prior theme clones from createRoomSurfaceMaterials, never shared biome assets.
   if (!wasOwned) {
-    previousMap?.dispose();
-    previousNormal?.dispose();
-    previousRough?.dispose();
+    for (const texture of [previousMap, previousNormal, previousRough]) {
+      if (!texture) continue;
+      unlinkTextureClone(texture);
+      texture.dispose();
+    }
   }
   material.needsUpdate = true;
 }

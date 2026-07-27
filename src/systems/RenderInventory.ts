@@ -3,6 +3,15 @@ import * as THREE from "three";
 export interface RenderInventory {
   totalCalls: number;
   buckets: Record<string, number>;
+  mappedLitCalls: number;
+  mappedWithoutUvCalls: number;
+  mappedWithoutUvBuckets: Record<string, number>;
+  degenerateUvCalls: number;
+  degenerateUvBuckets: Record<string, number>;
+  unreadyMappedCalls: number;
+  unreadyMappedBuckets: Record<string, number>;
+  untexturedLitCalls: number;
+  untexturedLitBuckets: Record<string, number>;
 }
 
 function renderBucket(name: string): string {
@@ -39,7 +48,16 @@ export function collectVisibleRenderInventory(
   );
   const frustum = new THREE.Frustum().setFromProjectionMatrix(projection);
   const buckets = new Map<string, number>();
+  const mappedWithoutUvBuckets = new Map<string, number>();
+  const degenerateUvBuckets = new Map<string, number>();
+  const unreadyMappedBuckets = new Map<string, number>();
+  const untexturedLitBuckets = new Map<string, number>();
   let totalCalls = 0;
+  let mappedLitCalls = 0;
+  let mappedWithoutUvCalls = 0;
+  let degenerateUvCalls = 0;
+  let unreadyMappedCalls = 0;
+  let untexturedLitCalls = 0;
 
   root.traverseVisible((object) => {
     const renderable = object as THREE.Mesh | THREE.Line | THREE.Points | THREE.Sprite;
@@ -54,19 +72,82 @@ export function collectVisibleRenderInventory(
     if (object.frustumCulled && !frustum.intersectsObject(object)) return;
 
     const material = renderable.material;
-    const calls = Array.isArray(material)
-      ? material.filter((entry) => entry.visible).length
-      : material?.visible
-        ? 1
-        : 0;
+    const visibleMaterials = (Array.isArray(material) ? material : [material]).filter(
+      (entry): entry is THREE.Material => Boolean(entry?.visible),
+    );
+    const calls = visibleMaterials.length;
     if (calls === 0) return;
     const bucket = renderBucket(object.name);
     buckets.set(bucket, (buckets.get(bucket) ?? 0) + calls);
+    for (const entry of visibleMaterials) {
+      if (
+        !(
+          entry instanceof THREE.MeshStandardMaterial ||
+          entry instanceof THREE.MeshPhysicalMaterial ||
+          entry instanceof THREE.MeshLambertMaterial ||
+          entry instanceof THREE.MeshPhongMaterial
+        )
+      )
+        continue;
+      if (entry.map) {
+        mappedLitCalls += 1;
+        const image = entry.map.image as
+          | { width?: number; height?: number; videoWidth?: number; videoHeight?: number }
+          | undefined;
+        if (!image || !(image.width || image.videoWidth) || !(image.height || image.videoHeight)) {
+          unreadyMappedCalls += 1;
+          unreadyMappedBuckets.set(bucket, (unreadyMappedBuckets.get(bucket) ?? 0) + 1);
+        }
+        if (renderable instanceof THREE.Mesh) {
+          const uv =
+            renderable.geometry.getAttribute("uv") ?? renderable.geometry.getAttribute("uv1");
+          if (!uv) {
+            mappedWithoutUvCalls += 1;
+            mappedWithoutUvBuckets.set(bucket, (mappedWithoutUvBuckets.get(bucket) ?? 0) + 1);
+          } else {
+            let minU = Number.POSITIVE_INFINITY;
+            let maxU = Number.NEGATIVE_INFINITY;
+            let minV = Number.POSITIVE_INFINITY;
+            let maxV = Number.NEGATIVE_INFINITY;
+            for (let index = 0; index < uv.count; index += 1) {
+              minU = Math.min(minU, uv.getX(index));
+              maxU = Math.max(maxU, uv.getX(index));
+              minV = Math.min(minV, uv.getY(index));
+              maxV = Math.max(maxV, uv.getY(index));
+            }
+            if (maxU - minU < 0.01 || maxV - minV < 0.01) {
+              degenerateUvCalls += 1;
+              degenerateUvBuckets.set(bucket, (degenerateUvBuckets.get(bucket) ?? 0) + 1);
+            }
+          }
+        }
+      } else {
+        untexturedLitCalls += 1;
+        untexturedLitBuckets.set(bucket, (untexturedLitBuckets.get(bucket) ?? 0) + 1);
+      }
+    }
     totalCalls += calls;
   });
 
   return {
     totalCalls,
     buckets: Object.fromEntries([...buckets].sort((left, right) => right[1] - left[1])),
+    mappedLitCalls,
+    mappedWithoutUvCalls,
+    mappedWithoutUvBuckets: Object.fromEntries(
+      [...mappedWithoutUvBuckets].sort((left, right) => right[1] - left[1]),
+    ),
+    degenerateUvCalls,
+    degenerateUvBuckets: Object.fromEntries(
+      [...degenerateUvBuckets].sort((left, right) => right[1] - left[1]),
+    ),
+    unreadyMappedCalls,
+    unreadyMappedBuckets: Object.fromEntries(
+      [...unreadyMappedBuckets].sort((left, right) => right[1] - left[1]),
+    ),
+    untexturedLitCalls,
+    untexturedLitBuckets: Object.fromEntries(
+      [...untexturedLitBuckets].sort((left, right) => right[1] - left[1]),
+    ),
   };
 }
