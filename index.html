@@ -38,17 +38,29 @@
           decoding="async"
           fetchpriority="high"
         />
-        <div class="welcome-card">
-          <small>DUNGEON ESCAPE</small>
-          <h1 id="welcome-title">Dungeon Escape</h1>
-          <p>Generate a dungeon, recover the four magic stones, and reach the exit.</p>
-          <div class="welcome-actions">
-            <button id="welcome-new" type="button">NEW GAME</button>
-            <button id="welcome-continue" type="button" disabled>CONTINUE</button>
+        <div class="welcome-content">
+          <div class="welcome-card">
+            <small>DUNGEON ESCAPE</small>
+            <h1 id="welcome-title">Dungeon Escape</h1>
+            <p>Generate a dungeon, recover the four magic stones, and reach the exit.</p>
+            <div class="welcome-actions">
+              <button id="welcome-new" type="button">NEW GAME</button>
+              <button id="welcome-continue" type="button" disabled>CONTINUE</button>
+            </div>
+            <p id="welcome-status" class="welcome-status" role="status" aria-live="polite">
+              Checking saved run…
+            </p>
           </div>
-          <p id="welcome-status" class="welcome-status" role="status" aria-live="polite">
-            Checking saved run…
-          </p>
+          <section class="welcome-leaderboard" aria-labelledby="leaderboard-title">
+            <header>
+              <small>LOCAL RECORDS</small>
+              <h2 id="leaderboard-title">Hall of Escapes</h2>
+            </header>
+            <ol id="leaderboard-list" class="leaderboard-list" aria-live="polite"></ol>
+            <p id="leaderboard-status" class="leaderboard-status" role="status">
+              Reading local records…
+            </p>
+          </section>
         </div>
       </section>
 
@@ -653,6 +665,10 @@
               <dd id="end-time">00:00</dd>
             </div>
             <div>
+              <dt>Score</dt>
+              <dd id="end-score">0</dd>
+            </div>
+            <div>
               <dt>Stones</dt>
               <dd id="end-stones">4 / 4</dd>
             </div>
@@ -669,6 +685,23 @@
               <dd id="end-seed">DUNGEON</dd>
             </div>
           </dl>
+          <form id="end-leaderboard-form" class="end-leaderboard-form" hidden>
+            <label for="leaderboard-name">Name for the hall</label>
+            <div>
+              <input
+                id="leaderboard-name"
+                name="playerName"
+                type="text"
+                minlength="1"
+                maxlength="20"
+                autocomplete="off"
+                placeholder="Wanderer"
+                required
+              />
+              <button id="leaderboard-submit" type="submit">Save score</button>
+            </div>
+            <p id="leaderboard-submit-status" role="status" aria-live="polite"></p>
+          </form>
           <div class="end-actions">
             <button id="retry" type="button">Try again</button>
             <button id="new-dungeon" type="button">New dungeon</button>

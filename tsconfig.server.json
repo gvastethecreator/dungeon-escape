@@ -1,0 +1,14 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "lib": ["ES2022", "DOM"],
+    "types": ["bun", "vite/client"]
+  },
+  "include": [
+    "vite.config.ts",
+    "server",
+    "src/leaderboard/contract.ts",
+    "src/leaderboard/repository.ts",
+    "src/game/DifficultyDirector.ts"
+  ]
+}

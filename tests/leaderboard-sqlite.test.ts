@@ -1,0 +1,57 @@
+import { afterEach, describe, expect, test } from "bun:test";
+
+import { parseLeaderboardSubmission } from "../src/leaderboard/contract";
+import { SqliteLeaderboardRepository } from "../server/leaderboard/SqliteLeaderboardRepository";
+
+const openRepositories: SqliteLeaderboardRepository[] = [];
+
+async function repository(): Promise<SqliteLeaderboardRepository> {
+  const store = await SqliteLeaderboardRepository.open({
+    databasePath: ":memory:",
+    storageSource: "test",
+  });
+  openRepositories.push(store);
+  return store;
+}
+
+function submission(runId: string, playerName: string, durationMs: number) {
+  const parsed = parseLeaderboardSubmission({
+    runId,
+    playerName,
+    durationMs,
+    distanceM: 320,
+    stonesFound: 4,
+    biome: "Molten",
+    seed: "LEADERBOARD-TEST",
+    difficultyValue: 0.5,
+    roomCount: 28,
+  });
+  if (!parsed.ok) throw new Error(parsed.message);
+  return parsed.value;
+}
+
+afterEach(() => {
+  for (const store of openRepositories.splice(0)) store.close();
+});
+
+describe("local SQLite leaderboard", () => {
+  test("persists entries and ranks score then time", async () => {
+    const store = await repository();
+    await store.create(submission("run_slow_0001", "Slow Ash", 360_000));
+    const fast = await store.create(submission("run_fast_0001", "Fast Ash", 180_000));
+    const entries = await store.list(10);
+
+    expect(fast.rank).toBe(1);
+    expect(entries.map((entry) => entry.playerName)).toEqual(["Fast Ash", "Slow Ash"]);
+    expect(entries.map((entry) => entry.rank)).toEqual([1, 2]);
+  });
+
+  test("uses run id as an idempotency key", async () => {
+    const store = await repository();
+    const first = await store.create(submission("run_once_0001", "First Name", 180_000));
+    const repeated = await store.create(submission("run_once_0001", "Changed Name", 120_000));
+
+    expect(repeated.playerName).toBe(first.playerName);
+    expect(await store.list(10)).toHaveLength(1);
+  });
+});

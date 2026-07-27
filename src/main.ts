@@ -60,6 +60,13 @@ import {
   readLocalRunSave,
   writeLocalRunSave,
 } from "./game/LocalRunSave";
+import { loadLeaderboard, submitLeaderboardEntry } from "./leaderboard/client";
+import {
+  computeLeaderboardScore,
+  normalizePlayerName,
+  type LeaderboardEntry,
+  type LeaderboardSubmissionInput,
+} from "./leaderboard/contract";
 import { DungeonWorld } from "./world/DungeonWorld";
 import type { HazardSurfaceEffect } from "./world/HazardTileSystem";
 import { WORLD_TILE_SIZE, WORLD_WALL_HEIGHT } from "./world/WorldMetrics";
@@ -78,6 +85,8 @@ const elements = {
   welcomeNew: requireElement<HTMLButtonElement>("#welcome-new"),
   welcomeContinue: requireElement<HTMLButtonElement>("#welcome-continue"),
   welcomeStatus: requireElement<HTMLElement>("#welcome-status"),
+  leaderboardList: requireElement<HTMLOListElement>("#leaderboard-list"),
+  leaderboardStatus: requireElement<HTMLElement>("#leaderboard-status"),
   generationForm: requireElement<HTMLFormElement>("#generation-form"),
   seed: requireElement<HTMLInputElement>("#seed"),
   roomCount: requireElement<HTMLInputElement>("#room-count"),
@@ -146,10 +155,15 @@ const elements = {
   endCopy: requireElement<HTMLElement>("#end-copy"),
   endResults: requireElement<HTMLElement>("#end-results"),
   endTime: requireElement<HTMLElement>("#end-time"),
+  endScore: requireElement<HTMLElement>("#end-score"),
   endStones: requireElement<HTMLElement>("#end-stones"),
   endDistance: requireElement<HTMLElement>("#end-distance"),
   endBiome: requireElement<HTMLElement>("#end-biome"),
   endSeed: requireElement<HTMLElement>("#end-seed"),
+  endLeaderboardForm: requireElement<HTMLFormElement>("#end-leaderboard-form"),
+  leaderboardName: requireElement<HTMLInputElement>("#leaderboard-name"),
+  leaderboardSubmit: requireElement<HTMLButtonElement>("#leaderboard-submit"),
+  leaderboardSubmitStatus: requireElement<HTMLElement>("#leaderboard-submit-status"),
   retry: requireElement<HTMLButtonElement>("#retry"),
   newDungeon: requireElement<HTMLButtonElement>("#new-dungeon"),
   optionsMenu: requireElement<HTMLElement>("#options-menu"),
@@ -283,6 +297,9 @@ let engineMode: EngineMode = "editor";
 let crtEnabled = true;
 let optionsOpen = false;
 let welcomeOpen = true;
+const LAST_LEADERBOARD_NAME_KEY = "dungeon-escape:leaderboard-name";
+let leaderboardLoadSequence = 0;
+let pendingLeaderboardSubmission: Omit<LeaderboardSubmissionInput, "playerName"> | null = null;
 let continueDomainState: DungeonDomainState | null = null;
 let localSaveTimer: ReturnType<typeof setTimeout> | null = null;
 let runHasStarted = false;
@@ -400,6 +417,82 @@ function setWelcomeOpen(open: boolean): void {
     window.requestAnimationFrame(() => elements.welcomeNew.focus());
   } else {
     elements.scene.focus({ preventScroll: true });
+  }
+}
+
+function renderLeaderboard(entries: readonly LeaderboardEntry[]): void {
+  const fragment = document.createDocumentFragment();
+  for (const entry of entries) {
+    const item = document.createElement("li");
+    const rank = document.createElement("span");
+    const name = document.createElement("span");
+    const score = document.createElement("span");
+    rank.className = "leaderboard-rank";
+    name.className = "leaderboard-name";
+    score.className = "leaderboard-score";
+    rank.textContent = `#${entry.rank}`;
+    name.textContent = entry.playerName;
+    name.title = `${entry.biome} · ${entry.difficulty} · ${formatTime(entry.durationMs / 1000)}`;
+    score.textContent = entry.score.toLocaleString("en-US");
+    item.append(rank, name, score);
+    fragment.append(item);
+  }
+  elements.leaderboardList.replaceChildren(fragment);
+}
+
+async function refreshLeaderboard(): Promise<void> {
+  const sequence = ++leaderboardLoadSequence;
+  elements.leaderboardStatus.textContent = COPY.leaderboard.loading;
+  try {
+    const response = await loadLeaderboard();
+    if (sequence !== leaderboardLoadSequence) return;
+    renderLeaderboard(response.entries);
+    elements.leaderboardStatus.textContent = response.entries.length
+      ? `${response.entries.length} completed escape${response.entries.length === 1 ? "" : "s"}.`
+      : COPY.leaderboard.empty;
+  } catch (error) {
+    if (sequence !== leaderboardLoadSequence) return;
+    renderLeaderboard([]);
+    elements.leaderboardStatus.textContent = COPY.leaderboard.unavailable;
+    console.warn("Leaderboard could not be loaded", error);
+  }
+}
+
+function createLeaderboardRunId(): string {
+  const unique = crypto.randomUUID?.() ?? `${Date.now()}_${Math.floor(Math.random() * 1e9)}`;
+  return `run_${unique}`;
+}
+
+function prepareLeaderboardSubmission(
+  runSeconds: number,
+  distanceM: number,
+  biome: string,
+  seed: string,
+  roomCount: number,
+): void {
+  const durationMs = Math.max(1_000, Math.round(runSeconds * 1000));
+  const difficultyValue = getEnemyDensity();
+  pendingLeaderboardSubmission = {
+    runId: createLeaderboardRunId(),
+    durationMs,
+    distanceM: Math.max(0, Math.round(distanceM)),
+    stonesFound: 4,
+    biome,
+    seed,
+    difficultyValue,
+    roomCount,
+  };
+  const score = computeLeaderboardScore({ durationMs, difficultyValue, roomCount });
+  elements.endScore.textContent = score.toLocaleString("en-US");
+  elements.endLeaderboardForm.hidden = false;
+  elements.leaderboardName.disabled = false;
+  elements.leaderboardSubmit.disabled = false;
+  elements.leaderboardSubmit.textContent = COPY.leaderboard.submit;
+  elements.leaderboardSubmitStatus.textContent = "";
+  try {
+    elements.leaderboardName.value = localStorage.getItem(LAST_LEADERBOARD_NAME_KEY) ?? "";
+  } catch {
+    elements.leaderboardName.value = "";
   }
 }
 
@@ -983,6 +1076,8 @@ function drawMap(): void {
 
 function closeEndOverlay(): void {
   elements.endOverlay.hidden = true;
+  elements.endLeaderboardForm.hidden = true;
+  pendingLeaderboardSubmission = null;
   elements.shell.dataset.mode = "playing";
   controller.setEnabled(canEnablePlayController());
 }
@@ -1012,8 +1107,17 @@ function showEndOverlay(mode: "dead" | "won"): void {
     elements.endTime.textContent = formatTime(result.runSeconds);
     elements.endStones.textContent = `${result.stonesFound} / ${result.stonesTotal}`;
     elements.endDistance.textContent = `${Math.round(player.distanceTravelled)} m`;
-    elements.endBiome.textContent = dungeon ? resolveActiveMood(dungeon).label : "Unknown";
-    elements.endSeed.textContent = dungeon?.seed ?? "Unknown";
+    const biome = dungeon ? resolveActiveMood(dungeon).label : "Unknown";
+    const seed = dungeon?.seed ?? "Unknown";
+    elements.endBiome.textContent = biome;
+    elements.endSeed.textContent = seed;
+    prepareLeaderboardSubmission(
+      result.runSeconds,
+      player.distanceTravelled,
+      biome,
+      seed,
+      dungeon?.stats.roomCount ?? 28,
+    );
     elements.retry.hidden = true;
     elements.newDungeon.textContent = COPY.end.next;
   } else {
@@ -1022,11 +1126,15 @@ function showEndOverlay(mode: "dead" | "won"): void {
     elements.endTitle.textContent = COPY.end.loseTitle;
     elements.endCopy.textContent = COPY.end.loseCopy;
     elements.endResults.hidden = true;
+    elements.endLeaderboardForm.hidden = true;
+    pendingLeaderboardSubmission = null;
     elements.retry.textContent = COPY.end.retry;
     elements.retry.hidden = false;
     elements.newDungeon.textContent = COPY.end.newDungeon;
   }
-  (mode === "dead" ? elements.retry : elements.newDungeon).focus();
+  window.requestAnimationFrame(() =>
+    (mode === "dead" ? elements.retry : elements.leaderboardName).focus(),
+  );
 }
 
 let exploreFlushTimer: ReturnType<typeof setTimeout> | null = null;
@@ -1585,6 +1693,41 @@ elements.generationForm.addEventListener("submit", (event) => {
   event.preventDefault();
   buildDungeon();
   playCue("forge");
+});
+elements.endLeaderboardForm.addEventListener("submit", (event) => {
+  event.preventDefault();
+  if (!pendingLeaderboardSubmission || elements.leaderboardSubmit.disabled) return;
+  const playerName = normalizePlayerName(elements.leaderboardName.value);
+  if (!playerName) {
+    elements.leaderboardSubmitStatus.textContent = `Use 1-20 letters, numbers, spaces or . _ ' -`;
+    elements.leaderboardName.focus();
+    return;
+  }
+  elements.leaderboardSubmit.disabled = true;
+  elements.leaderboardSubmit.textContent = COPY.leaderboard.saving;
+  elements.leaderboardSubmitStatus.textContent = COPY.leaderboard.saving;
+  void submitLeaderboardEntry({ ...pendingLeaderboardSubmission, playerName })
+    .then(({ entry }) => {
+      try {
+        localStorage.setItem(LAST_LEADERBOARD_NAME_KEY, entry.playerName);
+      } catch {
+        // Score is already stored. Remembering the local name is optional.
+      }
+      elements.leaderboardName.value = entry.playerName;
+      elements.leaderboardName.disabled = true;
+      elements.leaderboardSubmit.textContent = "Saved";
+      elements.leaderboardSubmitStatus.textContent = COPY.leaderboard.saved(
+        entry.rank,
+        entry.score,
+      );
+      void refreshLeaderboard();
+    })
+    .catch((error) => {
+      elements.leaderboardSubmit.disabled = false;
+      elements.leaderboardSubmit.textContent = COPY.leaderboard.submit;
+      elements.leaderboardSubmitStatus.textContent =
+        error instanceof Error ? error.message : COPY.leaderboard.unavailable;
+    });
 });
 function scheduleEditorRegeneration(): void {
   if (engineMode === "play") return;
@@ -2204,6 +2347,7 @@ applyCameraSettings();
 // Welcome owns the first choice. New Game opens Creation; Continue opens play.
 setEngineMode("editor", { hydrate: false, persist: false });
 setWelcomeOpen(true);
+void refreshLeaderboard();
 const localContinue = readLocalRunSave();
 let bootBuilt = false;
 if (canContinueLocalRun(localContinue)) {
