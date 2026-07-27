@@ -1,6 +1,6 @@
 import * as THREE from "three";
 
-import { GameAudio, type AudioCue } from "./audio/GameAudio";
+import { GameAudio, type AudioCue, type MusicTrack } from "./audio/GameAudio";
 import { footstepSurfaceAt } from "./audio/FootstepSurface";
 import { createAuthorityClient } from "./authority/client";
 import {
@@ -40,7 +40,13 @@ import { FrameGapProfiler, type FrameGapSnapshot } from "./systems/FrameGapProfi
 import { collectVisibleRenderInventory } from "./systems/RenderInventory";
 import { resolveRenderPixelRatio } from "./systems/RenderScale";
 import { readVisualQaState } from "./systems/VisualQaState";
-import { computePovFeel, decayHitTrauma, PovFeelState, samplePovShake } from "./systems/povFeel";
+import {
+  computePovFeel,
+  decayExhaustionTrauma,
+  decayHitTrauma,
+  PovFeelState,
+  samplePovShake,
+} from "./systems/povFeel";
 import { drawMinimap } from "./ui/drawMinimap";
 import { COPY, STONE_ORDER, formatTime, type StoneId } from "./ui/copy";
 import { createMinimapLayoutScheduler } from "./ui/minimapLayout";
@@ -60,6 +66,7 @@ import {
   canContinueLocalRun,
   readLocalRunSave,
   writeLocalRunSave,
+  type LocalRunResumeState,
 } from "./game/LocalRunSave";
 import { loadLeaderboard, submitLeaderboardEntry } from "./leaderboard/client";
 import {
@@ -131,6 +138,8 @@ const elements = {
   resolveValue: requireElement<HTMLOutputElement>("#resolve-value"),
   resolveFill: requireElement<HTMLElement>("#resolve-fill"),
   healthOrb: requireElement<HTMLElement>(".health-orb"),
+  staminaMeter: requireElement<HTMLElement>("#stamina-meter"),
+  staminaFill: requireElement<HTMLElement>("#stamina-fill"),
   playVitals: requireElement<HTMLElement>(".play-vitals"),
   runTimer: requireElement<HTMLTimeElement>("#run-timer"),
   timeFreezeStatus: requireElement<HTMLElement>("#time-freeze-status"),
@@ -205,7 +214,10 @@ const urlSeed = readSeedFromUrl() ?? (elements.seed.value.trim() || COPY.hud.see
 elements.seed.value = urlSeed;
 const authorityBaseUrl = new URLSearchParams(window.location.search).get("authority")?.trim() ?? "";
 const authority = createAuthorityClient({ baseUrl: authorityBaseUrl });
-const domainBridge: DomainBridge = createDomainBridge({ initialSeed: urlSeed, authority });
+const domainBridge: DomainBridge = createDomainBridge({
+  initialSeed: urlSeed,
+  authority: authorityBaseUrl ? authority : null,
+});
 const visitedCells = new Set<string>();
 let lastExploreCellKey = "";
 
@@ -294,6 +306,10 @@ try {
 let damageTimer = 0;
 /** Residual camera trauma after a hit (0..1); keeps shaking for a few seconds. */
 let hitTrauma = 0;
+/** Residual camera wobble after sprint stamina empties (0..1). */
+let exhaustionTrauma = 0;
+/** Dirty cache for stamina HUD updates. */
+let lastStaminaHudKey = "";
 let touchSessionActive = false;
 let engineMode: EngineMode = "editor";
 let crtEnabled = true;
@@ -390,9 +406,71 @@ function currentDomainSave(): DungeonDomainState {
   };
 }
 
+function captureLocalRunResume(): LocalRunResumeState | undefined {
+  if (!dungeon || session.runMode !== "playing") return undefined;
+  const player = controller.getState();
+  const difficulty = world.getDifficultyState();
+  const questSnap = quest.snapshot();
+  return {
+    runSeconds: questSnap.runSeconds,
+    difficultyElapsed: difficulty.elapsedSeconds,
+    player: {
+      x: player.position.x,
+      y: player.position.y,
+      z: player.position.z,
+      yaw: player.lookYaw,
+      pitch: player.lookPitch,
+      distanceTravelled: player.distanceTravelled,
+    },
+    visitedCells: [...visitedCells],
+    timeFreezeRemaining: world.timeFreezeRemaining,
+    luminousWardRemaining: world.luminousWardRemaining,
+    perStoneSeconds: questSnap.perStoneSeconds,
+  };
+}
+
+function domainToPersistedSession(
+  state: DungeonDomainState,
+  resume?: LocalRunResumeState,
+): PersistedRunSession {
+  return {
+    resolve: state.resolve,
+    foundStoneIds: [...state.foundStoneIds] as StoneId[],
+    portalOpen: state.portalOpen,
+    runMode: state.runMode,
+    exitReached: state.exitReached,
+    runSeconds: resume?.runSeconds ?? 0,
+    perStoneSeconds: resume?.perStoneSeconds,
+  };
+}
+
+function applyLocalRunResume(resume: LocalRunResumeState | undefined): void {
+  if (!resume || !dungeon) return;
+  visitedCells.clear();
+  for (const key of resume.visitedCells) visitedCells.add(key);
+  if (visitedCells.size === 0) {
+    visitedCells.add(`${dungeon.spawn.x},${dungeon.spawn.y}`);
+  }
+  controller.restorePose(resume.player);
+  world.restoreRuntimeProgress(
+    {
+      difficultyElapsed: resume.difficultyElapsed,
+      timeFreezeRemaining: resume.timeFreezeRemaining,
+      luminousWardRemaining: resume.luminousWardRemaining,
+    },
+    { x: resume.player.x, z: resume.player.z },
+  );
+  lastRunTimerSecond = -1;
+  syncRunTimer();
+  syncTimeFreezeHud(world.timeFreezeRemaining);
+  syncLuminousWardHud(world.luminousWardRemaining);
+  controller.setSolidColliders(world.getSolidColliders());
+  syncDomainExplore();
+}
+
 function persistCurrentRun(): void {
   if (!dungeon) return;
-  writeLocalRunSave(currentDomainSave());
+  writeLocalRunSave(currentDomainSave(), localStorage, Date.now(), captureLocalRunResume());
 }
 
 function scheduleLocalRunSave(delay = 650): void {
@@ -416,10 +494,18 @@ function setWelcomeOpen(open: boolean): void {
   if (open) {
     controller.releasePointerLock();
     audio.setPaused(true);
+    setMusicBed("menu");
     window.requestAnimationFrame(() => elements.welcomeNew.focus());
   } else {
     elements.scene.focus({ preventScroll: true });
+    // Leaving the welcome screen for play or editor stops the menu bed.
+    if (runMode === "playing") setMusicBed(null);
   }
+}
+
+/** Soft 8-bit scene beds. Menu / end screens keep music while play SFX are paused. */
+function setMusicBed(track: MusicTrack | null): void {
+  audio.setMusicTrack(track);
 }
 
 function startPlayWithSeed(seed: string, options: { refreshProcedural?: boolean } = {}): void {
@@ -429,6 +515,7 @@ function startPlayWithSeed(seed: string, options: { refreshProcedural?: boolean 
   elements.seed.value = normalizedSeed;
   buildDungeon(normalizedSeed);
   setWelcomeOpen(false);
+  setMusicBed(null);
   setEngineMode("play", { hydrate: false });
   setStatus(COPY.status.enterPlay);
 }
@@ -670,13 +757,19 @@ function syncQuestHud(): void {
   }
 }
 
-function applyPersistedRunSession(persisted: PersistedRunSession): void {
+function applyPersistedRunSession(
+  persisted: PersistedRunSession,
+  resume?: LocalRunResumeState,
+): void {
   restoreRunSession(session, quest, persisted);
   world.restoreSession(persisted.foundStoneIds);
+  applyLocalRunResume(resume);
   lastTimeFreezeDisplay = "";
   lastLuminousWardDisplay = "";
-  syncTimeFreezeHud();
-  syncLuminousWardHud();
+  if (!resume) {
+    syncTimeFreezeHud();
+    syncLuminousWardHud();
+  }
   syncSessionMirrors();
   elements.shell.dataset.mode = session.runMode;
   elements.shell.dataset.relic = String(quest.portalOpen);
@@ -1098,6 +1191,24 @@ function updateResolve(): void {
   elements.healthOrb.setAttribute("aria-valuetext", `${shown} health`);
 }
 
+function updateStaminaHud(ratio: number, exhausted: boolean, draining: boolean): void {
+  const clamped = THREE.MathUtils.clamp(ratio, 0, 1);
+  const percent = Math.round(clamped * 100);
+  const key = `${percent}|${exhausted ? 1 : 0}|${draining ? 1 : 0}`;
+  if (key === lastStaminaHudKey) return;
+  lastStaminaHudKey = key;
+  const fill = `${percent}%`;
+  elements.staminaMeter.style.setProperty("--fill", fill);
+  elements.staminaMeter.classList.toggle("is-low", percent <= 30 && !exhausted);
+  elements.staminaMeter.classList.toggle("is-exhausted", exhausted);
+  elements.staminaMeter.classList.toggle("is-draining", draining && percent > 0);
+  elements.staminaMeter.setAttribute("aria-valuenow", String(percent));
+  elements.staminaMeter.setAttribute(
+    "aria-valuetext",
+    exhausted ? `${percent} stamina, exhausted` : `${percent} stamina`,
+  );
+}
+
 function updateObjective(): void {
   syncQuestHud();
 }
@@ -1129,6 +1240,7 @@ function closeEndOverlay(): void {
   pendingLeaderboardSubmission = null;
   elements.shell.dataset.mode = "playing";
   controller.setEnabled(canEnablePlayController());
+  if (!welcomeOpen) setMusicBed(null);
 }
 
 function showEndOverlay(mode: "dead" | "won"): void {
@@ -1147,6 +1259,7 @@ function showEndOverlay(mode: "dead" | "won"): void {
   elements.endOverlay.dataset.end = mode === "won" ? "won" : "dead";
   if (mode === "won") {
     audio.play("win");
+    setMusicBed("win");
     elements.endKicker.textContent = COPY.end.winKicker;
     elements.endTitle.textContent = COPY.end.winTitle;
     elements.endCopy.textContent = COPY.end.winLead;
@@ -1171,6 +1284,7 @@ function showEndOverlay(mode: "dead" | "won"): void {
     elements.newDungeon.textContent = COPY.end.next;
   } else {
     audio.play("lose");
+    setMusicBed("lose");
     elements.endKicker.textContent = COPY.end.loseKicker;
     elements.endTitle.textContent = COPY.end.loseTitle;
     elements.endCopy.textContent = COPY.end.loseCopy;
@@ -1245,7 +1359,11 @@ function activateDungeon(
   nextDungeon: DungeonData,
   message: string,
   params: DungeonEditorParams,
-  options: { persistBuild?: boolean; persistedSession?: PersistedRunSession } = {},
+  options: {
+    persistBuild?: boolean;
+    persistedSession?: PersistedRunSession;
+    resume?: LocalRunResumeState;
+  } = {},
 ): DungeonRuntimeState {
   const persistBuild = options.persistBuild ?? true;
   if (persistBuild) {
@@ -1294,6 +1412,7 @@ function activateDungeon(
   if (options.persistedSession) {
     restoreRunSession(session, quest, options.persistedSession);
     world.restoreSession(options.persistedSession.foundStoneIds);
+    applyLocalRunResume(options.resume);
   } else {
     resetRunSession(session, 100);
     quest.start();
@@ -1307,6 +1426,9 @@ function activateDungeon(
   elements.editorCell.textContent = `SPAWN ${formatCell(dungeon.spawn)}`;
   damageTimer = 0;
   hitTrauma = 0;
+  exhaustionTrauma = 0;
+  lastStaminaHudKey = "";
+  updateStaminaHud(1, false, false);
   povFeel.reset();
   lastPortalBanner = quest.portalOpen;
   // Invalidate the quest HUD dirty cache so the first syncQuestHud() repaints.
@@ -1344,7 +1466,11 @@ function activateDungeon(
 
 function buildDungeon(
   seed = elements.seed.value,
-  options: { persistBuild?: boolean; persistedSession?: PersistedRunSession } = {},
+  options: {
+    persistBuild?: boolean;
+    persistedSession?: PersistedRunSession;
+    resume?: LocalRunResumeState;
+  } = {},
 ): DungeonRuntimeState {
   povPost.resetCrtHistory();
   const normalizedSeed = seed.trim() || COPY.hud.seedDefault;
@@ -1482,10 +1608,13 @@ function setEngineMode(
       if (shouldAdoptHydratedSeed(Boolean(dungeon), hydrated.seed, localSeed)) {
         applyDungeonDomainToForm(hydrated.state);
         elements.seed.value = hydrated.seed;
-        buildDungeon(hydrated.seed, { persistBuild: false, persistedSession: hydrated.state });
+        buildDungeon(hydrated.seed, {
+          persistBuild: false,
+          persistedSession: domainToPersistedSession(hydrated.state),
+        });
         setStatus(COPY.status.hydrate(hydrated.seed));
       } else if (dungeon && hydrated.seed === localSeed) {
-        applyPersistedRunSession(hydrated.state);
+        applyPersistedRunSession(domainToPersistedSession(hydrated.state));
         setStatus("Hydrate backend · dungeon session restored");
       } else if (hydrated.seed && hydrated.seed !== localSeed && dungeon) {
         setStatus(`Backend seed ${hydrated.seed} (local map kept). Use SYNC RUNS to adopt.`);
@@ -1904,7 +2033,10 @@ elements.runSelect.addEventListener("change", () => {
         const d = hydrated.state;
         applyDungeonDomainToForm(d);
         elements.seed.value = hydrated.seed;
-        buildDungeon(hydrated.seed, { persistBuild: false, persistedSession: d });
+        buildDungeon(hydrated.seed, {
+          persistBuild: false,
+          persistedSession: domainToPersistedSession(d),
+        });
         setStatus(`Active run ${runId} · seed ${hydrated.seed}`);
       } else {
         setStatus(`Active run ${runId}; dungeon hydrate did not complete.`);
@@ -1922,13 +2054,22 @@ elements.welcomeNew.addEventListener("click", () => {
   startPlayWithSeed(makeSeed(), { refreshProcedural: true });
 });
 elements.welcomeContinue.addEventListener("click", () => {
-  if (!continueDomainState) return;
+  const save = readLocalRunSave();
+  const state = canContinueLocalRun(save) ? save.state : continueDomainState;
+  if (!state) return;
   void audio.unlock();
+  applyDungeonDomainToForm(state);
+  elements.seed.value = state.seed;
+  buildDungeon(state.seed, {
+    persistBuild: true,
+    persistedSession: domainToPersistedSession(state, save?.resume),
+    resume: save?.resume,
+  });
   runHasStarted = true;
   setWelcomeOpen(false);
   setEngineMode("play", { hydrate: false });
   scheduleLocalRunSave(0);
-  setStatus(`Continued run · seed ${continueDomainState.seed}. Click the scene to look.`);
+  setStatus(`Continued run · seed ${state.seed}. Click the scene to look.`);
 });
 elements.welcomeCustom.addEventListener("click", () => {
   void audio.unlock();
@@ -2298,6 +2439,9 @@ function frame(now: number): void {
     elements.damage.classList.remove("is-hit");
   }
   hitTrauma = simulationActive ? decayHitTrauma(hitTrauma, delta) : 0;
+  if (simulationActive && result.justExhausted) exhaustionTrauma = 1;
+  exhaustionTrauma = simulationActive ? decayExhaustionTrauma(exhaustionTrauma, delta) : 0;
+  updateStaminaHud(result.stamina, result.staminaExhausted, simulationActive && player.sprinting);
   if (simulationActive && result.footstep) {
     audio.playFootstep(footstepSurfaceAt(dungeon, result.cell));
   }
@@ -2327,6 +2471,7 @@ function frame(now: number): void {
     speedRatio: simulationActive ? speedRatio : 0,
     threatDistance: simulationActive ? currentThreatDistance : null,
     hitTrauma: simulationActive ? hitTrauma : 0,
+    exhaustionTrauma: simulationActive ? exhaustionTrauma : 0,
     reducedMotion,
   });
   const feel = povFeel.apply(feelTarget, delta);
@@ -2344,7 +2489,7 @@ function frame(now: number): void {
     feel.curvature,
     feel.chromatic,
     simulationActive ? criticalHealth.redTint : 0,
-    reducedMotion ? 0.006 : 0.011,
+    reducedMotion ? 0.004 : 0.008,
     !reducedMotion,
   );
 
@@ -2410,7 +2555,8 @@ if (canContinueLocalRun(localContinue)) {
     elements.seed.value = localContinue.state.seed;
     buildDungeon(localContinue.state.seed, {
       persistBuild: false,
-      persistedSession: localContinue.state,
+      persistedSession: domainToPersistedSession(localContinue.state, localContinue.resume),
+      resume: localContinue.resume,
     });
     setContinueCandidate(localContinue.state, `Continue ready · ${localContinue.state.seed}`);
     bootBuilt = true;
@@ -2448,7 +2594,10 @@ if (visualQaState) {
     if (hydrated && canContinueDomainRun(hydrated.state)) {
       applyDungeonDomainToForm(hydrated.state);
       elements.seed.value = hydrated.seed;
-      buildDungeon(hydrated.seed, { persistBuild: false, persistedSession: hydrated.state });
+      buildDungeon(hydrated.seed, {
+        persistBuild: false,
+        persistedSession: domainToPersistedSession(hydrated.state),
+      });
       setContinueCandidate(hydrated.state, `Continue ready · ${hydrated.seed}`);
       setStatus(`Saved run ready · seed ${hydrated.seed}`);
     } else if (!continueDomainState) {
