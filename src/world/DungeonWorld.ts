@@ -64,6 +64,7 @@ import {
 import { computeTorchLod } from "./TorchLod";
 import {
   createEnemyBillboardMaterial,
+  setEnemyFreezeAmount,
   createEnemyContactShadowMaterial,
   disposeEnemyContactShadowMaterial,
   setEnemyBillboardFrame,
@@ -72,6 +73,8 @@ import type { DungeonMood } from "../systems/DungeonMood";
 import { getDungeonMood } from "../systems/DungeonMood";
 import {
   DEFAULT_DIFFICULTY,
+  ENEMY_ACTIVATION_SPREAD,
+  ENEMY_HARD_CAP,
   isEnemyKindUnlocked,
   resolveDifficultySnapshot,
   resolveDifficultyTuning,
@@ -113,6 +116,7 @@ import { createSpecialRoomSignals } from "./SpecialRoomSignalKit";
 import { getBiomeDecorationProfile } from "./BiomeDecorationProfile";
 import { activateTimeFreeze, isTimeFreezeActive, tickTimeFreeze } from "../game/TimeFreeze";
 import { TimeFreezeVfx } from "./TimeFreezeVfx";
+import { EnemyMotionTrailVfx } from "./EnemyMotionTrailVfx";
 import {
   activateLuminousWard,
   isLuminousWardActive,
@@ -796,6 +800,7 @@ export class DungeonWorld {
   private readonly chests: ChestActor[] = [];
   private pickupBurstPool: PickupBurstPool | null = null;
   private timeFreezeVfx: TimeFreezeVfx | null = null;
+  private enemyMotionTrailVfx: EnemyMotionTrailVfx | null = null;
   private luminousWardVfx: LuminousWardVfx | null = null;
   private readonly pickupBurstWarmupPosition = new THREE.Vector3();
   private readonly fireEffects: FireEffect[] = [];
@@ -1000,10 +1005,18 @@ export class DungeonWorld {
         candidates.push(index);
       }
       if (candidates.length === 0) break;
+      const minSpread = ENEMY_ACTIVATION_SPREAD;
       const spreadCandidates = candidates.filter((index) => {
         const enemy = this.enemyReserve[index]!;
-        return activatedThisPulse.every(
-          (active) => Math.hypot(enemy.position.x - active.x, enemy.position.z - active.z) >= 8,
+        const farFromPulse = activatedThisPulse.every(
+          (active) => Math.hypot(enemy.position.x - active.x, enemy.position.z - active.z) >= minSpread,
+        );
+        if (!farFromPulse) return false;
+        // Also stay clear of enemies already in the active set, not only this pulse.
+        return this.enemies.every(
+          (active) =>
+            Math.hypot(enemy.position.x - active.position.x, enemy.position.z - active.position.z) >=
+            minSpread,
         );
       });
       const pool = spreadCandidates.length > 0 ? spreadCandidates : candidates;
@@ -1097,10 +1110,10 @@ export class DungeonWorld {
         );
       }
       const archetype = ENEMY_ARCHETYPES[enemy.kind];
-      const yaw = enemiesFrozen
-        ? enemy.yaw
-        : Math.atan2(player.x - enemy.position.x, player.z - enemy.position.z);
-      if (!enemiesFrozen) enemy.yaw = yaw;
+      // Keep facing the player while frozen so the freeze read stays on the
+      // billboard (desat + body frost) instead of a locked sideways pose.
+      const yaw = Math.atan2(player.x - enemy.position.x, player.z - enemy.position.z);
+      enemy.yaw = yaw;
       this.tempEuler.set(0, yaw, enemy.roll);
       this.tempQuaternion.setFromEuler(this.tempEuler);
       this.tempScale.set(enemy.scaleX, enemy.scaleY, 1);
@@ -1127,6 +1140,11 @@ export class DungeonWorld {
     for (const batch of this.enemyBatches) batch.instanceMatrix.needsUpdate = true;
     for (const batch of this.enemyShadowBatches) batch.instanceMatrix.needsUpdate = true;
     for (const attribute of this.enemyVisibilityAttributes) attribute.needsUpdate = true;
+    const freezeLook = enemiesFrozen ? 1 : 0;
+    for (const batch of this.enemyAnimationBatches.values()) {
+      setEnemyFreezeAmount(batch.material, freezeLook);
+    }
+    this.enemyMotionTrailVfx?.update(this.enemies, delta, enemiesFrozen);
 
     for (const door of this.doors) {
       const distance = horizontalDistance(door.root.position, player);
@@ -1336,9 +1354,12 @@ export class DungeonWorld {
         batch.phaseOffset,
         this.movingEnemyKinds.has(batch.kind),
       );
-      if (frame === batch.frame) continue;
-      setEnemyBillboardFrame(batch.material, batch.animation, frame);
-      batch.frame = frame;
+      if (frame !== batch.frame) {
+        setEnemyBillboardFrame(batch.material, batch.animation, frame);
+        batch.frame = frame;
+      }
+      // Afterimages lag one animation frame behind the live sprite.
+      this.enemyMotionTrailVfx?.syncAnimationFrame(batch.kind, batch.frame);
     }
   }
 
@@ -1349,6 +1370,7 @@ export class DungeonWorld {
       this.luminousWardSeconds,
       this.elapsed,
       viewerPosition ?? { x: 0, y: 1.5, z: 0 },
+      delta,
     );
     this.hazardTiles?.update(delta);
     const losInterval = 0.12; // ~8 Hz LOS refresh — enough for occlusion feel, cheap on large forge maps
@@ -3847,13 +3869,16 @@ export class DungeonWorld {
             };
           })
       : [];
-    // Keep two guaranteed seats per room, plus a reserve for 30-second waves.
-    // Instancing keeps the dormant pool cheap while active pressure stays capped.
+    // Keep two guaranteed seats per room, plus a deep reserve for 16-second
+    // room pulses (~1 new enemy per room). Instancing keeps dormant seats cheap.
     const distributedTarget = Math.min(
-      128,
-      Math.max(enemyRooms.length * 2, Math.round(enemyRooms.length * 2.6)),
+      ENEMY_HARD_CAP,
+      Math.max(
+        enemyRooms.length * 2,
+        Math.round(enemyRooms.length * (5 + this.difficulty * 3)),
+      ),
     );
-    const maxPool = Math.min(160, distributedTarget + authoredSpawns.length);
+    const maxPool = Math.min(ENEMY_HARD_CAP + 32, distributedTarget + authoredSpawns.length);
     const excludedSpawnCells = new Set([
       ...this.solidCells.keys(),
       ...this.hazardCells,
@@ -3940,6 +3965,8 @@ export class DungeonWorld {
       sharedShadowBatch.frustumCulled = true;
     }
     const moodAnimations = enemyAnimationsForMood(this.activeMood.id);
+    this.enemyMotionTrailVfx = new EnemyMotionTrailVfx();
+    this.group.add(this.enemyMotionTrailVfx.root);
     for (const kind of kinds) {
       const specs = actorSpecs.filter((spec) => spec.kind === kind);
       if (specs.length === 0) continue;
@@ -3954,6 +3981,7 @@ export class DungeonWorld {
         frame: 0,
         phaseOffset: this.enemyAnimationBatches.size * 0.03125,
       });
+      this.enemyMotionTrailVfx.registerKind(kind, texture, animation, specs.length);
       const billboardGeometry = new THREE.PlaneGeometry(1, 1);
       const visibilityAttribute = new THREE.InstancedBufferAttribute(
         new Float32Array(specs.length),
@@ -4094,6 +4122,11 @@ export class DungeonWorld {
       this.group.remove(this.timeFreezeVfx.root);
       this.timeFreezeVfx.dispose();
       this.timeFreezeVfx = null;
+    }
+    if (this.enemyMotionTrailVfx) {
+      this.group.remove(this.enemyMotionTrailVfx.root);
+      this.enemyMotionTrailVfx.dispose();
+      this.enemyMotionTrailVfx = null;
     }
     if (this.luminousWardVfx) {
       this.group.remove(this.luminousWardVfx.root);
