@@ -25,6 +25,11 @@ import { normalizeForgePayload } from "./dungeon/forgePayload";
 import type { DungeonData } from "./dungeon/types";
 import { DungeonEditorView } from "./editor/DungeonEditorView";
 import { type EngineMode, isEngineMode, shouldMountForge } from "./game/EngineMode";
+import {
+  difficultyLabel,
+  formatRunClock,
+  type DifficultySnapshot,
+} from "./game/DifficultyDirector";
 import { FirstPersonController, type PlayerAction } from "./player/FirstPersonController";
 import { AtmosphereSystem } from "./systems/AtmosphereSystem";
 import { getDungeonMood, parseDungeonMoodId, resolveDungeonMood } from "./systems/DungeonMood";
@@ -56,6 +61,7 @@ import {
   writeLocalRunSave,
 } from "./game/LocalRunSave";
 import { DungeonWorld } from "./world/DungeonWorld";
+import type { HazardSurfaceEffect } from "./world/HazardTileSystem";
 import { WORLD_TILE_SIZE, WORLD_WALL_HEIGHT } from "./world/WorldMetrics";
 import "./styles.css";
 
@@ -115,6 +121,8 @@ const elements = {
   resolveFill: requireElement<HTMLElement>("#resolve-fill"),
   healthOrb: requireElement<HTMLElement>(".health-orb"),
   playVitals: requireElement<HTMLElement>(".play-vitals"),
+  runTimer: requireElement<HTMLTimeElement>("#run-timer"),
+  hazardStatus: requireElement<HTMLElement>("#hazard-status"),
   playObjective: requireElement<HTMLElement>("#play-objective"),
   stoneCount: requireElement<HTMLElement>("#stone-count"),
   stoneSockets: [...document.querySelectorAll<HTMLElement>(".stone-socket")],
@@ -232,6 +240,8 @@ function syncSessionMirrors(): void {
 }
 let mapExpanded = false;
 let lastMapDraw = 0;
+let lastRunTimerSecond = -1;
+let lastHazardKind: HazardSurfaceEffect["kind"] | undefined;
 /**
  * Cached minimap viewport (CSS size + clamped DPR). Refreshed on resize so the
  * per-frame drawMinimap call never triggers a getBoundingClientRect reflow even
@@ -550,6 +560,30 @@ function getDecorDensity(): number {
 function getEnemyDensity(): number {
   return Number(elements.enemyDensity.value) / 100;
 }
+function syncDifficultyLabel(): void {
+  const label = difficultyLabel(getEnemyDensity());
+  elements.enemyDensityLabel.value = label;
+  elements.enemyDensity.setAttribute("aria-valuetext", label.toLowerCase());
+}
+function syncRunTimer(snapshot = world.getDifficultyState()): void {
+  const seconds = Math.floor(snapshot.elapsedSeconds);
+  if (seconds === lastRunTimerSecond) return;
+  lastRunTimerSecond = seconds;
+  const clock = formatRunClock(seconds);
+  elements.runTimer.textContent = clock;
+  elements.runTimer.dateTime = `PT${seconds}S`;
+  elements.runTimer.setAttribute("aria-label", `Run time ${clock}`);
+  elements.shell.dataset.difficulty = snapshot.label.toLowerCase();
+  elements.shell.dataset.pressure = String(snapshot.pressureLevel);
+}
+function syncHazardStatus(effect: HazardSurfaceEffect): void {
+  if (effect.kind === lastHazardKind) return;
+  lastHazardKind = effect.kind;
+  elements.hazardStatus.hidden = effect.kind === null;
+  elements.hazardStatus.textContent = effect.label;
+  elements.hazardStatus.dataset.hazard = effect.kind ?? "none";
+  elements.shell.dataset.hazard = effect.kind ?? "none";
+}
 function getLightLevel(): number {
   return Number(elements.lightLevel.value) / 100;
 }
@@ -594,7 +628,7 @@ function applyEditorParamsToForm(params: DungeonEditorParams): void {
   elements.roomPadding.value = String(params.roomPadding);
   elements.paddingLabel.value = String(params.roomPadding);
   elements.enemyDensity.value = String(params.enemyDensity);
-  elements.enemyDensityLabel.value = `${params.enemyDensity}%`;
+  syncDifficultyLabel();
   elements.lightLevel.value = String(params.lightLevel);
   elements.lightLevelLabel.value = `${params.lightLevel}%`;
   elements.profileSelect.value = [...elements.profileSelect.options].some(
@@ -612,14 +646,13 @@ function resolveActiveMood(nextDungeon: DungeonData) {
 }
 
 function applyAtmosphereFromParams(): void {
-  // Forge maps: honor authored densites so Play matches Creation preview.
+  // Forge maps keep their authored decor while the run director owns enemy pacing.
   if (dungeon?.forge) {
     world.setDecorDensity(dungeon.forge.decorDensity);
-    world.setEnemyDensity(1);
   } else {
     world.setDecorDensity(getDecorDensity());
-    world.setEnemyDensity(getEnemyDensity());
   }
+  world.setEnemyDensity(getEnemyDensity());
   const moodBias = dungeon ? resolveActiveMood(dungeon).exposureBias : 0;
   renderer.toneMappingExposure = resolveDungeonExposure(getLightLevel(), moodBias);
 }
@@ -988,6 +1021,11 @@ function activateDungeon(
   const mood = applyDungeonMood(nextDungeon);
   applyAtmosphereFromParams();
   world.setDungeon(dungeon, mood);
+  controller.setSurfaceMovement(1, 1);
+  lastHazardKind = undefined;
+  syncHazardStatus({ kind: null, label: "", damage: 0, movementScale: 1, traction: 1 });
+  lastRunTimerSecond = -1;
+  syncRunTimer();
   atmosphere.setDungeon(dungeon, mood);
   controller.setDungeon(dungeon);
   controller.setBlockedCells([]);
@@ -1250,7 +1288,8 @@ function toggleMap(forceExpanded = !mapExpanded): void {
   mapExpanded = forceExpanded;
   elements.mapPanel.classList.toggle("is-expanded", mapExpanded);
   elements.mapToggle.setAttribute("aria-expanded", String(mapExpanded));
-  elements.mapToggle.textContent = mapExpanded ? COPY.hud.mapShrink : COPY.hud.mapExpand;
+  elements.mapToggle.textContent = "M";
+  elements.mapToggle.setAttribute("aria-label", mapExpanded ? "Shrink map" : "Expand map");
   elements.mapToggle.title = mapExpanded ? "Shrink map (M)" : "Expand map (M)";
   scheduleMinimapLayout();
 }
@@ -1324,6 +1363,7 @@ export interface DungeonRuntimeState {
   engineMode?: EngineMode;
   audioMuted?: boolean;
   crtEnabled?: boolean;
+  difficulty?: Readonly<DifficultySnapshot>;
   renderer?: RendererDiagnostics;
   domain?: ReturnType<DomainBridge["getDungeon"]>;
   domainProjection?: ReturnType<DomainBridge["project"]>;
@@ -1410,6 +1450,7 @@ function getRuntimeState(): DungeonRuntimeState {
     engineMode,
     audioMuted: audio.isMuted,
     crtEnabled,
+    difficulty: { ...world.getDifficultyState() },
     renderer: getRendererDiagnostics(),
     domain: domainBridge.getDungeon(),
     domainProjection: domainBridge.project(),
@@ -1453,7 +1494,11 @@ bindRange(elements.maxRoom, elements.maxRoomLabel);
 bindRange(elements.corridorRadius, elements.corridorLabel);
 bindRange(elements.roomPadding, elements.paddingLabel);
 bindRange(elements.decorDensity, elements.decorDensityLabel, "%", applyAtmosphereFromParams);
-bindRange(elements.enemyDensity, elements.enemyDensityLabel, "%", applyAtmosphereFromParams);
+elements.enemyDensity.addEventListener("input", () => {
+  syncDifficultyLabel();
+  applyAtmosphereFromParams();
+  scheduleEditorRegeneration();
+});
 bindRange(elements.lightLevel, elements.lightLevelLabel, "%", applyAtmosphereFromParams);
 elements.profileSelect.addEventListener("change", () => {
   const id = elements.profileSelect.value as DungeonPresetId;
@@ -1850,6 +1895,11 @@ function frame(now: number): void {
       result.atExit,
       result.interactPressed || uiInteractQueued,
     );
+    controller.setSurfaceMovement(
+      worldUpdate.surfaceEffect.movementScale,
+      worldUpdate.surfaceEffect.traction,
+    );
+    syncHazardStatus(worldUpdate.surfaceEffect);
     uiInteractQueued = false;
     elements.interactionPrompt.hidden = worldUpdate.interactionPrompt !== "open-chest";
     const effects = applyWorldUpdate(
@@ -1892,10 +1942,8 @@ function frame(now: number): void {
     if (effects.playEnemyHit) {
       elements.shell.dataset.resolve = String(Math.ceil(session.resolve));
       triggerDamageFeedback(worldUpdate.knockback);
-      audio.playEnemyHit(
-        worldUpdate.damageSource?.position ?? null,
-        worldUpdate.damageSource?.voice ?? null,
-      );
+      if (worldUpdate.damageSource)
+        audio.playEnemyHit(worldUpdate.damageSource.position, worldUpdate.damageSource.voice);
     }
     if (worldUpdate.doorSound) {
       audio.playDoor(worldUpdate.doorSound.kind, worldUpdate.doorSound.position);
@@ -1916,6 +1964,7 @@ function frame(now: number): void {
     // Threat distance still drives lighting / audio feel; no HUD spam.
     currentThreatDistance = worldUpdate.nearestThreat;
   }
+  syncRunTimer();
 
   damageTimer = Math.max(0, damageTimer - delta);
   if (damageTimer === 0 && damageHitActive) {
