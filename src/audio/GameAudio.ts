@@ -65,116 +65,121 @@ interface AssetDefinition {
   };
 }
 
+/**
+ * Per-asset gains are tuned from measured integrated LUFS so effective bus level
+ * (file LUFS + asset gain + group gain + master 0.76) sits near the design target.
+ * Footsteps stay intentional soft and are not auto-matched to other SFX.
+ */
 const AUDIO_ASSETS = {
-  "ambience-cave": { file: "ambience-cave.opus", group: "ambience", gain: 0.62 },
+  "ambience-cave": { file: "ambience-cave.opus", group: "ambience", gain: 0.7 },
   "torch-crackle": {
     file: "torch-crackle.opus",
     group: "ambience",
-    gain: 0.72,
+    gain: 0.69,
     spatial: { refDistance: 2.2, maxDistance: 17, rolloff: 1.5 },
   },
   "step-stone-a": { file: "step-stone-a.opus", group: "sfx", gain: 0.11 },
   "step-stone-b": { file: "step-stone-b.opus", group: "sfx", gain: 0.1 },
   "step-water-a": { file: "step-water-a.opus", group: "sfx", gain: 0.16 },
   "step-water-b": { file: "step-water-b.opus", group: "sfx", gain: 0.14 },
-  "ui-metal": { file: "ui-metal.opus", group: "ui", gain: 0.5 },
+  "ui-metal": { file: "ui-metal.opus", group: "ui", gain: 0.72 },
   "pickup-stone": {
     file: "pickup-stone.opus",
     group: "sfx",
-    gain: 0.72,
+    gain: 0.77,
     spatial: { refDistance: 1.5, maxDistance: 13, rolloff: 1.25 },
   },
   "pickup-resolve": {
     file: "pickup-resolve.opus",
     group: "sfx",
-    gain: 0.55,
+    gain: 0.85,
     spatial: { refDistance: 1.5, maxDistance: 11, rolloff: 1.25 },
   },
   "pickup-time-freeze": {
     file: "pickup-time-freeze.opus",
     group: "sfx",
-    gain: 0.7,
+    gain: 0.83,
     spatial: { refDistance: 1.6, maxDistance: 14, rolloff: 1.2 },
   },
   "pickup-ward": {
     file: "pickup-ward.opus",
     group: "sfx",
-    gain: 0.68,
+    gain: 0.77,
     spatial: { refDistance: 1.6, maxDistance: 14, rolloff: 1.2 },
   },
   "enemy-alert": {
     file: "enemy-alert.opus",
     group: "threat",
-    gain: 0.55,
+    gain: 0.74,
     spatial: { refDistance: 2.3, maxDistance: 24, rolloff: 1.35 },
   },
   "enemy-growl": {
     file: "enemy-growl.opus",
     group: "threat",
-    gain: 0.66,
+    gain: 0.68,
     spatial: { refDistance: 1.8, maxDistance: 19, rolloff: 1.45 },
   },
   "enemy-attack": {
     file: "enemy-attack.opus",
     group: "threat",
-    gain: 0.78,
+    gain: 0.67,
     spatial: { refDistance: 1.25, maxDistance: 16, rolloff: 1.25 },
   },
   "enemy-demon": {
     file: "enemy-demon.opus",
     group: "threat",
-    gain: 0.52,
+    gain: 0.82,
     spatial: { refDistance: 1.8, maxDistance: 19, rolloff: 1.45 },
   },
   "enemy-insect": {
     file: "enemy-insect.opus",
     group: "threat",
-    gain: 0.44,
+    gain: 0.98,
     spatial: { refDistance: 1.7, maxDistance: 17, rolloff: 1.5 },
   },
   "enemy-ooze": {
     file: "enemy-ooze.opus",
     group: "threat",
-    gain: 0.48,
+    gain: 0.73,
     spatial: { refDistance: 1.7, maxDistance: 18, rolloff: 1.45 },
   },
   "enemy-vermin": {
     file: "enemy-vermin.opus",
     group: "threat",
-    gain: 0.4,
+    gain: 1,
     spatial: { refDistance: 1.4, maxDistance: 13, rolloff: 1.55 },
   },
   "door-open": {
     file: "door-open.opus",
     group: "sfx",
-    gain: 0.46,
+    gain: 0.67,
     spatial: { refDistance: 2, maxDistance: 18, rolloff: 1.4 },
   },
   "door-close": {
     file: "door-close.opus",
     group: "sfx",
-    gain: 0.5,
+    gain: 0.72,
     spatial: { refDistance: 2, maxDistance: 18, rolloff: 1.4 },
   },
   "chest-open": {
     file: "chest-open.opus",
     group: "sfx",
-    gain: 0.52,
+    gain: 0.67,
     spatial: { refDistance: 1.8, maxDistance: 15, rolloff: 1.35 },
   },
   "chest-reward": {
     file: "chest-reward.opus",
     group: "sfx",
-    gain: 0.48,
+    gain: 0.73,
     spatial: { refDistance: 1.8, maxDistance: 14, rolloff: 1.3 },
   },
-  damage: { file: "damage.opus", group: "sfx", gain: 0.68 },
-  lose: { file: "lose.opus", group: "sfx", gain: 0.74 },
-  win: { file: "win.opus", group: "sfx", gain: 0.72 },
+  damage: { file: "damage.opus", group: "sfx", gain: 1 },
+  lose: { file: "lose.opus", group: "sfx", gain: 0.99 },
+  win: { file: "win.opus", group: "sfx", gain: 0.98 },
   "portal-open": {
     file: "portal-open.opus",
     group: "sfx",
-    gain: 0.76,
+    gain: 1,
     spatial: { refDistance: 3.5, maxDistance: 28, rolloff: 1.2 },
   },
 } as const satisfies Record<string, AssetDefinition>;
