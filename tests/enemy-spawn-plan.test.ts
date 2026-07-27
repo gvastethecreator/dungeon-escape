@@ -51,6 +51,34 @@ describe("enemy spawn plan", () => {
     expect(first.every((spawn) => spawn.tier >= 0 && spawn.tier <= 4)).toBe(true);
   });
 
+  test("raises danger tiers every two later reinforcement passes", () => {
+    const rooms = [0, 1, 2, 3].map((id) => ({
+      id,
+      x: id * 14,
+      y: 0,
+      width: 10,
+      height: 10,
+      center: { x: id * 14 + 5, y: 5 },
+      role: "room" as const,
+    }));
+    // 4 rooms × 6 passes → enough seats to climb pass tiers.
+    const spawns = buildDistributedEnemySpawns("TIER-PASS", rooms, 24);
+    const byPass = new Map<number, number[]>();
+    for (const spawn of spawns) {
+      const list = byPass.get(spawn.pass) ?? [];
+      list.push(spawn.tier);
+      byPass.set(spawn.pass, list);
+    }
+    expect(byPass.get(0)?.every((tier) => tier === 0)).toBe(true);
+    expect(byPass.get(1)?.every((tier) => tier === 0)).toBe(true);
+    const pass2 = byPass.get(2) ?? [];
+    const pass4 = byPass.get(4) ?? [];
+    expect(pass2.length).toBeGreaterThan(0);
+    expect(pass4.length).toBeGreaterThan(0);
+    expect(Math.min(...pass2)).toBeGreaterThanOrEqual(1);
+    expect(Math.min(...pass4)).toBeGreaterThanOrEqual(2);
+  });
+
   test("assigns one or two opening enemies while only one room in six stays empty", () => {
     const rooms = Array.from({ length: 12 }, (_, id) => ({
       id,

@@ -2,6 +2,18 @@ import { ENEMY_ARCHETYPES, type EnemyKind } from "../world/EnemyArchetypes";
 
 export const DEFAULT_DIFFICULTY = 0.5;
 
+/** Hard active-enemy ceiling so large maps stay inside the instancing budget. */
+export const ENEMY_HARD_CAP = 200;
+
+/** Default reinforcement cadence: one new seat per room. */
+export const DEFAULT_WAVE_SECONDS = 16;
+
+/**
+ * Pressure and danger-band unlocks climb every this many reinforcement pulses.
+ * Two waves keeps readable steps without waiting a full minute.
+ */
+export const LEVEL_EVERY_WAVES = 2;
+
 export type DifficultyLabel = "MERCIFUL" | "CAUTIOUS" | "STANDARD" | "HARD" | "RELENTLESS";
 
 export interface DifficultyTuning {
@@ -10,6 +22,8 @@ export interface DifficultyTuning {
   initialOccupiedRooms: number;
   initialEnemies: number;
   maxEnemies: number;
+  /** Enemies added to the active target each reinforcement pulse. */
+  enemiesPerWave: number;
   waveSeconds: number;
   dangerUnlockScale: number;
   safeSpawnDistance: number;
@@ -54,6 +68,7 @@ const KIND_PHASE: Readonly<Record<EnemyKind, number>> = {
   "zombie-orc": 4,
 };
 
+// Unlock bands advance every LEVEL_EVERY_WAVES reinforcement pulses.
 const PHASE_WAVES = [0, 2, 4, 6, 8] as const;
 const PHASE_KIND_COUNTS = [3, 6, 8, 10, 11] as const;
 
@@ -98,6 +113,16 @@ export function enemyDangerScore(kind: EnemyKind): number {
   );
 }
 
+/**
+ * Default pulse size is one enemy per room. Difficulty nudges that share a
+ * little softer or harder without changing the readable room-based rule.
+ */
+export function resolveEnemiesPerWave(roomCount: number, difficulty: number): number {
+  const rooms = Math.max(1, Math.floor(roomCount));
+  const share = mix(0.85, 1.2, clamp01(difficulty));
+  return Math.max(1, Math.round(rooms * share));
+}
+
 export function resolveDifficultyTuning(
   value: number,
   roomCount: number,
@@ -113,15 +138,23 @@ export function resolveDifficultyTuning(
   const requestedInitialEnemies =
     initialOccupiedRooms + Math.round(initialOccupiedRooms * doubleRoomShare);
   const initialEnemies = Math.min(available, requestedInitialEnemies);
-  const mapCap = initialEnemies + Math.round(rooms * (0.65 + difficulty * 0.55));
-  const maxEnemies = Math.min(available, Math.max(initialEnemies, Math.min(128, mapCap)));
+  const enemiesPerWave = resolveEnemiesPerWave(rooms, difficulty);
+  // Keep several full room pulses available so 16s waves climb for a few
+  // minutes before the hard instancing ceiling.
+  const waveHeadroom = Math.round(mix(5, 9, difficulty));
+  const mapCap = initialEnemies + enemiesPerWave * waveHeadroom;
+  const maxEnemies = Math.min(
+    available,
+    Math.max(initialEnemies, Math.min(ENEMY_HARD_CAP, mapCap)),
+  );
   return {
     value: difficulty,
     label: difficultyLabel(difficulty),
     initialOccupiedRooms: Math.min(initialOccupiedRooms, initialEnemies),
     initialEnemies,
     maxEnemies,
-    waveSeconds: 30,
+    enemiesPerWave,
+    waveSeconds: DEFAULT_WAVE_SECONDS,
     dangerUnlockScale: mix(1.25, 0.75, difficulty),
     safeSpawnDistance: mix(16, 13, difficulty),
     revealSeconds: mix(1.6, 1.15, difficulty),
@@ -154,10 +187,10 @@ export function resolveDifficultySnapshot(
   const elapsed = Math.max(0, Number.isFinite(elapsedSeconds) ? elapsedSeconds : 0);
   const tuning = resolveDifficultyTuning(value, roomCount, available);
   const normalWaves = Math.floor(elapsed / tuning.waveSeconds);
-  // Pulses add +2, +4, +6… to make delay costly without front-loading the run.
-  const cumulativeWaveEnemies = normalWaves * (normalWaves + 1);
+  // Each pulse adds about one enemy per room (see enemiesPerWave).
+  const cumulativeWaveEnemies = normalWaves * tuning.enemiesPerWave;
   const targetEnemies = Math.min(tuning.maxEnemies, tuning.initialEnemies + cumulativeWaveEnemies);
-  const pressureLevel = Math.min(5, 1 + Math.floor(elapsed / tuning.waveSeconds));
+  const pressureLevel = Math.min(5, 1 + Math.floor(normalWaves / LEVEL_EVERY_WAVES));
   let phase = 0;
   for (let index = 1; index < PHASE_WAVES.length; index += 1) {
     if (elapsed < PHASE_WAVES[index]! * tuning.waveSeconds * tuning.dangerUnlockScale) break;
