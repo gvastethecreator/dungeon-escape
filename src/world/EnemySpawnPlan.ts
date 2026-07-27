@@ -7,6 +7,44 @@ import { ENEMY_ROSTER } from "./EnemySpriteAtlas";
 export interface PlannedEnemySpawn {
   cell: GridCell;
   tier: number;
+  roomId: number;
+  pass: number;
+}
+
+/**
+ * Assigns the opening room quota. A preferred room (normally the entrance)
+ * consumes the first empty slot, while the seed rotates every other vacancy
+ * and every room that receives a second enemy.
+ */
+export function buildInitialRoomEnemyQuotas(
+  seed: string,
+  rooms: readonly DungeonRoom[],
+  initialEnemies: number,
+  preferredEmptyRoomId?: number,
+): ReadonlyMap<number, 0 | 1 | 2> {
+  const random = createSeededRandom(`${seed}:initial-room-occupation`);
+  const shuffled = [...rooms];
+  for (let index = shuffled.length - 1; index > 0; index -= 1) {
+    const swap = random.integer(0, index);
+    [shuffled[index], shuffled[swap]] = [shuffled[swap]!, shuffled[index]!];
+  }
+  if (preferredEmptyRoomId !== undefined) {
+    const preferredIndex = shuffled.findIndex((room) => room.id === preferredEmptyRoomId);
+    if (preferredIndex >= 0) {
+      const [preferred] = shuffled.splice(preferredIndex, 1);
+      if (preferred) shuffled.unshift(preferred);
+    }
+  }
+
+  const emptyRooms = Math.floor(rooms.length / 6);
+  const occupiedRooms = Math.max(0, rooms.length - emptyRooms);
+  const requested = Math.max(0, Math.min(Math.floor(initialEnemies), occupiedRooms * 2));
+  const occupiedTarget = Math.min(occupiedRooms, requested);
+  const doubleRooms = Math.min(occupiedTarget, Math.max(0, requested - occupiedTarget));
+  const quotas = new Map<number, 0 | 1 | 2>(rooms.map((room) => [room.id, 0]));
+  const occupied = shuffled.slice(emptyRooms, emptyRooms + occupiedTarget);
+  occupied.forEach((room, index) => quotas.set(room.id, index < doubleRooms ? 2 : 1));
+  return quotas;
 }
 
 /**
@@ -25,57 +63,65 @@ export function buildDistributedEnemySpawns(
   const used = new Set(excludedCellKeys);
   const result: PlannedEnemySpawn[] = [];
   let attempts = 0;
+  let passIndex = 0;
   while (result.length < count && attempts < count * 12) {
+    let placedThisPass = 0;
     const pass = [...rooms];
     for (let index = pass.length - 1; index > 0; index -= 1) {
       const swap = random.integer(0, index);
       [pass[index], pass[swap]] = [pass[swap]!, pass[index]!];
     }
     for (const room of pass) {
+      const candidates: GridCell[] = [];
+      for (let y = room.y + 1; y <= room.y + room.height - 2; y += 1) {
+        for (let x = room.x + 1; x <= room.x + room.width - 2; x += 1) {
+          candidates.push({ x, y });
+        }
+      }
+      for (let index = candidates.length - 1; index > 0; index -= 1) {
+        const swap = random.integer(0, index);
+        [candidates[index], candidates[swap]] = [candidates[swap]!, candidates[index]!];
+      }
       attempts += 1;
-      const x = random.integer(room.x + 1, room.x + room.width - 2);
-      const y = random.integer(room.y + 1, room.y + room.height - 2);
-      const key = `${x},${y}`;
-      if (used.has(key)) continue;
+      const cell = candidates.find((candidate) => !used.has(`${candidate.x},${candidate.y}`));
+      if (!cell) continue;
+      const key = `${cell.x},${cell.y}`;
       used.add(key);
       const rank = rankById.get(room.id) ?? 0;
-      const tier = Math.min(4, Math.floor((rank / Math.max(1, rooms.length)) * 5));
-      result.push({ cell: { x, y }, tier });
+      // The first two seats in every room form the opening quota and use basic
+      // threats. Later passes can draw from stronger danger bands.
+      const distanceTier = Math.floor((rank / Math.max(1, rooms.length)) * 5);
+      const tier = passIndex < 2 ? 0 : Math.min(4, Math.max(1, distanceTier));
+      result.push({ cell, tier, roomId: room.id, pass: passIndex });
+      placedThisPass += 1;
       if (result.length >= count) break;
     }
+    if (placedThisPass === 0) break;
+    passIndex += 1;
   }
   return result;
 }
 
-/**
- * Builds a deterministic threat deck. A creature appears at most once until
- * the full production roster has had a turn, while the nearest threat tier
- * wins each draw. Seeded tie-breaking keeps repeat maps stable.
- */
+/** Builds one deterministic rotating deck per danger tier. */
 export function selectEnemyKindsForSpawns(seed: string, tiers: readonly number[]): EnemyKind[] {
   const random = createSeededRandom(`${seed}:enemy-roster`);
-  const deck = [...ENEMY_ROSTER] as EnemyKind[];
-  for (let index = deck.length - 1; index > 0; index -= 1) {
-    const swapIndex = random.integer(0, index);
-    [deck[index], deck[swapIndex]] = [deck[swapIndex] as EnemyKind, deck[index] as EnemyKind];
+  const decks = new Map<number, EnemyKind[]>();
+  const cursor = new Map<number, number>();
+  for (let tier = 0; tier <= 4; tier += 1) {
+    const exact = ENEMY_ROSTER.filter((kind) => ENEMY_DANGER_TIER[kind] === tier) as EnemyKind[];
+    const deck = exact.length > 0 ? exact : ([...ENEMY_ROSTER] as EnemyKind[]);
+    for (let index = deck.length - 1; index > 0; index -= 1) {
+      const swapIndex = random.integer(0, index);
+      [deck[index], deck[swapIndex]] = [deck[swapIndex]!, deck[index]!];
+    }
+    decks.set(tier, deck);
   }
 
-  const used = new Set<EnemyKind>();
   return tiers.map((rawTier) => {
-    if (used.size >= deck.length) used.clear();
     const tier = Math.max(0, Math.min(4, Math.round(rawTier)));
-    let selected: EnemyKind | undefined;
-    let selectedDistance = Number.POSITIVE_INFINITY;
-    for (const kind of deck) {
-      if (used.has(kind)) continue;
-      const tierDistance = Math.abs(ENEMY_DANGER_TIER[kind] - tier);
-      if (tierDistance >= selectedDistance) continue;
-      selected = kind;
-      selectedDistance = tierDistance;
-      if (tierDistance === 0) break;
-    }
-    const kind = selected ?? deck[0] ?? "goblin";
-    used.add(kind);
-    return kind;
+    const deck = decks.get(tier) ?? ["goblin"];
+    const index = cursor.get(tier) ?? 0;
+    cursor.set(tier, index + 1);
+    return deck[index % deck.length] ?? "goblin";
   });
 }

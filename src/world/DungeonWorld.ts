@@ -13,7 +13,11 @@ import {
   enemyAnimationsForMood,
   type EnemyAnimationDefinition,
 } from "./EnemySpriteAtlas";
-import { buildDistributedEnemySpawns, selectEnemyKindsForSpawns } from "./EnemySpawnPlan";
+import {
+  buildDistributedEnemySpawns,
+  buildInitialRoomEnemyQuotas,
+  selectEnemyKindsForSpawns,
+} from "./EnemySpawnPlan";
 import { createVolumetricBeam, tickVolumetricBeamTime } from "./VolumetricBeam";
 import { createFloorCampfire } from "./FloorCampfireFactory";
 import { createWallLantern, createWallTorch } from "./WallTorchFactory";
@@ -63,6 +67,7 @@ import {
   DEFAULT_DIFFICULTY,
   isEnemyKindUnlocked,
   resolveDifficultySnapshot,
+  resolveDifficultyTuning,
   type DifficultySnapshot,
 } from "../game/DifficultyDirector";
 import { FIRE_LIGHT_TUNING, MAX_DYNAMIC_FIRE_LIGHTS } from "../systems/LightTuning";
@@ -233,6 +238,8 @@ interface EnemyActor {
   phaseVisibility: number;
   /** Smooth reveal used when the difficulty director adds a threat. */
   spawnReveal: number;
+  /** Part of the deterministic one-or-two enemy opening quota for its room. */
+  startsActive: boolean;
   moving: boolean;
   visibilityAttribute: THREE.InstancedBufferAttribute;
   /** Threat tier 0-3; drives minimap marker size. */
@@ -780,6 +787,7 @@ export class DungeonWorld {
   private enemyAnimationElapsed = 0;
   private difficultyElapsed = 0;
   private difficultySecond = -1;
+  private difficultyRoomCount = 1;
   private enemyActivationRandom = createSeededRandom("difficulty-activation");
   private readonly stoneTextures = new Map<StoneId, THREE.Texture>();
   private activeMood: DungeonMood = getDungeonMood("ash");
@@ -899,7 +907,7 @@ export class DungeonWorld {
     this.difficultyState = resolveDifficultySnapshot(
       this.difficulty,
       this.difficultyElapsed,
-      this.dungeon?.stats.roomCount ?? 1,
+      this.difficultyRoomCount,
       this.enemies.length,
       this.enemyReserve.length,
     );
@@ -925,6 +933,7 @@ export class DungeonWorld {
       const candidates: number[] = [];
       for (let index = 0; index < this.enemyReserve.length; index += 1) {
         const enemy = this.enemyReserve[index]!;
+        if (immediate && !enemy.startsActive) continue;
         if (
           !isEnemyKindUnlocked(
             enemy.kind,
@@ -934,7 +943,7 @@ export class DungeonWorld {
         )
           continue;
         const distance = Math.hypot(enemy.position.x - player.x, enemy.position.z - player.z);
-        if (distance < this.difficultyState.safeSpawnDistance) continue;
+        if (!immediate && distance < this.difficultyState.safeSpawnDistance) continue;
         if (
           !immediate &&
           hasGridLineOfSight(this.dungeon, player, enemy.position, this.tileSize)
@@ -3612,35 +3621,83 @@ export class DungeonWorld {
 
     const random = createSeededRandom(`${dungeon.seed}:actors`);
     const stoneRoomSet = new Set(stoneRooms);
-    const enemyRooms = rankedRooms.filter((room) => !stoneRoomSet.has(room));
+    const enemyRooms = rankedRooms;
+    this.difficultyRoomCount = Math.max(1, enemyRooms.length);
     const kinds: readonly EnemyKind[] = ENEMY_ROSTER;
 
     const authoredSpawns = dungeon.forge?.spawns.length
       ? dungeon.forge.spawns
           .filter((spawn) => !this.isObjectiveClearanceCell(spawn))
-          .map((spawn) => ({
-            cell: { x: spawn.x, y: spawn.y },
-            tier: spawn.tier,
-          }))
+          .map((spawn) => {
+            const room = enemyRooms.find(
+              (candidate) =>
+                spawn.x >= candidate.x &&
+                spawn.x < candidate.x + candidate.width &&
+                spawn.y >= candidate.y &&
+                spawn.y < candidate.y + candidate.height,
+            );
+            return {
+              cell: { x: spawn.x, y: spawn.y },
+              tier: spawn.tier,
+              roomId: room?.id ?? -1,
+              pass: 2,
+            };
+          })
       : [];
-    // Use several shuffled passes over every room. This gives large maps enough
-    // reserve for growing batches and keeps new actors spread across the floor.
-    const maxPool = Math.min(96, Math.max(18, Math.round(dungeon.stats.roomCount * 2.2)));
-    const excludedSpawnCells = new Set([...this.objectiveClearanceCells, ...this.hazardCells]);
+    // Keep two guaranteed seats per room, plus a reserve for 30-second waves.
+    // Instancing keeps the dormant pool cheap while active pressure stays capped.
+    const distributedTarget = Math.min(
+      128,
+      Math.max(enemyRooms.length * 2, Math.round(enemyRooms.length * 2.6)),
+    );
+    const maxPool = Math.min(160, distributedTarget + authoredSpawns.length);
+    const excludedSpawnCells = new Set([
+      ...this.solidCells.keys(),
+      ...this.hazardCells,
+      `${dungeon.spawn.x},${dungeon.spawn.y}`,
+      `${dungeon.exit.x},${dungeon.exit.y}`,
+      ...stonePlacements.map((placement) => `${placement.cell.x},${placement.cell.y}`),
+    ]);
     authoredSpawns.forEach((spawn) => excludedSpawnCells.add(`${spawn.cell.x},${spawn.cell.y}`));
     const distributedSpawns = buildDistributedEnemySpawns(
       dungeon.seed,
       enemyRooms,
-      Math.max(0, maxPool - authoredSpawns.length),
+      distributedTarget,
       excludedSpawnCells,
     );
-    const spawnRecords = [...authoredSpawns, ...distributedSpawns].slice(0, maxPool);
+    const spawnRecords = [...distributedSpawns, ...authoredSpawns].slice(0, maxPool);
+    const entranceRoom = enemyRooms.find(
+      (room) =>
+        dungeon.spawn.x >= room.x &&
+        dungeon.spawn.x < room.x + room.width &&
+        dungeon.spawn.y >= room.y &&
+        dungeon.spawn.y < room.y + room.height,
+    );
+    const openingTuning = resolveDifficultyTuning(
+      this.difficulty,
+      enemyRooms.length,
+      spawnRecords.length,
+    );
+    const openingQuotas = buildInitialRoomEnemyQuotas(
+      dungeon.seed,
+      enemyRooms,
+      openingTuning.initialEnemies,
+      entranceRoom?.id,
+    );
+    const usedOpeningSlots = new Map<number, number>();
+    const plannedSpawns = spawnRecords.map((spawn) => {
+      const used = usedOpeningSlots.get(spawn.roomId) ?? 0;
+      const quota = openingQuotas.get(spawn.roomId) ?? 0;
+      const startsActive = used < quota;
+      if (startsActive) usedOpeningSlots.set(spawn.roomId, used + 1);
+      return { ...spawn, tier: startsActive ? 0 : spawn.tier, startsActive };
+    });
     this.enemyActivationRandom = createSeededRandom(`${dungeon.seed}:difficulty-activation`);
     const selectedKinds = selectEnemyKindsForSpawns(
       dungeon.seed,
-      spawnRecords.map((spawn) => spawn.tier),
+      plannedSpawns.map((spawn) => spawn.tier),
     );
-    const actorSpecs = spawnRecords.map((spawn, index) => {
+    const actorSpecs = plannedSpawns.map((spawn, index) => {
       const kind = selectedKinds[index] ?? kinds[index % kinds.length] ?? "goblin";
       const sprite = getEnemySpriteRenderMetrics(kind);
       const width = sprite.planeWidth;
@@ -3652,6 +3709,7 @@ export class DungeonWorld {
         width,
         height,
         tier: spawn.tier,
+        startsActive: spawn.startsActive,
         position: new THREE.Vector3(
           p.x + (random.next() - 0.5) * 0.56,
           spawnY,
@@ -3720,6 +3778,7 @@ export class DungeonWorld {
           phaseEpoch: -1,
           phaseVisibility: 1,
           spawnReveal: 0,
+          startsActive: spec.startsActive,
           moving: false,
           visibilityAttribute,
           tier: spec.tier,
@@ -3804,6 +3863,7 @@ export class DungeonWorld {
     this.enemyAnimationElapsed = 0;
     this.difficultyElapsed = 0;
     this.difficultySecond = -1;
+    this.difficultyRoomCount = 1;
     this.doors.length = 0;
     this.pickups.length = 0;
     this.chests.length = 0;
