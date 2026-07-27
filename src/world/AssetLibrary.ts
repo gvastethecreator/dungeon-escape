@@ -12,6 +12,11 @@ import {
   ENEMY_ATLAS_SIZE,
   type EnemyAnimationDefinition,
 } from "./EnemySpriteAtlas";
+import {
+  BIOME_SPRITE_ATLAS_SIZE,
+  biomeSpritePropFrame,
+  biomeSpritePropTextureUrl,
+} from "./BiomeSpriteDecorKit";
 
 export interface AtlasFrame {
   x: number;
@@ -274,12 +279,17 @@ export class AssetLibrary {
     };
   }
 
-  enemy(frame: SourcedAtlasFrame): THREE.Texture {
+  /** One transparent 512px billboard crop from the active biome prop atlas. */
+  biomeSpriteProp(mood: DungeonMoodId, index: number): THREE.Texture {
     return this.atlasFrame(
-      frame.src ?? ENEMY_ATLAS_SRC,
-      frame.size ?? ENEMY_ATLAS_SIZE,
-      frame,
+      biomeSpritePropTextureUrl(mood),
+      BIOME_SPRITE_ATLAS_SIZE,
+      biomeSpritePropFrame(index),
     );
+  }
+
+  enemy(frame: SourcedAtlasFrame): THREE.Texture {
+    return this.atlasFrame(frame.src ?? ENEMY_ATLAS_SRC, frame.size ?? ENEMY_ATLAS_SIZE, frame);
   }
 
   /**
