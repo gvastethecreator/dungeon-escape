@@ -45,10 +45,10 @@ and rigid-body physics stay outside this pass.
 
 ## Checks
 
-From `apps/dungeon`:
+From the repository root:
 
 ```bash
-bun test tests
+bun run test
 bun run typecheck
 bun run build
 ```

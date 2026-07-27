@@ -1,28 +1,28 @@
-# Rendimiento y topología del modo Dungeon
+# Dungeon performance and topology
 
-Actualizado: 2026-07-26
+Updated: 2026-07-26
 
-## Recorrido Play
+## Play path
 
-- El controlador y la simulación reutilizan sus objetos temporales de frame.
-- Los puntos de audio del mundo se actualizan cada 125 ms, no en cada frame.
-- La colisión resuelve un avance bloqueado con siete pasos de aproximación. El jugador queda junto al volumen visible sin atravesarlo ni perder una franja de espacio.
-- Play usa DPR máximo 1 en escritorio y 0,85 en móvil. El editor conserva su propio límite de calidad.
-- Las antorchas lejanas dejan de crear geometría visible a 36 metros. La decoración atmosférica repetida se agrupa por plantilla.
+- The controller and simulation reuse frame-temporary objects.
+- World audio anchors update every 125 ms instead of every frame.
+- Collision resolves a blocked move with seven approach steps, keeping the player against visible geometry.
+- Play caps device pixel ratio at 1 on desktop and 0.85 on mobile. The editor has its own quality cap.
+- Distant torches stop creating visible geometry at 36 metres. Repeated atmosphere decoration is grouped by template.
 
 ## Forge
 
-- La forma base de las salas es rectangular. Las octogonales son poco frecuentes y las elípticas quedan como excepción. Entrada y jefe siempre usan planta rectangular.
-- La cantidad de decoración depende del área: dos props en salas pequeñas, tres en medianas y cuatro en grandes. Los props no ocupan agua ni hielo.
-- Un arco exige una unión real entre sala y corredor: sala a un lado, corredor al lado opuesto y sin corredor paralelo. Forge incluye la normal hacia la sala para que el host sitúe el marco sobre el plano del muro.
-- Los `POOL` importados se convierten a suelo navegable y mantienen su máscara visual líquida. Los lagos helados también son navegables.
+- Rooms are primarily rectangular. Octagons are rare and ellipses remain exceptional. Entrance and boss rooms stay rectangular.
+- Decoration follows room area: two props in small rooms, three in medium rooms, and four in large rooms. Props avoid water and ice.
+- An arch needs a real room-to-corridor junction. Forge includes the room-facing normal so the host can place the frame on the wall plane.
+- Imported `POOL` cells become walkable floor while retaining their liquid visual mask. Frozen lakes are also walkable.
 
-## Verificación registrada
+## Recorded evidence
 
-- El conteo de pruebas depende del punto de extracción. Ejecuta `bun run test` en este proyecto para el resultado actual.
-- `bun run build`: correcto; Vite advierte que el chunk de Three supera 500 kB.
-- Navegador, Play escritorio: 301 frames durante cinco segundos de avance; media 16,62 ms, p95 16,8 ms, máximo 16,9 ms y ningún frame superior a 20 ms.
-- Navegador, Forge integrado: 42 salas, 3.197 celdas transitables y BFS completo.
-- Navegador, Play móvil 390x844: DPR 0,85, 299 draw calls y controles táctiles de 48x48 px.
+- Run `bun run test` for the current test count in this checkout.
+- `bun run build` passes and Vite warns that the Three.js chunk exceeds 500 kB.
+- Desktop Play sample: 301 frames over five seconds of movement, 16.62 ms mean, 16.8 ms p95, 16.9 ms maximum, and no frame over 20 ms.
+- Integrated Forge sample: 42 rooms, 3,197 walkable cells, and complete BFS coverage.
+- Mobile Play sample at 390×844: DPR 0.85, 299 draw calls, and 48×48 px touch controls.
 
-Las mediciones de este documento se tomaron con la autoridad HTTP ausente. Dungeon Escape conserva una partida local y el render sigue disponible.
+These measurements ran without an authority service. Local state and rendering remained available.
