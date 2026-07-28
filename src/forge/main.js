@@ -1959,7 +1959,7 @@ function buildScene(d) {
     .lerp(new THREE.Color(TH.wall), 0.08);
   const selectedEnemyKinds = selectEnemyKindsForSpawns(
     `CREATION-${d.seed}`,
-    d.spawns.map((spawn) => spawn.tier),
+    d.spawns.map((spawn) => ({ tier: spawn.tier, roomId: spawn.roomId })),
   );
   const enemyMoodAnims = enemyAnimationsForMood(d.params.themeKey);
   const enemyShadowMaterial = createEnemyContactShadowMaterial();

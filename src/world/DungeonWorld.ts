@@ -13,6 +13,7 @@ import {
 import {
   buildDistributedEnemySpawns,
   buildInitialRoomEnemyQuotas,
+  totalEnemySeatBudget,
   selectEnemyKindsForSpawns,
 } from "./EnemySpawnPlan";
 import { tickVolumetricBeamTime } from "./VolumetricBeam";
@@ -353,6 +354,7 @@ export class DungeonWorld {
   private readonly annihilationPulseClock = createAnnihilationPulseClock();
   private difficultyRoomCount = 1;
   private enemyActivationRandom = createSeededRandom("difficulty-activation");
+  private enemyKindRotation = 0;
   private readonly stoneTextures = new Map<StoneId, THREE.Texture>();
   private activeMood: DungeonMood = getDungeonMood("ash");
   private decorDensity = 0.6;
@@ -540,6 +542,7 @@ export class DungeonWorld {
       this.difficultyRoomCount,
       this.enemies.length,
       this.enemyReserve.length,
+      this.collectedStones.size,
     );
     this.stats.enemies = this.enemies.length;
     this.stats.reserveEnemies = this.enemyReserve.length;
@@ -574,12 +577,23 @@ export class DungeonWorld {
       : this.difficultyState.safeSpawnDistance;
     const safeSpawnDistance = Math.max(wardSafeSpawnDistance, pulseSafeSpawnDistance);
     const activatedThisPulse: THREE.Vector3[] = [];
+    const unlockedMaxTier = this.difficultyState.unlockedMaxTier;
+    const stonesFound = this.collectedStones.size;
     while (this.enemies.length < target) {
       const candidates: number[] = [];
       for (let index = 0; index < this.enemyReserve.length; index += 1) {
         const enemy = this.enemyReserve[index]!;
         if (mode === "opening" && !enemy.startsActive) continue;
-        if (!isEnemyKindUnlocked(enemy.kind, this.difficultyElapsed, this.difficultyState))
+        // Seat tier gates by progress (time + stones). Kind unlock is the same ladder.
+        if (enemy.tier > unlockedMaxTier) continue;
+        if (
+          !isEnemyKindUnlocked(
+            enemy.kind,
+            this.difficultyElapsed,
+            this.difficultyState,
+            stonesFound,
+          )
+        )
           continue;
         if (
           this.dungeon &&
@@ -617,7 +631,19 @@ export class DungeonWorld {
             ) >= minSpread,
         );
       });
-      const pool = spreadCandidates.length > 0 ? spreadCandidates : candidates;
+      // Prefer seats whose tier matches the newest unlocked band so each 25s /
+      // stone find rotates into the new type group instead of only old rats.
+      const newest = candidates.filter((index) => this.enemyReserve[index]!.tier === unlockedMaxTier);
+      const preferred =
+        newest.length > 0
+          ? newest.filter((index) => spreadCandidates.includes(index) || spreadCandidates.length === 0)
+          : [];
+      const pool =
+        preferred.length > 0
+          ? preferred
+          : spreadCandidates.length > 0
+            ? spreadCandidates
+            : candidates;
       const selectedIndex = pool[this.enemyActivationRandom.integer(0, pool.length - 1)]!;
       const [enemy] = this.enemyReserve.splice(selectedIndex, 1);
       if (!enemy) break;
@@ -628,6 +654,7 @@ export class DungeonWorld {
         mode === "play"
           ? Math.max(enemy.hitCooldown, this.difficultyState.revealSeconds)
           : enemy.hitCooldown;
+      this.enemyKindRotation += 1;
       this.enemies.push(enemy);
       activatedThisPulse.push(enemy.position);
     }
@@ -924,7 +951,13 @@ export class DungeonWorld {
         }
         pickup.stoneSignal.crown.scale.setScalar(0.96 + pulse * 0.08);
       }
-      if (!canCollectPickup(horizontalDistance(pickup.object.position, player), pickup.autoCollect))
+      if (
+        !canCollectPickup(
+          horizontalDistance(pickup.object.position, player),
+          pickup.autoCollect,
+          pickup.kind,
+        )
+      )
         continue;
       pickup.collected = true;
       pickup.collectTime = 0;
@@ -942,6 +975,9 @@ export class DungeonWorld {
         this.collectedStones.add(pickup.stoneId);
         collectedStoneId = pickup.stoneId;
         collectedStoneIds.push(pickup.stoneId);
+        // Each bound stone raises the reinforcement target and wakes seats now.
+        this.refreshDifficultyState();
+        this.activateEnemiesToTarget(player, "play");
         if (this.collectedStones.size >= STONE_ORDER.length) this.openPortal();
       } else if (pickup.kind === "resolve") {
         resolveGain += 28;
@@ -1484,11 +1520,12 @@ export class DungeonWorld {
             };
           })
       : [];
-    // Keep two guaranteed seats per room, plus a deep reserve for 16-second
-    // room pulses (~1 new enemy per room). Instancing keeps dormant seats cheap.
+    // Seat budget follows room size (large halls get denser packs). Difficulty
+    // only nudges how much of that budget we pre-plan as reserve seats.
+    const seatBudget = Math.max(enemyRooms.length * 2, totalEnemySeatBudget(enemyRooms));
     const distributedTarget = Math.min(
       ENEMY_HARD_CAP,
-      Math.max(enemyRooms.length * 2, Math.round(enemyRooms.length * (5 + this.difficulty * 3))),
+      Math.max(seatBudget, Math.round(seatBudget * (0.9 + this.difficulty * 0.35))),
     );
     const maxPool = Math.min(ENEMY_HARD_CAP + 32, distributedTarget + authoredSpawns.length);
     const excludedSpawnCells = new Set([
@@ -1536,9 +1573,12 @@ export class DungeonWorld {
       return { ...spawn, tier: startsActive ? 0 : spawn.tier, startsActive };
     });
     this.enemyActivationRandom = createSeededRandom(`${dungeon.seed}:difficulty-activation`);
+    this.enemyKindRotation = 0;
+    // Tiers map to kind bands; kinds rotate within each band so later waves
+    // don't only clone the first ratling forever.
     const selectedKinds = selectEnemyKindsForSpawns(
       dungeon.seed,
-      plannedSpawns.map((spawn) => spawn.tier),
+      plannedSpawns.map((spawn) => ({ tier: spawn.tier, roomId: spawn.roomId })),
     );
     const actorSpecs = plannedSpawns.map((spawn, index) => {
       const kind = selectedKinds[index] ?? kinds[index % kinds.length] ?? "goblin";
