@@ -18,7 +18,7 @@ describe("enemy spawn plan", () => {
     );
   });
 
-  test("keeps every selected creature inside the requested danger band", () => {
+  test("keeps every selected creature inside the requested danger band when seats are ungrouped", () => {
     const selected = selectEnemyKindsForSpawns("ROSTER-FULL", tiers);
     expect(selected.map((kind) => ENEMY_DANGER_TIER[kind])).toEqual(tiers);
     expect(new Set(selected).size).toBeGreaterThan(6);
@@ -28,6 +28,49 @@ describe("enemy spawn plan", () => {
     expect(selectEnemyKindsForSpawns("ROSTER-A", tiers)).not.toEqual(
       selectEnemyKindsForSpawns("ROSTER-B", tiers),
     );
+  });
+
+  test("packs a room with different kinds instead of one clone army", () => {
+    const seats = Array.from({ length: 8 }, () => ({ tier: 0, roomId: 3 }));
+    const selected = selectEnemyKindsForSpawns("ROOM-VARIETY", seats);
+    expect(selected).toHaveLength(8);
+    // 11 roster kinds — 8 seats must all be unique.
+    expect(new Set(selected).size).toBe(8);
+    // First seats stay in the requested band until that band is spent.
+    const tierZeroCount = selected.filter((kind) => ENEMY_DANGER_TIER[kind] === 0).length;
+    expect(tierZeroCount).toBe(3);
+  });
+
+  test("does not assign the same kind twice in a room until the roster is exhausted", () => {
+    const seats = Array.from({ length: 11 }, (_, index) => ({
+      tier: index % 5,
+      roomId: 9,
+    }));
+    const selected = selectEnemyKindsForSpawns("ROOM-FULL-ROSTER", seats);
+    expect(new Set(selected).size).toBe(11);
+    // 12th seat may repeat; 11 seats should cover the whole roster once.
+    const withRepeat = selectEnemyKindsForSpawns(
+      "ROOM-FULL-ROSTER",
+      Array.from({ length: 12 }, (_, index) => ({ tier: index % 5, roomId: 9 })),
+    );
+    expect(new Set(withRepeat).size).toBe(11);
+    expect(withRepeat).toHaveLength(12);
+  });
+
+  test("isolates variety per room so one hall does not steal another's picks", () => {
+    const seats = [
+      { tier: 0, roomId: 1 },
+      { tier: 0, roomId: 1 },
+      { tier: 0, roomId: 1 },
+      { tier: 0, roomId: 2 },
+      { tier: 0, roomId: 2 },
+      { tier: 0, roomId: 2 },
+    ];
+    const selected = selectEnemyKindsForSpawns("ROOM-ISOLATE", seats);
+    const room1 = selected.slice(0, 3);
+    const room2 = selected.slice(3, 6);
+    expect(new Set(room1).size).toBe(3);
+    expect(new Set(room2).size).toBe(3);
   });
 
   test("spreads a large reserve across rooms in stable shuffled passes", () => {
@@ -61,7 +104,7 @@ describe("enemy spawn plan", () => {
     }
   });
 
-  test("raises danger tiers every two later reinforcement passes", () => {
+  test("raises danger tiers every later reinforcement pass", () => {
     const rooms = [0, 1, 2, 3].map((id) => ({
       id,
       x: id * 18,
@@ -71,8 +114,7 @@ describe("enemy spawn plan", () => {
       center: { x: id * 18 + 7, y: 7 },
       role: "room" as const,
     }));
-    // Large rooms (cap 6) leave enough seats to climb pass tiers.
-    const spawns = buildDistributedEnemySpawns("TIER-PASS", rooms, 24);
+    const spawns = buildDistributedEnemySpawns("TIER-PASS", rooms, 40);
     const byPass = new Map<number, number[]>();
     for (const spawn of spawns) {
       const list = byPass.get(spawn.pass) ?? [];
@@ -80,20 +122,21 @@ describe("enemy spawn plan", () => {
       byPass.set(spawn.pass, list);
     }
     expect(byPass.get(0)?.every((tier) => tier === 0)).toBe(true);
-    expect(byPass.get(1)?.every((tier) => tier === 0)).toBe(true);
+    const pass1 = byPass.get(1) ?? [];
     const pass2 = byPass.get(2) ?? [];
     const pass4 = byPass.get(4) ?? [];
+    expect(pass1.length).toBeGreaterThan(0);
     expect(pass2.length).toBeGreaterThan(0);
-    expect(pass4.length).toBeGreaterThan(0);
-    expect(Math.min(...pass2)).toBeGreaterThanOrEqual(1);
-    expect(Math.min(...pass4)).toBeGreaterThanOrEqual(2);
+    expect(Math.min(...pass1)).toBeGreaterThanOrEqual(1);
+    expect(Math.min(...pass2)).toBeGreaterThanOrEqual(2);
+    if (pass4.length > 0) expect(Math.min(...pass4)).toBeGreaterThanOrEqual(4);
   });
 
-  test("caps small rooms so they never stack an abusive seat pile", () => {
-    expect(roomEnemySeatCap({ width: 5, height: 5 })).toBe(2);
-    expect(roomEnemySeatCap({ width: 6, height: 6 })).toBe(3);
-    expect(roomEnemySeatCap({ width: 8, height: 8 })).toBe(4);
-    expect(roomEnemySeatCap({ width: 12, height: 12 })).toBe(6);
+  test("raises small-room seats and packs large halls denser", () => {
+    expect(roomEnemySeatCap({ width: 5, height: 5 })).toBe(4);
+    expect(roomEnemySeatCap({ width: 6, height: 6 })).toBe(6);
+    expect(roomEnemySeatCap({ width: 8, height: 8 })).toBe(8);
+    expect(roomEnemySeatCap({ width: 12, height: 12 })).toBe(15);
 
     const tiny = {
       id: 0,
@@ -122,14 +165,24 @@ describe("enemy spawn plan", () => {
       center: { x: 25, y: 5 },
       role: "room" as const,
     };
-    const spawns = buildDistributedEnemySpawns("SIZE-CAP", [tiny, small, mid], 20);
+    const hall = {
+      id: 3,
+      x: 40,
+      y: 0,
+      width: 14,
+      height: 14,
+      center: { x: 47, y: 7 },
+      role: "room" as const,
+    };
+    const spawns = buildDistributedEnemySpawns("SIZE-CAP", [tiny, small, mid, hall], 50);
     const counts = new Map<number, number>();
     for (const spawn of spawns) {
       counts.set(spawn.roomId, (counts.get(spawn.roomId) ?? 0) + 1);
     }
-    expect(counts.get(0) ?? 0).toBeLessThanOrEqual(2);
-    expect(counts.get(1) ?? 0).toBeLessThanOrEqual(3);
-    expect(counts.get(2) ?? 0).toBeLessThanOrEqual(5);
+    expect(counts.get(0) ?? 0).toBeLessThanOrEqual(4);
+    expect(counts.get(1) ?? 0).toBeLessThanOrEqual(6);
+    expect(counts.get(2) ?? 0).toBeLessThanOrEqual(12);
+    expect(counts.get(3) ?? 0).toBeGreaterThan(counts.get(2) ?? 0);
     expect(counts.get(2) ?? 0).toBeGreaterThan(counts.get(0) ?? 0);
   });
 
@@ -164,8 +217,8 @@ describe("enemy spawn plan", () => {
       center: { x: id * 8 + 2, y: 2 },
       role: "room" as const,
     }));
-    // 4x4 outer → interior 2x2, cap 2, so doubles are still legal.
-    expect(roomEnemySeatCap(tinyRooms[0]!)).toBe(2);
+    // 4x4 outer → interior 2x2, small rooms still allow opening doubles.
+    expect(roomEnemySeatCap(tinyRooms[0]!)).toBe(4);
     const tinyQuotas = buildInitialRoomEnemyQuotas("TINY-OPENING", tinyRooms, 12, 0);
     expect([...tinyQuotas.values()].some((value) => value === 2)).toBe(true);
 
