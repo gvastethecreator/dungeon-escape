@@ -47,6 +47,17 @@ describe("leaderboard contract", () => {
     expect(parseLeaderboardSubmission({ ...completeRun, roomCount: 200 })).toEqual(
       expect.objectContaining({ ok: false, code: "INVALID_MAP" }),
     );
+    expect(parseLeaderboardSubmission({ ...completeRun, roomCount: 7 })).toEqual(
+      expect.objectContaining({ ok: false, code: "INVALID_MAP" }),
+    );
+  });
+
+  test("accepts Ancient-sized campaign maps (10 rooms)", () => {
+    const result = parseLeaderboardSubmission({ ...completeRun, roomCount: 10, biome: "Ancient" });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.roomCount).toBe(10);
+    expect(result.value.biome).toBe("Ancient");
   });
 
   test("rewards speed, difficulty and larger maps in bounded order", () => {
