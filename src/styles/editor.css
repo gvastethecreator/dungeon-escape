@@ -379,8 +379,10 @@
 .app-shell[data-engine-mode="editor"] .options-backdrop,
 .app-shell[data-engine-mode="debug"] .options-backdrop,
 .app-shell[data-engine-mode="editor"] #options-resume,
-.app-shell[data-engine-mode="debug"] #options-resume {
-  display: none;
+.app-shell[data-engine-mode="debug"] #options-resume,
+.app-shell[data-engine-mode="editor"] .options-session,
+.app-shell[data-engine-mode="debug"] .options-session {
+  display: none !important;
 }
 
 .app-shell[data-engine-mode="editor"] .options-card,

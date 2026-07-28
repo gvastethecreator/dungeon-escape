@@ -2233,6 +2233,97 @@ kbd {
   color: var(--ink);
 }
 
+/* Play pause stack: resume → session exits → sound → mode → tools. */
+.app-shell[data-engine-mode="play"] .options-header {
+  order: 0;
+}
+.app-shell[data-engine-mode="play"] .options-session {
+  order: 1;
+}
+.app-shell[data-engine-mode="play"] .options-fx {
+  order: 2;
+}
+.app-shell[data-engine-mode="play"] .mode-switcher {
+  order: 3;
+}
+.app-shell[data-engine-mode="play"] .record-panel {
+  order: 4;
+}
+.app-shell[data-engine-mode="play"] .options-status {
+  order: 5;
+}
+
+.options-session {
+  display: none;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  gap: 8px;
+}
+
+.app-shell[data-engine-mode="play"] .options-session {
+  display: grid;
+  grid-template-columns: 1fr;
+}
+
+.options-session button {
+  min-height: 42px;
+  width: 100%;
+  padding: 0 12px;
+  border: var(--edge-strong);
+  background: transparent;
+  color: var(--bone);
+  font-family: var(--font-pixel);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-align: left;
+}
+
+.options-session button:hover {
+  background: var(--bone);
+  color: var(--ink);
+}
+
+.options-session button kbd {
+  margin-left: 8px;
+  border-color: rgb(201 197 184 / 35%);
+  background: rgb(201 197 184 / 10%);
+  color: inherit;
+}
+
+.options-session button:hover kbd {
+  border-color: rgb(7 8 9 / 25%);
+  background: rgb(7 8 9 / 12%);
+  color: var(--ink);
+}
+
+#options-restart {
+  background: var(--bone);
+  color: var(--ink);
+}
+
+#options-restart:hover {
+  background: #e6e2d4;
+}
+
+#options-restart kbd {
+  border-color: rgb(7 8 9 / 25%);
+  background: rgb(7 8 9 / 12%);
+  color: var(--ink);
+}
+
+#options-home {
+  border-style: solid;
+  color: var(--ash);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+}
+
+#options-home:hover {
+  color: var(--ink);
+}
+
 .options-fx {
   margin: 0;
   padding: 10px;
