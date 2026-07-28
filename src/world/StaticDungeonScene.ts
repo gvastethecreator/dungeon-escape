@@ -59,7 +59,11 @@ import {
   wallHugWorldOffset,
 } from "./PropPlacement";
 import { createMagicStone } from "./MagicStoneKit";
-import { createMagicPortalInterior, magicPortalApproachYaw } from "./MagicPortalKit";
+import {
+  createMagicPortalInterior,
+  createPortalApertureOutlineGeometry,
+  magicPortalApproachYaw,
+} from "./MagicPortalKit";
 import {
   magicStoneClearanceCells,
   selectMagicStonePlacements,
@@ -2971,9 +2975,13 @@ export class StaticDungeonScene {
     portalArchMaterial.emissiveIntensity = 0.25;
     portalArchMaterial.metalness = 0.55;
     portalArchMaterial.roughness = 0.55;
-    const archRing = new THREE.Mesh(new THREE.TorusGeometry(0.95, 0.08, 8, 28), portalArchMaterial);
-    archRing.position.y = 1.65;
-    portal.add(archRing);
+    const apertureTrim = new THREE.Mesh(
+      createPortalApertureOutlineGeometry(0.055, 0.01),
+      portalArchMaterial,
+    );
+    apertureTrim.name = "Portal aperture trim";
+    apertureTrim.position.z = 0.045;
+    portal.add(apertureTrim);
     const magicInterior = createMagicPortalInterior();
     portal.add(magicInterior.root);
     portal.position.set(exit.x, 0, exit.z);

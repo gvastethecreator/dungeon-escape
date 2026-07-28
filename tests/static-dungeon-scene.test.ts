@@ -162,6 +162,7 @@ describe("StaticDungeonScene", () => {
       expect(classic.solidCells.size).toBe(19);
       expect(classic.solidColliders).toHaveLength(19);
       expect(group.getObjectByName("Escape portal gate")).toBeDefined();
+      expect(group.getObjectByName("Portal aperture trim")).toBeDefined();
       expect(group.getObjectByName(MAGIC_PORTAL_NAMES.vortex)).toBeDefined();
       expect(group.getObjectByName(MAGIC_PORTAL_NAMES.spiral)).toBeDefined();
       expect(group.getObjectByName("Torch floor light pool")).toBeDefined();
