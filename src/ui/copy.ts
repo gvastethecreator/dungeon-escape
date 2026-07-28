@@ -39,7 +39,7 @@ export const COPY = {
     pointerFailed: "Could not capture the pointer. Click the scene to retry.",
     pointerBlocked: "The browser blocked the pointer. Click the scene to retry.",
     portalSealed: "The portal is sealed. Four magic stones are required.",
-    portalOpen: "The portal thrums open. Reach the special gate.",
+    portalOpen: "The portal spins open. Enter its center.",
     stoneFound: (name: string, found: number, total: number) => `${name} bound · ${found}/${total}`,
     timeFreeze: "Time frozen for 20 seconds.",
     luminousWard: "Ward active for 30 seconds.",
