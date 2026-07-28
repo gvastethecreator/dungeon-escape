@@ -7,6 +7,7 @@
 - Cloudflare: the Worker uses `LEADERBOARD_DB`, a D1 binding with the same SQLite migration.
 - Score version: `1`. Server code validates the run and calculates the score. `runId` prevents duplicate submissions.
 - Only completed four-stone **campaign** escapes enter the ranking (New Game biome runs and Hall seed replays).
+- Map size must be 8–80 rooms (Ancient campaign builds 10 rooms; the previous 12-room floor rejected those wins).
 - **Custom runs** (Custom Run, Forge maps, Map Tools) stay playable and still show a local score on victory, but never open the Hall submit form. The API rejects `runSource: "custom"`.
 - Biome stars: each saved escape awards one star for that biome under the player name. `GET /api/leaderboard` returns `playerBiomeStars` aggregated from all rows (not only the ranked page).
 
