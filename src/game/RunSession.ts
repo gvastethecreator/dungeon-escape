@@ -5,7 +5,13 @@ export type RunMode = "playing" | "dead" | "won";
 
 /** Subset of WorldUpdate needed for session rules (no Three). */
 export interface SessionWorldUpdate {
-  collectedPickupKind?: "stone" | "resolve" | "time-freeze" | "luminous-ward" | null;
+  collectedPickupKind?:
+    | "stone"
+    | "resolve"
+    | "time-freeze"
+    | "luminous-ward"
+    | "annihilation-pulse"
+    | null;
   collectedStoneId: StoneId | null;
   /** All IDs collected in one world update. Older adapters may omit this. */
   collectedStoneIds?: readonly StoneId[];
@@ -44,6 +50,7 @@ export interface RunSessionEffects {
     stoneId?: StoneId;
     timeFreeze?: boolean;
     luminousWard?: boolean;
+    annihilationPulse?: boolean;
   };
   endOverlay?: "dead" | "won";
   flash?: "event" | "damage";
@@ -158,6 +165,13 @@ export function applyWorldUpdate(
   if (update.collectedPickupKind === "luminous-ward") {
     effects.status = COPY.status.luminousWard;
     effects.pickup = { label: COPY.pickup.luminousWard, luminousWard: true };
+    effects.playPickup = true;
+    effects.flash = "event";
+  }
+
+  if (update.collectedPickupKind === "annihilation-pulse") {
+    effects.status = COPY.status.annihilationPulse;
+    effects.pickup = { label: COPY.pickup.annihilationPulse, annihilationPulse: true };
     effects.playPickup = true;
     effects.flash = "event";
   }

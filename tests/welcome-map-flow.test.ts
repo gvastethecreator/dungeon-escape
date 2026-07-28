@@ -14,7 +14,8 @@ describe("welcome and map flow", () => {
     expect(host).toContain('id="boot-screen"');
     expect(host).toContain('class="is-booting"');
     expect(host).toContain('class="welcome-art"');
-    expect(host).toContain("/assets/ui/dungeon-cover-v1.webp");
+    expect(host).toContain("/assets/ui/biome-screens/ancient-main.webp");
+    expect(host).toContain('data-biome-id="ancient"');
     expect(host).toContain("Dungeon Escape");
     expect(host).not.toContain("Iron Ash");
     expect(host).not.toContain('id="pointer-lock"');
@@ -33,9 +34,11 @@ describe("welcome and map flow", () => {
     expect(main).toContain("setBootProgress");
   });
 
-  test("uses a full-frame generated cover without baking menu copy into the image", async () => {
+  test("uses a full-frame biome cover without baking menu copy into the image", async () => {
     const css = await Bun.file(new URL("../src/styles.css", import.meta.url)).text();
-    const art = Bun.file(new URL("../public/assets/ui/dungeon-cover-v1.webp", import.meta.url));
+    const art = Bun.file(
+      new URL("../public/assets/ui/biome-screens/ancient-main.webp", import.meta.url),
+    );
     expect(css).toMatch(/\.welcome-art\s*\{[\s\S]*object-fit:\s*cover/);
     expect(css).toContain(".welcome-screen::before");
     expect(css).toContain(".welcome-menu");

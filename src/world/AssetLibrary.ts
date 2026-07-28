@@ -49,6 +49,14 @@ export interface BiomeSurfaceTextures {
   ceiling: BiomeLayerTextures;
 }
 
+/** One full double-leaf door plate and its matching linear data maps. */
+export interface BiomeDoorTextures {
+  albedo: THREE.Texture;
+  normal: THREE.Texture;
+  roughness: THREE.Texture;
+  metalness: THREE.Texture;
+}
+
 /** Flat wall sprite plus its authored material response. */
 export interface WallSpriteTextures {
   albedo: THREE.Texture;
@@ -199,7 +207,7 @@ export class AssetLibrary {
   readonly ceiling = pixelTexture("/assets/textures/iron-ash-ceiling.png");
   /** Lazy biome packs — only the active mood loads PBR stacks (big boot win). */
   private readonly biomeSurfaces = new Map<DungeonMoodId, BiomeSurfaceTextures>();
-  private readonly biomeDoors = new Map<DungeonMoodId, THREE.Texture>();
+  private readonly biomeDoors = new Map<DungeonMoodId, BiomeDoorTextures>();
   private readonly ownedTextures: THREE.Texture[] = [
     this.wall,
     this.wallCrypt,
@@ -245,16 +253,33 @@ export class AssetLibrary {
     return this.getBiomeSurfaces(mood);
   }
 
-  /** One authored door surface per biome; doors stay distinct from wall/floor tiling. */
-  biomeDoor(mood: DungeonMoodId): THREE.Texture {
+  /** One authored door surface per biome; every map uses the same centered leaf split. */
+  biomeDoorSurface(mood: DungeonMoodId): BiomeDoorTextures {
     const cached = this.biomeDoors.get(mood);
     if (cached) return cached;
-    const texture = pixelTexture(biomeDoorTextureUrl(mood), true, "none");
-    texture.wrapS = texture.wrapT = THREE.ClampToEdgeWrapping;
-    texture.repeat.set(1, 1);
-    this.biomeDoors.set(mood, texture);
-    this.ownedTextures.push(texture);
-    return texture;
+    const base = `/assets/textures/biomes/${mood}/door`;
+    const surface = {
+      albedo: pixelTexture(biomeDoorTextureUrl(mood), true, "none"),
+      normal: dataTexture(`${base}-normal.png`),
+      roughness: dataTexture(`${base}-roughness.png`),
+      metalness: dataTexture(`${base}-metalness.png`),
+    } satisfies BiomeDoorTextures;
+    for (const texture of Object.values(surface)) {
+      texture.wrapS = texture.wrapT = THREE.ClampToEdgeWrapping;
+      texture.repeat.set(1, 1);
+      texture.magFilter = THREE.LinearFilter;
+      texture.minFilter = THREE.LinearMipmapLinearFilter;
+      texture.generateMipmaps = true;
+      texture.anisotropy = 8;
+      this.ownedTextures.push(texture);
+    }
+    this.biomeDoors.set(mood, surface);
+    return surface;
+  }
+
+  /** Backward-compatible albedo access for callers which only need the color plate. */
+  biomeDoor(mood: DungeonMoodId): THREE.Texture {
+    return this.biomeDoorSurface(mood).albedo;
   }
 
   /** Four lit wall sprites per biome: two paintings, one fissure, one seal/stain. */

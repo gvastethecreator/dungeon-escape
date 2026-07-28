@@ -49,6 +49,12 @@
       rel="stylesheet"
     />
     <link rel="stylesheet" href="/src/forge/styles.css" />
+    <script>
+      // Cold-load presentation for new-game map theater: hide chrome before paint.
+      if (/(?:^|[?&])presentation=1(?:&|$)/.test(location.search)) {
+        document.documentElement.dataset.forgePresentation = "true";
+      }
+    </script>
   </head>
   <body>
     <!-- control + telemetry panel -->

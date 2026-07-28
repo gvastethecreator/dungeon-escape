@@ -103,6 +103,56 @@ describe("EnemySim", () => {
     expect(Math.hypot(overlapping.position.x, overlapping.position.z)).toBeGreaterThan(0);
   });
 
+  test("annihilation pulse flee speed exceeds the ward response", () => {
+    const dungeon = generateDungeon("SIM-WARD", { roomTarget: 10 });
+    const wardEnemy = body("zombie-orc", 0.7, 0);
+    const pulseEnemy = body("zombie-orc", 0.7, 0);
+    const player = { x: 0, y: 1.6, z: 0 };
+
+    tickEnemySim([wardEnemy], {
+      delta: 0.016,
+      elapsed: 1,
+      player,
+      dungeon,
+      solidColliders: [],
+      tileSize: 2.4,
+      repelRadius: 8.25,
+    });
+    tickEnemySim([pulseEnemy], {
+      delta: 0.016,
+      elapsed: 1,
+      player,
+      dungeon,
+      solidColliders: [],
+      tileSize: 2.4,
+      repelRadius: 11.5,
+      repelSpeedMultiplier: 1.85,
+    });
+
+    expect(pulseEnemy.position.x - 0.7).toBeGreaterThan(wardEnemy.position.x - 0.7);
+  });
+
+  test("skips defeated instanced seats in later simulation ticks", () => {
+    const dungeon = generateDungeon("SIM-PULSE-DEFEATED", { roomTarget: 10 });
+    const enemy = body("goblin", 0, 0);
+    enemy.defeated = true;
+    enemy.scaleX = 0;
+    enemy.scaleY = 0;
+    const result = tickEnemySim([enemy], {
+      delta: 0.016,
+      elapsed: 1,
+      player: { x: 0, y: 1.6, z: 0 },
+      dungeon,
+      solidColliders: [],
+      tileSize: 2.4,
+      repelRadius: 11.5,
+      repelSpeedMultiplier: 1.85,
+    });
+
+    expect(result.damage).toBe(0);
+    expect(enemy.moving).toBe(false);
+  });
+
   test("uses the selected biome alpha bounds for billboard scale", () => {
     const ashGhost = getEnemySpriteRenderMetrics("ghost", "ash");
     const frostGhost = getEnemySpriteRenderMetrics("ghost", "frost");

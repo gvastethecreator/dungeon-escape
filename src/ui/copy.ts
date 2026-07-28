@@ -21,6 +21,7 @@ export const COPY = {
     flask: "HEALTH RESTORED",
     timeFreeze: "TIME FROZEN",
     luminousWard: "WARD STONE",
+    annihilationPulse: "PULSE RELIC",
   },
   interaction: {
     openChest: "OPEN CHEST",
@@ -34,6 +35,8 @@ export const COPY = {
   status: {
     enter: "Click the scene to explore.",
     enterPlay: "Click the scene to explore. ESC opens options.",
+    forgingMap: "Forging the dungeon…",
+    enteringDungeon: "Entering the depths…",
     exploring: "WASD move · SHIFT sprint · SPACE jump · E interact · ESC options.",
     pointerReleased: "Paused. ESC or RESUME to continue.",
     pointerFailed: "Could not capture the pointer. Click the scene to retry.",
@@ -43,6 +46,7 @@ export const COPY = {
     stoneFound: (name: string, found: number, total: number) => `${name} bound · ${found}/${total}`,
     timeFreeze: "Time frozen for 20 seconds.",
     luminousWard: "Ward active for 30 seconds.",
+    annihilationPulse: "Annihilation pulse active for 26 seconds.",
     won: "You escaped the dungeon",
     dead: "Keep distance. Shadows strike on contact.",
     hydrate: (seed: string) => `Loaded from server · seed ${seed}`,
@@ -69,6 +73,10 @@ export const COPY = {
     retry: "Try again",
     newDungeon: "New dungeon",
     next: "Another run",
+    /** Victory CTA after Hall save when a harder biome remains. */
+    nextBiome: (label: string) => `Next: ${label}`,
+    /** Victory note after Hall save on the final campaign biome. */
+    finalBiomeSaved: "Final biome cleared. The hall remembers this escape.",
   },
   leaderboard: {
     title: "Hall of Escapes",

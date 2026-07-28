@@ -70,6 +70,16 @@ import { activateTimeFreeze, isTimeFreezeActive, tickTimeFreeze } from "../game/
 import { TimeFreezeVfx } from "./TimeFreezeVfx";
 import { EnemyMotionTrailVfx } from "./EnemyMotionTrailVfx";
 import {
+  activateAnnihilationPulse,
+  ANNIHILATION_PULSE_RADIUS,
+  ANNIHILATION_PULSE_REPEL_RADIUS,
+  ANNIHILATION_PULSE_REPEL_SPEED_MULTIPLIER,
+  createAnnihilationPulseClock,
+  isAnnihilationPulseActive,
+  tickAnnihilationPulse,
+} from "../game/AnnihilationPulse";
+import { AnnihilationPulseVfx } from "./AnnihilationPulseVfx";
+import {
   activateLuminousWard,
   isLuminousWardActive,
   LUMINOUS_WARD_REPEL_RADIUS,
@@ -112,6 +122,8 @@ interface EnemyActor {
   visibilityAttribute: THREE.InstancedBufferAttribute;
   /** Threat tier 0-3; drives minimap marker size. */
   tier: number;
+  /** Permanent run-local death; the instanced seat remains allocated at zero scale. */
+  defeated: boolean;
 }
 
 interface EnemyAnimationBatch {
@@ -131,7 +143,7 @@ interface DoorActor {
 }
 
 interface PickupActor {
-  kind: "stone" | "resolve" | "time-freeze" | "luminous-ward";
+  kind: "stone" | "resolve" | "time-freeze" | "luminous-ward" | "annihilation-pulse";
   stoneId?: StoneId;
   object: THREE.Object3D;
   collected: boolean;
@@ -154,6 +166,12 @@ interface PickupActor {
     baseIntensity: number;
   };
   luminousWardSignal?: {
+    light: THREE.PointLight;
+    glow: THREE.Mesh;
+    baseIntensity: number;
+    baseGlowOpacity: number;
+  };
+  annihilationPulseSignal?: {
     light: THREE.PointLight;
     glow: THREE.Mesh;
     baseIntensity: number;
@@ -197,13 +215,20 @@ export interface WorldUpdate {
   collectedStoneIds: readonly StoneId[];
   /** Position is kept for the presentation layer that plays the collection source. */
   collectedPickup: {
-    kind: "stone" | "resolve" | "time-freeze" | "luminous-ward";
+    kind: "stone" | "resolve" | "time-freeze" | "luminous-ward" | "annihilation-pulse";
     position: { x: number; y: number; z: number };
   } | null;
   /** Remaining gameplay seconds in the active time-freeze field. */
   timeFreezeRemaining: number;
   /** Remaining gameplay seconds in the active luminous ward field. */
   luminousWardRemaining: number;
+  /** Remaining gameplay seconds in the active annihilation pulse field. */
+  annihilationPulseRemaining: number;
+  /** Pulse ring event; hits are already removed from the enemy seats. */
+  annihilationPulse: {
+    position: { x: number; y: number; z: number };
+    hits: number;
+  } | null;
   stonesFound: number;
   stonesTotal: number;
   portalOpen: boolean;
@@ -305,6 +330,7 @@ export class DungeonWorld {
   private timeFreezeVfx: TimeFreezeVfx | null = null;
   private enemyMotionTrailVfx: EnemyMotionTrailVfx | null = null;
   private luminousWardVfx: LuminousWardVfx | null = null;
+  private annihilationPulseVfx: AnnihilationPulseVfx | null = null;
   private readonly pickupBurstWarmupPosition = new THREE.Vector3();
   private dungeon: DungeonData | null = null;
   private readonly collectedStones = new Set<StoneId>();
@@ -324,6 +350,7 @@ export class DungeonWorld {
   private difficultySecond = -1;
   private timeFreezeSeconds = 0;
   private luminousWardSeconds = 0;
+  private readonly annihilationPulseClock = createAnnihilationPulseClock();
   private difficultyRoomCount = 1;
   private enemyActivationRandom = createSeededRandom("difficulty-activation");
   private readonly stoneTextures = new Map<StoneId, THREE.Texture>();
@@ -479,6 +506,8 @@ export class DungeonWorld {
     this.difficultySecond = -1;
     this.timeFreezeSeconds = 0;
     this.luminousWardSeconds = 0;
+    this.annihilationPulseClock.remaining = 0;
+    this.annihilationPulseClock.timeSincePulse = 0;
     this.enemySimulationElapsed = 0;
     this.ensureStoneTextures();
     const staticHandles = this.staticScene.build(dungeon, mood, this.decorDensity);
@@ -540,6 +569,10 @@ export class DungeonWorld {
     const wardSafeSpawnDistance = isLuminousWardActive(this.luminousWardSeconds)
       ? Math.max(this.difficultyState.safeSpawnDistance, LUMINOUS_WARD_REPEL_RADIUS + 1)
       : this.difficultyState.safeSpawnDistance;
+    const pulseSafeSpawnDistance = isAnnihilationPulseActive(this.annihilationPulseClock)
+      ? Math.max(this.difficultyState.safeSpawnDistance, ANNIHILATION_PULSE_REPEL_RADIUS + 1)
+      : this.difficultyState.safeSpawnDistance;
+    const safeSpawnDistance = Math.max(wardSafeSpawnDistance, pulseSafeSpawnDistance);
     const activatedThisPulse: THREE.Vector3[] = [];
     while (this.enemies.length < target) {
       const candidates: number[] = [];
@@ -556,7 +589,7 @@ export class DungeonWorld {
         )
           continue;
         const distance = Math.hypot(enemy.position.x - player.x, enemy.position.z - player.z);
-        if (mode === "play" && distance < wardSafeSpawnDistance) continue;
+        if (mode === "play" && distance < safeSpawnDistance) continue;
         if (mode === "resume" && distance < 2.4) continue;
         if (
           mode === "play" &&
@@ -618,8 +651,10 @@ export class DungeonWorld {
     this.lockedExitCooldown = Math.max(0, this.lockedExitCooldown - delta);
     this.timeFreezeSeconds = tickTimeFreeze(this.timeFreezeSeconds, delta);
     this.luminousWardSeconds = tickLuminousWard(this.luminousWardSeconds, delta);
+    const pulseCount = tickAnnihilationPulse(this.annihilationPulseClock, delta);
     const enemiesFrozen = isTimeFreezeActive(this.timeFreezeSeconds);
     const luminousWardActive = isLuminousWardActive(this.luminousWardSeconds);
+    const annihilationPulseActive = isAnnihilationPulseActive(this.annihilationPulseClock);
     if (!enemiesFrozen) {
       this.enemyAnimationElapsed += Math.max(0, delta);
       this.enemySimulationElapsed += Math.max(0, delta);
@@ -651,7 +686,13 @@ export class DungeonWorld {
           dungeon: this.dungeon,
           solidColliders: this.solidColliders,
           tileSize: this.tileSize,
-          repelRadius: luminousWardActive ? LUMINOUS_WARD_REPEL_RADIUS : 0,
+          repelRadius: Math.max(
+            luminousWardActive ? LUMINOUS_WARD_REPEL_RADIUS : 0,
+            annihilationPulseActive ? ANNIHILATION_PULSE_REPEL_RADIUS : 0,
+          ),
+          repelSpeedMultiplier: annihilationPulseActive
+            ? ANNIHILATION_PULSE_REPEL_SPEED_MULTIPLIER
+            : 1,
           moodId: this.activeMood.id,
           difficulty: this.difficulty,
         });
@@ -667,6 +708,18 @@ export class DungeonWorld {
     const knockX = sim.knockX;
     const knockZ = sim.knockZ;
     const knockHits = sim.knockHits;
+    let annihilationPulse: WorldUpdate["annihilationPulse"] = null;
+    if (pulseCount > 0) {
+      let hits = 0;
+      for (let pulse = 0; pulse < pulseCount; pulse += 1) {
+        this.annihilationPulseVfx?.triggerPulse(player, this.activeMood.id);
+        hits += this.applyAnnihilationPulse(player);
+      }
+      annihilationPulse = {
+        position: { x: player.x, y: player.y, z: player.z },
+        hits,
+      };
+    }
     const damageSource: WorldUpdate["damageSource"] = sim.attacker
       ? {
           position: {
@@ -778,6 +831,10 @@ export class DungeonWorld {
         chest.reward.luminousWardSignal.light.intensity =
           chest.reward.luminousWardSignal.baseIntensity * eased;
       }
+      if (chest.reward.annihilationPulseSignal) {
+        chest.reward.annihilationPulseSignal.light.intensity =
+          chest.reward.annihilationPulseSignal.baseIntensity * eased;
+      }
       if (reveal >= 1) {
         chest.reward.available = true;
         chest.reward.object.scale.copy(chest.reward.baseScale);
@@ -795,6 +852,8 @@ export class DungeonWorld {
           nearestChest.reward.timeFreezeSignal.light.intensity = 0;
         if (nearestChest.reward.luminousWardSignal)
           nearestChest.reward.luminousWardSignal.light.intensity = 0;
+        if (nearestChest.reward.annihilationPulseSignal)
+          nearestChest.reward.annihilationPulseSignal.light.intensity = 0;
         chestSound = {
           position: {
             x: nearestChest.root.position.x,
@@ -820,6 +879,7 @@ export class DungeonWorld {
         if (pickup.stoneSignal) pickup.stoneSignal.light.intensity = 0;
         if (pickup.timeFreezeSignal) pickup.timeFreezeSignal.light.intensity = 0;
         if (pickup.luminousWardSignal) pickup.luminousWardSignal.light.intensity = 0;
+        if (pickup.annihilationPulseSignal) pickup.annihilationPulseSignal.light.intensity = 0;
         if (progress >= 1) {
           // Dormant scale keeps lights/materials in the graph; never flip visible off.
           setPickupDormant(pickup.object, true);
@@ -827,7 +887,8 @@ export class DungeonWorld {
         continue;
       }
       if (!pickup.available) continue;
-      const powerPickup = pickup.timeFreezeSignal || pickup.luminousWardSignal;
+      const powerPickup =
+        pickup.timeFreezeSignal || pickup.luminousWardSignal || pickup.annihilationPulseSignal;
       const motionScale = pickup.stoneSignal ? 1 : powerPickup ? 0.56 : 0.68;
       pickup.object.position.y =
         pickup.baseY + Math.sin(this.elapsed * 2 + pickup.object.id) * 0.08 * motionScale;
@@ -842,6 +903,16 @@ export class DungeonWorld {
         const glowMaterial = pickup.luminousWardSignal.glow.material;
         if (glowMaterial instanceof THREE.MeshBasicMaterial) {
           glowMaterial.opacity = pickup.luminousWardSignal.baseGlowOpacity * (0.95 + pulse * 0.05);
+        }
+      }
+      if (pickup.annihilationPulseSignal) {
+        const pulse = 0.92 + Math.sin(this.elapsed * 3.1 + pickup.object.id) * 0.08;
+        pickup.annihilationPulseSignal.light.intensity =
+          pickup.annihilationPulseSignal.baseIntensity * pulse;
+        const glowMaterial = pickup.annihilationPulseSignal.glow.material;
+        if (glowMaterial instanceof THREE.MeshBasicMaterial) {
+          glowMaterial.opacity =
+            pickup.annihilationPulseSignal.baseGlowOpacity * (0.9 + pulse * 0.1);
         }
       }
       if (pickup.stoneSignal) {
@@ -876,6 +947,9 @@ export class DungeonWorld {
         resolveGain += 28;
       } else if (pickup.kind === "time-freeze") {
         this.timeFreezeSeconds = activateTimeFreeze();
+      } else if (pickup.kind === "annihilation-pulse") {
+        if (pickup.annihilationPulseSignal) pickup.annihilationPulseSignal.light.intensity = 0;
+        activateAnnihilationPulse(this.annihilationPulseClock);
       } else {
         if (pickup.luminousWardSignal) pickup.luminousWardSignal.light.intensity = 0;
         this.luminousWardSeconds = activateLuminousWard();
@@ -908,6 +982,8 @@ export class DungeonWorld {
       collectedPickup,
       timeFreezeRemaining: this.timeFreezeSeconds,
       luminousWardRemaining: this.luminousWardSeconds,
+      annihilationPulseRemaining: this.annihilationPulseClock.remaining,
+      annihilationPulse,
       stonesFound: this.collectedStones.size,
       stonesTotal: STONE_ORDER.length,
       portalOpen: this.portalOpen,
@@ -923,6 +999,37 @@ export class DungeonWorld {
       reachedOpenExit,
       nearestThreat: Number.isFinite(nearestThreat) ? nearestThreat : null,
     };
+  }
+
+  private applyAnnihilationPulse(origin: THREE.Vector3): number {
+    let hits = 0;
+    for (const enemy of this.enemies) {
+      if (
+        enemy.defeated ||
+        enemy.scaleX <= 0.001 ||
+        enemy.scaleY <= 0.001 ||
+        enemy.phaseVisibility < 0.04
+      ) {
+        continue;
+      }
+      const distance = horizontalDistance(enemy.position, origin);
+      const enemyReach = Math.max(0.28, Math.min(enemy.baseScale.x, enemy.baseScale.y) * 0.2);
+      if (distance > ANNIHILATION_PULSE_RADIUS + enemyReach) continue;
+
+      enemy.defeated = true;
+      enemy.scaleX = 0;
+      enemy.scaleY = 0;
+      enemy.phaseVisibility = 0;
+      enemy.spawnReveal = 0;
+      enemy.moving = false;
+      this.annihilationPulseVfx?.triggerEnemyBurst(
+        enemy.position,
+        this.activeMood.id,
+        enemy.instanceIndex + enemy.position.x * 13.17 + enemy.position.z * 7.91,
+      );
+      hits += 1;
+    }
+    return hits;
   }
 
   private updateEnemyAnimationFrames(): void {
@@ -978,6 +1085,13 @@ export class DungeonWorld {
       this.elapsed,
       viewerPosition ?? { x: 0, y: 1.5, z: 0 },
       delta,
+    );
+    this.annihilationPulseVfx?.update(
+      this.annihilationPulseClock.remaining,
+      this.elapsed,
+      viewerPosition ?? { x: 0, y: 1.5, z: 0 },
+      delta,
+      this.activeMood.id,
     );
     this.hazardTiles?.update(delta);
     const losInterval = 0.12; // ~8 Hz LOS refresh — enough for occlusion feel, cheap on large forge maps
@@ -1069,6 +1183,7 @@ export class DungeonWorld {
   setPickupEffectsWarmupVisible(visible: boolean): void {
     this.pickupBurstPool?.setWarmupVisible(visible, this.pickupBurstWarmupPosition);
     this.timeFreezeVfx?.setWarmupVisible(visible);
+    this.annihilationPulseVfx?.setWarmupVisible(visible);
     // Chest rewards stay visible (tiny scale when dormant) so compile sees them.
     for (const pickup of this.pickups) pickup.object.visible = true;
     // Portal open materials are usually hidden until the fourth stone.
@@ -1096,6 +1211,10 @@ export class DungeonWorld {
 
   get luminousWardRemaining(): number {
     return this.luminousWardSeconds;
+  }
+
+  get annihilationPulseRemaining(): number {
+    return this.annihilationPulseClock.remaining;
   }
 
   restoreSession(foundStoneIds: readonly StoneId[]): void {
@@ -1127,6 +1246,7 @@ export class DungeonWorld {
       difficultyElapsed: number;
       timeFreezeRemaining?: number;
       luminousWardRemaining?: number;
+      annihilationPulseRemaining?: number;
     },
     player: { x: number; z: number },
   ): void {
@@ -1134,6 +1254,8 @@ export class DungeonWorld {
     this.difficultySecond = Math.floor(this.difficultyElapsed);
     this.timeFreezeSeconds = Math.max(0, progress.timeFreezeRemaining ?? 0);
     this.luminousWardSeconds = Math.max(0, progress.luminousWardRemaining ?? 0);
+    this.annihilationPulseClock.remaining = Math.max(0, progress.annihilationPulseRemaining ?? 0);
+    this.annihilationPulseClock.timeSincePulse = 0;
     this.refreshDifficultyState();
     this.activateEnemiesToTarget(player, "resume");
   }
@@ -1182,6 +1304,9 @@ export class DungeonWorld {
     const luminousWard = this.pickups.find(
       (pickup) => pickup.kind === "luminous-ward" && !pickup.collected,
     );
+    const annihilationPulse = this.pickups.find(
+      (pickup) => pickup.kind === "annihilation-pulse" && !pickup.collected,
+    );
     return {
       doors,
       fires,
@@ -1190,6 +1315,7 @@ export class DungeonWorld {
       pickups,
       timeFreeze: timeFreeze ? toCell(timeFreeze.object.position) : undefined,
       luminousWard: luminousWard ? toCell(luminousWard.object.position) : undefined,
+      annihilationPulse: annihilationPulse ? toCell(annihilationPulse.object.position) : undefined,
       spawn: dungeon ? { x: dungeon.spawn.x, y: dungeon.spawn.y } : { x: 0, y: 0 },
     };
   }
@@ -1506,6 +1632,7 @@ export class DungeonWorld {
           moving: false,
           visibilityAttribute,
           tier: spec.tier,
+          defeated: false,
         };
         this.enemyReserve.push(actor);
         batch.setMatrixAt(
@@ -1558,6 +1685,9 @@ export class DungeonWorld {
     this.luminousWardVfx = new LuminousWardVfx();
     this.group.add(this.luminousWardVfx.root);
     this.stats.lights += 1;
+    this.annihilationPulseVfx = new AnnihilationPulseVfx();
+    this.group.add(this.annihilationPulseVfx.root);
+    this.stats.lights += 1;
 
     const entrance = gridToWorld(dungeon, dungeon.spawn, this.tileSize);
     this.activateEnemiesToTarget(entrance, "opening");
@@ -1577,6 +1707,8 @@ export class DungeonWorld {
     this.difficultySecond = -1;
     this.timeFreezeSeconds = 0;
     this.luminousWardSeconds = 0;
+    this.annihilationPulseClock.remaining = 0;
+    this.annihilationPulseClock.timeSincePulse = 0;
     this.difficultyRoomCount = 1;
     if (this.pickupBurstPool) {
       this.group.remove(this.pickupBurstPool.root);
@@ -1597,6 +1729,11 @@ export class DungeonWorld {
       this.group.remove(this.luminousWardVfx.root);
       this.luminousWardVfx.dispose();
       this.luminousWardVfx = null;
+    }
+    if (this.annihilationPulseVfx) {
+      this.group.remove(this.annihilationPulseVfx.root);
+      this.annihilationPulseVfx.dispose();
+      this.annihilationPulseVfx = null;
     }
     // The facade must release its borrowed build handles before the static
     // owner removes or disposes their scene nodes.

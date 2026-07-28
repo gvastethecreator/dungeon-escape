@@ -2,7 +2,11 @@ import { describe, expect, test } from "bun:test";
 
 import { DUNGEON_GENERATION_INPUT_RANGES } from "../src/domain/core";
 import { generateDungeon } from "../src/dungeon/generateDungeon";
-import { biomeCampaignParams, biomeDifficultyRank } from "../src/systems/BiomeCampaign";
+import {
+  biomeCampaignParams,
+  biomeDifficultyRank,
+  nextBiomeId,
+} from "../src/systems/BiomeCampaign";
 import { listBiomeIds } from "../src/systems/BiomeIdentity";
 
 function withinGenerationRanges(params: ReturnType<typeof biomeCampaignParams>): void {
@@ -22,6 +26,16 @@ describe("biome campaign difficulty ramp", () => {
     expect(order[order.length - 1]).toBe("backrooms");
     expect(biomeDifficultyRank("ancient")).toBe(0);
     expect(biomeDifficultyRank("backrooms")).toBe(order.length - 1);
+  });
+
+  test("nextBiomeId walks campaign order and stops after Backrooms", () => {
+    const order = listBiomeIds();
+    expect(nextBiomeId("ancient")).toBe("molten");
+    expect(nextBiomeId("fungal")).toBe("backrooms");
+    expect(nextBiomeId("backrooms")).toBeNull();
+    for (let i = 0; i < order.length - 1; i += 1) {
+      expect(nextBiomeId(order[i]!)).toBe(order[i + 1]!);
+    }
   });
 
   test("ramps rooms, map size, and enemy density by biome order", () => {

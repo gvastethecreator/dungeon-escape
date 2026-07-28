@@ -26,7 +26,7 @@ describe("persistent leaderboard UI", () => {
     const copy = await Bun.file(new URL("../src/ui/copy.ts", import.meta.url)).text();
     expect(source).toContain("prepareLeaderboardSubmission(");
     expect(source).toContain(
-      "submitLeaderboardEntry({ ...pendingLeaderboardSubmission, playerName })",
+      "submitLeaderboardEntry({ ...pendingLeaderboardSubmission, playerName, portraitIndex })",
     );
     expect(source).toContain("void refreshLeaderboard();");
     expect(source).toContain('runSource: "campaign"');
@@ -34,6 +34,20 @@ describe("persistent leaderboard UI", () => {
     expect(source).toContain('setRunSource("custom"');
     expect(copy).toContain("Custom run · practice only");
     expect(source).toMatch(/mode === "dead"[\s\S]*elements\.leaderboardName/);
+  });
+
+  test("after Hall save, victory offers the next campaign biome", async () => {
+    const host = await Bun.file(new URL("../index.html", import.meta.url)).text();
+    const source = await Bun.file(new URL("../src/main.ts", import.meta.url)).text();
+    const copy = await Bun.file(new URL("../src/ui/copy.ts", import.meta.url)).text();
+    expect(host).toContain('id="end-next-biome"');
+    expect(host).toContain("hidden");
+    expect(source).toContain("revealEndNextBiomeAfterSave()");
+    expect(source).toContain("nextBiomeId(");
+    expect(source).toContain("startNewGameWithBiome(biomeId)");
+    expect(source).toContain("hideEndNextBiome()");
+    expect(copy).toContain("nextBiome:");
+    expect(copy).toContain("finalBiomeSaved:");
   });
 
   test("ranking rows expose escape time and a clickable seed replay", async () => {
@@ -44,7 +58,7 @@ describe("persistent leaderboard UI", () => {
     expect(source).toContain("leaderboard-portrait");
     expect(source).toContain("leaderboard-frame");
     expect(source).toContain("frameForRank(");
-    expect(source).toContain("portraitForName(");
+    expect(source).toContain("portraitForIndex(");
     expect(source).toContain("formatTime(entry.durationMs / 1000)");
     expect(source).toContain('startPlayWithSeed(entry.seed, { runSource: "campaign" })');
     expect(source).toContain(
@@ -52,11 +66,15 @@ describe("persistent leaderboard UI", () => {
     );
   });
 
-  test("victory form previews the name-bound portrait in a wood frame", async () => {
+  test("victory form previews the portrait in an interactive wood frame", async () => {
     const host = await Bun.file(new URL("../index.html", import.meta.url)).text();
+    const source = await Bun.file(new URL("../src/main.ts", import.meta.url)).text();
+    expect(host).toContain('id="leaderboard-portrait-preview-face"');
     expect(host).toContain('id="leaderboard-portrait-preview"');
+    expect(host).toContain('role="button"');
+    expect(host).toContain('title="Click to change portrait"');
     expect(host).toContain("/assets/ui/portraits/frames/frame-wood.png");
-    expect(host).not.toContain('id="leaderboard-portrait-title"');
+    expect(source).toContain("cycleLeaderboardPortrait()");
   });
 
   test("responsive styles stack the ranking and name form", async () => {

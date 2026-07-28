@@ -21,6 +21,7 @@ interface LeaderboardRow {
   difficulty: ValidLeaderboardSubmission["difficulty"];
   difficulty_value: number;
   room_count: number;
+  portrait_index: number | null;
   completed_at: string;
   rank: number;
 }
@@ -38,6 +39,7 @@ const SELECT_FIELDS = `
   difficulty,
   difficulty_value,
   room_count,
+  portrait_index,
   completed_at
 `;
 
@@ -54,6 +56,7 @@ const QUALIFIED_SELECT_FIELDS = `
   entry.difficulty,
   entry.difficulty_value,
   entry.room_count,
+  entry.portrait_index,
   entry.completed_at
 `;
 
@@ -71,6 +74,9 @@ function toEntry(row: LeaderboardRow): LeaderboardEntry {
     difficulty: row.difficulty,
     difficultyValue: row.difficulty_value,
     roomCount: row.room_count,
+    ...(row.portrait_index !== null && row.portrait_index !== undefined
+      ? { portraitIndex: row.portrait_index }
+      : {}),
     completedAt: row.completed_at,
     rank: row.rank,
   };
@@ -140,6 +146,11 @@ export class SqliteLeaderboardRepository implements LeaderboardRepository {
     if (options.databasePath !== ":memory:") database.exec("PRAGMA journal_mode = WAL;");
     const migrationPath = resolve(options.migrationPath ?? "migrations/0001_leaderboard.sql");
     database.exec(readFileSync(migrationPath, "utf8"));
+    try {
+      database.exec("ALTER TABLE leaderboard_entries ADD COLUMN portrait_index INTEGER;");
+    } catch {
+      // Column already exists.
+    }
     return repository;
   }
 
@@ -180,8 +191,8 @@ export class SqliteLeaderboardRepository implements LeaderboardRepository {
       .prepare(
         `INSERT OR IGNORE INTO leaderboard_entries (
            run_id, player_name, score, score_version, duration_ms, distance_m,
-           stones_found, biome, seed, difficulty, difficulty_value, room_count, storage_source
-         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+           stones_found, biome, seed, difficulty, difficulty_value, room_count, portrait_index, storage_source
+         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         submission.runId,
@@ -196,6 +207,7 @@ export class SqliteLeaderboardRepository implements LeaderboardRepository {
         submission.difficulty,
         submission.difficultyValue,
         submission.roomCount,
+        submission.portraitIndex ?? null,
         this.storageSource,
       );
 

@@ -1,0 +1,50 @@
+{
+  "tool": "image_gen.imagegen",
+  "mode": "generate-and-edit",
+  "promptContract": "Full-bleed low-poly game albedo for one named material; orthographic surface sample; no object, border, text, cast light, highlight, shadow, glow, normal-map color or roughness-map grayscale.",
+  "sources": {
+    "aged-oak": "exec-507422e8-12a4-4dd7-a195-f1b4854f7863.png",
+    "black-iron": "exec-cbf44de9-de24-42c0-9ae7-cacb4b94aef1.png",
+    "dull-brass": "exec-d01f66a7-ece9-42b2-8713-39ba4c3a53e4.png",
+    "dungeon-stone": "exec-2483a5f3-d3a4-4159-b326-ffc2fd92b138.png",
+    "ash-ceramic": "exec-4ea0b975-18e0-4291-adb3-e5a6e54ba341.png",
+    "aged-bone": "exec-0430a741-dc47-47b3-b5ce-41174bc8d590.png",
+    "woven-cloth": "exec-8dcc8153-5146-4ba1-aa9b-19631dbe72db.png",
+    "cured-meat": "exec-0ca6e774-bd07-4451-85c6-72196392737f.png",
+    "dungeon-ice": "exec-f936edc5-1619-437d-abf1-8a2d4b6ba346.png",
+    "arcane-crystal": "exec-4921fa2e-b229-4d86-9fe3-46473d880a7a.png",
+    "luminous-ward-gold": "exec-48b5fffe-da3d-4d13-a643-473458273101.png",
+    "root-bark": "exec-fb3d0bb1-542b-409d-ac3e-6f5ad3d1aa97.png",
+    "ochre-painted-steel": "exec-6d46d9f1-785d-4c3e-925b-f5b274c34d50.png"
+  },
+  "edits": {
+    "aged-oak": {
+      "source": "exec-8d2ddae7-4b80-47e3-9c32-5b0eb3e2c5bd.png",
+      "reason": "Replace the saturated orange, oversized grain rejected in neutral and frost browser QA with dark low-saturation oak and a tighter grain scale."
+    },
+    "black-iron": {
+      "source": "exec-4362a18f-9199-41e4-ab2f-d43fa8d2a597.png",
+      "reason": "Replace long parallel bands that read as wood on cages, lanterns, chains, and spike plates with granular non-directional hammered wrought iron after neutral and frost browser QA."
+    },
+    "luminous-ward-gold": {
+      "source": "exec-9fb5ff94-097b-444d-b2e5-ffcbde48c52b.png",
+      "reason": "Reduce the first draft's vivid yellow, baked facet contrast, and thick seams to a restrained champagne albedo with thin mineral veins."
+    },
+    "root-bark": {
+      "source": "exec-1c292395-f274-48f9-a4fd-b10c67accdb6.png",
+      "reason": "Replace mirrored zigzag and bright braided streaks with restrained longitudinal bark ridges after browser QA rejected the first runtime application."
+    },
+    "cured-meat": {
+      "source": "exec-d8546bd6-9f0c-48c4-8f53-270642198ca0.png",
+      "reason": "Replace the rejected stone-like mosaic and cream crack network with directional muscle fibers and sparse broken fat seams before rebaking the model-specific PBR channels."
+    }
+  },
+  "materialPrompts": {
+    "cured-meat": "Full-bleed orthographic low-poly cured dark red meat albedo, broad angular muscle planes, restrained pale fat seams, dry matte surface, no object silhouette, border, text, cast light, highlight, shadow, glow, normal-map colors or roughness-map grayscale."
+  },
+  "originalDirectory": "C:/Users/cristian/.codex/generated_images/019fa678-ede2-78f2-9561-8501daa8fc7a",
+  "additionalOriginalDirectories": {
+    "luminous-ward-gold": "C:/Users/cristian/.codex/generated_images/019fa7a9-665a-7e81-9d3f-d3f7ddfcbafb"
+  },
+  "retention": "Original files remain in place; project copies are the stable inputs."
+}

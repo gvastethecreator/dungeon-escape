@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#202326" />
+    <link rel="icon" href="data:," />
+    <meta
+      name="description"
+      content="Deterministic isolated viewer for Dungeon Escape runtime models."
+    />
+    <title>Dungeon Escape · Model QA Lab</title>
+    <link rel="stylesheet" href="/src/model-lab.css" />
+  </head>
+  <body>
+    <main class="model-lab" aria-label="Dungeon Escape model QA lab">
+      <canvas id="model-lab-canvas" aria-label="Selected runtime model" tabindex="0"></canvas>
+      <aside class="model-lab__meta" aria-live="polite">
+        <p class="model-lab__eyebrow">MODEL QA</p>
+        <p><span>MODEL</span><strong id="model-lab-id">—</strong></p>
+        <p><span>VIEW</span><strong id="model-lab-view">—</strong></p>
+        <p><span>STATUS</span><strong id="model-lab-status">loading</strong></p>
+        <p class="model-lab__metrics" id="model-lab-metrics">Preparing model…</p>
+        <p class="model-lab__error" id="model-lab-error" hidden></p>
+      </aside>
+      <p class="model-lab__query" id="model-lab-query">Example: ?model=chest&amp;view=front</p>
+    </main>
+    <script type="module" src="/src/model-lab.ts"></script>
+  </body>
+</html>

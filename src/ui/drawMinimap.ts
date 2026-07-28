@@ -22,6 +22,7 @@ export const MINIMAP_COLORS = {
   pickup: "#6a9a4f",
   timeFreeze: "#72e7ef",
   luminousWard: "#b9e879",
+  annihilationPulse: "#ff5d86",
   relic: "#8a4fb0",
   door: "#3a3d3a",
   player: "#f0ebe0",
@@ -152,8 +153,7 @@ export function drawMinimap(
     originX + cell.x * cellSize + cellSize / 2,
     originY + cell.y * cellSize + cellSize / 2,
   ];
-  const isExplored = (x: number, y: number): boolean =>
-    !explored || explored.has(cellKey(x, y));
+  const isExplored = (x: number, y: number): boolean => !explored || explored.has(cellKey(x, y));
 
   // Wall silhouettes next to explored floors (only under fog-of-war).
   if (explored) {
@@ -328,6 +328,27 @@ function drawFeatures(
     context.fillStyle = COLORS.luminousWard;
     context.beginPath();
     context.arc(cx, cy, Math.max(1.2, r * 0.34), 0, Math.PI * 2);
+    context.fill();
+  }
+
+  if (
+    features.annihilationPulse &&
+    isExplored(features.annihilationPulse.x, features.annihilationPulse.y)
+  ) {
+    const [cx, cy] = cellCenter(features.annihilationPulse);
+    const r = Math.max(2, cellSize * 0.62);
+    context.strokeStyle = COLORS.annihilationPulse;
+    context.lineWidth = Math.max(1, cellSize * 0.14);
+    context.beginPath();
+    context.arc(cx, cy, r, 0, Math.PI * 2);
+    context.stroke();
+    context.fillStyle = COLORS.annihilationPulse;
+    context.beginPath();
+    context.moveTo(cx, cy - r * 0.52);
+    context.lineTo(cx + r * 0.52, cy);
+    context.lineTo(cx, cy + r * 0.52);
+    context.lineTo(cx - r * 0.52, cy);
+    context.closePath();
     context.fill();
   }
 

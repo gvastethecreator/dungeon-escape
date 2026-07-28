@@ -79,7 +79,9 @@ body.is-booting .app-shell {
     radial-gradient(ellipse 70% 55% at 50% 42%, rgb(48 40 24 / 28%), transparent 70%),
     linear-gradient(180deg, #0a0b0c 0%, #070809 55%, #050606 100%);
   color: var(--bone);
-  transition: opacity 0.45s ease, visibility 0.45s ease;
+  transition:
+    opacity 0.45s ease,
+    visibility 0.45s ease;
 }
 
 .boot-screen.is-done {
@@ -177,6 +179,66 @@ body.is-booting .app-shell {
   }
 
   .boot-screen__fill {
+    transition: none;
+  }
+}
+
+/* Full-screen black used for map theater bookends and first-person entry. */
+.scene-fade {
+  position: fixed;
+  inset: 0;
+  z-index: 55;
+  background: #000;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 300ms ease;
+}
+
+.scene-fade.is-opaque {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.scene-fade.is-instant {
+  transition: none;
+}
+
+.scene-fade[hidden] {
+  display: none;
+}
+
+/* Generation screen is map-only. Status stays for assistive tech, not eyes. */
+.run-intro-status {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+  pointer-events: none;
+}
+
+.run-intro-status[hidden] {
+  display: none;
+}
+
+/* Hide every host chrome while the isometric map theater runs. */
+.app-shell[data-run-intro="true"] > *:not(#editor-workspace):not(#scene-fade):not(#run-intro-status) {
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+
+.app-shell[data-run-intro="true"] #scene,
+.app-shell[data-run-intro="true"] .view-falloff,
+.app-shell[data-run-intro="true"] .crt-overlay {
+  opacity: 0 !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .scene-fade {
     transition: none;
   }
 }
@@ -329,7 +391,7 @@ kbd {
 
 .welcome-screen::before {
   position: absolute;
-  z-index: 1;
+  z-index: 2;
   inset: 0;
   background:
     linear-gradient(90deg, rgb(3 4 5 / 88%) 0%, rgb(4 5 6 / 58%) 42%, transparent 73%),
@@ -349,13 +411,24 @@ kbd {
   image-rendering: pixelated;
 }
 
+.biome-screen-particles {
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  opacity: 0.76;
+  pointer-events: none;
+}
+
 .welcome-screen[hidden] {
   display: none;
 }
 
 .welcome-content {
   position: relative;
-  z-index: 2;
+  z-index: 3;
   display: grid;
   grid-template-columns: minmax(0, 480px) minmax(280px, 360px);
   gap: 16px;
@@ -626,8 +699,7 @@ kbd {
 
 .biome-picker-option:hover .biome-picker-option__icon,
 .biome-picker-option:focus-visible .biome-picker-option__icon {
-  filter:
-    drop-shadow(0 0 6px color-mix(in srgb, var(--biome-hover) 55%, transparent))
+  filter: drop-shadow(0 0 6px color-mix(in srgb, var(--biome-hover) 55%, transparent))
     drop-shadow(0 1px 0 rgb(0 0 0 / 45%));
 }
 
@@ -2547,11 +2619,7 @@ kbd {
 
 .hazard-overlay[data-hazard="spikes"] {
   opacity: 1;
-  background: radial-gradient(
-    ellipse at 50% 50%,
-    transparent 42%,
-    rgb(24 20 16 / 28%) 100%
-  );
+  background: radial-gradient(ellipse at 50% 50%, transparent 42%, rgb(24 20 16 / 28%) 100%);
 }
 
 .hazard-overlay[data-hazard="none"],
@@ -2672,6 +2740,20 @@ kbd {
   background: rgb(185 232 121 / 42%);
   box-shadow: 0 0 8px rgb(185 232 121 / 60%);
   border-radius: 50%;
+}
+
+.pickup-feedback[data-kind="annihilation-pulse"] {
+  border-left-color: #ff5d86;
+  box-shadow:
+    6px 6px 0 rgb(0 0 0 / 48%),
+    0 0 24px rgb(255 93 134 / 28%);
+}
+
+.pickup-feedback[data-kind="annihilation-pulse"] .pickup-mark {
+  border-color: #ffb0bd;
+  background: rgb(255 93 134 / 44%);
+  box-shadow: 0 0 10px rgb(255 93 134 / 68%);
+  transform: rotate(45deg) scale(0.86);
 }
 
 .pickup-copy {
@@ -2803,7 +2885,7 @@ kbd {
 
 .end-card {
   position: relative;
-  z-index: 2;
+  z-index: 3;
   width: min(440px, 100%);
   padding: 28px 26px 24px;
   border: var(--edge-strong);
@@ -2893,6 +2975,48 @@ kbd {
   animation: luminous-ward-pulse 560ms steps(2, end) infinite;
 }
 
+.annihilation-pulse-status {
+  display: grid;
+  gap: 3px;
+  min-width: 10ch;
+  padding: 5px 8px 5px 10px;
+  border-right: 2px solid rgb(255 93 134 / 86%);
+  background: linear-gradient(90deg, transparent, rgb(35 10 20 / 90%) 26%);
+  color: #ffb0bd;
+  font-family: var(--font-pixel);
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  line-height: 1;
+  text-align: right;
+  text-shadow: 0 0 10px rgb(255 93 134 / 64%);
+}
+
+.annihilation-pulse-status[hidden] {
+  display: none;
+}
+
+.annihilation-pulse-status__label {
+  color: rgb(255 176 189 / 76%);
+  font-size: 9px;
+}
+
+.annihilation-pulse-status time {
+  font-size: 15px;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.08em;
+}
+
+.annihilation-pulse-status[data-urgent] {
+  border-right-color: #ffe2e8;
+  animation: annihilation-pulse-status-pulse 420ms steps(2, end) infinite;
+}
+
+@keyframes annihilation-pulse-status-pulse {
+  50% {
+    filter: brightness(1.45);
+  }
+}
+
 @keyframes luminous-ward-pulse {
   50% {
     filter: brightness(1.4);
@@ -2917,6 +3041,10 @@ kbd {
   image-rendering: pixelated;
 }
 
+.end-overlay .biome-screen-particles {
+  display: none;
+}
+
 .end-overlay[data-end="won"] {
   justify-items: end;
   padding-right: max(clamp(22px, 7vw, 128px), env(safe-area-inset-right));
@@ -2925,7 +3053,7 @@ kbd {
 
 .end-overlay[data-end="won"]::before {
   position: absolute;
-  z-index: 1;
+  z-index: 2;
   inset: 0;
   background: linear-gradient(90deg, transparent 24%, rgb(3 4 4 / 38%) 53%, rgb(3 4 4 / 88%) 100%);
   content: "";
@@ -2933,6 +3061,10 @@ kbd {
 }
 
 .end-overlay[data-end="won"] .end-art {
+  display: block;
+}
+
+.end-overlay[data-end="won"] .biome-screen-particles {
   display: block;
 }
 
@@ -3056,6 +3188,25 @@ kbd {
   --leaderboard-face: 88px;
   width: var(--leaderboard-face);
   height: var(--leaderboard-face);
+  cursor: pointer;
+  transition:
+    transform 0.15s ease,
+    filter 0.15s ease;
+  user-select: none;
+}
+
+.end-leaderboard-preview__face:hover {
+  transform: scale(1.06);
+  filter: brightness(1.15);
+}
+
+.end-leaderboard-preview__face:active {
+  transform: scale(0.96);
+}
+
+.end-leaderboard-preview__face:focus-visible {
+  outline: 2px solid var(--bone);
+  outline-offset: 4px;
 }
 
 .end-leaderboard-form label {
@@ -3126,6 +3277,22 @@ kbd {
   color: var(--bone);
 }
 
+.end-card #end-next-biome {
+  min-width: 200px;
+  border-color: #c9a227;
+  background: #e8d48a;
+  color: var(--ink);
+}
+
+.end-card #end-next-biome:hover {
+  background: #f0e6b8;
+  color: var(--ink);
+}
+
+.end-card #end-next-biome[hidden] {
+  display: none;
+}
+
 .end-card button:hover {
   background: #e6e2d4;
   color: var(--ink);
@@ -3143,6 +3310,10 @@ kbd {
 @media (prefers-reduced-motion: reduce) {
   .end-overlay {
     animation: none;
+  }
+
+  .biome-screen-particles {
+    opacity: 0.48;
   }
 }
 
@@ -3414,6 +3585,10 @@ kbd {
 
   .welcome-art {
     object-position: 74% center;
+  }
+
+  .biome-screen-particles {
+    opacity: 0.62;
   }
 
   .welcome-card {

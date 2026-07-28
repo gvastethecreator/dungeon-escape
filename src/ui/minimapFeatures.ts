@@ -39,6 +39,8 @@ export interface MinimapFeatures {
   timeFreeze?: MinimapCell;
   /** Luminous ward stone that has not yet been picked up. */
   luminousWard?: MinimapCell;
+  /** Annihilation pulse relic that has not yet been picked up. */
+  annihilationPulse?: MinimapCell;
   /** Special objective prop (reliquary altar / boss-shrine crystal), if any. */
   relic?: MinimapCell;
   /** Entrance / spawn marker (dungeon.spawn). */

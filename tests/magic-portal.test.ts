@@ -49,7 +49,7 @@ describe("magic portal", () => {
       return total + (vertices / 3) * instances;
     }, 0);
     expect(new Set(meshes.map((mesh) => mesh.geometry)).size).toBe(3);
-    expect(new Set(meshes.map((mesh) => mesh.material)).size).toBe(4);
+    expect(new Set(meshes.map((mesh) => mesh.material)).size).toBe(3);
     expect(
       meshes.some(
         (mesh) =>

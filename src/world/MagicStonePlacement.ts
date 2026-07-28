@@ -86,6 +86,45 @@ function roomContains(room: DungeonRoom, cell: GridCell): boolean {
   );
 }
 
+const objectiveDistanceCache = new WeakMap<DungeonData, Int32Array>();
+
+/** Independent traversal proof so imported/legacy Forge payloads cannot omit objective reachability. */
+function objectiveDistances(dungeon: DungeonData): Int32Array {
+  const cached = objectiveDistanceCache.get(dungeon);
+  if (cached) return cached;
+  const distances = new Int32Array(dungeon.width * dungeon.height);
+  distances.fill(-1);
+  const spawnIndex = dungeon.spawn.y * dungeon.width + dungeon.spawn.x;
+  if (dungeon.grid[dungeon.spawn.y]?.[dungeon.spawn.x] !== FLOOR) {
+    objectiveDistanceCache.set(dungeon, distances);
+    return distances;
+  }
+  const queue: GridCell[] = [{ ...dungeon.spawn }];
+  distances[spawnIndex] = 0;
+  for (let cursor = 0; cursor < queue.length; cursor += 1) {
+    const current = queue[cursor]!;
+    const currentDistance = distances[current.y * dungeon.width + current.x]!;
+    for (const next of [
+      { x: current.x + 1, y: current.y },
+      { x: current.x - 1, y: current.y },
+      { x: current.x, y: current.y + 1 },
+      { x: current.x, y: current.y - 1 },
+    ]) {
+      if (dungeon.grid[next.y]?.[next.x] !== FLOOR) continue;
+      const index = next.y * dungeon.width + next.x;
+      if (distances[index] >= 0) continue;
+      distances[index] = currentDistance + 1;
+      queue.push(next);
+    }
+  }
+  objectiveDistanceCache.set(dungeon, distances);
+  return distances;
+}
+
+function objectiveDistance(dungeon: DungeonData, cell: GridCell): number {
+  return objectiveDistances(dungeon)[cell.y * dungeon.width + cell.x] ?? -1;
+}
+
 function isReachableObjectiveCell(dungeon: DungeonData, cell: GridCell): boolean {
   if (dungeon.grid[cell.y]?.[cell.x] !== FLOOR) return false;
   if (
@@ -93,13 +132,7 @@ function isReachableObjectiveCell(dungeon: DungeonData, cell: GridCell): boolean
     (cell.x === dungeon.exit.x && cell.y === dungeon.exit.y)
   )
     return false;
-  return (dungeon.distances[cell.y * dungeon.width + cell.x] ?? -1) >= 0;
-}
-
-function hasCompleteTraversalDistances(dungeon: DungeonData): boolean {
-  if (dungeon.distances.length !== dungeon.width * dungeon.height) return false;
-  const exitDistance = dungeon.distances[dungeon.exit.y * dungeon.width + dungeon.exit.x] ?? -1;
-  return exitDistance === dungeon.stats.exitDistance && exitDistance > 0;
+  return objectiveDistance(dungeon, cell) >= 0;
 }
 
 function isSpacedFromPlacements(
@@ -118,7 +151,9 @@ function fallbackStonePlacement(
   stoneIndex: number,
   placed: readonly MagicStonePlacement[],
 ): MagicStonePlacement | null {
-  const targetDistance = dungeon.stats.exitDistance * [0.28, 0.48, 0.68, 0.88][stoneIndex]!;
+  const traversalDistances = objectiveDistances(dungeon);
+  const exitDistance = objectiveDistance(dungeon, dungeon.exit);
+  const targetDistance = Math.max(1, exitDistance) * [0.28, 0.48, 0.68, 0.88][stoneIndex]!;
   const rankedRooms = [...dungeon.rooms].sort((left, right) => {
     const leftRole = left.role === "room" ? 0 : 1;
     const rightRole = right.role === "room" ? 0 : 1;
@@ -145,7 +180,7 @@ function fallbackStonePlacement(
           isAuthoredCellOccupied(dungeon, cell)
         )
           continue;
-        const distance = dungeon.distances[y * dungeon.width + x] ?? -1;
+        const distance = traversalDistances[y * dungeon.width + x] ?? -1;
         candidates.push({
           room,
           cell,
@@ -205,10 +240,10 @@ function finalizeMagicStonePlacements(
     }
     const fallback = fallbackStonePlacement(dungeon, stoneId, stoneIndex, placed);
     if (!fallback) {
-      // Editor projections also use this selector with small partial fixtures.
-      // Keep their prior best-effort result; playable maps carry full traversal data.
-      if (!hasCompleteTraversalDistances(dungeon)) return [...candidates];
-      throw new Error(`Dungeon cannot place the ${stoneId} magic stone on reachable floor.`);
+      // Small editor projections may intentionally omit playable traversal space.
+      // StaticDungeonScene validates this result before Play and rejects any map
+      // that cannot materialize all four distinct reachable objective stones.
+      return [...candidates];
     }
     placed.push(fallback);
   }

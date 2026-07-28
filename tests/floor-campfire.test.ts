@@ -32,17 +32,11 @@ describe("floor campfire assembly", () => {
     expect(fire.root.userData.sculptRuntime?.sourceImage).toContain("floor-campfire");
     expect(fire.root.userData.sculptRuntime?.family).toBe("floor-campfire");
 
-    // Measure solid structure only — additive light spheres inflate the full AABB.
+    // Measure solid material batches only; additive light geometry is tagged VFX.
     const solid = new THREE.Group();
-    for (const name of [
-      "Campfire ash bed",
-      "Campfire stone ring",
-      "Campfire log triangle",
-      "Campfire coal bed",
-    ]) {
-      const part = fire.root.getObjectByName(name);
-      if (part) solid.add(part.clone(true));
-    }
+    fire.root.traverse((part) => {
+      if (part instanceof THREE.Mesh && !part.userData.vfxOnly) solid.add(part.clone());
+    });
     const size = new THREE.Box3().setFromObject(solid).getSize(new THREE.Vector3());
     expect(size.x).toBeGreaterThan(0.55);
     expect(size.x).toBeLessThan(1.15);

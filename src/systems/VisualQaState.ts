@@ -13,3 +13,11 @@ export function readVisualQaState(search: string): VisualQaState | null {
     ? state
     : null;
 }
+
+/** Keep campaign captures repeatable without changing normal New Game seed generation. */
+export function readVisualQaSeed(search: string): string | null {
+  const params = new URLSearchParams(search);
+  if (!params.has("perfAudit")) return null;
+  const seed = params.get("seed")?.trim();
+  return seed ? seed.slice(0, 96) : null;
+}

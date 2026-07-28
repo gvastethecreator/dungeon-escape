@@ -89,7 +89,7 @@ export interface DungeonAudioFrame {
 }
 
 export interface CollectedPickupAudio {
-  kind: "stone" | "resolve" | "time-freeze" | "luminous-ward";
+  kind: "stone" | "resolve" | "time-freeze" | "luminous-ward" | "annihilation-pulse";
   position: AudioPosition;
 }
 
@@ -144,7 +144,11 @@ function buildEnemyThreatAssets(): Record<string, AssetDefinition> {
   for (const kind of CREATURE_VOICES) {
     const gains = CREATURE_GAIN[kind];
     for (let take = 0; take < 3; take++) {
-      out[`enemy-${kind}-v${take}`] = threatAsset(`enemy-${kind}-v${take}.opus`, gains.voice, false);
+      out[`enemy-${kind}-v${take}`] = threatAsset(
+        `enemy-${kind}-v${take}.opus`,
+        gains.voice,
+        false,
+      );
       out[`enemy-${kind}-attack-v${take}`] = threatAsset(
         `enemy-${kind}-attack-v${take}.opus`,
         gains.attack,
@@ -290,15 +294,11 @@ const CREATURE_ATTACK_TAKES = buildCreatureTakeTable("attack");
 function buildCreatureToneTable(
   role: "voice" | "attack",
 ): Readonly<Record<Exclude<CreatureTone, "base">, Readonly<Record<CreatureVoice, AudioAssetId>>>> {
-  const table = {} as Record<
-    Exclude<CreatureTone, "base">,
-    Record<CreatureVoice, AudioAssetId>
-  >;
+  const table = {} as Record<Exclude<CreatureTone, "base">, Record<CreatureVoice, AudioAssetId>>;
   for (const tone of CREATURE_TONES) {
     const row = {} as Record<CreatureVoice, AudioAssetId>;
     for (const kind of CREATURE_VOICES) {
-      row[kind] =
-        role === "voice" ? `enemy-${kind}-${tone}` : `enemy-${kind}-attack-${tone}`;
+      row[kind] = role === "voice" ? `enemy-${kind}-${tone}` : `enemy-${kind}-attack-${tone}`;
     }
     table[tone] = row;
   }
@@ -322,6 +322,7 @@ const PICKUP_ASSETS: Readonly<Record<CollectedPickupAudio["kind"], AudioAssetId>
   resolve: "pickup-resolve",
   "time-freeze": "pickup-time-freeze",
   "luminous-ward": "pickup-ward",
+  "annihilation-pulse": "pickup-ward",
 };
 
 const CUE_ASSETS: Readonly<Record<Exclude<AudioCue, "step" | "pickup">, AudioAssetId>> = {
@@ -484,6 +485,12 @@ export class GameAudio {
 
   playPortal(position: AudioPosition | null): void {
     this.playAsset("portal-open", position ?? undefined);
+  }
+
+  playAnnihilationPulse(position: AudioPosition): void {
+    // The existing portal swell is the closest local library take for a wide
+    // spatial pulse, and keeps the new item free of an unreviewed audio asset.
+    this.playAsset("portal-open", position);
   }
 
   get currentMusic(): MusicTrack | null {
@@ -659,8 +666,7 @@ export class GameAudio {
     for (const group of Object.keys(GROUP_LEVELS) as AudioGroup[]) {
       const gain = context.createGain();
       // UI and music remain live on paused screens (welcome / end).
-      gain.gain.value =
-        group === "ui" || group === "music" ? this.groupLevels[group] : SILENT_GAIN;
+      gain.gain.value = group === "ui" || group === "music" ? this.groupLevels[group] : SILENT_GAIN;
       gain.connect(master);
       this.groups.set(group, gain);
     }
@@ -731,15 +737,18 @@ export class GameAudio {
       fadingGain.gain.cancelScheduledValues(now);
       fadingGain.gain.setValueAtTime(Math.max(SILENT_GAIN, fadingGain.gain.value), now);
       fadingGain.gain.linearRampToValueAtTime(SILENT_GAIN, now + MUSIC_FADE_SEC);
-      globalThis.setTimeout(() => {
-        try {
-          fading.stop();
-        } catch {
-          // already stopped
-        }
-        fading.disconnect();
-        fadingGain.disconnect();
-      }, MUSIC_FADE_SEC * 1000 + 40);
+      globalThis.setTimeout(
+        () => {
+          try {
+            fading.stop();
+          } catch {
+            // already stopped
+          }
+          fading.disconnect();
+          fadingGain.disconnect();
+        },
+        MUSIC_FADE_SEC * 1000 + 40,
+      );
       this.musicSource = null;
       this.musicGain = null;
     }

@@ -135,6 +135,115 @@ function createSharedDisposalProbe(): {
 }
 
 describe("StaticDungeonScene", () => {
+  test("uses the sculpted brazier base and its authored flame socket in the live scene", () => {
+    const restoreDocument = installCanvasDocument();
+    try {
+      const group = new THREE.Group();
+      const staticScene = createScene(group);
+      (
+        staticScene as unknown as {
+          addFireProp(
+            kind: "brazier",
+            position: THREE.Vector3,
+            lit: boolean,
+            phase: number,
+            facing?: THREE.Vector3,
+            dynamicLight?: boolean,
+          ): void;
+        }
+      ).addFireProp("brazier", new THREE.Vector3(3, 0, 4), true, 2.4, undefined, false);
+
+      const root = group.getObjectByName("brazier fire prop") as THREE.Group;
+      const socket = root.getObjectByName("Brazier flame socket")!;
+      const flame = root.getObjectByName("Brazier runtime outer flame") as THREE.Mesh;
+      const core = root.getObjectByName("Brazier runtime flame core") as THREE.Mesh;
+      const lean = root.getObjectByName("Brazier runtime leaning flame tongue") as THREE.Mesh;
+      const halo = root.getObjectByName("Brazier restrained flame halo") as THREE.Mesh;
+      expect(root.userData.propFamily).toBe("brazier");
+      expect(root.getObjectByName("Brazier broad octagonal lower foot")).toBeDefined();
+      expect(root.getObjectByName("Brazier shallow octagonal iron bowl")).toBeDefined();
+      expect(root.getObjectByName("Brazier recessed charcoal bed")).toBeDefined();
+      expect(root.getObjectByName("Brazier restrained ember nodes")).toBeDefined();
+      expect(flame.position.y).toBeCloseTo(socket.position.y + 0.004);
+      expect(
+        Math.hypot(flame.position.x - socket.position.x, flame.position.z - socket.position.z),
+      ).toBeLessThan(0.07);
+      expect(flame.geometry.name).toBe("Curved three-dimensional low-poly brazier flame tongue");
+      expect(flame.geometry.userData.sourceGeometry).toBe("createFlameTongueGeometry");
+      expect(flame.geometry.userData.curvedSilhouette).toBe(true);
+      expect(flame.geometry.getAttribute("color")).toBeDefined();
+      expect(flame.geometry).not.toBeInstanceOf(THREE.OctahedronGeometry);
+      expect((flame.material as THREE.MeshBasicMaterial).blending).toBe(THREE.NormalBlending);
+      expect((flame.material as THREE.MeshBasicMaterial).vertexColors).toBe(true);
+      expect((flame.material as THREE.MeshBasicMaterial).opacity).toBeLessThanOrEqual(0.42);
+      expect(flame.rotation.y).not.toBe(core.rotation.y);
+      expect(core.rotation.y).not.toBe(lean.rotation.y);
+      const flameHeight = new THREE.Box3().setFromObject(flame).getSize(new THREE.Vector3()).y;
+      const coreHeight = new THREE.Box3().setFromObject(core).getSize(new THREE.Vector3()).y;
+      const leanHeight = new THREE.Box3().setFromObject(lean).getSize(new THREE.Vector3()).y;
+      expect(flameHeight).toBeLessThan(0.29);
+      expect(coreHeight).toBeLessThan(0.2);
+      expect(leanHeight).toBeLessThan(0.25);
+      const effect = staticScene.currentHandles.fireEffects[0]!;
+      expect(effect.baseY).toBe(socket.position.y);
+      expect(effect.baseIntensity).toBe(18);
+      expect(effect.cutoffDistance).toBe(8);
+      expect(effect.flameDetails).toEqual([core, lean]);
+      expect(effect.halos).toEqual([halo]);
+      expect((halo.material as THREE.MeshBasicMaterial).opacity).toBeLessThanOrEqual(0.035);
+      expect(root.position.toArray()).toEqual([3, 0, 4]);
+      staticScene.dispose();
+    } finally {
+      restoreDocument();
+    }
+  });
+
+  test("keeps the Frost brazier blue and below clipping light and opacity limits", () => {
+    const restoreDocument = installCanvasDocument();
+    try {
+      const group = new THREE.Group();
+      const staticScene = createScene(group);
+      const sceneInternals = staticScene as unknown as {
+        activeMood: ReturnType<typeof getDungeonMood>;
+        addFireProp(
+          kind: "brazier",
+          position: THREE.Vector3,
+          lit: boolean,
+          phase: number,
+          facing?: THREE.Vector3,
+          dynamicLight?: boolean,
+        ): void;
+      };
+      sceneInternals.activeMood = getDungeonMood("frost");
+      sceneInternals.addFireProp("brazier", new THREE.Vector3(), true, 0.6, undefined, true);
+
+      const effect = staticScene.currentHandles.fireEffects[0]!;
+      const material = effect.flame.material as THREE.MeshBasicMaterial;
+      expect(material.color.getHex()).toBe(0x75a6bf);
+      expect(material.opacity).toBe(0.27);
+      expect(material.blending).toBe(THREE.NormalBlending);
+      expect(effect.baseIntensity).toBe(6.5);
+      expect(effect.cutoffDistance).toBe(5.5);
+      expect(effect.light?.intensity).toBe(6.5);
+      expect(effect.light?.distance).toBe(5.5);
+      expect(effect.flameDetails).toHaveLength(2);
+      expect(
+        ((effect.flameDetails[0] as THREE.Mesh).material as THREE.MeshBasicMaterial).color.getHex(),
+      ).toBe(0xf2ac65);
+      expect(effect.flameDetails[0]?.userData.preserveWarmCore).toBe(true);
+      expect(effect.halos).toHaveLength(1);
+      const emberNodes = effect.root.getObjectByName(
+        "Brazier restrained ember nodes",
+      ) as THREE.InstancedMesh;
+      const emberMaterial = emberNodes.material as THREE.MeshStandardMaterial;
+      expect(emberMaterial.emissiveIntensity).toBe(0.18);
+      expect(emberMaterial.userData.biomeAdjustedEmber).toBe(true);
+      staticScene.dispose();
+    } finally {
+      restoreDocument();
+    }
+  });
+
   test("owns fixed classic and Forge/Backrooms builds, then expires borrowed handles", () => {
     const restoreDocument = installCanvasDocument();
     try {
@@ -154,13 +263,13 @@ describe("StaticDungeonScene", () => {
         wallTiles: 474,
         ceilingTiles: 564,
         hazardTiles: 4,
-        pickups: 9,
+        pickups: 10,
         beams: 5,
         lights: 12,
-        props: 185,
+        props: 186,
       });
-      expect(classic.solidCells.size).toBe(19);
-      expect(classic.solidColliders).toHaveLength(19);
+      expect(classic.solidCells.size).toBe(20);
+      expect(classic.solidColliders).toHaveLength(20);
       expect(group.getObjectByName("Escape portal gate")).toBeDefined();
       expect(group.getObjectByName("Portal aperture trim")).toBeDefined();
       expect(group.getObjectByName(MAGIC_PORTAL_NAMES.vortex)).toBeDefined();
@@ -200,13 +309,13 @@ describe("StaticDungeonScene", () => {
         wallTiles: 239,
         ceilingTiles: 584,
         hazardTiles: 4,
-        pickups: 10,
+        pickups: 11,
         beams: 5,
         lights: 13,
-        props: 169,
+        props: 170,
       });
-      expect(backrooms.solidCells.size).toBe(39);
-      expect(backrooms.solidColliders).toHaveLength(39);
+      expect(backrooms.solidCells.size).toBe(40);
+      expect(backrooms.solidColliders).toHaveLength(40);
       expect(backrooms.stonePlacements.map((placement) => placement.stoneId)).toEqual([
         ...STONE_ORDER,
       ]);
@@ -278,13 +387,13 @@ describe("StaticDungeonScene", () => {
         ceilingTiles: 564,
         enemies: 8,
         hazardTiles: 4,
-        pickups: 9,
+        pickups: 10,
         beams: 5,
-        lights: 13,
-        props: 185,
+        lights: 14,
+        props: 186,
       });
-      expect(world.getSolidCells()).toHaveLength(19);
-      expect(world.getSolidColliders()).toHaveLength(19);
+      expect(world.getSolidCells()).toHaveLength(20);
+      expect(world.getSolidColliders()).toHaveLength(20);
     } finally {
       world.dispose();
       restoreDocument();

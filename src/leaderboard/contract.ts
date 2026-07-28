@@ -1,4 +1,5 @@
 import { difficultyLabel, type DifficultyLabel } from "../game/DifficultyDirector";
+import { LEADERBOARD_PORTRAIT_COUNT } from "./portraits";
 
 export const LEADERBOARD_SCORE_VERSION = 1;
 export const PLAYER_NAME_MAX_LENGTH = 20;
@@ -26,6 +27,7 @@ export interface LeaderboardSubmissionInput {
   seed: string;
   difficultyValue: number;
   roomCount: number;
+  portraitIndex?: number;
   /** Required for ranked posts. Custom is always rejected. */
   runSource?: LeaderboardRunSource;
 }
@@ -185,6 +187,14 @@ export function parseLeaderboardSubmission(input: unknown): LeaderboardSubmissio
   if (roomCount === null) {
     return { ok: false, code: "INVALID_MAP", message: "Map size is invalid." };
   }
+  let portraitIndex: number | undefined = undefined;
+  if (data.portraitIndex !== undefined && data.portraitIndex !== null) {
+    const index = boundedInteger(data.portraitIndex, 0, LEADERBOARD_PORTRAIT_COUNT - 1);
+    if (index === null) {
+      return { ok: false, code: "INVALID_PORTRAIT", message: "Portrait index is invalid." };
+    }
+    portraitIndex = index;
+  }
   return {
     ok: true,
     value: {
@@ -197,6 +207,7 @@ export function parseLeaderboardSubmission(input: unknown): LeaderboardSubmissio
       seed: data.seed,
       difficultyValue,
       roomCount,
+      ...(portraitIndex !== undefined ? { portraitIndex } : {}),
       difficulty: difficultyLabel(difficultyValue),
       score: computeLeaderboardScore({ durationMs, difficultyValue, roomCount }),
       scoreVersion: LEADERBOARD_SCORE_VERSION,

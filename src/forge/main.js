@@ -72,6 +72,10 @@ const THEME_KEYS = listForgeBiomeIds();
 for (const key of THEME_KEYS) {
   if (!THEMES[key]) throw new Error(`Forge theme ${key} has no generation profile.`);
 }
+// Campaign-only biomes (no editor chip) still need profiles for map theater.
+for (const key of listBiomeIds()) {
+  if (!THEMES[key]) throw new Error(`Biome ${key} has no Forge theme profile for map theater.`);
+}
 const REGULAR_THEME_KEYS = THEME_KEYS.filter((key) => key !== "backrooms");
 
 /* ---------------- generator ---------------- */
@@ -85,10 +89,33 @@ function generateDungeon(params) {
    RENDERER
    ================================================================ */
 const canvasBg = 0x07080d;
-let renderQuality = resolveForgeRenderQuality(innerWidth, devicePixelRatio);
+function resolveForgeRenderSize(width, height) {
+  const normalizedWidth = Math.floor(Number(width));
+  const normalizedHeight = Math.floor(Number(height));
+  if (
+    !Number.isFinite(normalizedWidth) ||
+    !Number.isFinite(normalizedHeight) ||
+    normalizedWidth < 1 ||
+    normalizedHeight < 1
+  ) {
+    return null;
+  }
+  return {
+    width: normalizedWidth,
+    height: normalizedHeight,
+    bloomWidth: Math.max(1, Math.floor(normalizedWidth / 4)),
+    bloomHeight: Math.max(1, Math.floor(normalizedHeight / 4)),
+  };
+}
+const initialViewportSize = resolveForgeRenderSize(innerWidth, innerHeight);
+let appliedViewportWidth = initialViewportSize?.width ?? 0;
+let appliedViewportHeight = initialViewportSize?.height ?? 0;
+let renderQuality = resolveForgeRenderQuality(initialViewportSize?.width ?? 1, devicePixelRatio);
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setPixelRatio(renderQuality.pixelRatio);
-renderer.setSize(innerWidth, innerHeight);
+if (initialViewportSize) {
+  renderer.setSize(initialViewportSize.width, initialViewportSize.height);
+}
 renderer.setClearColor(canvasBg);
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -103,7 +130,7 @@ const scene = new THREE.Scene();
 scene.fog = new THREE.FogExp2(canvasBg, 0.002);
 
 const BASE_HALF = 55;
-let aspect = innerWidth / innerHeight;
+let aspect = initialViewportSize ? initialViewportSize.width / initialViewportSize.height : 1;
 const cam = new THREE.OrthographicCamera(
   -BASE_HALF * aspect,
   BASE_HALF * aspect,
@@ -115,6 +142,9 @@ const cam = new THREE.OrthographicCamera(
 let yaw = Math.PI / 4,
   pitch = 0.64;
 const camTarget = new THREE.Vector3(0, 0, 0);
+/** Host new-game theater: full-viewport map with no editor panel bias. */
+let presentationMode =
+  typeof document !== "undefined" && document.documentElement.dataset.forgePresentation === "true";
 function updateCam() {
   const cp = Math.cos(pitch),
     sp = Math.sin(pitch);
@@ -126,11 +156,15 @@ updateCam();
 
 function fitCameraToDungeon(width, height) {
   camTarget.set(0, 0, 0);
-  const fit = BASE_HALF / (Math.max(width, height) * 0.5);
-  cam.zoom = Math.min(2.2, Math.max(0.22, fit));
+  // Presentation fills the whole viewport; add a little padding so the map sits
+  // in the middle without the desktop panel bias used by the editor.
+  const span = Math.max(width, height) * 0.5;
+  const pad = presentationMode ? 1.14 : 1;
+  const fit = BASE_HALF / (span * pad);
+  cam.zoom = Math.min(presentationMode ? 2.6 : 2.2, Math.max(0.22, fit));
   cam.updateProjectionMatrix();
   updateCam();
-  if (innerWidth > 700) {
+  if (!presentationMode && innerWidth > 700) {
     const cameraRight = new THREE.Vector3().setFromMatrixColumn(cam.matrixWorld, 0).normalize();
     const panelHalfWidth = Math.min(170, innerWidth * 0.16);
     const worldPerPixel = (2 * BASE_HALF) / (cam.zoom * innerHeight);
@@ -286,15 +320,21 @@ const POST = (() => {
     rtB: null,
     w: 0,
     h: 0,
+    bloomW: 0,
+    bloomH: 0,
     enabled: true,
   };
 })();
 function setupRTs() {
   const size = new THREE.Vector2();
   renderer.getDrawingBufferSize(size);
-  if (POST.w === size.x && POST.h === size.y && POST.rtScene) return;
-  POST.w = size.x;
-  POST.h = size.y;
+  const targetSize = resolveForgeRenderSize(size.x, size.y);
+  if (!targetSize) return false;
+  if (POST.w === targetSize.width && POST.h === targetSize.height && POST.rtScene) return true;
+  POST.w = targetSize.width;
+  POST.h = targetSize.height;
+  POST.bloomW = targetSize.bloomWidth;
+  POST.bloomH = targetSize.bloomHeight;
   if (POST.rtScene) {
     POST.rtScene.dispose();
     POST.rtA.dispose();
@@ -312,7 +352,10 @@ function setupRTs() {
      always available. The scene renders here in raw linear (three applies neither
      tone-map nor colour conversion to a non-canvas target); the composite pass
      grades and gamma-encodes it — matching the r128 original exactly. */
-  POST.rtScene = new THREE.WebGLRenderTarget(size.x, size.y, { ...ps, samples: 4 });
+  POST.rtScene = new THREE.WebGLRenderTarget(targetSize.width, targetSize.height, {
+    ...ps,
+    samples: 4,
+  });
   const pb = {
     minFilter: THREE.LinearFilter,
     magFilter: THREE.LinearFilter,
@@ -320,21 +363,23 @@ function setupRTs() {
     depthBuffer: false,
     stencilBuffer: false,
   };
-  POST.rtA = new THREE.WebGLRenderTarget(size.x >> 2, size.y >> 2, pb);
-  POST.rtB = new THREE.WebGLRenderTarget(size.x >> 2, size.y >> 2, pb);
+  POST.rtA = new THREE.WebGLRenderTarget(targetSize.bloomWidth, targetSize.bloomHeight, pb);
+  POST.rtB = new THREE.WebGLRenderTarget(targetSize.bloomWidth, targetSize.bloomHeight, pb);
+  return true;
 }
 let curBg = new THREE.Color(canvasBg);
 const _cBg = new THREE.Color();
 function renderFrame() {
+  if (!resolveForgeRenderSize(innerWidth, innerHeight)) return false;
   if (!POST.enabled) {
     /* straight-to-canvas debug path: let three apply sRGB + its ACES tone map */
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.setClearColor(curBg);
     renderer.setRenderTarget(null);
     renderer.render(scene, cam);
-    return;
+    return true;
   }
-  setupRTs();
+  if (!setupRTs()) return false;
   /* clear color bypasses material shaders, so linearize it here — the final
      composite pass applies gamma and lands it back on the authored value */
   renderer.setClearColor(_cBg.copy(curBg).convertSRGBToLinear());
@@ -346,7 +391,7 @@ function renderFrame() {
   POST.thresh.uniforms.tS.value = POST.rtScene.texture;
   renderer.setRenderTarget(POST.rtA);
   renderer.render(POST.sThresh, POST.qcam);
-  POST.blur.uniforms.uRes.value.set(POST.w >> 2, POST.h >> 2);
+  POST.blur.uniforms.uRes.value.set(POST.bloomW, POST.bloomH);
   POST.blur.uniforms.tS.value = POST.rtA.texture;
   POST.blur.uniforms.uDir.value.set(1, 0);
   renderer.setRenderTarget(POST.rtB);
@@ -361,6 +406,7 @@ function renderFrame() {
   POST.fin.uniforms.uTime.value = elapsed;
   renderer.setRenderTarget(null);
   renderer.render(POST.sFinal, POST.qcam);
+  return true;
 }
 
 /* ================================================================
@@ -2549,11 +2595,20 @@ function setThemeSel(t) {
     .querySelectorAll("#chips .chip")
     .forEach((ch) => ch.classList.toggle("on", ch.dataset.t === t));
 }
+/** Force a campaign biome palette even when it is not in the editor chip list. */
+function forceThemeKey(themeKey) {
+  if (typeof themeKey !== "string" || !THEMES[themeKey]) return false;
+  themeSel = themeKey;
+  document
+    .querySelectorAll("#chips .chip")
+    .forEach((ch) => ch.classList.toggle("on", ch.dataset.t === themeKey));
+  return true;
+}
 function moodChannel(seed, salt) {
-  return (Math.imul((seed >>> 0) ^ salt, 2654435761) >>> 0);
+  return Math.imul((seed >>> 0) ^ salt, 2654435761) >>> 0;
 }
 function resolveTheme(seed) {
-  if (themeSel !== "random") return themeSel;
+  if (themeSel !== "random" && THEMES[themeSel]) return themeSel;
   // Match runtime resolveDungeonMood: backrooms ~8%, all regular themes reachable.
   if (moodChannel(seed, 0xa5a5a5a5) % 100 < 8) return "backrooms";
   return REGULAR_THEME_KEYS[moodChannel(seed, 0xb7e15163) % REGULAR_THEME_KEYS.length];
@@ -2650,12 +2705,33 @@ function applyHeat(on) {
 function settleAll() {
   for (const k in meshes) writeInstances(meshes[k], Infinity);
 }
+/** Host-driven new-game theater: hide chrome and report when the reveal ends. */
+function publishAnimComplete() {
+  if (window.parent === window) return;
+  window.parent.postMessage(
+    { type: "black-flag:forge-anim-complete", version: 1 },
+    location.origin,
+  );
+}
+
+function setPresentationMode(enabled) {
+  presentationMode = Boolean(enabled);
+  if (presentationMode) {
+    document.documentElement.dataset.forgePresentation = "true";
+  } else {
+    delete document.documentElement.dataset.forgePresentation;
+  }
+  // Re-frame after chrome hide/show so the dungeon is truly screen-centered.
+  if (D) fitCameraToDungeon(D.W, D.H);
+}
+
 function finishAnim() {
   animating = false;
   animT = Infinity;
   settleAll();
   setOverlayStatic();
   setStageDone();
+  publishAnimComplete();
 }
 
 /* -------- forge -------- */
@@ -2787,12 +2863,14 @@ let hostPaused = false;
 function tick() {
   /* RAF pauses entirely in occluded windows; keep a slow heartbeat so the
      build reveal and stats stay live when the tab is hidden */
-  if (document.hidden || hostPaused) setTimeout(tick, 100);
-  else requestAnimationFrame(tick);
+  if (document.hidden || hostPaused || !resolveForgeRenderSize(innerWidth, innerHeight)) {
+    setTimeout(tick, 100);
+  } else requestAnimationFrame(tick);
   const now = performance.now();
   const dt = Math.min(Math.max(0, (now - lastTickMs) / 1000), 0.05);
   lastTickMs = now;
   if (hostPaused) return;
+  if (!syncForgeViewport()) return;
   elapsed += dt;
   if (animating) {
     animT += dt;
@@ -2824,6 +2902,33 @@ addEventListener("message", (event) => {
     }
     return;
   }
+  if (event.data?.type === "black-flag:forge-presentation") {
+    const enabled = Boolean(event.data.enabled);
+    // Enable presentation before forge() so fitCameraToDungeon centers the map.
+    setPresentationMode(enabled);
+    if (!enabled) {
+      // Leave the editor free to pick themes again after the map theater.
+      if (themeSel !== "random" && !THEME_KEYS.includes(themeSel)) setThemeSel("random");
+      return;
+    }
+    hostPaused = false;
+    const requested = Number(event.data.seed);
+    if (Number.isFinite(requested)) {
+      el.seed.value = nextProceduralSeed(requested, Number(el.seed.value) || 0);
+    }
+    // Host campaign biome wins so Frost/Molten/etc. match the play world.
+    if (!forceThemeKey(event.data.themeKey) && event.data.themeKey) {
+      console.warn(`Forge presentation theme unsupported: ${event.data.themeKey}`);
+    }
+    const shouldAnimate = event.data.animate !== false;
+    el.tAnim.checked = shouldAnimate;
+    forge(shouldAnimate);
+    // forge() already fits; re-fit after layout in case the iframe just expanded.
+    requestAnimationFrame(() => {
+      if (presentationMode && D) fitCameraToDungeon(D.W, D.H);
+    });
+    return;
+  }
   if (event.data?.type === "black-flag:forge-visibility") {
     hostPaused = !event.data.visible;
     // The iframe can publish its first payload before the host finishes
@@ -2840,6 +2945,7 @@ let dragging = false,
   lastX = 0,
   lastY = 0;
 cnv.addEventListener("pointerdown", (e) => {
+  if (presentationMode) return;
   orbiting = e.button === 2 || (e.button === 0 && e.shiftKey);
   dragging = e.button === 0 && !e.shiftKey;
   lastX = e.clientX;
@@ -2847,7 +2953,7 @@ cnv.addEventListener("pointerdown", (e) => {
   cnv.setPointerCapture(e.pointerId);
 });
 cnv.addEventListener("pointermove", (e) => {
-  if (!dragging && !orbiting) return;
+  if (presentationMode || (!dragging && !orbiting)) return;
   const dx = e.clientX - lastX,
     dy = e.clientY - lastY;
   lastX = e.clientX;
@@ -2874,6 +2980,7 @@ cnv.addEventListener("contextmenu", (e) => e.preventDefault());
 cnv.addEventListener(
   "wheel",
   (e) => {
+    if (presentationMode) return;
     e.preventDefault();
     cam.zoom = Math.min(6, Math.max(0.12, cam.zoom * Math.exp(-e.deltaY * 0.0012)));
     cam.updateProjectionMatrix();
@@ -2963,21 +3070,36 @@ addEventListener("keydown", (e) => {
   }
 });
 
-addEventListener("resize", () => {
-  renderQuality = resolveForgeRenderQuality(innerWidth, devicePixelRatio);
+function syncForgeViewport() {
+  const viewportSize = resolveForgeRenderSize(innerWidth, innerHeight);
+  if (!viewportSize) return false;
+  const nextRenderQuality = resolveForgeRenderQuality(viewportSize.width, devicePixelRatio);
+  const viewportChanged =
+    viewportSize.width !== appliedViewportWidth || viewportSize.height !== appliedViewportHeight;
+  const qualityChanged =
+    nextRenderQuality.pixelRatio !== renderQuality.pixelRatio ||
+    nextRenderQuality.directionalShadows !== renderQuality.directionalShadows;
+  if (!viewportChanged && !qualityChanged) return true;
+
+  appliedViewportWidth = viewportSize.width;
+  appliedViewportHeight = viewportSize.height;
+  renderQuality = nextRenderQuality;
   renderer.setPixelRatio(renderQuality.pixelRatio);
   renderer.shadowMap.enabled = renderQuality.directionalShadows;
   dirL.castShadow = renderQuality.directionalShadows;
   applyCompactStonePreview();
-  aspect = innerWidth / innerHeight;
+  aspect = viewportSize.width / viewportSize.height;
   cam.left = -BASE_HALF * aspect;
   cam.right = BASE_HALF * aspect;
   cam.top = BASE_HALF;
   cam.bottom = -BASE_HALF;
   cam.updateProjectionMatrix();
-  renderer.setSize(innerWidth, innerHeight);
+  renderer.setSize(viewportSize.width, viewportSize.height);
   if (D) fitCameraToDungeon(D.W, D.H);
-});
+  return true;
+}
+
+addEventListener("resize", syncForgeViewport);
 
 /* -------- go -------- */
 randomizeEditorSeed();

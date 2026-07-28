@@ -11,6 +11,7 @@ CREATE TABLE IF NOT EXISTS leaderboard_entries (
   difficulty TEXT NOT NULL,
   difficulty_value REAL NOT NULL CHECK(difficulty_value BETWEEN 0 AND 1),
   room_count INTEGER NOT NULL CHECK(room_count BETWEEN 12 AND 80),
+  portrait_index INTEGER CHECK(portrait_index IS NULL OR portrait_index BETWEEN 0 AND 71),
   storage_source TEXT NOT NULL DEFAULT 'local',
   completed_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
 );

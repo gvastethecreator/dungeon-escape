@@ -23,6 +23,8 @@ describe("Play HUD structure (Ash Binding)", () => {
     expect(host).toContain('id="time-freeze-value"');
     expect(host).toContain('id="luminous-ward-status"');
     expect(host).toContain('id="luminous-ward-value"');
+    expect(host).toContain('id="annihilation-pulse-status"');
+    expect(host).toContain('id="annihilation-pulse-value"');
     expect(host).toContain('id="hazard-status"');
     expect(host).toContain('id="hazard-overlay"');
     expect(host).toContain('datetime="PT0S"');
@@ -69,6 +71,8 @@ describe("Play HUD structure (Ash Binding)", () => {
     expect(COPY.status.timeFreeze).toContain("20 seconds");
     expect(COPY.pickup.luminousWard).toBe("WARD STONE");
     expect(COPY.status.luminousWard).toContain("30 seconds");
+    expect(COPY.pickup.annihilationPulse).toBe("PULSE RELIC");
+    expect(COPY.status.annihilationPulse).toContain("26 seconds");
     expect(COPY.end.loseTitle).toBe("You Died");
     expect(COPY.end.winTitle).toBe("You escaped the dungeon");
     expect(COPY.status.won).toBe("You escaped the dungeon");
@@ -83,6 +87,7 @@ describe("Play HUD structure (Ash Binding)", () => {
     const host = await Bun.file(new URL("../index.html", import.meta.url)).text();
     expect(host).toContain('id="retry"');
     expect(host).toContain('id="new-dungeon"');
+    expect(host).toContain('id="end-next-biome"');
     expect(host).toContain('role="dialog"');
     expect(host).toContain('aria-modal="true"');
   });
@@ -91,9 +96,10 @@ describe("Play HUD structure (Ash Binding)", () => {
     const host = await Bun.file(new URL("../index.html", import.meta.url)).text();
     const source = await Bun.file(new URL("../src/main.ts", import.meta.url)).text();
     const art = Bun.file(
-      new URL("../public/assets/ui/dungeon-victory-results-v1.webp", import.meta.url),
+      new URL("../public/assets/ui/biome-screens/ancient-ending.webp", import.meta.url),
     );
-    expect(host).toContain("/assets/ui/dungeon-victory-results-v1.webp");
+    expect(host).toContain("/assets/ui/biome-screens/ancient-ending.webp");
+    expect(host).toContain('data-biome-id="ancient"');
     expect(await art.exists()).toBe(true);
     expect(art.size).toBeLessThan(400_000);
     for (const id of ["end-time", "end-stones", "end-distance", "end-biome", "end-seed"])
@@ -126,6 +132,8 @@ describe("Play HUD structure (Ash Binding)", () => {
     expect(css).toContain(".luminous-ward-status");
     expect(css).toContain(".luminous-ward-status[hidden]");
     expect(css).toContain("luminous-ward-pulse");
+    expect(css).toContain(".annihilation-pulse-status");
+    expect(css).toContain("annihilation-pulse-status-pulse");
     expect(css).toContain(".map-toggle");
     expect(css).toContain(".hazard-status");
     expect(css).toContain(".play-objective.is-visible");

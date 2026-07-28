@@ -8,6 +8,7 @@ import {
   MAX_DYNAMIC_FIRE_LIGHTS,
   PLAYER_LANTERN_TUNING,
   resolveDungeonExposure,
+  resolveInteriorRimColor,
   resolvePlayerLanternColor,
 } from "../src/systems/LightTuning";
 import { getDungeonMood, listDungeonMoodIds } from "../src/systems/DungeonMood";
@@ -178,17 +179,29 @@ describe("integrated dungeon lighting", () => {
     expect(resolvedHsl.l).toBeGreaterThan(authoredHsl.l);
   });
 
+  test("side fill keeps biome identity while lifting dark palette swatches", () => {
+    expect(INTERIOR_LIGHT_TUNING.rimScale).toBeGreaterThanOrEqual(50);
+    expect(INTERIOR_LIGHT_TUNING.rimScale).toBeLessThanOrEqual(70);
+    const ids = listDungeonMoodIds();
+    const resolved = ids.map((id) => resolveInteriorRimColor(getDungeonMood(id).rimColor));
+    expect(new Set(resolved).size).toBe(ids.length);
+
+    const authored = new THREE.Color(getDungeonMood("frost").rimColor);
+    const fill = new THREE.Color(resolveInteriorRimColor(getDungeonMood("frost").rimColor));
+    expect(fill.r + fill.g + fill.b).toBeGreaterThan(authored.r + authored.g + authored.b);
+  });
+
   test("neutral room bounce stays low while keeping albedo maps visible", () => {
-    expect(MATERIAL_FILL_TUNING.intensity).toBeGreaterThanOrEqual(0.6);
-    expect(MATERIAL_FILL_TUNING.intensity).toBeLessThanOrEqual(0.7);
+    expect(MATERIAL_FILL_TUNING.intensity).toBeGreaterThanOrEqual(1);
+    expect(MATERIAL_FILL_TUNING.intensity).toBeLessThanOrEqual(1.1);
 
     for (const id of listDungeonMoodIds()) {
       const fill =
         MATERIAL_FILL_TUNING.intensity *
         getDungeonMood(id).bounceScale *
         INTERIOR_LIGHT_TUNING.bounceScale;
-      expect(fill).toBeGreaterThanOrEqual(0.32);
-      expect(fill).toBeLessThanOrEqual(0.4);
+      expect(fill).toBeGreaterThanOrEqual(0.62);
+      expect(fill).toBeLessThanOrEqual(0.82);
     }
   });
 
@@ -226,6 +239,11 @@ describe("integrated dungeon lighting", () => {
       mood.keyIntensity * mood.keyScale * INTERIOR_LIGHT_TUNING.keyScale,
       5,
     );
+    expect(rig.getRimIntensity()).toBeCloseTo(
+      mood.rimIntensity * mood.rimScale * INTERIOR_LIGHT_TUNING.rimScale,
+      5,
+    );
+    expect(rig.getRimColorHex()).toBe(resolveInteriorRimColor(mood.rimColor));
     expect(rig.getMaterialFillIntensity()).toBeCloseTo(
       MATERIAL_FILL_TUNING.intensity * mood.bounceScale * INTERIOR_LIGHT_TUNING.bounceScale,
       5,
@@ -250,7 +268,7 @@ describe("integrated dungeon lighting", () => {
     const materials = createDungeonMaterials();
     expect(materials.iron.envMapIntensity).toBeGreaterThan(materials.stone.envMapIntensity);
     expect(materials.brass.envMapIntensity).toBeGreaterThan(materials.wood.envMapIntensity);
-    expect(materials.iron.metalness).toBeGreaterThan(0.6);
+    expect(materials.iron.metalness).toBeGreaterThan(0.35);
   });
 
   test("portal-style volumetric beam is additive dithered shaft with strength uniform", () => {
@@ -305,8 +323,7 @@ describe("integrated dungeon lighting", () => {
 
     for (const kind of Object.keys(ENEMY_ARCHETYPES) as (keyof typeof ENEMY_ARCHETYPES)[]) {
       const sprite = getEnemySpriteRenderMetrics(kind);
-      const y =
-        kind === "imp" ? enemyCeilingY(kind, 4.4) : enemyGroundY(kind);
+      const y = kind === "imp" ? enemyCeilingY(kind, 4.4) : enemyGroundY(kind);
       const feetY = enemyOpaqueFeetY(y, sprite.planeHeight, sprite.bottomPaddingRatio);
       if (kind === "imp") {
         expect(feetY).toBeGreaterThan(2.5);

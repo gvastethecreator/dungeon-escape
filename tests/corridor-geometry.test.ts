@@ -54,7 +54,8 @@ describe("corridor geometry", () => {
     ]);
     const rates = Object.values(FORGE_THEME_PROFILES).map(({ corridorArc }) => corridorArc);
 
-    expect(rates.length).toBe(9);
+    // All campaign biomes (including ash/iron map-theater profiles).
+    expect(rates.length).toBe(11);
     expect(new Set(rates).size).toBeGreaterThan(5);
     expect(generatorSource).toContain("roundedCorridor");
     expect(rendererSource).toContain("TorusGeometry(0.46, 0.11");

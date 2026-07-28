@@ -165,3 +165,11 @@ export function biomeCampaignParams(biomeId: BiomeId): DungeonParams {
 export function biomeDifficultyRank(biomeId: BiomeId): number {
   return listBiomeIds().indexOf(biomeId);
 }
+
+/** Next campaign biome after `biomeId`, or null on the final step (Backrooms). */
+export function nextBiomeId(biomeId: BiomeId): BiomeId | null {
+  const ids = listBiomeIds();
+  const index = ids.indexOf(biomeId);
+  if (index < 0 || index >= ids.length - 1) return null;
+  return ids[index + 1]!;
+}

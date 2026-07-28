@@ -346,6 +346,27 @@ input[type="range"] {
   color: #e7b49c;
 }
 
+/* New-game map theater: only the isometric canvas, no editor chrome. */
+html[data-forge-presentation="true"] {
+  background: #000;
+}
+
+html[data-forge-presentation="true"] body {
+  background: #000;
+}
+
+html[data-forge-presentation="true"] canvas {
+  display: block;
+  margin: 0 auto;
+}
+
+html[data-forge-presentation="true"] #panel,
+html[data-forge-presentation="true"] #hints {
+  display: none !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+
 #hints {
   position: fixed;
   bottom: 14px;

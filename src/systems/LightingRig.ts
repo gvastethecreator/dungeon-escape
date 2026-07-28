@@ -5,6 +5,7 @@ import {
   INTERIOR_LIGHT_TUNING,
   MATERIAL_FILL_TUNING,
   PLAYER_LANTERN_TUNING,
+  resolveInteriorRimColor,
   resolvePlayerLanternColor,
 } from "./LightTuning";
 import type { DungeonMood } from "./DungeonMood";
@@ -35,7 +36,7 @@ export class LightingRig {
     DEFAULT_MOOD.keyIntensity * DEFAULT_MOOD.keyScale * INTERIOR_LIGHT_TUNING.keyScale,
   );
   private readonly rim = new THREE.DirectionalLight(
-    DEFAULT_MOOD.rimColor,
+    resolveInteriorRimColor(DEFAULT_MOOD.rimColor),
     DEFAULT_MOOD.rimIntensity * DEFAULT_MOOD.rimScale * INTERIOR_LIGHT_TUNING.rimScale,
   );
   private readonly materialFill = new THREE.AmbientLight(
@@ -112,7 +113,7 @@ export class LightingRig {
       mood.hemiIntensity * mood.bounceScale * INTERIOR_LIGHT_TUNING.bounceScale;
     this.key.color.setHex(mood.keyColor);
     this.key.intensity = mood.keyIntensity * mood.keyScale * INTERIOR_LIGHT_TUNING.keyScale;
-    this.rim.color.setHex(mood.rimColor);
+    this.rim.color.setHex(resolveInteriorRimColor(mood.rimColor));
     this.rim.intensity = mood.rimIntensity * mood.rimScale * INTERIOR_LIGHT_TUNING.rimScale;
     this.materialFill.intensity =
       MATERIAL_FILL_TUNING.intensity * mood.bounceScale * INTERIOR_LIGHT_TUNING.bounceScale;
@@ -149,6 +150,15 @@ export class LightingRig {
   /** Effective directional key intensity after mood key scale. */
   getKeyIntensity(): number {
     return this.key.intensity;
+  }
+
+  /** Effective biome-colored side light used to keep profile silhouettes legible. */
+  getRimIntensity(): number {
+    return this.rim.intensity;
+  }
+
+  getRimColorHex(): number {
+    return this.rim.color.getHex();
   }
 
   getMaterialFillIntensity(): number {

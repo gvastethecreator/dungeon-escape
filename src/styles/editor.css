@@ -618,6 +618,55 @@
   transition: right 220ms ease-out;
 }
 
+/* New-game map theater: full viewport Forge, no Creation chrome. */
+.app-shell[data-run-intro="true"] .editor-workspace {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 40;
+  border: 0;
+  box-shadow: none;
+  background: #000;
+  visibility: visible !important;
+  pointer-events: auto !important;
+}
+
+.app-shell[data-run-intro="true"] .editor-toolbar,
+.app-shell[data-run-intro="true"] .forge-play-btn,
+.app-shell[data-run-intro="true"] .editor-readout,
+.app-shell[data-run-intro="true"] #forge-status,
+.app-shell[data-run-intro="true"] .editor-tabs {
+  display: none !important;
+}
+
+.app-shell[data-run-intro="true"] .editor-surface {
+  top: 0;
+  visibility: visible !important;
+  pointer-events: auto !important;
+}
+
+.app-shell[data-run-intro="true"] #editor-runtime-surface {
+  display: none !important;
+}
+
+.app-shell[data-run-intro="true"] #editor-forge-surface {
+  display: block !important;
+  visibility: visible !important;
+}
+
+.app-shell[data-run-intro="true"] #dungeon-forge {
+  display: block;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  border: 0;
+  background: #000;
+  visibility: visible !important;
+  pointer-events: none;
+}
+
 @media (min-width: 1181px) {
   .app-shell[data-engine-mode="editor"]:has(.record-panel[open]) .editor-workspace,
   .app-shell[data-engine-mode="debug"]:has(.record-panel[open]) .editor-workspace {
