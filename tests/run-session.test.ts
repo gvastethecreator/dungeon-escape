@@ -44,6 +44,36 @@ describe("RunSession applyWorldUpdate", () => {
     expect(fx.sessionChanged).toBe(true);
   });
 
+  test("keeps quest and portal in sync when one update binds several stones", () => {
+    const session = createRunSession();
+    const quest = new QuestState();
+    quest.start(0);
+
+    const fx = applyWorldUpdate(
+      session,
+      quest,
+      emptyUpdate({
+        collectedStoneId: "verdant",
+        collectedStoneIds: [...STONE_ORDER],
+        stonesFound: 4,
+        portalOpen: true,
+      }),
+      4_000,
+    );
+
+    expect(quest.snapshot(4_000)).toMatchObject({
+      foundIds: [...STONE_ORDER],
+      stonesFound: 4,
+      portalOpen: true,
+    });
+    expect(fx).toMatchObject({
+      questStonesFound: 4,
+      questStonesTotal: 4,
+      questPortalOpen: true,
+      sessionChanged: true,
+    });
+  });
+
   test("ignores a duplicate stone without emitting effects", () => {
     const session = createRunSession();
     const quest = new QuestState();

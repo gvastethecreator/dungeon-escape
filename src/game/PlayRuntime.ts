@@ -83,7 +83,7 @@ export interface PlayRuntimeSnapshot extends PersistedRunSession {
   runSeconds: number;
 }
 
-export type PlayRuntimeFixture = "critical" | "dead" | "won";
+export type PlayRuntimeFixture = "critical" | "dead" | "portal" | "won";
 
 const EMPTY_EFFECTS: Readonly<RunSessionEffects> = Object.freeze({});
 const QA_WON_SECONDS = 154;
@@ -173,6 +173,7 @@ export class PlayRuntime<TDungeon, TMood, TPlayer, TWorldUpdate extends PlayWorl
       {
         collectedPickupKind: worldUpdate.collectedPickup?.kind ?? null,
         collectedStoneId: worldUpdate.collectedStoneId,
+        collectedStoneIds: worldUpdate.collectedStoneIds,
         stonesFound: worldUpdate.stonesFound,
         stonesTotal: worldUpdate.stonesTotal,
         portalOpen: worldUpdate.portalOpen,
@@ -284,6 +285,17 @@ export class PlayRuntime<TDungeon, TMood, TPlayer, TWorldUpdate extends PlayWorl
     }
     const perStoneSeconds: Partial<Record<StoneId, number>> = {};
     for (const [index, id] of STONE_ORDER.entries()) perStoneSeconds[id] = 70 + index * 28;
+    if (fixture === "portal") {
+      return {
+        resolve: 100,
+        foundStoneIds: [...STONE_ORDER],
+        portalOpen: true,
+        runMode: "playing",
+        exitReached: false,
+        runSeconds: QA_WON_SECONDS,
+        perStoneSeconds,
+      };
+    }
     return {
       resolve: 100,
       foundStoneIds: [...STONE_ORDER],

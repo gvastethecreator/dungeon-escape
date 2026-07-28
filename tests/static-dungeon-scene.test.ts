@@ -10,6 +10,8 @@ import { createDungeonMaterials } from "../src/world/MaterialLibrary";
 import { createRoomSurfaceMaterials } from "../src/world/RoomSurfaceMaterials";
 import { DungeonWorld } from "../src/world/DungeonWorld";
 import { StaticDungeonScene } from "../src/world/StaticDungeonScene";
+import { MAGIC_PORTAL_NAMES } from "../src/world/MagicPortalKit";
+import { STONE_ORDER } from "../src/ui/copy";
 
 function installCanvasDocument(): () => void {
   const previous = globalThis.document;
@@ -160,7 +162,15 @@ describe("StaticDungeonScene", () => {
       expect(classic.solidCells.size).toBe(19);
       expect(classic.solidColliders).toHaveLength(19);
       expect(group.getObjectByName("Escape portal gate")).toBeDefined();
+      expect(group.getObjectByName(MAGIC_PORTAL_NAMES.vortex)).toBeDefined();
+      expect(group.getObjectByName(MAGIC_PORTAL_NAMES.spiral)).toBeDefined();
       expect(group.getObjectByName("Torch floor light pool")).toBeDefined();
+      expect(classic.stonePlacements.map((placement) => placement.stoneId)).toEqual([
+        ...STONE_ORDER,
+      ]);
+      expect(new Set(classic.stonePlacements.map(({ cell }) => `${cell.x},${cell.y}`)).size).toBe(
+        4,
+      );
 
       staticScene.clear();
       expect(classic.doors).toHaveLength(0);
@@ -196,6 +206,12 @@ describe("StaticDungeonScene", () => {
       });
       expect(backrooms.solidCells.size).toBe(39);
       expect(backrooms.solidColliders).toHaveLength(39);
+      expect(backrooms.stonePlacements.map((placement) => placement.stoneId)).toEqual([
+        ...STONE_ORDER,
+      ]);
+      expect(new Set(backrooms.stonePlacements.map(({ cell }) => `${cell.x},${cell.y}`)).size).toBe(
+        4,
+      );
       expect(group.getObjectByName("Backrooms fluorescent ceiling fixture")).toBeDefined();
       expect(group.getObjectByName("Forge static material batch 1")).toBeDefined();
 

@@ -59,6 +59,7 @@ import {
   wallHugWorldOffset,
 } from "./PropPlacement";
 import { createMagicStone } from "./MagicStoneKit";
+import { createMagicPortalInterior, magicPortalApproachYaw } from "./MagicPortalKit";
 import {
   magicStoneClearanceCells,
   selectMagicStonePlacements,
@@ -2973,30 +2974,17 @@ export class StaticDungeonScene {
     const archRing = new THREE.Mesh(new THREE.TorusGeometry(0.95, 0.08, 8, 28), portalArchMaterial);
     archRing.position.y = 1.65;
     portal.add(archRing);
-    const veil = new THREE.Mesh(
-      new THREE.CircleGeometry(0.88, 24),
-      new THREE.MeshBasicMaterial({
-        color: 0x6a8898,
-        transparent: true,
-        opacity: 0,
-        side: THREE.DoubleSide,
-        depthWrite: false,
-        blending: THREE.AdditiveBlending,
-        toneMapped: false,
-      }),
-    );
-    veil.name = "Portal veil";
-    veil.position.y = 1.65;
-    veil.visible = false;
-    portal.add(veil);
+    const magicInterior = createMagicPortalInterior();
+    portal.add(magicInterior.root);
     portal.position.set(exit.x, 0, exit.z);
+    portal.rotation.y = magicPortalApproachYaw(dungeon);
     this.portalRoot = portal;
 
     const exitBeam = createVolumetricBeam(0x7a9098, 4.15, 1.05, 0.18);
     exitBeam.position.set(exit.x, this.wallHeight - 0.02, exit.z);
     exitBeam.visible = false;
     this.portalBeam = exitBeam;
-    const exitLight = new THREE.PointLight(0x7a9098, 3, 12, 2.2);
+    const exitLight = new THREE.PointLight(0x6aaeff, 3, 12, 2.2);
     exitLight.position.set(exit.x, 2.4, exit.z);
     this.portalLight = exitLight;
     const entranceLight = new THREE.PointLight(0x777b7c, 7, 9, 2.4);

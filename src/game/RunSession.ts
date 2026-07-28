@@ -7,6 +7,8 @@ export type RunMode = "playing" | "dead" | "won";
 export interface SessionWorldUpdate {
   collectedPickupKind?: "stone" | "resolve" | "time-freeze" | "luminous-ward" | null;
   collectedStoneId: StoneId | null;
+  /** All IDs collected in one world update. Older adapters may omit this. */
+  collectedStoneIds?: readonly StoneId[];
   stonesFound: number;
   stonesTotal: number;
   portalOpen: boolean;
@@ -116,20 +118,34 @@ export function applyWorldUpdate(
   const effects: RunSessionEffects = {};
   if (session.runMode !== "playing") return effects;
 
-  if (update.collectedStoneId) {
-    const stoneId = update.collectedStoneId;
-    if (quest.collectStone(stoneId, nowMs)) {
-      effects.questPortalOpen = quest.portalOpen;
-      effects.questStonesFound = quest.stonesFound;
-      effects.questStonesTotal = quest.totalStones;
-      effects.status = quest.portalOpen
-        ? COPY.status.portalOpen
-        : COPY.status.stoneFound(stoneLabel(stoneId), quest.stonesFound, quest.totalStones);
-      effects.pickup = { label: stoneLabel(stoneId), stoneId };
-      effects.playPickup = true;
-      effects.flash = "event";
-      effects.sessionChanged = true;
-    }
+  const stoneIds =
+    update.collectedStoneIds && update.collectedStoneIds.length > 0
+      ? update.collectedStoneIds
+      : update.collectedStoneId
+        ? [update.collectedStoneId]
+        : [];
+  let lastCollectedStoneId: StoneId | null = null;
+  for (const stoneId of stoneIds) {
+    if (quest.collectStone(stoneId, nowMs)) lastCollectedStoneId = stoneId;
+  }
+  if (lastCollectedStoneId) {
+    effects.questPortalOpen = quest.portalOpen;
+    effects.questStonesFound = quest.stonesFound;
+    effects.questStonesTotal = quest.totalStones;
+    effects.status = quest.portalOpen
+      ? COPY.status.portalOpen
+      : COPY.status.stoneFound(
+          stoneLabel(lastCollectedStoneId),
+          quest.stonesFound,
+          quest.totalStones,
+        );
+    effects.pickup = {
+      label: stoneLabel(lastCollectedStoneId),
+      stoneId: lastCollectedStoneId,
+    };
+    effects.playPickup = true;
+    effects.flash = "event";
+    effects.sessionChanged = true;
   }
 
   if (update.collectedPickupKind === "time-freeze") {

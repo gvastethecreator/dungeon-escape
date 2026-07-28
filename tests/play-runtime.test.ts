@@ -254,7 +254,7 @@ describe("PlayRuntime", () => {
     });
   });
 
-  test("provides critical, dead, and won QA fixtures through the runtime", () => {
+  test("provides critical, dead, portal, and won QA fixtures through the runtime", () => {
     const { runtime, world } = createRuntime();
     runtime.load({ dungeon, mood });
 
@@ -268,6 +268,12 @@ describe("PlayRuntime", () => {
       runMode: "dead",
       exitReached: false,
       quest: { isRunning: false, escaped: false },
+    });
+    expect(runtime.loadFixture("portal")).toMatchObject({
+      resolve: 100,
+      runMode: "playing",
+      exitReached: false,
+      quest: { foundStoneIds: [...STONE_ORDER], portalOpen: true, escaped: false, isRunning: true },
     });
     expect(runtime.loadFixture("won")).toMatchObject({
       resolve: 100,

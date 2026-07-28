@@ -16,18 +16,9 @@ import {
   selectEnemyKindsForSpawns,
 } from "./EnemySpawnPlan";
 import { tickVolumetricBeamTime } from "./VolumetricBeam";
-import {
-  createDungeonMaterials,
-  disposeDungeonMaterials,
-} from "./MaterialLibrary";
-import {
-  createRoomSurfaceMaterials,
-  disposeRoomSurfaceMaterials,
-} from "./RoomSurfaceMaterials";
-import {
-  setPickupDormant,
-  setPickupOpacity,
-} from "./ItemFactory";
+import { createDungeonMaterials, disposeDungeonMaterials } from "./MaterialLibrary";
+import { createRoomSurfaceMaterials, disposeRoomSurfaceMaterials } from "./RoomSurfaceMaterials";
+import { setPickupDormant, setPickupOpacity } from "./ItemFactory";
 import { PickupBurstPool } from "./PickupBurstPool";
 import {
   ENEMY_ARCHETYPES,
@@ -61,6 +52,12 @@ import {
 import { hasGridLineOfSight } from "./LightOcclusion";
 import type { HazardSurfaceEffect } from "./HazardTileSystem";
 import { magicStoneIds } from "./MagicStoneKit";
+import {
+  isInsideMagicPortal,
+  setMagicPortalOpen,
+  setMagicPortalWarmupVisible,
+  updateMagicPortal,
+} from "./MagicPortalKit";
 import type { MagicStonePlacement } from "./MagicStonePlacement";
 import type { StoneId } from "../ui/copy";
 import { STONE_ORDER } from "../ui/copy";
@@ -68,10 +65,7 @@ import type { MinimapCell, MinimapFeatures } from "../ui/minimapFeatures";
 import { tickEnemySim, type EnemySimBody } from "./EnemySim";
 import { WORLD_TILE_SIZE, WORLD_WALL_HEIGHT } from "./WorldMetrics";
 import { tickLiquidSections } from "./LiquidSectionKit";
-import {
-  clampBiomeSpriteYaw,
-  biomeSpriteFloorDistanceFade,
-} from "./BiomeSpriteDecorKit";
+import { clampBiomeSpriteYaw, biomeSpriteFloorDistanceFade } from "./BiomeSpriteDecorKit";
 import { activateTimeFreeze, isTimeFreezeActive, tickTimeFreeze } from "../game/TimeFreeze";
 import { TimeFreezeVfx } from "./TimeFreezeVfx";
 import { EnemyMotionTrailVfx } from "./EnemyMotionTrailVfx";
@@ -199,6 +193,8 @@ export interface WorldUpdate {
   /** @deprecated use collectedStoneId — kept for domain bridge “all stones” */
   collectedRelic: boolean;
   collectedStoneId: StoneId | null;
+  /** Every stone bound in this simulation update; prevents world/quest count drift. */
+  collectedStoneIds: readonly StoneId[];
   /** Position is kept for the presentation layer that plays the collection source. */
   collectedPickup: {
     kind: "stone" | "resolve" | "time-freeze" | "luminous-ward";
@@ -266,7 +262,6 @@ function nearestEnemyDistance(enemies: readonly EnemyActor[], player: THREE.Vect
   }
   return nearest;
 }
-
 
 export class DungeonWorld {
   readonly stats: StaticDungeonSceneStats;
@@ -425,6 +420,10 @@ export class DungeonWorld {
 
   private get portalRoot(): THREE.Group | null {
     return this.staticHandles.portalRoot;
+  }
+
+  private get exitPosition(): THREE.Vector3 {
+    return this.staticHandles.exitPosition;
   }
 
   private set portalRoot(value: THREE.Group | null) {
@@ -629,6 +628,7 @@ export class DungeonWorld {
     }
     let resolveGain = 0;
     let collectedStoneId: StoneId | null = null;
+    const collectedStoneIds: StoneId[] = [];
     let collectedPickup: WorldUpdate["collectedPickup"] = null;
     let doorSound: WorldUpdate["doorSound"] = null;
     let chestSound: WorldUpdate["chestSound"] = null;
@@ -870,6 +870,7 @@ export class DungeonWorld {
         if (pickup.stoneSignal) pickup.stoneSignal.light.intensity = 0;
         this.collectedStones.add(pickup.stoneId);
         collectedStoneId = pickup.stoneId;
+        collectedStoneIds.push(pickup.stoneId);
         if (this.collectedStones.size >= STONE_ORDER.length) this.openPortal();
       } else if (pickup.kind === "resolve") {
         resolveGain += 28;
@@ -888,14 +889,12 @@ export class DungeonWorld {
         this.portalLight.intensity = this.portalOpen ? 16 + Math.sin(this.elapsed * 4.2) * 3 : 2.5;
       }
       if (this.portalBeam) this.portalBeam.visible = this.portalOpen;
-      const veil = this.portalRoot.getObjectByName("Portal veil");
-      if (veil instanceof THREE.Mesh && this.portalOpen) {
-        const mat = veil.material as THREE.MeshBasicMaterial;
-        mat.opacity = 0.22 + Math.sin(this.elapsed * 3.1) * 0.05;
-      }
+      updateMagicPortal(this.portalRoot, this.elapsed);
     }
 
     const reachedLockedExit = atExit && !this.portalOpen && this.lockedExitCooldown === 0;
+    const reachedOpenExit =
+      this.portalOpen && isInsideMagicPortal(player, this.exitPosition, atExit);
     if (reachedLockedExit) this.lockedExitCooldown = 1.5;
     let knockback: WorldUpdate["knockback"] = null;
     if (knockHits > 0) {
@@ -905,6 +904,7 @@ export class DungeonWorld {
     return {
       collectedRelic: this.collectedStones.size >= STONE_ORDER.length && collectedStoneId !== null,
       collectedStoneId,
+      collectedStoneIds,
       collectedPickup,
       timeFreezeRemaining: this.timeFreezeSeconds,
       luminousWardRemaining: this.luminousWardSeconds,
@@ -920,7 +920,7 @@ export class DungeonWorld {
       interactionPrompt,
       knockback,
       reachedLockedExit,
-      reachedOpenExit: atExit && this.portalOpen,
+      reachedOpenExit,
       nearestThreat: Number.isFinite(nearestThreat) ? nearestThreat : null,
     };
   }
@@ -1073,10 +1073,7 @@ export class DungeonWorld {
     for (const pickup of this.pickups) pickup.object.visible = true;
     // Portal open materials are usually hidden until the fourth stone.
     if (this.portalBeam) this.portalBeam.visible = visible || this.portalOpen;
-    if (this.portalRoot) {
-      const veil = this.portalRoot.getObjectByName("Portal veil");
-      if (veil) veil.visible = visible || this.portalOpen;
-    }
+    if (this.portalRoot) setMagicPortalWarmupVisible(this.portalRoot, visible, this.portalOpen);
   }
 
   /** True when all four magic stones are bound (portal open). */
@@ -1311,13 +1308,7 @@ export class DungeonWorld {
     if (this.portalRoot) {
       const bars = this.portalRoot.getObjectByName("Portal sealed bars");
       if (bars) bars.visible = !open;
-      const veil = this.portalRoot.getObjectByName("Portal veil");
-      if (veil instanceof THREE.Mesh) {
-        veil.visible = open;
-        const mat = veil.material as THREE.MeshBasicMaterial;
-        mat.opacity = open ? 0.28 : 0;
-        if (open) mat.color.setHex(0x8a9aa4);
-      }
+      setMagicPortalOpen(this.portalRoot, open);
     }
   }
 

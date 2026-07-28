@@ -1,4 +1,4 @@
-export type VisualQaState = "critical" | "dead" | "won";
+export type VisualQaState = "critical" | "dead" | "portal" | "won";
 
 /**
  * Deterministic visual states stay behind the existing performance-audit flag.
@@ -9,5 +9,7 @@ export function readVisualQaState(search: string): VisualQaState | null {
   const params = new URLSearchParams(search);
   if (!params.has("perfAudit")) return null;
   const state = params.get("qaState");
-  return state === "critical" || state === "dead" || state === "won" ? state : null;
+  return state === "critical" || state === "dead" || state === "portal" || state === "won"
+    ? state
+    : null;
 }
