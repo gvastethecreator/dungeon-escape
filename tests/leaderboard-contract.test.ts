@@ -50,6 +50,19 @@ describe("leaderboard contract", () => {
     expect(parseLeaderboardSubmission({ ...completeRun, roomCount: 7 })).toEqual(
       expect.objectContaining({ ok: false, code: "INVALID_MAP" }),
     );
+    expect(parseLeaderboardSubmission({ ...completeRun, portraitIndex: -1 })).toEqual(
+      expect.objectContaining({ ok: false, code: "INVALID_PORTRAIT" }),
+    );
+    expect(parseLeaderboardSubmission({ ...completeRun, portraitIndex: 999 })).toEqual(
+      expect.objectContaining({ ok: false, code: "INVALID_PORTRAIT" }),
+    );
+  });
+
+  test("accepts a custom chosen portraitIndex within bounds", () => {
+    const result = parseLeaderboardSubmission({ ...completeRun, portraitIndex: 5 });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.portraitIndex).toBe(5);
   });
 
   test("accepts Ancient-sized campaign maps (10 rooms)", () => {

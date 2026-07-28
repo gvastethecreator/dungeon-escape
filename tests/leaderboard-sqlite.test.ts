@@ -72,4 +72,17 @@ describe("local SQLite leaderboard", () => {
     expect(stars["Star Runner"]).toEqual({ Molten: 2, Frost: 1 });
     expect(stars.Other).toEqual({ Molten: 1 });
   });
+
+  test("persists and returns custom chosen portraitIndex", async () => {
+    const store = await repository();
+    const entry = await store.create({
+      ...submission("run_portrait_001", "Custom Avatar", 180_000),
+      portraitIndex: 12,
+    });
+
+    expect(entry.portraitIndex).toBe(12);
+
+    const entries = await store.list(10);
+    expect(entries[0]!.portraitIndex).toBe(12);
+  });
 });

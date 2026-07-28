@@ -198,7 +198,7 @@ describe("professional world kit", () => {
     const pillar = createForgeProp({ kind: "pillar", x: 0, y: 0 }, materials);
     expect(grave?.getObjectByName("Beveled arched grave slab")).toBeDefined();
     expect(grave?.getObjectByName("Grave grounded stone plinth")).toBeDefined();
-    expect(pillar?.getObjectByName("Pillar carved collar")).toBeDefined();
+    expect(pillar?.getObjectByName("Pillar continuous octagonal frieze band")).toBeDefined();
     expect(pillar?.getObjectByName("Pillar recessed vertical flute")).toBeDefined();
   });
 
@@ -236,12 +236,16 @@ describe("professional world kit", () => {
     const sizes = props.map((prop) =>
       new THREE.Box3().setFromObject(prop).getSize(new THREE.Vector3()),
     );
-    expect(sizes.every((size) => size.y >= 0.75 && size.y <= 2)).toBe(true);
-    expect(
-      props.every((prop) =>
-        prop.userData.sculptRuntime.sourceImage.endsWith("dungeon-prop-kit-v1.png"),
-      ),
-    ).toBe(true);
+    expect(sizes.every((size) => size.y >= 0.75 && size.y <= 2.4)).toBe(true);
+    const expectedSources = [
+      "high-chair-three-view.png",
+      "ritual-table-three-view.png",
+      "wall-lantern-three-view.png",
+      "ossuary-cabinet-three-view.png",
+    ];
+    props.forEach((prop, index) => {
+      expect(prop.userData.sculptRuntime.sourceImage.endsWith(expectedSources[index]!)).toBe(true);
+    });
     expect(props[0]!.getObjectByName("High chair seat socket")?.userData.socket.type).toBe(
       "seated-actor",
     );
@@ -260,18 +264,22 @@ describe("professional world kit", () => {
     const sizes = props.map((prop) =>
       new THREE.Box3().setFromObject(prop).getSize(new THREE.Vector3()),
     );
-    expect(
-      props.every((prop) =>
-        prop.userData.sculptRuntime.sourceImage.endsWith("dungeon-clutter-kit-v1.png"),
-      ),
-    ).toBe(true);
+    const expectedSources = [
+      "barrel-three-view.png",
+      "crate-three-view.png",
+      "urn-three-view.png",
+      "weapon-rack-three-view.png",
+    ];
+    props.forEach((prop, index) => {
+      expect(prop.userData.sculptRuntime.sourceImage.endsWith(expectedSources[index]!)).toBe(true);
+    });
     expect(sizes[0]!.y).toBeGreaterThan(0.9);
     expect(sizes[1]!.x).toBeGreaterThan(1.1);
     expect(sizes[2]!.y).toBeGreaterThan(0.8);
-    expect(sizes[3]!.y).toBeGreaterThan(1.8);
-    expect(props[0]!.getObjectByName("Barrel stave repetition system")?.children.length).toBe(12);
-    expect(props[1]!.getObjectByName("Crate nail repetition system")?.children.length).toBe(8);
-    expect(props[2]!.getObjectByName("Urn removable lid pivot")?.userData.socket.type).toBe(
+    expect(sizes[3]!.y).toBeGreaterThan(1.6);
+    expect(props[0]!.getObjectByName("Barrel 1 sixteen-stave system")?.children.length).toBe(16);
+    expect(props[1]!.getObjectByName("Crate 1 front brace rivet system")?.children.length).toBe(4);
+    expect(props[2]!.getObjectByName("Urn 1 removable domed lid pivot")?.userData.socket.type).toBe(
       "hinge",
     );
     expect(props[3]!.getObjectByName("Weapon rack slot 1")?.userData.socket.type).toBe("weapon");

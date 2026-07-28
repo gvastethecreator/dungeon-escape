@@ -72,18 +72,38 @@ describe("atmosphere props — cobwebs", () => {
 });
 
 describe("atmosphere props — bone pile", () => {
-  test("is denser than the old loose-bones detail and reuses the shared bone material", () => {
+  test("uses fourteen merged bones and a volumetric low-poly skull with shared materials", () => {
     const materials = createDungeonMaterials();
     const pile = createBonePile(materials, 0);
-    const bones = pile.getObjectsByProperty("name", "Pile long bone");
-    const skulls = pile.getObjectsByProperty("name", "Pile skull");
-    // More than the legacy 5 loose cylinders.
-    expect(bones.length).toBeGreaterThanOrEqual(9);
-    expect(skulls.length).toBeGreaterThanOrEqual(1);
-    // All parts reuse the shared bone material (no per-prop material clones).
-    for (const material of materialsOf(pile)) {
-      expect(material).toBe(materials.bone);
+    const bones = pile.getObjectByName("Merged pile of fourteen varied long bones") as THREE.Mesh;
+    const vault = pile.getObjectByName("Faceted volumetric skull vault") as THREE.Mesh;
+    const jaw = pile.getObjectByName("Volumetric U-shaped skull jaw") as THREE.Mesh;
+    const eyeSockets = pile.getObjectsByProperty(
+      "name",
+      "Recessed volumetric skull eye cavity",
+    ) as THREE.Mesh[];
+    const nasal = pile.getObjectByName("Volumetric triangular skull nasal opening") as THREE.Mesh;
+    expect(bones.userData.boneCount).toBe(14);
+    expect(bones.userData.variedLengths).toBe(5);
+    expect(vault.geometry).toBeInstanceOf(THREE.DodecahedronGeometry);
+    expect(vault.geometry).not.toBeInstanceOf(THREE.SphereGeometry);
+    expect(jaw.geometry).toBeInstanceOf(THREE.BufferGeometry);
+    expect(eyeSockets).toHaveLength(2);
+    expect(nasal.geometry).toBeInstanceOf(THREE.CylinderGeometry);
+    expect(nasal.geometry).not.toBeInstanceOf(THREE.CircleGeometry);
+    expect(bones.material).toBe(materials.bone);
+    for (const eye of eyeSockets) {
+      expect(eye.material).toBe(materials.darkStone);
+      expect(eye.geometry).toBeInstanceOf(THREE.CylinderGeometry);
+      expect(eye.userData.cavityDepth).toBeGreaterThan(0.05);
+      expect(new THREE.Box3().setFromObject(eye).getSize(new THREE.Vector3()).z).toBeGreaterThan(
+        0.04,
+      );
     }
+    expect(materialsOf(pile)).toHaveLength(7);
+    expect(pile.userData.sculptRuntime.geometry.triangles).toBeLessThanOrEqual(1_200);
+    expect(pile.userData.sculptRuntime.geometry.materialBatches).toBe(2);
+    expect(new Set(materialsOf(pile))).toEqual(new Set([materials.bone, materials.darkStone]));
   });
 
   test("variant rotates the heap shape deterministically", () => {
@@ -96,64 +116,87 @@ describe("atmosphere props — bone pile", () => {
 });
 
 describe("atmosphere props — hanging chain/vine", () => {
-  test("chain hangs downward from the anchor and reuses iron", () => {
+  test("chain hangs downward from the anchor with a chain-only readable iron finish", () => {
     const materials = createDungeonMaterials();
     const chain = createHanging(materials, "chain", 2.0, 0);
     expect(chain.name).toBe("Hanging chain");
     // Links descend below the anchor (negative Y).
-    const links = chain.getObjectsByProperty("name", "Chain link");
-    expect(links.length).toBeGreaterThanOrEqual(4);
-    expect(chain.getObjectByName("Chain mount")).toBeDefined();
-    expect(chain.getObjectByName("Chain anchor eye")).toBeDefined();
+    const links = chain.getObjectsByProperty("name", "Alternating rectangular forged chain link");
+    expect(links).toHaveLength(9);
+    expect(chain.getObjectByName("Bolted ceiling mount pivot")).toBeDefined();
+    expect(chain.getObjectByName("Heavy welded chain anchor eye")).toBeDefined();
+    expect(chain.getObjectByName("Heavy round open chain hook")).toBeDefined();
     for (const link of links) expect(link.position.y).toBeLessThanOrEqual(0);
     for (let index = 1; index < links.length; index += 1) {
       expect(Math.abs(links[index]!.position.y - links[index - 1]!.position.y)).toBeLessThan(0.22);
-      expect(Math.abs(links[index]!.rotation.y - links[index - 1]!.rotation.y)).toBeCloseTo(
-        Math.PI / 2,
-      );
+      const orientationDelta = Math.abs(links[index]!.rotation.y - links[index - 1]!.rotation.y);
+      expect(orientationDelta).toBeGreaterThan(1.2);
+      expect(orientationDelta).toBeLessThan(1.3);
       expect(links[index]!.rotation.x).toBe(0);
+      expect(links[index]!.userData.interlocked).toBe(true);
+      const previousBounds = new THREE.Box3().setFromObject(links[index - 1]!);
+      const currentBounds = new THREE.Box3().setFromObject(links[index]!);
+      expect(Math.min(previousBounds.max.y, currentBounds.max.y)).toBeGreaterThan(
+        Math.max(previousBounds.min.y, currentBounds.min.y),
+      );
     }
     expect(links.at(-1)!.position.y).toBeLessThan(-1.7);
-    for (const material of materialsOf(chain)) expect(material).toBe(materials.iron);
+    const chainMaterials = new Set(materialsOf(chain)) as Set<THREE.MeshStandardMaterial>;
+    expect(chainMaterials.size).toBe(1);
+    const [chainIron] = chainMaterials;
+    expect(chainIron).not.toBe(materials.iron);
+    expect(chainIron?.userData.materialRole).toBe("readable-hanging-chain-iron");
+    expect(chainIron?.map).toBe(materials.iron.map);
+    expect(chainIron?.emissiveMap).toBe(chainIron?.map);
+    expect(chainIron?.emissiveIntensity).toBe(0.17);
   });
 
-  test("vine adds tendrils and reuses wood", () => {
+  test("vine adds tendrils and uses its readable local root bark", () => {
     const materials = createDungeonMaterials();
     const vine = createHanging(materials, "vine", 2.4, 1);
     expect(vine.name).toBe("Hanging vine");
-    expect(vine.getObjectByName("Vine stem")).toBeDefined();
+    expect(vine.getObjectByName("Single S-curved vine stem")).toBeDefined();
     expect(vine.getObjectsByProperty("name", "Vine segment")).toHaveLength(0);
-    expect(vine.getObjectsByProperty("name", "Vine tendril").length).toBeGreaterThan(0);
-    for (const material of materialsOf(vine)) expect(material).toBe(materials.wood);
+    expect(vine.getObjectsByProperty("name", "Attached vine tendril")).toHaveLength(3);
+    expect(vine.getObjectsByProperty("name", "Pointed low-poly vine leaf")).toHaveLength(3);
+    const vineMaterials = new Set(materialsOf(vine)) as Set<THREE.MeshStandardMaterial>;
+    expect(vineMaterials.size).toBe(1);
+    const [vineMaterial] = vineMaterials;
+    expect(vineMaterial).not.toBe(materials.root);
+    expect(vineMaterial?.userData.materialRole).toBe("readable-root-bark");
   });
 
-  test("chain variants differ in silhouette (length, lean, end piece)", () => {
+  test("chain keeps the accepted nine-link identity while length changes spacing", () => {
     const materials = createDungeonMaterials();
-    const plain = createHanging(materials, "chain", 2.4, 0);
-    const weighted = createHanging(materials, "chain", 2.4, 1);
-    const hook = createHanging(materials, "chain", 1.6, 3);
-    const long = createHanging(materials, "chain", 3.4, 2);
-    expect(weighted.getObjectByName("Chain end weight")).toBeDefined();
-    expect(hook.getObjectByName("Chain end hook")).toBeDefined();
-    expect(plain.getObjectByName("Chain end weight")).toBeUndefined();
-    expect(plain.getObjectByName("Chain end hook")).toBeUndefined();
-    const plainLinks = plain.getObjectsByProperty("name", "Chain link");
-    const longLinks = long.getObjectsByProperty("name", "Chain link");
-    expect(longLinks.length).toBeGreaterThan(plainLinks.length);
-    // Lean drifts outer links off the pure vertical axis.
+    const short = createHanging(materials, "chain", 1.7, 0);
+    const long = createHanging(materials, "chain", 3.1, 2);
+    const shortLinks = short.getObjectsByProperty(
+      "name",
+      "Alternating rectangular forged chain link",
+    );
+    const longLinks = long.getObjectsByProperty(
+      "name",
+      "Alternating rectangular forged chain link",
+    );
+    expect(shortLinks).toHaveLength(9);
+    expect(longLinks).toHaveLength(9);
+    expect(short.getObjectByName("Heavy round open chain hook")).toBeDefined();
+    expect(long.getObjectByName("Heavy round open chain hook")).toBeDefined();
+    expect(longLinks.at(-1)!.position.y).toBeLessThan(shortLinks.at(-1)!.position.y);
     expect(
-      plainLinks.some(
+      longLinks.some(
         (link) => Math.abs(link.position.x) > 0.001 || Math.abs(link.position.z) > 0.001,
       ),
     ).toBe(true);
   });
 
-  test("image-sculpted hang kinds hang below the ceiling origin and reuse shared materials", () => {
+  test("image-sculpted hang kinds hang below the ceiling origin with bounded material roles", () => {
     const materials = createDungeonMaterials();
     const allowed = new Set([
       materials.iron,
       materials.brass,
       materials.wood,
+      materials.root,
       materials.bone,
       materials.cloth,
       materials.darkStone,
@@ -170,7 +213,16 @@ describe("atmosphere props — hanging chain/vine", () => {
       prop.traverse((child) => {
         if (child instanceof THREE.Mesh) {
           const childMaterials = Array.isArray(child.material) ? child.material : [child.material];
-          for (const material of childMaterials) expect(allowed.has(material)).toBe(true);
+          for (const material of childMaterials) {
+            const role = material.userData.materialRole as string | undefined;
+            expect(
+              allowed.has(material) ||
+                role === "tattered-banner-cloth" ||
+                role === "readable-root-bark" ||
+                role === "cured-meat" ||
+                role === "readable-hanging-chain-iron",
+            ).toBe(true);
+          }
         }
       });
       // createHanging dispatches sculpted families.
@@ -180,13 +232,12 @@ describe("atmosphere props — hanging chain/vine", () => {
 });
 
 describe("atmosphere props — rubble pile", () => {
-  test("heaps masonry on a dust mound, reusing darkStone", () => {
+  test("heaps six faceted stones on a contact footprint, reusing stone", () => {
     const materials = createDungeonMaterials();
     const rubble = createRubblePile(materials, 0);
     const stones = rubble.getObjectsByProperty("name", "Rubble stone");
-    expect(stones.length).toBeGreaterThanOrEqual(4);
-    expect(rubble.getObjectByName("Rubble dust mound")).toBeDefined();
-    // Stones reuse shared darkStone.
-    for (const stone of stones) expect((stone as THREE.Mesh).material).toBe(materials.darkStone);
+    expect(stones).toHaveLength(6);
+    expect(rubble.getObjectByName("Rubble contact dust footprint")).toBeDefined();
+    for (const stone of stones) expect((stone as THREE.Mesh).material).toBe(materials.stone);
   });
 });

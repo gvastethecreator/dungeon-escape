@@ -18,6 +18,7 @@ interface D1LeaderboardRow {
   difficulty: ValidLeaderboardSubmission["difficulty"];
   difficulty_value: number;
   room_count: number;
+  portrait_index: number | null;
   completed_at: string;
   rank: number;
 }
@@ -35,6 +36,7 @@ const SELECT_FIELDS = `
   difficulty,
   difficulty_value,
   room_count,
+  portrait_index,
   completed_at
 `;
 
@@ -52,6 +54,9 @@ function toEntry(row: D1LeaderboardRow): LeaderboardEntry {
     difficulty: row.difficulty,
     difficultyValue: row.difficulty_value,
     roomCount: row.room_count,
+    ...(row.portrait_index !== null && row.portrait_index !== undefined
+      ? { portraitIndex: row.portrait_index }
+      : {}),
     completedAt: row.completed_at,
     rank: row.rank,
   };
@@ -98,8 +103,8 @@ export class D1LeaderboardRepository implements LeaderboardRepository {
       .prepare(
         `INSERT OR IGNORE INTO leaderboard_entries (
            run_id, player_name, score, score_version, duration_ms, distance_m,
-           stones_found, biome, seed, difficulty, difficulty_value, room_count, storage_source
-         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'd1')`,
+           stones_found, biome, seed, difficulty, difficulty_value, room_count, portrait_index, storage_source
+         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'd1')`,
       )
       .bind(
         submission.runId,
@@ -114,6 +119,7 @@ export class D1LeaderboardRepository implements LeaderboardRepository {
         submission.difficulty,
         submission.difficultyValue,
         submission.roomCount,
+        submission.portraitIndex ?? null,
       )
       .run();
 
@@ -132,6 +138,7 @@ export class D1LeaderboardRepository implements LeaderboardRepository {
            entry.difficulty,
            entry.difficulty_value,
            entry.room_count,
+           entry.portrait_index,
            entry.completed_at,
            (
              SELECT COUNT(*) + 1

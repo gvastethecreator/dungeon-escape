@@ -41,6 +41,8 @@ describe("dungeon prop materials", () => {
       "darkStone",
       "ice",
       "iron",
+      "paintedSteel",
+      "root",
       "stone",
       "wood",
     ]);
@@ -49,13 +51,24 @@ describe("dungeon prop materials", () => {
   test("metals stay heavier than dielectrics under IBL", () => {
     const materials = createDungeonMaterials();
     expect(materials.iron.metalness).toBeGreaterThan(materials.wood.metalness);
+    expect(materials.paintedSteel.metalness).toBeGreaterThan(materials.root.metalness);
     expect(materials.brass.metalness).toBeGreaterThan(materials.ceramic.metalness);
     expect(materials.iron.envMapIntensity).toBeGreaterThan(materials.stone.envMapIntensity);
   });
 
   test("every primary prop material carries an albedo map", () => {
     const materials = createDungeonMaterials();
-    for (const key of ["wood", "iron", "brass", "ceramic", "bone", "crystal", "ice"] as const) {
+    for (const key of [
+      "wood",
+      "root",
+      "iron",
+      "paintedSteel",
+      "brass",
+      "ceramic",
+      "bone",
+      "crystal",
+      "ice",
+    ] as const) {
       expect(materials[key].map).toBeDefined();
     }
   });
@@ -67,7 +80,10 @@ describe("dungeon prop materials", () => {
     expect(materials.wood.bumpMap).toBeDefined();
     expect(materials.wood.normalMap).toBeNull();
     expect(materials.wood.roughnessMap).toBeNull();
+    expect(materials.wood.aoMap).toBeNull();
     expect(materials.iron.bumpMap).toBeDefined();
+    expect(materials.root.bumpMap).toBeDefined();
+    expect(materials.paintedSteel.bumpMap).toBeDefined();
     expect(materials.brass.bumpMap).toBeDefined();
     expect(materials.ceramic.bumpMap).toBeDefined();
   });
@@ -87,6 +103,7 @@ describe("dungeon prop materials", () => {
       expect(material.bumpMap).toBeNull();
       expect(material.normalMap).toBeNull();
       expect(material.roughnessMap).toBeNull();
+      expect(material.aoMap).toBeNull();
     }
   });
 
@@ -107,12 +124,16 @@ describe("dungeon prop materials", () => {
   test("matte roles use low indirect fill while metals keep scene reflections", () => {
     const materials = createDungeonMaterials();
     applyMoodToDungeonMaterials(materials, 0x77aaa2, 1);
-    for (const key of ["stone", "darkStone", "wood", "cloth", "bone", "ceramic"] as const) {
+    for (const key of ["stone", "darkStone", "wood", "root", "cloth", "bone", "ceramic"] as const) {
       expect(materials[key].emissiveMap).toBe(materials[key].map);
       expect(materials[key].emissiveIntensity).toBeGreaterThan(0.04);
       expect(materials[key].emissiveIntensity).toBeLessThan(0.2);
     }
-    for (const key of ["iron", "brass"] as const) {
+    expect(materials.wood.emissiveIntensity).toBeGreaterThanOrEqual(0.14);
+    expect(materials.bone.emissiveIntensity).toBeGreaterThanOrEqual(0.1);
+    expect(materials.cloth.emissiveIntensity).toBeGreaterThanOrEqual(0.1);
+    expect(materials.ceramic.emissiveIntensity).toBeGreaterThanOrEqual(0.1);
+    for (const key of ["iron", "paintedSteel", "brass"] as const) {
       expect(materials[key].emissiveMap).toBeNull();
       expect(materials[key].emissiveIntensity).toBe(0);
     }
@@ -128,16 +149,28 @@ describe("dungeon prop materials", () => {
     expect(materials.cloth.roughness).toBe(1);
     expect(materials.stone.roughness).toBeGreaterThan(materials.wood.roughness);
     expect(materials.iron.roughness).toBeGreaterThan(materials.brass.roughness);
-    expect(materials.iron.envMapIntensity).toBeLessThan(0.75);
-    expect(materials.brass.envMapIntensity).toBeGreaterThan(materials.iron.envMapIntensity);
+    expect(materials.iron.envMapIntensity).toBeGreaterThanOrEqual(1);
+    expect(materials.iron.envMapIntensity).toBeLessThanOrEqual(1.5);
+    expect(materials.iron.envMapIntensity).toBeGreaterThan(materials.brass.envMapIntensity);
+    expect(materials.brass.envMapIntensity).toBeGreaterThan(materials.wood.envMapIntensity);
     expect(materials.crystal.roughness).toBeLessThan(materials.ice.roughness);
+  });
+
+  test("absolute PBR roughness maps are not multiplied by the fallback scalar", () => {
+    const materials = createDungeonMaterials();
+    materials.iron.roughnessMap = new THREE.Texture();
+    materials.iron.userData.absoluteRoughnessMap = true;
+    materials.iron.roughness = 0.4;
+    applyMoodToDungeonMaterials(materials, 0x77aaa2, 1);
+    expect(materials.iron.roughness).toBe(1);
   });
 
   test("browser-white PBR multipliers return to distinct role colors before biome tint", () => {
     const materials = createDungeonMaterials();
-    materials.wood.color.setHex(0xffffff);
-    materials.iron.color.setHex(0xffffff);
-    materials.brass.color.setHex(0xffffff);
+    for (const material of [materials.wood, materials.iron, materials.brass]) {
+      material.color.setHex(0xffffff);
+      material.userData.baseDungeonColor = 0xffffff;
+    }
     applyMoodToDungeonMaterials(materials, 0x77aaa2, 1);
     expect(
       new Set([materials.wood, materials.iron, materials.brass].map((m) => m.color.getHex())).size,
@@ -145,27 +178,33 @@ describe("dungeon prop materials", () => {
     expect(materials.wood.color.getHex()).not.toBe(0xffffff);
   });
 
-  test("masonry props bind the active biome floor and wall PBR maps", () => {
+  test("stone props keep their role maps while the room changes biome surfaces", () => {
     const materials = createDungeonMaterials();
+    const stoneMaps = {
+      map: materials.stone.map,
+      normal: materials.stone.normalMap,
+      roughness: materials.stone.roughnessMap,
+    };
+    const darkStoneMaps = {
+      map: materials.darkStone.map,
+      normal: materials.darkStone.normalMap,
+      roughness: materials.darkStone.roughnessMap,
+    };
     const sunken = biome("sunken");
     applyBiomeMapsToDungeonMaterials(materials, sunken, "sunken");
-    expect(materials.stone.map).not.toBe(sunken.wall.albedo);
-    expect(materials.stone.map?.image).toBe(sunken.wall.albedo.image);
-    expect(materials.stone.map?.repeat.x).toBeCloseTo(1.25);
-    expect(materials.stone.normalMap?.repeat.x).toBeCloseTo(1.25);
-    expect(materials.stone.roughnessMap?.repeat.x).toBeCloseTo(1.25);
-    expect(materials.stone.envMapIntensity).toBeCloseTo(0.24);
-    expect(materials.darkStone.map).not.toBe(sunken.floor.albedo);
-    expect(materials.darkStone.map?.image).toBe(sunken.floor.albedo.image);
-    expect(materials.darkStone.map?.repeat.x).toBeCloseTo(1.4);
-    expect(materials.darkStone.normalMap?.repeat.x).toBeCloseTo(1.4);
-    expect(materials.darkStone.roughnessMap?.repeat.x).toBeCloseTo(1.4);
-    expect(materials.darkStone.envMapIntensity).toBeCloseTo(0.26);
+    expect(materials.stone.map).toBe(stoneMaps.map);
+    expect(materials.stone.normalMap).toBe(stoneMaps.normal);
+    expect(materials.stone.roughnessMap).toBe(stoneMaps.roughness);
+    expect(materials.darkStone.map).toBe(darkStoneMaps.map);
+    expect(materials.darkStone.normalMap).toBe(darkStoneMaps.normal);
+    expect(materials.darkStone.roughnessMap).toBe(darkStoneMaps.roughness);
+    expect(materials.stone.userData.biomePropMoodId).toBe("sunken");
+    expect(materials.stone.userData.biomeMasonryBound).toBe(false);
 
     const frost = biome("frost");
     applyBiomeMapsToDungeonMaterials(materials, frost, "frost");
-    expect(materials.stone.map?.image).toBe(frost.wall.albedo.image);
-    expect(materials.darkStone.map?.image).toBe(frost.floor.albedo.image);
-    expect(materials.stone.roughness).toBeLessThan(materials.darkStone.roughness);
+    expect(materials.stone.map).toBe(stoneMaps.map);
+    expect(materials.darkStone.map).toBe(darkStoneMaps.map);
+    expect(materials.stone.userData.biomePropMoodId).toBe("frost");
   });
 });

@@ -24,10 +24,16 @@ import {
   type SurfaceTheme,
 } from "./RoomSurfaceMaterials";
 import { createForgeChest, createForgeProp, getForgePropScale } from "./ForgePropFactory";
+import { createLightingPropBase } from "./LightingPropFactory";
+import { createFlameTongueGeometry } from "./FlameGeometry";
+import { batchForgeChestForRuntime } from "./RuntimeModelBatching";
 import {
   createResolveFlask,
+  createAnnihilationPulseRelic,
   createLuminousWardStone,
   createTimeFreezeRelic,
+  ANNIHILATION_PULSE_PICKUP_GLOW_OPACITY,
+  ANNIHILATION_PULSE_PICKUP_LIGHT_INTENSITY,
   LUMINOUS_WARD_PICKUP_GLOW_OPACITY,
   LUMINOUS_WARD_PICKUP_LIGHT_INTENSITY,
   preparePickupOpacity,
@@ -59,12 +65,9 @@ import {
   wallHugWorldOffset,
 } from "./PropPlacement";
 import { createMagicStone } from "./MagicStoneKit";
+import { createBiomeMagicPortal, magicPortalApproachYaw } from "./MagicPortalKit";
 import {
-  createMagicPortalInterior,
-  createPortalApertureOutlineGeometry,
-  magicPortalApproachYaw,
-} from "./MagicPortalKit";
-import {
+  hasValidMagicStonePlacementContract,
   magicStoneClearanceCells,
   selectMagicStonePlacements,
   type MagicStonePlacement,
@@ -109,7 +112,7 @@ export interface StaticDoorActor {
 }
 
 export interface StaticPickupActor {
-  kind: "stone" | "resolve" | "time-freeze" | "luminous-ward";
+  kind: "stone" | "resolve" | "time-freeze" | "luminous-ward" | "annihilation-pulse";
   stoneId?: StoneId;
   object: THREE.Object3D;
   collected: boolean;
@@ -131,6 +134,12 @@ export interface StaticPickupActor {
     baseIntensity: number;
   };
   luminousWardSignal?: {
+    light: THREE.PointLight;
+    glow: THREE.Mesh;
+    baseIntensity: number;
+    baseGlowOpacity: number;
+  };
+  annihilationPulseSignal?: {
     light: THREE.PointLight;
     glow: THREE.Mesh;
     baseIntensity: number;
@@ -230,6 +239,50 @@ function createHandles(): StaticDungeonSceneHandles {
   };
 }
 
+function createCurvedBrazierFlameGeometry(
+  radius: number,
+  height: number,
+  sides: number,
+  lean: number,
+  depthCurve: number,
+  twist: number,
+  depthScale: number,
+): THREE.BufferGeometry {
+  const geometry = createFlameTongueGeometry(radius, height, sides, lean);
+  const positions = geometry.getAttribute("position") as THREE.BufferAttribute;
+  const colors = new Float32Array(positions.count * 3);
+  for (let index = 0; index < positions.count; index += 1) {
+    const y = positions.getY(index);
+    const t = THREE.MathUtils.clamp(y / height + 0.5, 0, 1);
+    const sourceX = positions.getX(index);
+    const sourceZ = positions.getZ(index) * depthScale;
+    const angle = twist * t;
+    const cos = Math.cos(angle);
+    const sin = Math.sin(angle);
+    const curl = lean * Math.sin(Math.PI * t) * 0.44 + radius * Math.sin(t * 4.4 + twist) * 0.08;
+    const x = sourceX * cos - sourceZ * sin + curl;
+    const z = sourceX * sin + sourceZ * cos + depthCurve * t * t;
+    positions.setXYZ(index, x, y + height * 0.5, z);
+
+    const bodyLight = 0.58 + Math.pow(Math.sin(Math.PI * t), 0.62) * 0.42;
+    const sideLight = 0.82 + 0.18 * THREE.MathUtils.clamp(x / Math.max(radius, 0.001), -1, 1);
+    const value = THREE.MathUtils.clamp(bodyLight * sideLight, 0.48, 1);
+    colors[index * 3] = value;
+    colors[index * 3 + 1] = value;
+    colors[index * 3 + 2] = value;
+  }
+  positions.needsUpdate = true;
+  geometry.setAttribute("color", new THREE.BufferAttribute(colors, 3));
+  geometry.name = "Curved three-dimensional low-poly brazier flame tongue";
+  geometry.userData.sourceGeometry = "createFlameTongueGeometry";
+  geometry.userData.curvedSilhouette = true;
+  geometry.userData.depthCurve = depthCurve;
+  geometry.computeVertexNormals();
+  geometry.computeBoundingBox();
+  geometry.computeBoundingSphere();
+  return geometry;
+}
+
 export class StaticDungeonScene {
   readonly stats: StaticDungeonSceneStats = {
     floorTiles: 0,
@@ -310,6 +363,9 @@ export class StaticDungeonScene {
       0.9 + mood.surfaceStrength * 0.25,
     );
     const stonePlacements = selectMagicStonePlacements(dungeon);
+    if (!hasValidMagicStonePlacementContract(dungeon, stonePlacements)) {
+      throw new Error("Dungeon cannot start Play without four distinct reachable magic stones.");
+    }
     this.handles.stonePlacements.push(...stonePlacements);
     for (const cell of magicStoneClearanceCells(dungeon, stonePlacements)) {
       this.objectiveClearanceCells.add(`${cell.x},${cell.y}`);
@@ -350,7 +406,7 @@ export class StaticDungeonScene {
     }
     this.addLightProps(dungeon);
     this.addAtmosphereProps(dungeon);
-    this.addMarkers(dungeon);
+    this.addMarkers(dungeon, mood);
     this.addStaticObjectives(dungeon, stonePlacements);
     this.applyMoodToPracticalLights(mood);
     this.stats.floorTiles = floorCells.length;
@@ -797,11 +853,21 @@ export class StaticDungeonScene {
 
   private createDoorAppearance() {
     const profile = getBiomeDecorationProfile(this.activeMood.id);
+    const doorSurface = this.assets.biomeDoorSurface?.(this.activeMood.id) ?? {
+      albedo: this.assets.biomeDoor(this.activeMood.id),
+      normal: null,
+      roughness: null,
+      metalness: null,
+    };
     const leafMaterial = new THREE.MeshStandardMaterial({
-      map: this.assets.biomeDoor(this.activeMood.id),
-      color: 0xffffff,
-      roughness: profile.doorRoughness,
-      metalness: this.activeMood.id === "iron" ? 0.42 : 0.03,
+      map: doorSurface.albedo,
+      normalMap: doorSurface.normal,
+      roughnessMap: doorSurface.roughness,
+      metalnessMap: doorSurface.metalness,
+      normalScale: new THREE.Vector2(0.72, 0.72),
+      color: this.activeMood.id === "obsidian" ? 0x686b72 : 0xffffff,
+      roughness: doorSurface.roughness ? 1 : profile.doorRoughness,
+      metalness: doorSurface.metalness ? 1 : this.activeMood.id === "iron" ? 0.42 : 0.03,
       envMapIntensity: this.activeMood.id === "iron" ? 0.78 : 0.34,
     });
     const hardwareMaterial = this.materials.iron.clone();
@@ -1502,6 +1568,7 @@ export class StaticDungeonScene {
     rewardKind: ChestRewardKind = "resolve",
   ): void {
     const kit = createForgeChest(this.materials);
+    batchForgeChestForRuntime(kit);
     kit.root.name = `${rewardKind} chest ${prop.x},${prop.y}`;
     kit.root.userData.rewardKind = rewardKind;
     kit.root.userData.autoActivatesReward = chestRewardAutoActivates(rewardKind);
@@ -1521,11 +1588,17 @@ export class StaticDungeonScene {
         ? createTimeFreezeRelic(this.materials)
         : rewardKind === "luminous-ward"
           ? createLuminousWardStone(this.materials)
-          : createResolveFlask(this.materials);
+          : rewardKind === "annihilation-pulse"
+            ? createAnnihilationPulseRelic(this.materials)
+            : createResolveFlask(this.materials);
     preparePickupOpacity(item);
     item.name = `${rewardKind} reward from chest`;
     const rewardScale =
-      rewardKind === "resolve" ? 0.64 : rewardKind === "time-freeze" ? 0.54 : 0.52;
+      rewardKind === "resolve"
+        ? 0.64
+        : rewardKind === "time-freeze" || rewardKind === "annihilation-pulse"
+          ? 0.54
+          : 0.52;
     const baseScale = new THREE.Vector3(rewardScale, rewardScale, rewardScale);
     const baseY = anchor.y + 0.08;
     item.position.set(anchor.x, baseY - 0.34, anchor.z);
@@ -1558,6 +1631,15 @@ export class StaticDungeonScene {
         glow: item.getObjectByName("Luminous ward pickup halo") as THREE.Mesh,
         baseIntensity: LUMINOUS_WARD_PICKUP_LIGHT_INTENSITY,
         baseGlowOpacity: LUMINOUS_WARD_PICKUP_GLOW_OPACITY,
+      };
+    } else if (rewardKind === "annihilation-pulse") {
+      const light = item.getObjectByName("Annihilation pulse pickup light") as THREE.PointLight;
+      light.intensity = 0;
+      reward.annihilationPulseSignal = {
+        light,
+        glow: item.getObjectByName("Annihilation pulse pickup halo") as THREE.Mesh,
+        baseIntensity: ANNIHILATION_PULSE_PICKUP_LIGHT_INTENSITY,
+        baseGlowOpacity: ANNIHILATION_PULSE_PICKUP_GLOW_OPACITY,
       };
     }
     this.pickups.push(reward);
@@ -2002,39 +2084,132 @@ export class StaticDungeonScene {
       });
       return;
     }
-    const root = new THREE.Group();
+    const root = createLightingPropBase("brazier", this.materials, Math.floor(phase * 10));
     root.position.copy(position);
     root.name = "brazier fire prop";
-    const bowl = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.3, 0.3, 8), this.materials.iron);
-    bowl.position.y = 0.72;
-    const stem = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.09, 0.16, 0.62, 6),
-      this.materials.iron,
+    const flameSocket = root.getObjectByName("Brazier flame socket");
+    const flamePosition = flameSocket?.position ?? new THREE.Vector3(0, 1.19, 0);
+    const flameY = flamePosition.y;
+    const coldFlame = this.activeMood.id === "frost";
+    const emberNodes = root.getObjectByName("Brazier restrained ember nodes");
+    if (emberNodes instanceof THREE.InstancedMesh) {
+      const emberMaterial = emberNodes.material;
+      if (emberMaterial instanceof THREE.MeshStandardMaterial) {
+        emberMaterial.color.setHex(coldFlame ? 0x44231d : 0x572619);
+        emberMaterial.emissive.setHex(coldFlame ? 0xa94c2b : 0xb9471e);
+        emberMaterial.emissiveIntensity = coldFlame ? 0.18 : 0.28;
+        emberMaterial.userData.biomeAdjustedEmber = true;
+      }
+      emberNodes.scale.set(0.72, 0.58, 0.72);
+    }
+    const outerGeometry = createCurvedBrazierFlameGeometry(
+      0.058,
+      0.27,
+      7,
+      -0.13,
+      0.032,
+      0.52,
+      0.62,
     );
-    stem.position.y = 0.38;
-    root.add(bowl, stem);
-    const flameY = 1.0;
     const flame = new THREE.Mesh(
-      new THREE.OctahedronGeometry(0.2, 0),
+      outerGeometry,
       new THREE.MeshBasicMaterial({
-        color: 0xc5a56e,
+        color: coldFlame ? 0x75a6bf : 0xe27c35,
+        vertexColors: true,
         transparent: true,
-        opacity: 0.86,
-        blending: THREE.AdditiveBlending,
+        opacity: coldFlame ? 0.27 : 0.42,
+        blending: THREE.NormalBlending,
         depthWrite: false,
       }),
     );
-    flame.position.y = flameY;
-    flame.scale.y = 1.8;
-    root.add(flame);
-    const baseIntensity = 54;
+    flame.name = "Brazier runtime outer flame";
+    flame.position.copy(flamePosition).add(new THREE.Vector3(-0.038, 0.004, 0.016));
+    flame.rotation.set(0, 0.38, -0.1);
+    flame.visible = lit;
+    flame.renderOrder = 4;
+    flame.userData.decorativeVfx = true;
+
+    const coreGeometry = createCurvedBrazierFlameGeometry(
+      0.034,
+      0.16,
+      7,
+      0.018,
+      -0.015,
+      -0.38,
+      0.78,
+    );
+    const core = new THREE.Mesh(
+      coreGeometry,
+      new THREE.MeshBasicMaterial({
+        color: coldFlame ? 0xf2ac65 : 0xffc667,
+        vertexColors: true,
+        transparent: true,
+        opacity: coldFlame ? 0.44 : 0.62,
+        blending: THREE.NormalBlending,
+        depthWrite: false,
+      }),
+    );
+    core.name = "Brazier runtime flame core";
+    core.position.copy(flamePosition).add(new THREE.Vector3(0.006, 0.004, -0.006));
+    core.rotation.set(0, -0.55, 0.015);
+    core.visible = lit;
+    core.renderOrder = 5;
+    core.userData.decorativeVfx = true;
+    core.userData.preserveWarmCore = true;
+
+    const leanGeometry = createCurvedBrazierFlameGeometry(
+      0.043,
+      0.205,
+      6,
+      0.045,
+      0.03,
+      0.55,
+      0.66,
+    );
+    const lean = new THREE.Mesh(
+      leanGeometry,
+      new THREE.MeshBasicMaterial({
+        color: coldFlame ? 0x5d8da8 : 0xef8b3e,
+        vertexColors: true,
+        transparent: true,
+        opacity: coldFlame ? 0.22 : 0.34,
+        blending: THREE.NormalBlending,
+        depthWrite: false,
+      }),
+    );
+    lean.name = "Brazier runtime leaning flame tongue";
+    lean.position.copy(flamePosition).add(new THREE.Vector3(0.058, 0.002, -0.024));
+    lean.rotation.set(0, 0.76, 0.13);
+    lean.visible = lit;
+    lean.renderOrder = 4;
+    lean.userData.decorativeVfx = true;
+
+    const halo = new THREE.Mesh(
+      new THREE.CircleGeometry(0.28, 14),
+      new THREE.MeshBasicMaterial({
+        color: coldFlame ? 0x547f9e : 0xa9683e,
+        transparent: true,
+        opacity: coldFlame ? 0.018 : 0.035,
+        blending: THREE.NormalBlending,
+        depthWrite: false,
+      }),
+    );
+    halo.name = "Brazier restrained flame halo";
+    halo.rotation.x = -Math.PI / 2;
+    halo.position.copy(flamePosition).add(new THREE.Vector3(0, 0.018, 0));
+    halo.visible = lit;
+    halo.renderOrder = 3;
+    halo.userData.decorativeVfx = true;
+    root.add(flame, core, lean, halo);
+    const baseIntensity = coldFlame ? 6.5 : 18;
+    const lightRange = coldFlame ? 5.5 : 8;
     const keepDynamicLight =
       lit && dynamicLight && this.dynamicFireLightCount < MAX_DYNAMIC_FIRE_LIGHTS;
     const light = keepDynamicLight
-      ? new THREE.PointLight(0xc18a50, baseIntensity, FIRE_LIGHT_TUNING.brazierRange, 2.12)
+      ? new THREE.PointLight(coldFlame ? 0x78a8c2 : 0xc98a50, baseIntensity, lightRange, 2.12)
       : null;
     if (light) {
-      light.position.set(0, flameY + 0.1, 0);
+      light.position.copy(flamePosition).add(new THREE.Vector3(0, 0.08, 0));
       root.add(light);
     }
     this.add(root);
@@ -2042,14 +2217,14 @@ export class StaticDungeonScene {
     this.fireEffects.push({
       root,
       flame,
-      flameDetails: [],
-      halos: [],
+      flameDetails: [core, lean],
+      halos: [halo],
       light: detachedLight,
       baseIntensity,
       baseY: flameY,
       baseFlameScaleY: flame.scale.y,
       currentLightFactor: detachedLight ? 1 : 0,
-      cutoffDistance: FIRE_LIGHT_TUNING.brazierRange,
+      cutoffDistance: lightRange,
       phase,
       losOpen: true,
       losAge: deterministicLosAge(phase),
@@ -2142,7 +2317,8 @@ export class StaticDungeonScene {
       for (const detail of effect.flameDetails) {
         if (!(detail instanceof THREE.Mesh)) continue;
         const materials = Array.isArray(detail.material) ? detail.material : [detail.material];
-        for (const material of materials) tintMaterial(material, core, 0.86);
+        const tintStrength = detail.userData.preserveWarmCore ? 0.12 : 0.86;
+        for (const material of materials) tintMaterial(material, core, tintStrength);
       }
       for (const halo of effect.halos) {
         if (!(halo instanceof THREE.Mesh)) continue;
@@ -2885,7 +3061,7 @@ export class StaticDungeonScene {
     }
   }
 
-  private addMarkers(dungeon: DungeonData): void {
+  private addMarkers(dungeon: DungeonData, mood: DungeonMood): void {
     const entrance = gridToWorld(dungeon, dungeon.spawn, this.tileSize);
     const exit = gridToWorld(dungeon, dungeon.exit, this.tileSize);
     this.exitPosition.set(exit.x, 0, exit.z);
@@ -2894,105 +3070,19 @@ export class StaticDungeonScene {
     entranceRing.rotation.x = -Math.PI / 2;
     entranceRing.position.set(entrance.x, 0.02, entrance.z);
 
-    // Special portal zone at the dungeon exit — full-height frame always;
-    // sealed state hides the active veil instead of squashing the gate.
-    const portal = new THREE.Group();
-    portal.name = "Escape portal gate";
-    const frameParts: THREE.BufferGeometry[] = [];
-    for (const offset of [-0.92, 0.92]) {
-      frameParts.push(
-        transformedGeometry(new THREE.CylinderGeometry(0.2, 0.24, 2.48, 8), {
-          x: offset,
-          y: 1.28,
-          z: 0,
-        }),
-        transformedGeometry(new THREE.CylinderGeometry(0.34, 0.38, 0.2, 8), {
-          x: offset,
-          y: 0.1,
-          z: 0,
-        }),
-        transformedGeometry(new THREE.CylinderGeometry(0.31, 0.24, 0.22, 8), {
-          x: offset,
-          y: 2.52,
-          z: 0,
-        }),
-      );
-    }
-    frameParts.push(
-      transformedGeometry(new THREE.TorusGeometry(0.93, 0.19, 7, 28, Math.PI), {
-        x: 0,
-        y: 2.52,
-        z: 0,
-      }),
-      transformedGeometry(
-        new THREE.BoxGeometry(0.28, 0.28, 0.34),
-        { x: 0, y: 3.43, z: 0 },
-        new THREE.Euler(0, 0, Math.PI / 4),
-      ),
-    );
-    const frame = new THREE.Mesh(mergePropGeometry(frameParts), this.materials.darkStone);
-    frame.name = "Faceted escape portal arch";
-    frame.castShadow = true;
-    frame.receiveShadow = true;
-    portal.add(frame);
-    // Sealed bars across the opening (visible while closed).
-    const barParts: THREE.BufferGeometry[] = [];
-    for (let i = 0; i < 5; i += 1) {
-      const x = -0.7 + i * 0.35;
-      barParts.push(
-        transformedGeometry(new THREE.CylinderGeometry(0.045, 0.05, 2.36, 6), {
-          x,
-          y: 1.37,
-          z: 0.06,
-        }),
-        transformedGeometry(new THREE.ConeGeometry(0.09, 0.22, 6), {
-          x,
-          y: 2.66,
-          z: 0.06,
-        }),
-      );
-    }
-    barParts.push(
-      transformedGeometry(new THREE.BoxGeometry(1.68, 0.1, 0.11), {
-        x: 0,
-        y: 1.48,
-        z: 0.08,
-      }),
-      transformedGeometry(new THREE.BoxGeometry(1.46, 0.08, 0.1), {
-        x: 0,
-        y: 0.72,
-        z: 0.08,
-      }),
-    );
-    const bars = new THREE.Mesh(mergePropGeometry(barParts), this.materials.iron);
-    bars.name = "Portal sealed bars";
-    bars.castShadow = true;
-    bars.receiveShadow = true;
-    portal.add(bars);
-    const portalArchMaterial = this.materials.iron.clone();
-    portalArchMaterial.color.setHex(0x2a2e32);
-    portalArchMaterial.emissive.setHex(0x121820);
-    portalArchMaterial.emissiveIntensity = 0.25;
-    portalArchMaterial.metalness = 0.55;
-    portalArchMaterial.roughness = 0.55;
-    const apertureTrim = new THREE.Mesh(
-      createPortalApertureOutlineGeometry(0.055, 0.01),
-      portalArchMaterial,
-    );
-    apertureTrim.name = "Portal aperture trim";
-    apertureTrim.position.z = 0.045;
-    portal.add(apertureTrim);
-    const magicInterior = createMagicPortalInterior();
-    portal.add(magicInterior.root);
+    // Complete biome portal: full arch aperture, distinct frame/signature/seal,
+    // profile-driven vortex and isolated materials for every dungeon mood.
+    const magicPortal = createBiomeMagicPortal(mood.id, this.materials);
+    const portal = magicPortal.root;
     portal.position.set(exit.x, 0, exit.z);
     portal.rotation.y = magicPortalApproachYaw(dungeon);
     this.portalRoot = portal;
 
-    const exitBeam = createVolumetricBeam(0x7a9098, 4.15, 1.05, 0.18);
+    const exitBeam = createVolumetricBeam(magicPortal.profile.beamColor, 4.15, 1.05, 0.18);
     exitBeam.position.set(exit.x, this.wallHeight - 0.02, exit.z);
     exitBeam.visible = false;
     this.portalBeam = exitBeam;
-    const exitLight = new THREE.PointLight(0x6aaeff, 3, 12, 2.2);
+    const exitLight = new THREE.PointLight(magicPortal.profile.lightColor, 3, 12, 2.2);
     exitLight.position.set(exit.x, 2.4, exit.z);
     this.portalLight = exitLight;
     const entranceLight = new THREE.PointLight(0x777b7c, 7, 9, 2.4);
@@ -3053,11 +3143,11 @@ export class StaticDungeonScene {
       ...this.objectiveClearanceCells,
       ...stonePlacements.map((placement) => `${placement.cell.x},${placement.cell.y}`),
     ]);
-    // Power chests: two time-freeze + two luminous-ward, spread along route
+    // Power chests: two time-freeze + two wards + one annihilation pulse, spread along route
     // depth so pressure relief is not stacked in one wing of the map.
     const usedPowerRooms = new Set<DungeonRoom>();
     const placePowerChest = (
-      rewardKind: Extract<ChestRewardKind, "time-freeze" | "luminous-ward">,
+      rewardKind: Extract<ChestRewardKind, "time-freeze" | "luminous-ward" | "annihilation-pulse">,
       depthFraction: number,
       salt: number,
     ): void => {
@@ -3118,6 +3208,7 @@ export class StaticDungeonScene {
     for (const fraction of [0.42, 0.88] as const) {
       placePowerChest("luminous-ward", fraction, 61);
     }
+    placePowerChest("annihilation-pulse", 0.64, 83);
 
     // Place the classic bonus chests (health flasks) before enemy seats are
     // planned. Their reservations then participate in both distributed and
@@ -3455,29 +3546,6 @@ function createBiomeFloorSpriteMaterial(
   return material;
 }
 
-function transformedGeometry(
-  geometry: THREE.BufferGeometry,
-  position: THREE.Vector3Like,
-  rotation: THREE.Euler = new THREE.Euler(),
-  scale: THREE.Vector3Like = { x: 1, y: 1, z: 1 },
-): THREE.BufferGeometry {
-  return geometry.applyMatrix4(
-    new THREE.Matrix4().compose(
-      new THREE.Vector3(position.x, position.y, position.z),
-      new THREE.Quaternion().setFromEuler(rotation),
-      new THREE.Vector3(scale.x, scale.y, scale.z),
-    ),
-  );
-}
-
-function mergePropGeometry(parts: THREE.BufferGeometry[]): THREE.BufferGeometry {
-  const merged = mergeGeometries(parts, false);
-  parts.forEach((part) => {
-    if (part !== merged) part.dispose();
-  });
-  return merged ?? new THREE.BoxGeometry(0.1, 0.1, 0.1);
-}
-
 /** Attach per-instance UV offsets (geometry must not be shared across meshes). */
 function setTileUvOffsets(geometry: THREE.BufferGeometry, offsets: Float32Array): void {
   geometry.setAttribute("aTileUvOffset", new THREE.InstancedBufferAttribute(offsets, 2));
@@ -3677,14 +3745,14 @@ function roomDistance(dungeon: DungeonData, room: DungeonRoom): number {
 
 export const CHEST_INTERACTION_DISTANCE = 1.9;
 export const PICKUP_COLLECTION_DISTANCE = 1.18;
-export type ChestRewardKind = "resolve" | "time-freeze" | "luminous-ward";
+export type ChestRewardKind = "resolve" | "time-freeze" | "luminous-ward" | "annihilation-pulse";
 
 export function canInteractWithChest(distance: number, opened: boolean): boolean {
   return !opened && Number.isFinite(distance) && distance <= CHEST_INTERACTION_DISTANCE;
 }
 
 export function chestRewardAutoActivates(kind: ChestRewardKind): boolean {
-  return kind === "time-freeze" || kind === "luminous-ward";
+  return kind === "time-freeze" || kind === "luminous-ward" || kind === "annihilation-pulse";
 }
 
 export function canCollectPickup(distance: number, autoCollect = false): boolean {

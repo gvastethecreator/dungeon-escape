@@ -23,6 +23,8 @@ export interface LocalRunResumeState {
   visitedCells: string[];
   timeFreezeRemaining: number;
   luminousWardRemaining: number;
+  /** Active annihilation pulse time; omitted in saves written before the item existed. */
+  annihilationPulseRemaining?: number;
   /** Optional per-stone find offsets in run seconds. */
   perStoneSeconds?: Partial<Record<StoneId, number>>;
 }
@@ -97,12 +99,13 @@ function isLocalRunResumeState(value: unknown): value is LocalRunResumeState {
   if (!isFiniteNumber(value.difficultyElapsed) || value.difficultyElapsed < 0) return false;
   if (!isFiniteNumber(value.timeFreezeRemaining) || value.timeFreezeRemaining < 0) return false;
   if (!isFiniteNumber(value.luminousWardRemaining) || value.luminousWardRemaining < 0) return false;
-  if (!Array.isArray(value.visitedCells)) return false;
   if (
-    !value.visitedCells.every(
-      (cell) => typeof cell === "string" && /^-?\d+,-?\d+$/.test(cell),
-    )
-  ) {
+    value.annihilationPulseRemaining !== undefined &&
+    (!isFiniteNumber(value.annihilationPulseRemaining) || value.annihilationPulseRemaining < 0)
+  )
+    return false;
+  if (!Array.isArray(value.visitedCells)) return false;
+  if (!value.visitedCells.every((cell) => typeof cell === "string" && /^-?\d+,-?\d+$/.test(cell))) {
     return false;
   }
   if (!isRecord(value.player)) return false;

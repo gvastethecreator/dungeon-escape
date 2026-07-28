@@ -30,6 +30,8 @@ export interface EnemySimBody {
   phaseVisibility: number;
   /** Horizontal travel in the current tick; presentation selects idle from it. */
   moving: boolean;
+  /** Permanent run-local death. The instanced seat stays allocated at zero scale. */
+  defeated?: boolean;
 }
 
 export interface EnemySimResult {
@@ -50,6 +52,8 @@ export interface EnemySimContext {
   tileSize: number;
   /** Horizontal safety radius enforced by a luminous ward. */
   repelRadius?: number;
+  /** Optional flee speed multiplier for stronger fields. */
+  repelSpeedMultiplier?: number;
   /** Active dungeon biome; drives EnemyBiomeMods. */
   moodId?: string | null;
   /** Run difficulty 0–1; scales biome mods. */
@@ -182,17 +186,22 @@ export function tickEnemySim(
   let attackerDistance = Number.POSITIVE_INFINITY;
   const { delta, elapsed, player, dungeon, solidColliders, tileSize } = ctx;
   const repelRadius = Math.max(0, ctx.repelRadius ?? 0);
+  const repelSpeedMultiplier = Math.max(1, ctx.repelSpeedMultiplier ?? 1);
   for (const enemy of enemies) {
+    if (enemy.defeated || enemy.scaleX <= 0.001 || enemy.scaleY <= 0.001) {
+      enemy.moving = false;
+      continue;
+    }
     const archetype = resolveSimArchetype(enemy.kind, ctx);
     enemy.hitCooldown = Math.max(0, enemy.hitCooldown - delta);
     enemy.attackPulse = Math.max(0, enemy.attackPulse - delta * 3.8);
     const dx = enemy.position.x - player.x;
     const dz = enemy.position.z - player.z;
     let distance = Math.hypot(dx, dz);
-    let wardRepel = repelRadius > 0 && distance < repelRadius;
+    let repelActive = repelRadius > 0 && distance < repelRadius;
     nearestThreat = Math.min(nearestThreat, distance);
     enemy.phaseVisibility = enemyPhaseVisibility(enemy.kind, elapsed, enemy.phase);
-    if (isPhasingEnemy(enemy.kind) && !wardRepel && dungeon && enemy.phaseVisibility <= 0.001) {
+    if (isPhasingEnemy(enemy.kind) && !repelActive && dungeon && enemy.phaseVisibility <= 0.001) {
       const epoch = enemyPhaseEpoch(enemy.kind, elapsed, enemy.phase);
       if (enemy.phaseEpoch !== epoch) {
         relocatePhasedEnemy(
@@ -208,15 +217,15 @@ export function tickEnemySim(
         enemy.phaseEpoch = epoch;
         distance = Math.hypot(enemy.position.x - player.x, enemy.position.z - player.z);
         nearestThreat = Math.min(nearestThreat, distance);
-        wardRepel = repelRadius > 0 && distance < repelRadius;
+        repelActive = repelRadius > 0 && distance < repelRadius;
       }
     }
     let travelled = 0;
     const motion = getEnemyMotion(enemy.kind, distance, elapsed, enemy.phase, archetype);
     if (motion.speedMultiplier > 0 && dungeon) {
-      // A luminous ward reverses pursuit inside its safety radius. Keep a
-      // small lateral component so several enemies do not stack on one line.
-      const flee = wardRepel;
+      // An active protection field reverses pursuit inside its safety radius.
+      // Keep a small lateral component so several enemies do not stack on one line.
+      const flee = repelActive;
       if (flee && distance <= 1e-4) {
         // A just-spawned enemy can share the player's cell. Give it a stable
         // escape heading so the ward still creates space on the first tick.
@@ -243,7 +252,8 @@ export function tickEnemySim(
         tempMove.x /= mLen;
         tempMove.z /= mLen;
       }
-      const step = archetype.speed * motion.speedMultiplier * delta;
+      const step =
+        archetype.speed * motion.speedMultiplier * delta * (flee ? repelSpeedMultiplier : 1);
       tempPos.x = enemy.position.x + tempMove.x * step;
       tempPos.y = enemy.position.y;
       tempPos.z = enemy.position.z + tempMove.z * step;
@@ -301,7 +311,7 @@ export function tickEnemySim(
       shadowTwitch;
 
     if (
-      !wardRepel &&
+      !repelActive &&
       distance < archetype.attackRange &&
       enemy.hitCooldown === 0 &&
       enemy.phaseVisibility >= 0.82

@@ -2,7 +2,11 @@ import { describe, expect, test } from "bun:test";
 import * as THREE from "three";
 
 import { createDungeonMaterials } from "../src/world/MaterialLibrary";
-import { createWallLantern, createWallTorch } from "../src/world/WallTorchFactory";
+import {
+  createWallLantern,
+  createWallTorch,
+  WALL_LANTERN_LIGHT_INTENSITY,
+} from "../src/world/WallTorchFactory";
 
 describe("authored wall torch", () => {
   test("has a forged silhouette, layered flame and room-scale light", () => {
@@ -32,8 +36,8 @@ describe("authored wall torch", () => {
       true,
       createDungeonMaterials(),
     );
-    expect(lantern.baseIntensity).toBeGreaterThanOrEqual(38);
-    expect(lantern.baseIntensity).toBeLessThanOrEqual(46);
+    expect(lantern.baseIntensity).toBe(WALL_LANTERN_LIGHT_INTENSITY);
+    expect(lantern.root.getObjectsByProperty("type", "PointLight")).toHaveLength(1);
     expect((lantern.flame.material as THREE.MeshBasicMaterial).toneMapped).toBe(true);
     expect(lantern.light?.distance).toBeGreaterThanOrEqual(12);
     expect(lantern.root.scale.x).toBeGreaterThanOrEqual(0.74);

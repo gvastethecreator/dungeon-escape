@@ -66,7 +66,13 @@ function statsWithoutTiming(stats: Record<string, number>) {
 
 describe("Forge pure generation", () => {
   test("keeps each Forge profile aligned with biome identity", () => {
-    expect(Object.keys(FORGE_THEME_PROFILES)).toEqual([...listForgeBiomeIds()]);
+    // Editor chips stay on forge-supported biomes; campaign theater also needs
+    // ash/iron profiles so New Game map colors match play.
+    for (const id of listForgeBiomeIds()) {
+      expect(FORGE_THEME_PROFILES[id]).toBeDefined();
+    }
+    expect(FORGE_THEME_PROFILES.ash).toBeDefined();
+    expect(FORGE_THEME_PROFILES.iron).toBeDefined();
   });
 
   test("imports without a DOM or WebGL runtime", async () => {
@@ -94,7 +100,7 @@ describe("Forge pure generation", () => {
         { decorDensity: Number.POSITIVE_INFINITY },
         "Forge generation decorDensity must be a number from 0 to 1.",
       ],
-      [{ themeKey: "ash" }, "Forge generation themeKey is unsupported."],
+      [{ themeKey: "nope" }, "Forge generation themeKey is unsupported."],
     ];
 
     for (const [override, message] of cases) {
