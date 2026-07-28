@@ -217,6 +217,8 @@ const elements = {
   optionsCard: requireElement<HTMLElement>("#options-card"),
   optionsTitle: requireElement<HTMLElement>("#options-title"),
   optionsResume: requireElement<HTMLButtonElement>("#options-resume"),
+  optionsRestart: requireElement<HTMLButtonElement>("#options-restart"),
+  optionsHome: requireElement<HTMLButtonElement>("#options-home"),
   recordPanel: requireElement<HTMLDetailsElement>(".record-panel"),
   modeButtons: [...document.querySelectorAll<HTMLButtonElement>("[data-engine-mode]")],
   audioToggle: requireElement<HTMLButtonElement>("#audio-toggle"),
@@ -1507,6 +1509,38 @@ function resumePlay(): void {
   if (!useTouchControls && engineMode === "play" && playRuntime.state().runMode === "playing") {
     controller.requestPointerLock();
   }
+}
+
+/** Rebuild the current seed from the pause menu (same as R while options open). */
+function restartCurrentMap(): void {
+  void audio.unlock();
+  clearTouchSession();
+  resumeTouchControls = false;
+  closeEndOverlay();
+  setOptionsOpen(false);
+  buildDungeon();
+  setStatus(COPY.pause.restarted);
+}
+
+/** Leave play and open the welcome screen without wiping the continue save. */
+function returnToMainScreen(): void {
+  void audio.unlock();
+  clearTouchSession();
+  resumeTouchControls = false;
+  closeEndOverlay();
+  setOptionsOpen(false);
+  flushLocalRunSave();
+  const save = readLocalRunSave();
+  if (canContinueLocalRun(save)) {
+    setContinueCandidate(save.state, `Continue ready · ${save.state.seed}`);
+  } else if (continueDomainState && canContinueDomainRun(continueDomainState)) {
+    setContinueCandidate(continueDomainState, `Continue ready · ${continueDomainState.seed}`);
+  } else {
+    setContinueCandidate(null, "No active saved run. Start a new game.");
+  }
+  syncWelcomeArt();
+  setWelcomeOpen(true);
+  setStatus(COPY.pause.returnedHome);
 }
 
 function pauseTouchPlay(): void {
@@ -3117,6 +3151,12 @@ elements.welcomeCustom.addEventListener("click", () => {
   setStatus("Custom run · practice only. Create a dungeon, then select PLAY.");
 });
 elements.optionsResume.addEventListener("click", resumePlay);
+elements.optionsRestart.addEventListener("click", () => {
+  restartCurrentMap();
+});
+elements.optionsHome.addEventListener("click", () => {
+  returnToMainScreen();
+});
 elements.optionsMenu.querySelectorAll("[data-options-dismiss]").forEach((node) => {
   node.addEventListener("click", () => {
     if (engineMode === "play") resumePlay();
@@ -3268,7 +3308,8 @@ document.addEventListener("keydown", (event) => {
   }
   if (event.code === "KeyR" && (engineMode !== "play" || optionsOpen)) {
     event.preventDefault();
-    buildDungeon();
+    if (engineMode === "play" && optionsOpen) restartCurrentMap();
+    else buildDungeon();
   }
   if (event.code === "Digit1") setEngineMode("editor");
   if (event.code === "Digit2") setEngineMode("debug");

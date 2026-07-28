@@ -226,4 +226,52 @@ describe("Play HUD structure (Ash Binding)", () => {
     expect(source).toContain('if (document.visibilityState === "hidden") clearTouchSession();');
     expect(source).toContain('window.addEventListener("pagehide", flushLocalRunSave);');
   });
+
+  test("pause menu exposes restart map and back to main screen", async () => {
+    const [host, source, css, editorCss, copySource] = await Promise.all([
+      Bun.file(new URL("../index.html", import.meta.url)).text(),
+      Bun.file(new URL("../src/main.ts", import.meta.url)).text(),
+      Bun.file(new URL("../src/styles.css", import.meta.url)).text(),
+      Bun.file(new URL("../src/styles/editor.css", import.meta.url)).text(),
+      Bun.file(new URL("../src/ui/copy.ts", import.meta.url)).text(),
+    ]);
+    const session = host.match(/<nav class="options-session"[\s\S]*?<\/nav>/)?.[0] ?? "";
+    const resumeIndex = host.indexOf('id="options-resume"');
+    const sessionIndex = host.indexOf('class="options-session"');
+    const modeIndex = host.indexOf('class="mode-switcher"');
+    const fxIndex = host.indexOf('class="options-fx"');
+
+    expect(session).toContain('id="options-restart"');
+    expect(session).toContain("RESTART MAP");
+    expect(session).toContain('id="options-home"');
+    expect(session).toContain("BACK TO MAIN SCREEN");
+    expect(resumeIndex).toBeGreaterThan(-1);
+    expect(sessionIndex).toBeGreaterThan(resumeIndex);
+    expect(modeIndex).toBeGreaterThan(-1);
+    expect(sessionIndex).toBeGreaterThan(modeIndex);
+    expect(fxIndex).toBeGreaterThan(sessionIndex);
+
+    expect(css).toContain(".app-shell[data-engine-mode=\"play\"] .options-session");
+    expect(css).toMatch(
+      /\.app-shell\[data-engine-mode="play"\] \.options-session\s*\{[^}]*order:\s*1;/s,
+    );
+    expect(css).toMatch(
+      /\.app-shell\[data-engine-mode="play"\] \.mode-switcher\s*\{[^}]*order:\s*3;/s,
+    );
+    expect(editorCss).toContain(".options-session");
+    expect(editorCss).toMatch(
+      /\.app-shell\[data-engine-mode="editor"\] \.options-session[\s\S]*display:\s*none !important;/s,
+    );
+
+    expect(source).toContain("function restartCurrentMap(): void");
+    expect(source).toContain("function returnToMainScreen(): void");
+    expect(source).toContain('elements.optionsRestart.addEventListener("click"');
+    expect(source).toContain('elements.optionsHome.addEventListener("click"');
+    expect(source).toContain("COPY.pause.restarted");
+    expect(source).toContain("COPY.pause.returnedHome");
+    expect(source).toContain("flushLocalRunSave()");
+    expect(source).toContain("setWelcomeOpen(true)");
+    expect(copySource).toContain('restartMap: "RESTART MAP"');
+    expect(copySource).toContain('backToMain: "BACK TO MAIN SCREEN"');
+  });
 });

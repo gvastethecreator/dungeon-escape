@@ -108,6 +108,13 @@ export const COPY = {
     crtOff: "CRT OFF",
     mapTools: "MAP TOOLS",
     seedDefault: "CAMPAIGN-17",
+    resume: "RESUME",
+    restartMap: "RESTART MAP",
+    backToMain: "BACK TO MAIN SCREEN",
+  },
+  pause: {
+    restarted: "Map restarted. Click the scene to explore.",
+    returnedHome: "Returned to the main screen.",
   },
   timer: {
     run: "RUN",
