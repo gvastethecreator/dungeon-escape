@@ -126,7 +126,10 @@ export function createDungeonEditorProjection(dungeon: DungeonData): DungeonEdit
   const sourceSpawns = forge?.spawns ?? [];
   const selectedKinds = selectEnemyKindsForSpawns(
     dungeon.seed,
-    sourceSpawns.map((spawn) => spawn.tier),
+    sourceSpawns.map((spawn) => ({
+      tier: spawn.tier,
+      roomId: typeof spawn.roomId === "number" ? spawn.roomId : undefined,
+    })),
   );
   const enemySpawns = sourceSpawns.map((spawn, index) => ({
     cell: { x: spawn.x, y: spawn.y },
