@@ -22,7 +22,7 @@ import { createImageSculptedProp } from "../src/world/ImageSculptedPropKit";
 import { createImageSculptedClutter } from "../src/world/ImageSculptedClutterKit";
 import { registerTextureSource } from "../src/world/TextureTreatment";
 import { findNearestPropCell, isProtectedTraversalCell } from "../src/world/PropPlacement";
-import { dressingPropScale } from "../src/world/DungeonWorld";
+import { dressingPropScale } from "../src/world/StaticDungeonScene";
 
 describe("professional world kit", () => {
   test("reliquary exposes action pivots, sockets and collider metadata", () => {

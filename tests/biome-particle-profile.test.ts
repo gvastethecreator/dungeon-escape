@@ -45,7 +45,7 @@ describe("biome particle profiles", () => {
         expect(layer.minCount).toBeGreaterThanOrEqual(40);
         expect(layer.maxCount).toBeGreaterThanOrEqual(layer.minCount);
         expect(layer.opacity).toBeGreaterThanOrEqual(0.42);
-        expect(layer.sizeMin).toBeGreaterThanOrEqual(0.04);
+        expect(layer.sizeMin).toBeGreaterThanOrEqual(0.02);
         expect(layer.sizeMax).toBeGreaterThan(layer.sizeMin);
         expect(layer.color).not.toBe(layer.colorAlt);
         expect(BIOME_PARTICLE_MOTION_ID[layer.motion]).toBeGreaterThanOrEqual(0);

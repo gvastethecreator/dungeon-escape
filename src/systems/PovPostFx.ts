@@ -2,8 +2,10 @@ import * as THREE from "three";
 
 export const POV_VIGNETTE_STRENGTH = 0.1;
 export const POV_VIGNETTE_INNER_RADIUS = 0.62;
-export const POV_CRT_HISTORY_WEIGHT = 0.28;
-export const POV_CRT_HALATION_STRENGTH = 0.24;
+export const POV_CRT_HISTORY_WEIGHT = 0.16;
+export const POV_CRT_HALATION_STRENGTH = 0.16;
+/** Heavy CRT composite runs below scene resolution, then uses one cheap upscale. */
+export const POV_CRT_RENDER_SCALE = 0.8;
 
 const FULLSCREEN_VERTEX_SHADER = /* glsl */ `
   varying vec2 vUv;
@@ -60,6 +62,10 @@ export class PovPostFx {
         uCurvature: { value: 0.032 },
         uChromatic: { value: 0 },
         uCriticalRed: { value: 0 },
+        uHeatwave: { value: 0 },
+        uToxinGreen: { value: 0 },
+        uIceBlue: { value: 0 },
+        uSpikeEdge: { value: 0 },
         uGrain: { value: 0.011 },
         uVignette: { value: POV_VIGNETTE_STRENGTH },
         uTime: { value: 0 },
@@ -75,6 +81,10 @@ export class PovPostFx {
         uniform float uCurvature;
         uniform float uChromatic;
         uniform float uCriticalRed;
+        uniform float uHeatwave;
+        uniform float uToxinGreen;
+        uniform float uIceBlue;
+        uniform float uSpikeEdge;
         uniform float uGrain;
         uniform float uVignette;
         uniform float uTime;
@@ -90,22 +100,15 @@ export class PovPostFx {
         }
 
         vec3 crtHalation(vec2 uv, vec3 center) {
-          vec2 nearStep = vec2(1.45, 1.15) / max(uResolution, vec2(1.0));
-          vec2 wideStep = vec2(4.25, 3.5) / max(uResolution, vec2(1.0));
-          vec3 nearGlow = center * 0.34;
-          nearGlow += texture2D(tDiffuse, uv + vec2(nearStep.x, 0.0)).rgb * 0.15;
-          nearGlow += texture2D(tDiffuse, uv - vec2(nearStep.x, 0.0)).rgb * 0.15;
-          nearGlow += texture2D(tDiffuse, uv + vec2(0.0, nearStep.y)).rgb * 0.13;
-          nearGlow += texture2D(tDiffuse, uv - vec2(0.0, nearStep.y)).rgb * 0.13;
+          vec2 glowStep = vec2(1.8, 1.5) / max(uResolution, vec2(1.0));
+          vec3 glow = center * 0.32;
+          glow += texture2D(tDiffuse, uv + vec2(glowStep.x, 0.0)).rgb * 0.17;
+          glow += texture2D(tDiffuse, uv - vec2(glowStep.x, 0.0)).rgb * 0.17;
+          glow += texture2D(tDiffuse, uv + vec2(0.0, glowStep.y)).rgb * 0.17;
+          glow += texture2D(tDiffuse, uv - vec2(0.0, glowStep.y)).rgb * 0.17;
 
-          vec3 wideGlow = texture2D(tDiffuse, uv + wideStep).rgb * 0.08;
-          wideGlow += texture2D(tDiffuse, uv + vec2(-wideStep.x, wideStep.y)).rgb * 0.08;
-          wideGlow += texture2D(tDiffuse, uv + vec2(wideStep.x, -wideStep.y)).rgb * 0.08;
-          wideGlow += texture2D(tDiffuse, uv - wideStep).rgb * 0.08;
-
-          float highlight = smoothstep(0.28, 0.9, luma(center));
-          vec3 warm = vec3(1.12, 0.88, 0.68);
-          return (nearGlow * 0.74 + wideGlow * 0.26) * warm * highlight;
+          float highlight = smoothstep(0.34, 0.92, luma(center));
+          return glow * vec3(1.08, 0.91, 0.76) * highlight;
         }
 
         // Pincushion warp (edges pull outward): opposite of inward barrel.
@@ -122,23 +125,38 @@ export class PovPostFx {
           return c * 0.5 + 0.5;
         }
 
+        // Vertical heat shimmer: UV bend only (no extra texture samples).
+        vec2 heatwaveOffset(vec2 uv, float amount) {
+          if (amount < 0.001) return vec2(0.0);
+          float wave =
+            sin(uv.y * 34.0 + uTime * 7.2) * 0.0044 +
+            sin(uv.y * 17.0 - uTime * 4.3) * 0.0026 +
+            sin(uv.x * 9.0 + uTime * 2.8) * 0.0014;
+          float lift =
+            sin(uv.x * 26.0 + uTime * 5.5) * 0.0026 +
+            cos(uv.x * 11.0 - uTime * 3.1) * 0.0014;
+          return vec2(wave, lift) * amount;
+        }
+
         void main() {
           float k = uCurvature;
           float crtFrame = floor(uTime * 24.0);
-          float jitterGate = step(0.965, random(vec2(crtFrame, 7.0)));
+          float jitterGate = step(0.982, random(vec2(crtFrame, 7.0)));
           vec2 crtJitter = vec2(
-            (random(vec2(crtFrame, 13.0)) - 0.5) * jitterGate * uCrtEnabled * 0.42 / max(uResolution.x, 1.0),
+            (random(vec2(crtFrame, 13.0)) - 0.5) * jitterGate * uCrtEnabled * 0.2 / max(uResolution.x, 1.0),
             0.0
           );
-          float ca = uChromatic + uCrtEnabled * 0.00034;
+          float ca = uChromatic + uCrtEnabled * 0.00022;
+          vec2 heat = heatwaveOffset(vUv, uHeatwave);
+          vec2 sampleUv = vUv + heat + crtJitter;
 
-          vec2 uvG = pincushion(vUv + crtJitter, k);
+          vec2 uvG = pincushion(sampleUv, k);
           // Radial chromatic: R/B pull slightly along the same warp direction.
           vec2 centered = vUv * 2.0 - 1.0;
           float len = length(centered);
           vec2 radial = len > 1e-4 ? centered / len : vec2(0.0);
-          vec2 uvR = pincushion(vUv + crtJitter + radial * ca, k);
-          vec2 uvB = pincushion(vUv + crtJitter - radial * ca, k);
+          vec2 uvR = pincushion(sampleUv + radial * ca, k);
+          vec2 uvB = pincushion(sampleUv - radial * ca, k);
 
           // Soft edge clamp — avoids hard wrap seams at the frame border.
           float maskR = step(0.0, uvR.x) * step(uvR.x, 1.0) * step(0.0, uvR.y) * step(uvR.y, 1.0);
@@ -163,6 +181,29 @@ export class PovPostFx {
             baseColor.b * 0.42
           );
           vec3 gradedColor = mix(baseColor, criticalColor, uCriticalRed);
+
+          // Hazard surface grades (after critical health so poison/ice read over low HP red).
+          vec3 heatColor = gradedColor * vec3(1.14, 0.9, 0.72) + vec3(0.05, 0.012, 0.0) * uHeatwave;
+          gradedColor = mix(gradedColor, heatColor, clamp(uHeatwave * 0.62, 0.0, 1.0));
+          vec3 toxinColor = vec3(
+            gradedColor.r * 0.4,
+            max(gradedColor.g, baseLuma * 0.88),
+            gradedColor.b * 0.46
+          );
+          gradedColor = mix(gradedColor, toxinColor, clamp(uToxinGreen, 0.0, 1.0));
+          vec3 iceColor = vec3(
+            gradedColor.r * 0.52,
+            gradedColor.g * 0.78,
+            max(gradedColor.b, baseLuma * 0.92)
+          );
+          gradedColor = mix(gradedColor, iceColor, clamp(uIceBlue, 0.0, 1.0));
+          float edge = smoothstep(0.42, 1.08, length(centered));
+          gradedColor = mix(
+            gradedColor,
+            gradedColor * vec3(0.82, 0.8, 0.76) + vec3(0.08, 0.07, 0.05) * edge,
+            clamp(uSpikeEdge * edge, 0.0, 1.0)
+          );
+
           vec3 historyColor = texture2D(tHistory, clamp(uvG, 0.0, 1.0)).rgb;
           vec3 decayedHistory = historyColor * vec3(0.93, 0.95, 0.92);
           float historyDelta = max(luma(decayedHistory) - luma(gradedColor), 0.0);
@@ -174,7 +215,7 @@ export class PovPostFx {
           gradedColor += grain * uGrain;
           float scanPhase = cos(gl_FragCoord.y * 1.5707963) * 0.5 + 0.5;
           float scanBeam = mix(0.94, 1.015, smoothstep(0.12, 0.82, luma(gradedColor)));
-          gradedColor *= mix(1.0, mix(scanBeam, 1.0, scanPhase), uCrtEnabled * 0.42);
+          gradedColor *= mix(1.0, mix(scanBeam, 1.0, scanPhase), uCrtEnabled * 0.28);
           // Soft peripheral falloff: clear center, slight black only near frame edges.
           vec2 vignetteUv = vUv * 2.0 - 1.0;
           vignetteUv.x *= 0.82;
@@ -244,8 +285,10 @@ export class PovPostFx {
     this.width = w;
     this.height = h;
     this.sceneTarget.setSize(w, h);
-    this.historyTargets.forEach((target) => target.setSize(w, h));
-    this.material.uniforms.uResolution.value.set(w, h);
+    const crtWidth = Math.max(1, Math.round(w * POV_CRT_RENDER_SCALE));
+    const crtHeight = Math.max(1, Math.round(h * POV_CRT_RENDER_SCALE));
+    this.historyTargets.forEach((target) => target.setSize(crtWidth, crtHeight));
+    this.material.uniforms.uResolution.value.set(crtWidth, crtHeight);
     this.resetCrtHistory();
   }
 
@@ -261,6 +304,14 @@ export class PovPostFx {
     this.material.uniforms.uCriticalRed.value = THREE.MathUtils.clamp(criticalRed, 0, 1);
     this.material.uniforms.uGrain.value = THREE.MathUtils.clamp(grain, 0, 0.018);
     this.animateGrain = animateGrain;
+  }
+
+  /** Hazard floor response: heat shimmer, poison grade, frost grade, spike edge. */
+  setHazardFeel(heatwave: number, toxinGreen: number, iceBlue: number, spikeEdge = 0): void {
+    this.material.uniforms.uHeatwave.value = THREE.MathUtils.clamp(heatwave, 0, 1);
+    this.material.uniforms.uToxinGreen.value = THREE.MathUtils.clamp(toxinGreen, 0, 1);
+    this.material.uniforms.uIceBlue.value = THREE.MathUtils.clamp(iceBlue, 0, 1);
+    this.material.uniforms.uSpikeEdge.value = THREE.MathUtils.clamp(spikeEdge, 0, 1);
   }
 
   async compileAsync(renderer: THREE.WebGLRenderer): Promise<void> {

@@ -1,7 +1,11 @@
 import { mkdirSync, readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 
-import type { LeaderboardEntry, ValidLeaderboardSubmission } from "../../src/leaderboard/contract";
+import type {
+  LeaderboardEntry,
+  PlayerBiomeStars,
+  ValidLeaderboardSubmission,
+} from "../../src/leaderboard/contract";
 import type { LeaderboardRepository } from "../../src/leaderboard/repository";
 
 interface LeaderboardRow {
@@ -153,6 +157,22 @@ export class SqliteLeaderboardRepository implements LeaderboardRepository {
       )
       .all(limit) as LeaderboardRow[];
     return rows.map(toEntry);
+  }
+
+  async listBiomeStars(): Promise<PlayerBiomeStars> {
+    const rows = this.database
+      .prepare(
+        `SELECT player_name AS playerName, biome, COUNT(*) AS stars
+         FROM leaderboard_entries
+         GROUP BY player_name, biome`,
+      )
+      .all() as Array<{ playerName: string; biome: string; stars: number }>;
+    const map: PlayerBiomeStars = {};
+    for (const row of rows) {
+      const player = map[row.playerName] ?? (map[row.playerName] = {});
+      player[row.biome] = Number(row.stars) || 0;
+    }
+    return map;
   }
 
   async create(submission: ValidLeaderboardSubmission): Promise<LeaderboardEntry> {

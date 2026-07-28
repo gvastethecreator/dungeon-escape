@@ -28,6 +28,10 @@ export interface PersistedRunSession {
   portalOpen: boolean;
   runMode: RunMode;
   exitReached: boolean;
+  /** Active gameplay seconds at snapshot time; resume keeps this clock. */
+  runSeconds?: number;
+  /** Optional per-stone find offsets (run seconds). */
+  perStoneSeconds?: Partial<Record<StoneId, number>>;
 }
 
 export interface RunSessionEffects {
@@ -64,14 +68,17 @@ export function resetRunSession(session: RunSessionState, resolve = 100): void {
 export function snapshotRunSession(
   session: RunSessionState,
   quest: QuestState,
+  nowMs = performance.now(),
 ): PersistedRunSession {
-  const questSnapshot = quest.snapshot();
+  const questSnapshot = quest.snapshot(nowMs);
   return {
     resolve: session.resolve,
     foundStoneIds: questSnapshot.foundIds,
     portalOpen: questSnapshot.portalOpen,
     runMode: session.runMode,
     exitReached: session.exitReached,
+    runSeconds: questSnapshot.runSeconds,
+    perStoneSeconds: questSnapshot.perStoneSeconds,
   };
 }
 
@@ -89,6 +96,8 @@ export function restoreRunSession(
       foundIds: [...persisted.foundStoneIds],
       escaped: persisted.runMode === "won",
       running: persisted.runMode === "playing",
+      runSeconds: Math.max(0, persisted.runSeconds ?? 0),
+      perStoneSeconds: persisted.perStoneSeconds,
     },
     nowMs,
   );

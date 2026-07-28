@@ -39,6 +39,15 @@ export interface WallSeat {
   intoDy: number;
 }
 
+export interface CornerSeat extends WallSeat {
+  /** First wall normal, pointing from the wall into the room. */
+  wallADx: number;
+  wallADy: number;
+  /** Second wall normal, pointing from the wall into the room. */
+  wallBDx: number;
+  wallBDy: number;
+}
+
 export function isProtectedTraversalCell(dungeon: DungeonData, cell: GridCell): boolean {
   if (
     (cell.x === dungeon.spawn.x && cell.y === dungeon.spawn.y) ||
@@ -105,6 +114,45 @@ export function collectRoomWallSeats(dungeon: DungeonData, room: DungeonRoom): W
   return seats;
 }
 
+/**
+ * Floor cells tucked into two adjacent walls. The bisector points into the
+ * open part of the room and gives corner sprites a safe forward direction.
+ */
+export function collectRoomCornerSeats(dungeon: DungeonData, room: DungeonRoom): CornerSeat[] {
+  const seats: CornerSeat[] = [];
+  const seen = new Set<string>();
+  for (let y = room.y; y < room.y + room.height; y += 1) {
+    for (let x = room.x; x < room.x + room.width; x += 1) {
+      if (dungeon.grid[y]?.[x] !== FLOOR) continue;
+      const cell = { x, y };
+      if (isProtectedTraversalCell(dungeon, cell)) continue;
+      const inward = CARDINALS.filter(
+        ([wallDx, wallDy]) => dungeon.grid[y + wallDy]?.[x + wallDx] === WALL,
+      ).map(([wallDx, wallDy]) => [-wallDx, -wallDy] as const);
+      for (let first = 0; first < inward.length; first += 1) {
+        for (let second = first + 1; second < inward.length; second += 1) {
+          const [wallADx, wallADy] = inward[first]!;
+          const [wallBDx, wallBDy] = inward[second]!;
+          if (wallADx * wallBDx + wallADy * wallBDy !== 0) continue;
+          const key = `${x},${y}:${wallADx},${wallADy}:${wallBDx},${wallBDy}`;
+          if (seen.has(key)) continue;
+          seen.add(key);
+          seats.push({
+            cell,
+            intoDx: wallADx + wallBDx,
+            intoDy: wallADy + wallBDy,
+            wallADx,
+            wallADy,
+            wallBDx,
+            wallBDy,
+          });
+        }
+      }
+    }
+  }
+  return seats;
+}
+
 /** Open floor seats away from walls for tables/chairs (keeps circulation clear). */
 export function collectRoomInteriorSeats(
   dungeon: DungeonData,
@@ -159,6 +207,19 @@ export function wallHugWorldOffset(
   return {
     x: -intoDx * towardWall,
     z: -intoDy * towardWall,
+  };
+}
+
+/** Shift a corner prop toward two adjacent walls while leaving a safe inset. */
+export function cornerHugWorldOffset(
+  corner: Pick<CornerSeat, "wallADx" | "wallADy" | "wallBDx" | "wallBDy">,
+  tileSize: number,
+  depth = 0.22,
+): { x: number; z: number } {
+  const towardWall = tileSize * 0.5 - depth;
+  return {
+    x: -(corner.wallADx + corner.wallBDx) * towardWall,
+    z: -(corner.wallADy + corner.wallBDy) * towardWall,
   };
 }
 

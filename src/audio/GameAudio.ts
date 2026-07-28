@@ -4,6 +4,13 @@ import type { FootstepSurface } from "./FootstepSurface";
 
 export type AudioCue =
   | "ui"
+  | "uiClick"
+  | "uiTick"
+  | "uiHover"
+  | "uiSelect"
+  | "uiBack"
+  | "uiToggle"
+  | "uiDeny"
   | "mode"
   | "forge"
   | "spawn"
@@ -32,14 +39,41 @@ export interface AudioAnchor extends AudioPosition {
   id: string;
 }
 
+/** One voice profile per enemy kind: presence + attack map to distinct assets. */
 export type CreatureVoice =
-  | "beast"
-  | "demon"
-  | "insect"
-  | "ooze"
-  | "spectral"
-  | "undead"
-  | "vermin";
+  | "carrion"
+  | "goblin"
+  | "ghost"
+  | "ratling"
+  | "husk"
+  | "imp"
+  | "zombie-orc"
+  | "spider"
+  | "bone-slime"
+  | "white-eyed-shadow"
+  | "carrion-stalker";
+
+/** Biome family used to inject themed enemy skins into the take pool. */
+export type CreatureTone = "base" | "cold" | "wet" | "fire" | "weird";
+
+export const CREATURE_VOICES = [
+  "carrion",
+  "goblin",
+  "ghost",
+  "ratling",
+  "husk",
+  "imp",
+  "zombie-orc",
+  "spider",
+  "bone-slime",
+  "white-eyed-shadow",
+  "carrion-stalker",
+] as const satisfies readonly CreatureVoice[];
+
+export const CREATURE_TONES = ["cold", "wet", "fire", "weird"] as const satisfies readonly Exclude<
+  CreatureTone,
+  "base"
+>[];
 
 export interface EnemyAudioAnchor extends AudioAnchor {
   voice: CreatureVoice;
@@ -50,6 +84,8 @@ export interface DungeonAudioFrame {
   magicStones: AudioAnchor[];
   enemies: EnemyAudioAnchor[];
   portal: AudioAnchor | null;
+  /** Active dungeon biome; drives creature tone skins. */
+  moodId: string | null;
 }
 
 export interface CollectedPickupAudio {
@@ -68,12 +104,71 @@ interface AssetDefinition {
   };
 }
 
+const THREAT_PRESENCE_SPATIAL = {
+  refDistance: 1.8,
+  maxDistance: 19,
+  rolloff: 1.45,
+} as const;
+const THREAT_ATTACK_SPATIAL = {
+  refDistance: 1.25,
+  maxDistance: 16,
+  rolloff: 1.25,
+} as const;
+
+const CREATURE_GAIN: Readonly<Record<CreatureVoice, { voice: number; attack: number }>> = {
+  carrion: { voice: 0.74, attack: 0.72 },
+  goblin: { voice: 0.78, attack: 0.76 },
+  ghost: { voice: 0.7, attack: 0.68 },
+  ratling: { voice: 1, attack: 0.95 },
+  husk: { voice: 0.68, attack: 0.7 },
+  imp: { voice: 0.82, attack: 0.8 },
+  "zombie-orc": { voice: 0.72, attack: 0.74 },
+  spider: { voice: 0.92, attack: 0.9 },
+  "bone-slime": { voice: 0.73, attack: 0.75 },
+  "white-eyed-shadow": { voice: 0.7, attack: 0.72 },
+  "carrion-stalker": { voice: 0.76, attack: 0.74 },
+};
+
+function threatAsset(file: string, gain: number, attack: boolean): AssetDefinition {
+  return {
+    file,
+    group: "threat",
+    gain,
+    spatial: attack ? { ...THREAT_ATTACK_SPATIAL } : { ...THREAT_PRESENCE_SPATIAL },
+  };
+}
+
+/** Multi-take (v0–v2) plus biome skins (cold/wet/fire/weird) for every kind. */
+function buildEnemyThreatAssets(): Record<string, AssetDefinition> {
+  const out: Record<string, AssetDefinition> = {};
+  for (const kind of CREATURE_VOICES) {
+    const gains = CREATURE_GAIN[kind];
+    for (let take = 0; take < 3; take++) {
+      out[`enemy-${kind}-v${take}`] = threatAsset(`enemy-${kind}-v${take}.opus`, gains.voice, false);
+      out[`enemy-${kind}-attack-v${take}`] = threatAsset(
+        `enemy-${kind}-attack-v${take}.opus`,
+        gains.attack,
+        true,
+      );
+    }
+    for (const tone of CREATURE_TONES) {
+      out[`enemy-${kind}-${tone}`] = threatAsset(`enemy-${kind}-${tone}.opus`, gains.voice, false);
+      out[`enemy-${kind}-attack-${tone}`] = threatAsset(
+        `enemy-${kind}-attack-${tone}.opus`,
+        gains.attack,
+        true,
+      );
+    }
+  }
+  return out;
+}
+
 /**
  * Per-asset gains are tuned from measured integrated LUFS so effective bus level
  * (file LUFS + asset gain + group gain + master 0.76) sits near the design target.
  * Footsteps stay intentional soft and are not auto-matched to other SFX.
  */
-const AUDIO_ASSETS = {
+const AUDIO_ASSETS: Record<string, AssetDefinition> = {
   "ambience-cave": { file: "ambience-cave.opus", group: "ambience", gain: 0.7 },
   "torch-crackle": {
     file: "torch-crackle.opus",
@@ -85,7 +180,14 @@ const AUDIO_ASSETS = {
   "step-stone-b": { file: "step-stone-b.opus", group: "sfx", gain: 0.1 },
   "step-water-a": { file: "step-water-a.opus", group: "sfx", gain: 0.16 },
   "step-water-b": { file: "step-water-b.opus", group: "sfx", gain: 0.14 },
-  "ui-metal": { file: "ui-metal.opus", group: "ui", gain: 0.72 },
+  "ui-metal": { file: "ui-metal.opus", group: "ui", gain: 0.38 },
+  "ui-click": { file: "ui-click.opus", group: "ui", gain: 0.36 },
+  "ui-tick": { file: "ui-tick.opus", group: "ui", gain: 0.28 },
+  "ui-hover": { file: "ui-hover.opus", group: "ui", gain: 0.18 },
+  "ui-select": { file: "ui-select.opus", group: "ui", gain: 0.4 },
+  "ui-back": { file: "ui-back.opus", group: "ui", gain: 0.34 },
+  "ui-toggle": { file: "ui-toggle.opus", group: "ui", gain: 0.34 },
+  "ui-deny": { file: "ui-deny.opus", group: "ui", gain: 0.36 },
   "pickup-stone": {
     file: "pickup-stone.opus",
     group: "sfx",
@@ -110,12 +212,6 @@ const AUDIO_ASSETS = {
     gain: 0.77,
     spatial: { refDistance: 1.6, maxDistance: 14, rolloff: 1.2 },
   },
-  "enemy-alert": {
-    file: "enemy-alert.opus",
-    group: "threat",
-    gain: 0.74,
-    spatial: { refDistance: 2.3, maxDistance: 24, rolloff: 1.35 },
-  },
   "enemy-growl": {
     file: "enemy-growl.opus",
     group: "threat",
@@ -128,30 +224,7 @@ const AUDIO_ASSETS = {
     gain: 0.67,
     spatial: { refDistance: 1.25, maxDistance: 16, rolloff: 1.25 },
   },
-  "enemy-demon": {
-    file: "enemy-demon.opus",
-    group: "threat",
-    gain: 0.82,
-    spatial: { refDistance: 1.8, maxDistance: 19, rolloff: 1.45 },
-  },
-  "enemy-insect": {
-    file: "enemy-insect.opus",
-    group: "threat",
-    gain: 0.98,
-    spatial: { refDistance: 1.7, maxDistance: 17, rolloff: 1.5 },
-  },
-  "enemy-ooze": {
-    file: "enemy-ooze.opus",
-    group: "threat",
-    gain: 0.73,
-    spatial: { refDistance: 1.7, maxDistance: 18, rolloff: 1.45 },
-  },
-  "enemy-vermin": {
-    file: "enemy-vermin.opus",
-    group: "threat",
-    gain: 1,
-    spatial: { refDistance: 1.4, maxDistance: 13, rolloff: 1.55 },
-  },
+  ...buildEnemyThreatAssets(),
   "door-open": {
     file: "door-open.opus",
     group: "sfx",
@@ -189,9 +262,9 @@ const AUDIO_ASSETS = {
   "music-menu": { file: "music-menu.opus", group: "music", gain: 0.55 },
   "music-win": { file: "music-win.opus", group: "music", gain: 0.52 },
   "music-lose": { file: "music-lose.opus", group: "music", gain: 0.5 },
-} as const satisfies Record<string, AssetDefinition>;
+};
 
-type AudioAssetId = keyof typeof AUDIO_ASSETS;
+type AudioAssetId = string;
 
 const MUSIC_ASSETS: Readonly<Record<MusicTrack, AudioAssetId>> = {
   menu: "music-menu",
@@ -199,15 +272,50 @@ const MUSIC_ASSETS: Readonly<Record<MusicTrack, AudioAssetId>> = {
   lose: "music-lose",
 };
 
-const CREATURE_VOICE_ASSETS: Readonly<Record<CreatureVoice, AudioAssetId>> = {
-  beast: "enemy-alert",
-  demon: "enemy-demon",
-  insect: "enemy-insect",
-  ooze: "enemy-ooze",
-  spectral: "enemy-attack",
-  undead: "enemy-growl",
-  vermin: "enemy-vermin",
-};
+function buildCreatureTakeTable(
+  role: "voice" | "attack",
+): Readonly<Record<CreatureVoice, readonly AudioAssetId[]>> {
+  const table = {} as Record<CreatureVoice, readonly AudioAssetId[]>;
+  for (const kind of CREATURE_VOICES) {
+    const prefix = role === "voice" ? `enemy-${kind}` : `enemy-${kind}-attack`;
+    table[kind] = [`${prefix}-v0`, `${prefix}-v1`, `${prefix}-v2`];
+  }
+  return table;
+}
+
+const CREATURE_VOICE_TAKES = buildCreatureTakeTable("voice");
+const CREATURE_ATTACK_TAKES = buildCreatureTakeTable("attack");
+
+/** Biome family → themed presence clip per kind (extra weight in the take pool). */
+function buildCreatureToneTable(
+  role: "voice" | "attack",
+): Readonly<Record<Exclude<CreatureTone, "base">, Readonly<Record<CreatureVoice, AudioAssetId>>>> {
+  const table = {} as Record<
+    Exclude<CreatureTone, "base">,
+    Record<CreatureVoice, AudioAssetId>
+  >;
+  for (const tone of CREATURE_TONES) {
+    const row = {} as Record<CreatureVoice, AudioAssetId>;
+    for (const kind of CREATURE_VOICES) {
+      row[kind] =
+        role === "voice" ? `enemy-${kind}-${tone}` : `enemy-${kind}-attack-${tone}`;
+    }
+    table[tone] = row;
+  }
+  return table;
+}
+
+const CREATURE_VOICE_TONES = buildCreatureToneTable("voice");
+const CREATURE_ATTACK_TONES = buildCreatureToneTable("attack");
+
+export function creatureToneForMood(moodId: string | null | undefined): CreatureTone {
+  const id = (moodId ?? "").trim().toLowerCase();
+  if (id === "frost") return "cold";
+  if (id === "sunken" || id === "fungal") return "wet";
+  if (id === "molten" || id === "obsidian") return "fire";
+  if (id === "backrooms") return "weird";
+  return "base";
+}
 
 const PICKUP_ASSETS: Readonly<Record<CollectedPickupAudio["kind"], AudioAssetId>> = {
   stone: "pickup-stone",
@@ -217,8 +325,15 @@ const PICKUP_ASSETS: Readonly<Record<CollectedPickupAudio["kind"], AudioAssetId>
 };
 
 const CUE_ASSETS: Readonly<Record<Exclude<AudioCue, "step" | "pickup">, AudioAssetId>> = {
-  ui: "ui-metal",
-  mode: "ui-metal",
+  ui: "ui-click",
+  uiClick: "ui-click",
+  uiTick: "ui-tick",
+  uiHover: "ui-hover",
+  uiSelect: "ui-select",
+  uiBack: "ui-back",
+  uiToggle: "ui-toggle",
+  uiDeny: "ui-deny",
+  mode: "ui-toggle",
   forge: "ui-metal",
   spawn: "portal-open",
   damage: "damage",
@@ -234,7 +349,8 @@ const GROUP_LEVELS: Readonly<Record<AudioGroup, number>> = {
   ambience: 0.6,
   sfx: 0.84,
   threat: 0.72,
-  ui: 0.58,
+  // Soft interface bus — clicks should sit under dungeon SFX.
+  ui: 0.28,
   // Music stays under SFX and threat so beds never crowd the dungeon.
   music: 0.48,
 };
@@ -271,8 +387,16 @@ export class GameAudio {
   private torchTimer = 1.4;
   private stepVariant = 0;
   private lastThreatBand = 0;
-  private frame: DungeonAudioFrame = { fires: [], magicStones: [], enemies: [], portal: null };
+  private frame: DungeonAudioFrame = {
+    fires: [],
+    magicStones: [],
+    enemies: [],
+    portal: null,
+    moodId: null,
+  };
   private listener: AudioPosition = { x: 0, y: 0, z: 0 };
+  /** Last asset id played per creature pool key, to avoid immediate repeats. */
+  private readonly lastCreatureTake = new Map<string, AudioAssetId>();
 
   get isUnlocked(): boolean {
     return this.context?.state === "running";
@@ -412,12 +536,9 @@ export class GameAudio {
   /** Enemy attack stays at the attacker; damage feedback stays on the player. */
   playEnemyHit(position: AudioPosition | null = null, voice: CreatureVoice | null = null): void {
     const nearest = this.nearestEnemy();
+    const resolved = voice ?? nearest?.voice ?? null;
     this.playAsset(
-      voice
-        ? CREATURE_VOICE_ASSETS[voice]
-        : nearest
-          ? CREATURE_VOICE_ASSETS[nearest.voice]
-          : "enemy-attack",
+      resolved ? this.pickCreatureAsset(resolved, "attack") : "enemy-attack",
       position ?? nearest ?? undefined,
     );
     this.playAsset("damage");
@@ -478,7 +599,11 @@ export class GameAudio {
     if (band > this.lastThreatBand && band >= 2 && this.threatCooldown <= 0) {
       const threat = this.nearestEnemy();
       this.playAsset(
-        threat ? CREATURE_VOICE_ASSETS[threat.voice] : band === 3 ? "enemy-attack" : "enemy-growl",
+        threat
+          ? this.pickCreatureAsset(threat.voice, "voice")
+          : band === 3
+            ? "enemy-attack"
+            : "enemy-growl",
         threat ?? undefined,
       );
       this.threatCooldown = band === 3 ? 1.25 : 2.4;
@@ -498,7 +623,7 @@ export class GameAudio {
     }
     if (this.threatIntensity > 0.34 && this.threatCooldown <= 0 && Math.random() < delta * 0.25) {
       const threat = this.nearestEnemy(22);
-      if (threat) this.playAsset(CREATURE_VOICE_ASSETS[threat.voice], threat);
+      if (threat) this.playAsset(this.pickCreatureAsset(threat.voice, "voice"), threat);
       this.threatCooldown = 3.6 + Math.random() * 2.8;
     }
   }
@@ -720,6 +845,29 @@ export class GameAudio {
 
   private nearestEnemy(maxDistance = Number.POSITIVE_INFINITY): EnemyAudioAnchor | null {
     return this.nearestAnchor(this.frame.enemies, maxDistance) as EnemyAudioAnchor | null;
+  }
+
+  /**
+   * Random take from v0–v2, plus the active biome skin (weighted twice) when the
+   * dungeon mood maps to cold/wet/fire/weird. Avoids repeating the last pick.
+   */
+  private pickCreatureAsset(voice: CreatureVoice, role: "voice" | "attack"): AudioAssetId {
+    const base = role === "voice" ? CREATURE_VOICE_TAKES[voice] : CREATURE_ATTACK_TAKES[voice];
+    const tone = creatureToneForMood(this.frame.moodId);
+    const pool: AudioAssetId[] = [...base];
+    if (tone !== "base") {
+      const themed =
+        role === "voice" ? CREATURE_VOICE_TONES[tone][voice] : CREATURE_ATTACK_TONES[tone][voice];
+      // Double-weight the biome skin so themed dungeons read as that biome.
+      pool.push(themed, themed);
+    }
+    const key = `${voice}:${role}`;
+    const last = this.lastCreatureTake.get(key);
+    let choices = last && pool.length > 1 ? pool.filter((id) => id !== last) : pool;
+    if (choices.length === 0) choices = pool;
+    const pick = choices[Math.floor(Math.random() * choices.length)] ?? pool[0]!;
+    this.lastCreatureTake.set(key, pick);
+    return pick;
   }
 
   private applyMix(): void {

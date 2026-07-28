@@ -22,6 +22,10 @@ export interface PersistedQuestState {
   foundIds: StoneId[];
   escaped: boolean;
   running: boolean;
+  /** Active gameplay time when the snapshot was taken. */
+  runSeconds?: number;
+  /** Per-stone find times in run seconds, when known. */
+  perStoneSeconds?: Partial<Record<StoneId, number>>;
 }
 
 export class QuestState {
@@ -43,11 +47,19 @@ export class QuestState {
   restore(state: PersistedQuestState, nowMs = performance.now()): void {
     this.found.clear();
     this.foundAt.clear();
-    this.startedAt = nowMs;
+    const runSeconds = Math.max(0, state.runSeconds ?? 0);
+    // Back the start time so the supplied active clock resumes at this offset.
+    this.startedAt = nowMs - runSeconds * 1000;
     for (const id of STONE_ORDER) {
       if (!state.foundIds.includes(id)) continue;
       this.found.add(id);
-      this.foundAt.set(id, 0);
+      const foundAt = state.perStoneSeconds?.[id];
+      this.foundAt.set(
+        id,
+        typeof foundAt === "number" && Number.isFinite(foundAt)
+          ? Math.max(0, Math.min(runSeconds, foundAt))
+          : 0,
+      );
     }
     this.escapedAt = state.escaped ? nowMs : null;
     this.running = state.running && !state.escaped;

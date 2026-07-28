@@ -6,13 +6,13 @@ export function formatDomainPanelError(message: string): string {
       message,
     )
   ) {
-    return "Backend unavailable. Local dungeon remains active.";
+    return "Server unavailable. Local dungeon stays active.";
   }
   return message.length > 120 ? `${message.slice(0, 119)}…` : message;
 }
 
 /**
- * Compact domain + authority status panel for Dungeon Escape HUD.
+ * Compact domain + server status panel for the dungeon shell.
  * Avoids projectSurfaceFull — uses dungeon state only (cheap).
  */
 export function mountDomainPanel(
@@ -21,7 +21,7 @@ export function mountDomainPanel(
 ): { refresh: () => void; dispose: () => void } {
   const root = document.createElement("section");
   root.className = "domain-panel";
-  root.setAttribute("aria-label", "Dungeon domain and authority");
+  root.setAttribute("aria-label", "Dungeon domain and server status");
   root.innerHTML = `
     <header class="domain-panel__head">
       <small>DOMAIN</small>

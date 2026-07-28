@@ -63,34 +63,6 @@ $assets = @(
     Source = SourcePath "Magic\BoomLibraryMagicAlchemyDs\MAGMisc_IMPACT HOLY-Luminous Echoes_B00M_MALDS.wav"
   },
   [pscustomobject]@{
-    Name = "enemy-alert"; Channels = 1; Bitrate = "56k"; TargetLufs = -21; Start = 0; Duration = 1.85
-    Source = SourcePath "Horror\EpicStockMediaHumanoidCreatures4\OneShot\Designed\Werewolf\ESM_HC4_Cinematic_FX_werewolf_creature_alert_attention_grab_01.wav"
-  },
-  [pscustomobject]@{
-    Name = "enemy-growl"; Channels = 1; Bitrate = "48k"; TargetLufs = -20; Start = 0; Duration = 1.65
-    Source = SourcePath "Horror\EpicStockMediaHumanoidCreatures4\OneShot\Designed\Zombie\ESM_HC4_Cinematic_FX_zombie_undead_alert_noticed_energy_groan_01.wav"
-  },
-  [pscustomobject]@{
-    Name = "enemy-attack"; Channels = 1; Bitrate = "56k"; TargetLufs = -18; Start = 0; Duration = 1.70
-    Source = SourcePath "Horror\EpicStockMediaHumanoidCreatures4\OneShot\Designed\Specter\ESM_HC4_Cinematic_FX_specter_ghost_attack_quick_hit_01.wav"
-  },
-  [pscustomobject]@{
-    Name = "enemy-demon"; Channels = 1; Bitrate = "48k"; TargetLufs = -22; Start = 0; Duration = 1.80
-    Source = SourcePath "Horror\BlastwaveFxHorrorVol2\MonsterDemon_S08AN.229.wav"
-  },
-  [pscustomobject]@{
-    Name = "enemy-insect"; Channels = 1; Bitrate = "48k"; TargetLufs = -23; Start = 0; Duration = 1.65
-    Source = SourcePath "Horror\EpicStockMediaHumanoidCreatures4\OneShot\Designed\Insectoid\ESM_HC4_Cinematic_FX_insectoid_creature_alert_chatter_warning_01.wav"
-  },
-  [pscustomobject]@{
-    Name = "enemy-ooze"; Channels = 1; Bitrate = "48k"; TargetLufs = -22; Start = 0; Duration = 1.32
-    Source = SourcePath "Horror\EpicStockMediaHumanoidCreatures4\OneShot\Designed\Blob\ESM_HC4_Cinematic_FX_blob_creature_alerted_growl_notice_01.wav"
-  },
-  [pscustomobject]@{
-    Name = "enemy-vermin"; Channels = 1; Bitrate = "40k"; TargetLufs = -24; Start = 0; Duration = 1.20
-    Source = SourcePath "Animals\EvilbananaMegaAnimalPack\Rats\amb_animals_rat_squeak_03.ogg"
-  },
-  [pscustomobject]@{
     Name = "door-open"; Channels = 1; Bitrate = "48k"; TargetLufs = -23
     Source = SourcePath "Medieval\MedievalFantasySoundFxPackVol3\Dungeon\Dungeon Door Open Dry A.wav"
   },
@@ -123,6 +95,20 @@ $assets = @(
     Source = SourcePath "Magic\MagicSpells\MagicSpells\MAGSpel_Forbidden Magic, Powerful Crystal Spell Launch_Ocular Sounds_Magic Spells_The Complete Fantasy Collection.wav"
   }
 )
+
+# Per-enemy multi-take + biome skins (see enemy-audio-map.ps1).
+. (Join-Path $PSScriptRoot "enemy-audio-map.ps1")
+foreach ($enemy in $EnemyAudioAssets) {
+  $assets += [pscustomobject]@{
+    Name = $enemy.Name
+    Channels = $enemy.Channels
+    Bitrate = $enemy.Bitrate
+    TargetLufs = $enemy.TargetLufs
+    Start = $enemy.Start
+    Duration = $enemy.Duration
+    Source = SourcePath $enemy.Source
+  }
+}
 
 New-Item -ItemType Directory -Force -Path $OutputDirectory | Out-Null
 foreach ($asset in $assets) {

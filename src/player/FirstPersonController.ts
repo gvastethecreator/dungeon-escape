@@ -12,6 +12,13 @@ import {
 import type { DungeonData, GridCell } from "../dungeon/types";
 import { LookInputFilter } from "./LookInputFilter";
 import {
+  createStaminaState,
+  resetStamina,
+  STAMINA_MAX,
+  stepStamina,
+  type StaminaState,
+} from "./Stamina";
+import {
   createVerticalMotionState,
   resetVerticalMotion,
   stepVerticalMotion,
@@ -46,6 +53,10 @@ const KEY_ACTIONS: Readonly<Record<string, PlayerAction>> = {
   KeyE: "interact",
 };
 const MAX_LOOK_PITCH = 1.18;
+/** Peak camera bank while fully strafing (radians). Soft enough to stay readable. */
+export const STRAFE_LEAN_MAX = 0.052;
+/** How quickly lean eases toward the current strafe (higher = snappier). */
+export const STRAFE_LEAN_RESPONSE = 8.2;
 
 export interface ControllerState {
   locked: boolean;
@@ -55,14 +66,28 @@ export interface ControllerState {
   speed: number;
   moving: boolean;
   sprinting: boolean;
+  /** 0..1 sprint stamina remaining. */
+  stamina: number;
+  /** True after a full drain until partial recovery. */
+  staminaExhausted: boolean;
   stridePhase: number;
   cameraMotion: number;
+  lookYaw: number;
   lookPitch: number;
   grounded: boolean;
   jumping: boolean;
   verticalSpeed: number;
   jumpHeight: number;
   intents: PlayerAction[];
+}
+
+export interface ControllerPose {
+  x: number;
+  y: number;
+  z: number;
+  yaw: number;
+  pitch: number;
+  distanceTravelled?: number;
 }
 
 export interface ControllerUpdate {
@@ -77,6 +102,11 @@ export interface ControllerUpdate {
   jumped: boolean;
   landed: boolean;
   hitCeiling: boolean;
+  /** True on the frame sprint stamina first hits empty. */
+  justExhausted: boolean;
+  /** 0..1 fill for the stamina meter. */
+  stamina: number;
+  staminaExhausted: boolean;
 }
 
 interface ControllerOptions {
@@ -107,6 +137,7 @@ export class FirstPersonController {
   readonly domElement: HTMLElement;
   readonly position = new THREE.Vector3();
 
+  private readonly baseFov: number;
   private readonly tileSize: number;
   private readonly eyeHeight: number;
   private readonly radius: number;
@@ -123,6 +154,7 @@ export class FirstPersonController {
   private readonly lookResponse: number;
   private readonly verticalConfig: VerticalMotionConfig;
   private readonly verticalState: VerticalMotionState;
+  private readonly staminaState: StaminaState = createStaminaState(STAMINA_MAX);
   private dungeon: DungeonData | null = null;
   private readonly blockedCells = new Set<string>();
   private solidColliders: WorldCollider[] = [];
@@ -154,6 +186,8 @@ export class FirstPersonController {
   private strideDistance = 0;
   private elapsed = 0;
   private landingDip = 0;
+  /** Smoothed camera roll while strafing (radians, Z in YXZ euler). */
+  private strafeLean = 0;
   private locked = false;
   private enabled = true;
   private distanceTravelled = 0;
@@ -177,8 +211,11 @@ export class FirstPersonController {
     speed: 0,
     moving: false,
     sprinting: false,
+    stamina: 1,
+    staminaExhausted: false,
     stridePhase: 0,
     cameraMotion: 0,
+    lookYaw: 0,
     lookPitch: 0,
     grounded: true,
     jumping: false,
@@ -199,6 +236,7 @@ export class FirstPersonController {
     options: ControllerOptions = {},
   ) {
     this.camera = camera;
+    this.baseFov = camera.fov;
     this.domElement = domElement;
     this.tileSize = options.tileSize ?? 2.4;
     this.eyeHeight = options.eyeHeight ?? 1.68;
@@ -241,6 +279,7 @@ export class FirstPersonController {
     this.surfaceTraction = 1;
     this.vaultedColliderIds.clear();
     resetVerticalMotion(this.verticalState, this.eyeHeight);
+    resetStamina(this.staminaState, STAMINA_MAX);
     this.landingDip = 0;
     this.distanceTravelled = 0;
     this.currentCell.x = dungeon.spawn.x;
@@ -255,6 +294,38 @@ export class FirstPersonController {
     this.stridePhase = 0;
     this.strideDistance = 0;
     this.elapsed = 0;
+    this.strafeLean = 0;
+    this.euler.set(this.lookPitch, this.lookYaw, 0, "YXZ");
+    this.camera.quaternion.setFromEuler(this.euler);
+    this.syncCameraPosition();
+  }
+
+  /**
+   * Place the player at a saved pose after setDungeon. Keeps dungeon collision
+   * bindings; only body, look, and distance resume.
+   */
+  restorePose(pose: ControllerPose): void {
+    if (!this.dungeon) return;
+    const pitch = THREE.MathUtils.clamp(pose.pitch, -MAX_LOOK_PITCH, MAX_LOOK_PITCH);
+    const y = Number.isFinite(pose.y) ? pose.y : this.eyeHeight;
+    this.position.set(pose.x, y, pose.z);
+    this.velocity.set(0, 0);
+    this.knockVel.set(0, 0);
+    this.vaultedColliderIds.clear();
+    resetVerticalMotion(this.verticalState, y);
+    this.landingDip = 0;
+    this.distanceTravelled = Math.max(0, pose.distanceTravelled ?? 0);
+    this.lookYaw = pose.yaw;
+    this.lookPitch = pitch;
+    this.targetYaw = pose.yaw;
+    this.targetPitch = pitch;
+    this.stridePhase = 0;
+    this.strideDistance = 0;
+    this.strafeLean = 0;
+    worldToGridInto(this.dungeon, this.position, this.tileSize, this.currentCell);
+    this.lastCell.x = this.currentCell.x;
+    this.lastCell.y = this.currentCell.y;
+    this.hasLastCell = true;
     this.euler.set(this.lookPitch, this.lookYaw, 0, "YXZ");
     this.camera.quaternion.setFromEuler(this.euler);
     this.syncCameraPosition();
@@ -373,6 +444,9 @@ export class FirstPersonController {
         jumped: false,
         landed: false,
         hitCeiling: false,
+        justExhausted: false,
+        stamina: this.staminaState.value / STAMINA_MAX,
+        staminaExhausted: this.staminaState.exhausted,
       };
 
     this.elapsed += delta;
@@ -406,6 +480,12 @@ export class FirstPersonController {
     const hasIntent = forwardInput !== 0 || sidewaysInput !== 0;
     const movementAllowed =
       this.locked || this.virtualActions.size > 0 || this.virtualPulse.size > 0;
+    const stamina = stepStamina(
+      this.staminaState,
+      delta,
+      movementAllowed && this.isActionActive("sprint"),
+      hasIntent && movementAllowed,
+    );
     const verticalEvents = stepVerticalMotion(
       this.verticalState,
       delta,
@@ -446,7 +526,7 @@ export class FirstPersonController {
       hasIntent && movementAllowed
         ? this.moveSpeed *
           this.surfaceSpeedScale *
-          (this.isActionActive("sprint") ? this.sprintMultiplier : 1)
+          (stamina.sprinting ? this.sprintMultiplier : 1)
         : 0;
     const response =
       (targetSpeed > 0 ? this.acceleration : this.deceleration) * this.surfaceTraction;
@@ -470,7 +550,7 @@ export class FirstPersonController {
     const totalVx = this.velocity.x + this.knockVel.x;
     const totalVz = this.velocity.y + this.knockVel.y;
     const moving = totalVx * totalVx + totalVz * totalVz > 0.0025;
-    const sprinting = targetSpeed > this.moveSpeed + 0.01;
+    const sprinting = stamina.sprinting && targetSpeed > this.moveSpeed + 0.01;
     let movedDistance = 0;
 
     if (moving) {
@@ -537,6 +617,9 @@ export class FirstPersonController {
       jumped,
       landed,
       hitCeiling,
+      justExhausted: stamina.justExhausted,
+      stamina: stamina.ratio,
+      staminaExhausted: stamina.exhausted,
     };
   }
 
@@ -550,9 +633,16 @@ export class FirstPersonController {
     s.distanceTravelled = this.distanceTravelled;
     s.speed = this.velocity.length();
     s.moving = this.velocity.lengthSq() > 0.0025;
-    s.sprinting = this.isActionActive("sprint") && this.velocity.length() > this.moveSpeed * 0.72;
+    s.sprinting =
+      this.isActionActive("sprint") &&
+      !this.staminaState.exhausted &&
+      this.staminaState.value > 0 &&
+      this.velocity.length() > this.moveSpeed * 0.72;
+    s.stamina = this.staminaState.value / STAMINA_MAX;
+    s.staminaExhausted = this.staminaState.exhausted;
     s.stridePhase = this.stridePhase;
     s.cameraMotion = this.cameraMotion;
+    s.lookYaw = this.lookYaw;
     s.lookPitch = this.lookPitch;
     s.grounded = this.verticalState.grounded;
     s.jumping = !this.verticalState.grounded;
@@ -593,7 +683,7 @@ export class FirstPersonController {
       return;
     }
     if (this.vaultedColliderIds.size === 0) return;
-    for (const index of [...this.vaultedColliderIds]) {
+    for (const index of this.vaultedColliderIds) {
       const collider = this.solidColliders[index];
       if (!collider || !overlapsWorldCollider(this.position, this.radius * 1.05, collider)) {
         this.vaultedColliderIds.delete(index);
@@ -644,7 +734,7 @@ export class FirstPersonController {
     this.onLockChange(
       this.locked,
       this.locked
-        ? "Pointer active. WASD moves. SPACE jumps. E interacts."
+        ? "Pointer active. WASD moves. SHIFT sprints. SPACE jumps. E interacts."
         : "Pointer released. The run is paused.",
     );
   };
@@ -670,8 +760,20 @@ export class FirstPersonController {
   }
 
   private syncCameraTransform(delta: number, moved: boolean, sprinting: boolean): void {
-    const reducedMotion = this.reducedMotionQuery.matches;
-    const motionScale = this.cameraMotion * (reducedMotion ? 0.16 : 1);
+    if (this.reducedMotionQuery.matches) {
+      this.landingDip = 0;
+      this.strafeLean = 0;
+      this.camera.position.copy(this.position);
+      this.euler.set(this.lookPitch, this.lookYaw, 0, "YXZ");
+      this.camera.quaternion.setFromEuler(this.euler);
+      if (this.camera.fov !== this.baseFov) {
+        this.camera.fov = this.baseFov;
+        this.camera.updateProjectionMatrix();
+      }
+      return;
+    }
+
+    const motionScale = this.cameraMotion;
     const speedRatio = THREE.MathUtils.clamp(
       this.velocity.length() / (this.moveSpeed * this.sprintMultiplier),
       0,
@@ -684,10 +786,27 @@ export class FirstPersonController {
     this.landingDip = THREE.MathUtils.damp(this.landingDip, 0, 13, delta);
     this.camera.position.copy(this.position).addScaledVector(this.right, bobX);
     this.camera.position.y += bobY + breath + this.landingDip * motionScale;
-    this.euler.set(this.lookPitch, this.lookYaw, 0, "YXZ");
+
+    // Soft bank into lateral movement. Uses walk velocity (not knockback) so hits
+    // do not yank the horizon; cameraMotion scales the amount.
+    const leanTarget = computeStrafeLeanTarget(
+      this.velocity.x,
+      this.velocity.y,
+      this.right.x,
+      this.right.z,
+      this.moveSpeed * this.sprintMultiplier,
+      STRAFE_LEAN_MAX * motionScale,
+    );
+    this.strafeLean = THREE.MathUtils.damp(
+      this.strafeLean,
+      leanTarget,
+      STRAFE_LEAN_RESPONSE,
+      delta,
+    );
+    this.euler.set(this.lookPitch, this.lookYaw, this.strafeLean, "YXZ");
     this.camera.quaternion.setFromEuler(this.euler);
 
-    const targetFov = 70 + (sprinting ? 3.2 : stride * 0.8) * motionScale;
+    const targetFov = this.baseFov + (sprinting ? 3.2 : stride * 0.8) * motionScale;
     const nextFov = THREE.MathUtils.damp(this.camera.fov, targetFov, 7.5, delta);
     if (Math.abs(nextFov - this.camera.fov) > 0.001) {
       this.camera.fov = nextFov;
@@ -708,4 +827,26 @@ export function dampAngle(
 
 export function clampLookPitch(value: number): number {
   return THREE.MathUtils.clamp(value, -MAX_LOOK_PITCH, MAX_LOOK_PITCH);
+}
+
+/**
+ * Map world-space walk velocity onto camera roll.
+ * Positive lateral speed (along camera right) leans into the right (negative Z).
+ */
+export function computeStrafeLeanTarget(
+  velocityX: number,
+  velocityZ: number,
+  rightX: number,
+  rightZ: number,
+  referenceSpeed: number,
+  maxLean = STRAFE_LEAN_MAX,
+): number {
+  const speed = Math.max(0.001, referenceSpeed);
+  const rightLen = Math.hypot(rightX, rightZ);
+  if (rightLen < 1e-6 || Math.abs(maxLean) < 1e-8) return 0;
+  const nx = rightX / rightLen;
+  const nz = rightZ / rightLen;
+  const lateral = velocityX * nx + velocityZ * nz;
+  const ratio = THREE.MathUtils.clamp(lateral / speed, -1, 1);
+  return -ratio * maxLean;
 }

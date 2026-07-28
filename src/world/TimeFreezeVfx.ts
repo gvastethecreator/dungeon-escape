@@ -10,98 +10,76 @@ export interface TimeFreezeVfxTarget {
   scaleY: number;
 }
 
-const ZERO_SCALE = new THREE.Vector3(0, 0, 0);
+const PARTICLES_PER_ENEMY = 10;
 
 /**
- * A small instanced aura that makes a frozen enemy readable without adding a
- * scene graph node or light for every billboard. The rings keep animating while
- * the enemy simulation is paused, so the player can see that the power is live.
+ * Body frost for frozen enemies: soft rising motes leave the sprite itself.
+ * No orbit rings or crystal shards — freeze is read from desaturation plus
+ * these particles so the billboard stays clear.
  */
 export class TimeFreezeVfx {
   readonly root = new THREE.Group();
-  private readonly orbit: THREE.InstancedMesh<THREE.TorusGeometry, THREE.MeshBasicMaterial>;
-  private readonly halo: THREE.InstancedMesh<THREE.TorusGeometry, THREE.MeshBasicMaterial>;
-  private readonly shards: THREE.InstancedMesh<THREE.OctahedronGeometry, THREE.MeshBasicMaterial>;
+  private readonly motes: THREE.Points<THREE.BufferGeometry, THREE.PointsMaterial>;
   private readonly capacity: number;
-  private readonly matrix = new THREE.Matrix4();
-  private readonly position = new THREE.Vector3();
-  private readonly scale = new THREE.Vector3();
-  private readonly quaternion = new THREE.Quaternion();
-  private readonly orbitQuaternion = new THREE.Quaternion();
-  private readonly haloQuaternion = new THREE.Quaternion();
-  private readonly shardQuaternion = new THREE.Quaternion();
-  private readonly spinQuaternion = new THREE.Quaternion();
-  private readonly yAxis = new THREE.Vector3(0, 1, 0);
-  private readonly shardAxis = new THREE.Vector3(1, 1, 0).normalize();
+  private readonly particleCount: number;
+  private readonly positions: Float32Array;
+  private readonly seeds: Float32Array;
+  private buffersActive = false;
 
   constructor(capacity: number) {
     this.capacity = Math.max(1, Math.trunc(capacity));
-    this.root.name = "Time freeze enemy aura field";
+    this.particleCount = this.capacity * PARTICLES_PER_ENEMY;
+    this.root.name = "Time freeze enemy frost field";
 
-    const orbitMaterial = new THREE.MeshBasicMaterial({
-      color: 0x83e6ee,
-      transparent: true,
-      opacity: 0.74,
-      depthWrite: false,
-      blending: THREE.AdditiveBlending,
-      toneMapped: false,
-    });
-    const haloMaterial = new THREE.MeshBasicMaterial({
-      color: 0x376eaa,
-      transparent: true,
-      opacity: 0.42,
-      depthWrite: false,
-      blending: THREE.AdditiveBlending,
-      toneMapped: false,
-    });
-    const shardMaterial = new THREE.MeshBasicMaterial({
-      color: 0xb9fbff,
-      transparent: true,
-      opacity: 0.8,
-      depthWrite: false,
-      blending: THREE.AdditiveBlending,
-      toneMapped: false,
-    });
+    this.positions = new Float32Array(this.particleCount * 3);
+    this.seeds = new Float32Array(this.particleCount);
+    for (let index = 0; index < this.particleCount; index += 1) {
+      this.seeds[index] = (index * 0.6180339887) % 1;
+      this.positions[index * 3] = 0;
+      this.positions[index * 3 + 1] = -1000;
+      this.positions[index * 3 + 2] = 0;
+    }
 
-    this.orbit = new THREE.InstancedMesh(
-      new THREE.TorusGeometry(0.46, 0.022, 5, 18),
-      orbitMaterial,
-      this.capacity,
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute("position", new THREE.BufferAttribute(this.positions, 3));
+    geometry.setDrawRange(0, this.particleCount);
+
+    this.motes = new THREE.Points(
+      geometry,
+      new THREE.PointsMaterial({
+        color: 0xb7f4ff,
+        size: 0.055,
+        transparent: true,
+        opacity: 0,
+        depthWrite: false,
+        blending: THREE.AdditiveBlending,
+        sizeAttenuation: true,
+        toneMapped: false,
+      }),
     );
-    this.orbit.name = "Time freeze orbit rings";
-    this.orbit.frustumCulled = false;
-
-    this.halo = new THREE.InstancedMesh(
-      new THREE.TorusGeometry(0.34, 0.028, 5, 16),
-      haloMaterial,
-      this.capacity,
-    );
-    this.halo.name = "Time freeze vertical halos";
-    this.halo.frustumCulled = false;
-
-    this.shards = new THREE.InstancedMesh(
-      new THREE.OctahedronGeometry(0.095, 0),
-      shardMaterial,
-      this.capacity,
-    );
-    this.shards.name = "Time freeze suspended shards";
-    this.shards.frustumCulled = false;
-    this.root.add(this.orbit, this.halo, this.shards);
-
-    this.orbitQuaternion.setFromAxisAngle(new THREE.Vector3(1, 0, 0), -Math.PI / 2);
-    this.haloQuaternion.setFromAxisAngle(new THREE.Vector3(1, 0, 0), Math.PI / 2);
+    this.motes.name = "Time freeze body motes";
+    this.motes.frustumCulled = false;
+    this.motes.renderOrder = 3;
+    this.root.add(this.motes);
     this.update(0, 0, []);
   }
 
   update(remaining: number, elapsed: number, targets: readonly TimeFreezeVfxTarget[]): void {
     const active = remaining > 0.0001;
     const life = THREE.MathUtils.clamp(remaining / TIME_FREEZE_DURATION_SECONDS, 0, 1);
-    const pulse = 0.93 + Math.sin(elapsed * 7.2) * 0.07;
-    const orbitSpin = elapsed * 1.55;
-    const haloSpin = -elapsed * 1.1;
+    const pulse = 0.96 + Math.sin(elapsed * 4.6) * 0.04;
 
-    for (let index = 0; index < this.capacity; index += 1) {
-      const target = targets[index];
+    // The field stays in the graph for shader warmup. Once its buffers are
+    // cleared, idle frames can leave the large position array untouched.
+    if (!active && !this.buffersActive) {
+      this.motes.material.opacity = 0;
+      this.motes.material.size = 0.01;
+      this.motes.visible = true;
+      return;
+    }
+
+    for (let enemyIndex = 0; enemyIndex < this.capacity; enemyIndex += 1) {
+      const target = targets[enemyIndex];
       const visible =
         active &&
         target !== undefined &&
@@ -109,71 +87,65 @@ export class TimeFreezeVfx {
         target.phaseVisibility > 0.001 &&
         target.scaleX > 0.001 &&
         target.scaleY > 0.001;
-      if (!visible) {
-        this.orbit.setMatrixAt(
-          index,
-          this.matrix.compose(this.position, this.quaternion, ZERO_SCALE),
-        );
-        this.halo.setMatrixAt(
-          index,
-          this.matrix.compose(this.position, this.quaternion, ZERO_SCALE),
-        );
-        this.shards.setMatrixAt(
-          index,
-          this.matrix.compose(this.position, this.quaternion, ZERO_SCALE),
-        );
+      const base = enemyIndex * PARTICLES_PER_ENEMY;
+
+      if (!visible || !target) {
+        for (let particle = 0; particle < PARTICLES_PER_ENEMY; particle += 1) {
+          const index = (base + particle) * 3;
+          this.positions[index] = 0;
+          this.positions[index + 1] = -1000;
+          this.positions[index + 2] = 0;
+        }
         continue;
       }
 
       const visibility = THREE.MathUtils.clamp(target.phaseVisibility * target.spawnReveal, 0, 1);
-      const strength = THREE.MathUtils.clamp(0.58 + life * 0.42, 0, 1) * visibility;
-      this.position.set(
-        target.position.x,
-        target.position.y + target.scaleY * 0.46,
-        target.position.z,
-      );
+      const bodyWidth = Math.max(0.22, target.scaleX * 0.34);
+      const bodyHeight = Math.max(0.35, target.scaleY * 0.92);
+      const bodyBaseY = target.position.y - target.scaleY * 0.42;
 
-      this.quaternion.copy(this.orbitQuaternion);
-      this.spinQuaternion.setFromAxisAngle(this.yAxis, orbitSpin);
-      this.quaternion.multiply(this.spinQuaternion);
-      this.scale.setScalar((0.76 + strength * 0.22) * pulse);
-      this.matrix.compose(this.position, this.quaternion, this.scale);
-      this.orbit.setMatrixAt(index, this.matrix);
-
-      this.quaternion.copy(this.haloQuaternion);
-      this.spinQuaternion.setFromAxisAngle(this.yAxis, haloSpin);
-      this.quaternion.multiply(this.spinQuaternion);
-      this.scale.setScalar((0.8 + strength * 0.16) * (1.02 - life * 0.08));
-      this.matrix.compose(this.position, this.quaternion, this.scale);
-      this.halo.setMatrixAt(index, this.matrix);
-
-      this.position.y += Math.sin(elapsed * 3.8 + index * 1.7) * 0.13;
-      this.quaternion.copy(this.shardQuaternion);
-      this.spinQuaternion.setFromAxisAngle(this.shardAxis, elapsed * 2.4 + index);
-      this.quaternion.multiply(this.spinQuaternion);
-      this.scale.setScalar((0.72 + strength * 0.24) * pulse);
-      this.matrix.compose(this.position, this.quaternion, this.scale);
-      this.shards.setMatrixAt(index, this.matrix);
+      for (let particle = 0; particle < PARTICLES_PER_ENEMY; particle += 1) {
+        const seed = this.seeds[base + particle] ?? 0;
+        const cycle = 1.55 + seed * 1.35;
+        const local = (elapsed * (0.55 + seed * 0.85) + seed * cycle) % cycle;
+        const t = local / cycle;
+        const rise = t * bodyHeight * (0.82 + seed * 0.28);
+        const swirl = elapsed * (1.1 + seed * 1.4) + seed * Math.PI * 2;
+        const radius = bodyWidth * (0.18 + seed * 0.72) * (0.55 + Math.sin(t * Math.PI) * 0.45);
+        const fadeLift = Math.sin(t * Math.PI);
+        const index = (base + particle) * 3;
+        this.positions[index] =
+          target.position.x + Math.cos(swirl) * radius * fadeLift * visibility;
+        this.positions[index + 1] = bodyBaseY + rise + Math.sin(elapsed * 2.4 + seed * 9) * 0.02;
+        this.positions[index + 2] =
+          target.position.z + Math.sin(swirl) * radius * fadeLift * visibility;
+      }
     }
 
-    const ringOpacity = active ? 0.28 + life * 0.52 : 0;
-    const haloOpacity = active ? 0.18 + life * 0.3 : 0;
-    const shardOpacity = active ? 0.32 + life * 0.48 : 0;
-    this.orbit.material.opacity = ringOpacity;
-    this.halo.material.opacity = haloOpacity;
-    this.shards.material.opacity = shardOpacity;
-    this.orbit.instanceMatrix.needsUpdate = true;
-    this.halo.instanceMatrix.needsUpdate = true;
-    this.shards.instanceMatrix.needsUpdate = true;
+    const positionAttr = this.motes.geometry.getAttribute("position") as THREE.BufferAttribute;
+    positionAttr.needsUpdate = true;
+    this.motes.material.opacity = active ? (0.14 + life * 0.3) * pulse : 0;
+    this.motes.material.size = active ? 0.034 + life * 0.018 : 0.01;
+    // Keep the Points object visible so the freeze program is compiled during
+    // renderer warmup instead of the first pickup activation frame.
+    this.motes.visible = true;
+    this.buffersActive = active;
+  }
+
+  /** Force the frost field into the compile/render path without a live freeze. */
+  setWarmupVisible(visible: boolean): void {
+    this.motes.visible = true;
+    if (visible) {
+      this.motes.material.opacity = 0.01;
+      this.motes.material.size = 0.01;
+    } else if (this.motes.material.opacity <= 0.02) {
+      this.motes.material.opacity = 0;
+    }
   }
 
   dispose(): void {
-    this.orbit.geometry.dispose();
-    this.orbit.material.dispose();
-    this.halo.geometry.dispose();
-    this.halo.material.dispose();
-    this.shards.geometry.dispose();
-    this.shards.material.dispose();
+    this.motes.geometry.dispose();
+    this.motes.material.dispose();
     this.root.clear();
   }
 }

@@ -101,8 +101,8 @@ export const DUST_COARSE_MIN = 360;
 export const DUST_COARSE_MAX = 900;
 export const DUST_COARSE_PER_FLOOR = 0.5;
 /** World-unit point size range (varied per mote). */
-export const DUST_COARSE_SIZE_MIN = 0.045;
-export const DUST_COARSE_SIZE_MAX = 0.19;
+export const DUST_COARSE_SIZE_MIN = 0.025;
+export const DUST_COARSE_SIZE_MAX = 0.105;
 /** Peak opacity while visible (particles also fade in/out over time). */
 export const DUST_COARSE_OPACITY = 0.46;
 
@@ -110,8 +110,8 @@ export const DUST_COARSE_OPACITY = 0.46;
 export const DUST_FINE_MIN = 280;
 export const DUST_FINE_MAX = 720;
 export const DUST_FINE_PER_FLOOR = 0.38;
-export const DUST_FINE_SIZE_MIN = 0.028;
-export const DUST_FINE_SIZE_MAX = 0.11;
+export const DUST_FINE_SIZE_MIN = 0.015;
+export const DUST_FINE_SIZE_MAX = 0.06;
 export const DUST_FINE_OPACITY = 0.34;
 
 /** Kept for tests / callers that still read a single size token (mid of range). */
@@ -544,7 +544,7 @@ function createBiomeParticleMaterial(
         vec4 worldPosition = modelMatrix * vec4(pos, 1.0);
         vec4 mvPosition = viewMatrix * worldPosition;
         float depth = max(0.35, -mvPosition.z);
-        gl_PointSize = clamp(aSize * sizePulse * uAtten * uPixelRatio / depth, 1.8, 18.0);
+        gl_PointSize = clamp(aSize * sizePulse * uAtten * uPixelRatio / depth, 1.0, 10.0);
         gl_Position = projectionMatrix * mvPosition;
         vAlpha = uOpacity * max(0.56, alphaPulse) * (0.78 + aPhase * 0.22);
         vTint = aTint;

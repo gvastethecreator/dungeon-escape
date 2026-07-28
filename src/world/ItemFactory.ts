@@ -2,6 +2,10 @@ import * as THREE from "three";
 
 import type { DungeonMaterials } from "./MaterialLibrary";
 
+export const TIME_FREEZE_PICKUP_LIGHT_INTENSITY = 0.78;
+export const LUMINOUS_WARD_PICKUP_LIGHT_INTENSITY = 1.08;
+export const LUMINOUS_WARD_PICKUP_GLOW_OPACITY = 0.12;
+
 function mesh(geometry: THREE.BufferGeometry, material: THREE.Material, name: string): THREE.Mesh {
   const result = new THREE.Mesh(geometry, material);
   result.name = name;
@@ -66,8 +70,8 @@ export function createResolveFlask(materials: DungeonMaterials): THREE.Group {
   const liquidMaterial = new THREE.MeshStandardMaterial({
     color: 0x6b0914,
     emissive: 0x4b050d,
-    emissiveIntensity: 1.3,
-    roughness: 0.28,
+    emissiveIntensity: 0.76,
+    roughness: 0.34,
   });
   const iron = materials.iron.clone();
   iron.color.multiplyScalar(0.72);
@@ -76,7 +80,7 @@ export function createResolveFlask(materials: DungeonMaterials): THREE.Group {
   const emblem = materials.brass.clone();
   emblem.color.setHex(0xc7c0a9);
   emblem.emissive.setHex(0x3d3028);
-  emblem.emissiveIntensity = 0.5;
+  emblem.emissiveIntensity = 0.28;
   emblem.roughness = 0.42;
   emblem.metalness = 0.34;
 
@@ -172,7 +176,7 @@ export function createResolveFlask(materials: DungeonMaterials): THREE.Group {
   const haloMaterial = new THREE.MeshBasicMaterial({
     color: 0x9b1628,
     transparent: true,
-    opacity: 0.24,
+    opacity: 0.12,
     depthWrite: false,
     blending: THREE.AdditiveBlending,
     toneMapped: false,
@@ -221,12 +225,12 @@ export function createTimeFreezeRelic(materials: DungeonMaterials): THREE.Group 
   const ice = materials.ice.clone();
   ice.color.setHex(0x78dce6);
   ice.emissive.setHex(0x1b9eac);
-  ice.emissiveIntensity = 1.65;
+  ice.emissiveIntensity = 0.96;
   ice.roughness = 0.34;
   const glowMaterial = new THREE.MeshBasicMaterial({
     color: 0x65e9f3,
     transparent: true,
-    opacity: 0.26,
+    opacity: 0.12,
     depthWrite: false,
     blending: THREE.AdditiveBlending,
     toneMapped: false,
@@ -276,7 +280,7 @@ export function createTimeFreezeRelic(materials: DungeonMaterials): THREE.Group 
   const handMaterial = materials.ice.clone();
   handMaterial.color.setHex(0xc3fbff);
   handMaterial.emissive.setHex(0x43cdd7);
-  handMaterial.emissiveIntensity = 1.2;
+  handMaterial.emissiveIntensity = 0.72;
   const handMinute = mesh(
     new THREE.BoxGeometry(0.024, 0.17, 0.018),
     handMaterial,
@@ -293,21 +297,21 @@ export function createTimeFreezeRelic(materials: DungeonMaterials): THREE.Group 
   handHour.rotation.z = 0.8;
 
   const orbit = mesh(
-    new THREE.TorusGeometry(0.43, 0.018, 5, 18),
+    new THREE.TorusGeometry(0.4, 0.012, 5, 18),
     glowMaterial,
     "Time freeze orbit halo",
   );
   orbit.rotation.x = Math.PI / 2;
   orbit.position.y = 0.48;
   const verticalHalo = mesh(
-    new THREE.TorusGeometry(0.36, 0.014, 5, 16),
+    new THREE.TorusGeometry(0.32, 0.009, 5, 16),
     glowMaterial,
     "Time freeze vertical halo",
   );
   verticalHalo.rotation.x = Math.PI / 2;
   verticalHalo.rotation.z = Math.PI / 2;
   verticalHalo.position.y = 0.48;
-  const pickupLight = new THREE.PointLight(0x72e7ef, 1.35, 5.2, 2.1);
+  const pickupLight = new THREE.PointLight(0x72e7ef, TIME_FREEZE_PICKUP_LIGHT_INTENSITY, 4.4, 2.1);
   pickupLight.name = "Time freeze pickup light";
   pickupLight.position.y = 0.48;
 
@@ -359,17 +363,17 @@ export function createLuminousWardStone(materials: DungeonMaterials): THREE.Grou
   const crystal = materials.crystal.clone();
   crystal.color.setHex(0xb4e98c);
   crystal.emissive.setHex(0x4d9e43);
-  crystal.emissiveIntensity = 1.45;
+  crystal.emissiveIntensity = 0.86;
   crystal.roughness = 0.48;
   const core = materials.ice.clone();
   core.color.setHex(0xd5f7a9);
   core.emissive.setHex(0x74be4f);
-  core.emissiveIntensity = 1.8;
+  core.emissiveIntensity = 1.08;
   core.roughness = 0.36;
   const glow = new THREE.MeshBasicMaterial({
     color: 0xbff58d,
     transparent: true,
-    opacity: 0.28,
+    opacity: LUMINOUS_WARD_PICKUP_GLOW_OPACITY,
     depthWrite: false,
     blending: THREE.AdditiveBlending,
     toneMapped: false,
@@ -414,7 +418,7 @@ export function createLuminousWardStone(materials: DungeonMaterials): THREE.Grou
   const cageRingVertical = cageRing.clone();
   cageRingVertical.name = "Luminous ward vertical cage ring";
   cageRingVertical.rotation.set(Math.PI / 2, Math.PI / 2, 0);
-  const halo = mesh(new THREE.TorusGeometry(0.52, 0.018, 5, 22), glow, "Luminous ward pickup halo");
+  const halo = mesh(new THREE.TorusGeometry(0.48, 0.012, 5, 22), glow, "Luminous ward pickup halo");
   halo.rotation.x = Math.PI / 2;
   halo.position.y = 0.58;
 
@@ -426,7 +430,7 @@ export function createLuminousWardStone(materials: DungeonMaterials): THREE.Grou
     root.add(rune);
   }
 
-  const pickupLight = new THREE.PointLight(0xb9e879, 2.2, 8.5, 2);
+  const pickupLight = new THREE.PointLight(0xb9e879, LUMINOUS_WARD_PICKUP_LIGHT_INTENSITY, 6.4, 2);
   pickupLight.name = "Luminous ward pickup light";
   pickupLight.position.y = 0.62;
   const pickupAnchor = new THREE.Object3D();
@@ -486,4 +490,16 @@ export function setPickupOpacity(object: THREE.Object3D, opacity: number): void 
       material.opacity = Math.min(material.userData.baseOpacity as number, opacity);
     }
   });
+}
+
+/**
+ * Collapse a pickup without removing it from the scene graph.
+ * Toggling `visible` on objects that carry PointLights changes Three.js light
+ * counts and forces a full mesh-standard recompile during play.
+ */
+export const PICKUP_DORMANT_SCALE = 0.001;
+
+export function setPickupDormant(object: THREE.Object3D, dormant: boolean): void {
+  object.visible = true;
+  if (dormant) object.scale.setScalar(PICKUP_DORMANT_SCALE);
 }

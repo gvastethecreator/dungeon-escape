@@ -8,9 +8,9 @@ describe("Dungeon domain panel copy", () => {
       formatDomainPanelError(
         "Failed to execute 'json' on 'Response': Unexpected end of JSON input",
       ),
-    ).toBe("Backend unavailable. Local dungeon remains active.");
+    ).toBe("Server unavailable. Local dungeon stays active.");
     expect(formatDomainPanelError("backend unreachable")).toBe(
-      "Backend unavailable. Local dungeon remains active.",
+      "Server unavailable. Local dungeon stays active.",
     );
   });
 

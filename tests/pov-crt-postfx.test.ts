@@ -4,6 +4,7 @@ import * as THREE from "three";
 import {
   POV_CRT_HALATION_STRENGTH,
   POV_CRT_HISTORY_WEIGHT,
+  POV_CRT_RENDER_SCALE,
   PovPostFx,
 } from "../src/systems/PovPostFx";
 
@@ -20,14 +21,19 @@ describe("POV CRT post effect", () => {
     const internals = post as unknown as PovPostFxInternals;
 
     expect(POV_CRT_HALATION_STRENGTH).toBeGreaterThan(0.1);
-    expect(POV_CRT_HALATION_STRENGTH).toBeLessThan(0.3);
-    expect(POV_CRT_HISTORY_WEIGHT).toBeGreaterThan(0.2);
-    expect(POV_CRT_HISTORY_WEIGHT).toBeLessThan(0.35);
+    expect(POV_CRT_HALATION_STRENGTH).toBeLessThan(0.2);
+    expect(POV_CRT_HISTORY_WEIGHT).toBeGreaterThan(0.1);
+    expect(POV_CRT_HISTORY_WEIGHT).toBeLessThan(0.2);
+    expect(POV_CRT_RENDER_SCALE).toBe(0.8);
     expect(internals.material.fragmentShader).toContain("vec3 crtHalation");
     expect(internals.material.fragmentShader).toContain("uniform sampler2D tHistory");
     expect(internals.material.fragmentShader).toContain("decayedHistory");
     expect(internals.material.fragmentShader).toContain("jitterGate");
     expect(internals.material.fragmentShader).toContain("scanBeam");
+    expect(internals.material.fragmentShader).toContain("heatwaveOffset");
+    expect(internals.material.fragmentShader).toContain("uHeatwave");
+    expect(internals.material.fragmentShader).toContain("uToxinGreen");
+    expect(internals.material.fragmentShader.match(/texture2D\(tDiffuse/g)).toHaveLength(8);
 
     post.dispose();
   });
@@ -41,8 +47,8 @@ describe("POV CRT post effect", () => {
     expect(internals.sceneTarget.width).toBe(700);
     expect(internals.sceneTarget.height).toBe(490);
     for (const target of internals.historyTargets) {
-      expect(target.width).toBe(700);
-      expect(target.height).toBe(490);
+      expect(target.width).toBe(560);
+      expect(target.height).toBe(392);
     }
 
     post.dispose();
@@ -60,6 +66,24 @@ describe("POV CRT post effect", () => {
     expect(internals.historyReady).toBe(false);
     expect(internals.material.uniforms.uCrtEnabled.value).toBe(0);
     expect(internals.material.uniforms.uHistoryReady.value).toBe(0);
+
+    post.dispose();
+  });
+
+  test("hazard feel uniforms drive heatwave and toxin grade", () => {
+    const post = new PovPostFx();
+    const internals = post as unknown as PovPostFxInternals;
+
+    post.setHazardFeel(0.7, 0.4, 0.2, 0.3);
+
+    expect(internals.material.uniforms.uHeatwave.value).toBeCloseTo(0.7, 5);
+    expect(internals.material.uniforms.uToxinGreen.value).toBeCloseTo(0.4, 5);
+    expect(internals.material.uniforms.uIceBlue.value).toBeCloseTo(0.2, 5);
+    expect(internals.material.uniforms.uSpikeEdge.value).toBeCloseTo(0.3, 5);
+
+    post.setHazardFeel(2, -1, 0.5, 0);
+    expect(internals.material.uniforms.uHeatwave.value).toBe(1);
+    expect(internals.material.uniforms.uToxinGreen.value).toBe(0);
 
     post.dispose();
   });

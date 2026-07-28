@@ -7,7 +7,7 @@ import {
   chestRewardAutoActivates,
   CHEST_INTERACTION_DISTANCE,
   PICKUP_COLLECTION_DISTANCE,
-} from "../src/world/DungeonWorld";
+} from "../src/world/StaticDungeonScene";
 import { createForgeChest } from "../src/world/ForgePropFactory";
 import { createResolveFlask } from "../src/world/ItemFactory";
 import { createDungeonMaterials } from "../src/world/MaterialLibrary";
@@ -27,6 +27,17 @@ describe("chest potion flow", () => {
     expect(canCollectPickup(Number.POSITIVE_INFINITY, true)).toBe(true);
     expect(canCollectPickup(PICKUP_COLLECTION_DISTANCE, false)).toBe(true);
     expect(canCollectPickup(PICKUP_COLLECTION_DISTANCE + 0.001, false)).toBe(false);
+  });
+
+  test("spreads two time-freeze and two luminous-ward chests along route depth", async () => {
+    const staticSceneSource = await Bun.file(
+      new URL("../src/world/StaticDungeonScene.ts", import.meta.url),
+    ).text();
+    expect(staticSceneSource).toContain(
+      "Power chests: two time-freeze + two luminous-ward, spread along route",
+    );
+    expect(staticSceneSource).toContain('for (const fraction of [0.28, 0.72] as const)');
+    expect(staticSceneSource).toContain('for (const fraction of [0.42, 0.88] as const)');
   });
 
   test("keeps the lid on a real rear hinge for the open animation", () => {

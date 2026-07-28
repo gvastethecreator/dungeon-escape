@@ -18,16 +18,25 @@ import type { DungeonData } from "../src/dungeon/types";
 import {
   createEnemyBillboardMaterial,
   createEnemyContactShadowMaterial,
+  enemyOpaqueFeetY,
   resolveEnemyBiomeMaterialPalette,
+  resolveEnemyContactShadowLayout,
   setEnemyBillboardFrame,
 } from "../src/world/EnemyBillboardMaterial";
+import {
+  ENEMY_ARCHETYPES,
+  enemyCeilingY,
+  enemyGroundY,
+  getEnemySpriteRenderMetrics,
+  isLowProfileEnemy,
+} from "../src/world/EnemyArchetypes";
 import { ENEMY_ANIMATIONS } from "../src/world/EnemySpriteAtlas";
 import { hasGridLineOfSight } from "../src/world/LightOcclusion";
 import { createDungeonMaterials } from "../src/world/MaterialLibrary";
 import { computeTorchLod } from "../src/world/TorchLod";
 import { createWallTorch } from "../src/world/WallTorchFactory";
 import { createVolumetricBeam } from "../src/world/VolumetricBeam";
-import { biomeTintedLightColor } from "../src/world/DungeonWorld";
+import { biomeTintedLightColor } from "../src/world/StaticDungeonScene";
 
 function colorDistance(first: THREE.Color, second: THREE.Color): number {
   return Math.hypot(first.r - second.r, first.g - second.g, first.b - second.b);
@@ -88,13 +97,17 @@ describe("integrated dungeon lighting", () => {
   test("fire lighting keeps a small stable point-light shader budget", async () => {
     expect(MAX_DYNAMIC_FIRE_LIGHTS).toBeGreaterThanOrEqual(6);
     expect(MAX_DYNAMIC_FIRE_LIGHTS).toBeLessThanOrEqual(12);
-    const source = await Bun.file(new URL("../src/world/DungeonWorld.ts", import.meta.url)).text();
+    const source = await Bun.file(
+      new URL("../src/world/StaticDungeonScene.ts", import.meta.url),
+    ).text();
     expect(source).toContain("detachFireLight");
     expect(source).not.toContain("effect.light.visible");
   });
 
   test("backrooms replaces fire with silent fluorescent fixtures on the same light budget", async () => {
-    const source = await Bun.file(new URL("../src/world/DungeonWorld.ts", import.meta.url)).text();
+    const source = await Bun.file(
+      new URL("../src/world/StaticDungeonScene.ts", import.meta.url),
+    ).text();
     expect(source).toContain('this.activeMood.id === "backrooms"');
     expect(source).toContain("private addBackroomsLightProps");
     expect(source).toContain("audio: false");
@@ -258,6 +271,61 @@ describe("integrated dungeon lighting", () => {
     expect(torch.root.getObjectByName("Wall torch light volume")).toBeUndefined();
   });
 
+  test("enemy contact shadows shrink with elevation and stay firm on the floor", () => {
+    const grounded = resolveEnemyContactShadowLayout({
+      bodyWidth: 1.2,
+      lowProfile: true,
+      feetY: 0.02,
+      visibility: 1,
+    });
+    const hovering = resolveEnemyContactShadowLayout({
+      bodyWidth: 1.2,
+      lowProfile: true,
+      feetY: 0.9,
+      visibility: 1,
+    });
+    const ceiling = resolveEnemyContactShadowLayout({
+      bodyWidth: 0.9,
+      lowProfile: false,
+      feetY: 3.6,
+      visibility: 1,
+    });
+    const phased = resolveEnemyContactShadowLayout({
+      bodyWidth: 1.2,
+      lowProfile: true,
+      feetY: 0.02,
+      visibility: 0,
+    });
+    expect(grounded.width).toBeGreaterThan(hovering.width);
+    expect(hovering.width).toBeGreaterThan(ceiling.width);
+    expect(grounded.depth).toBeLessThan(grounded.width);
+    expect(grounded.y).toBeGreaterThan(0.02);
+    expect(phased.width).toBe(0);
+    expect(phased.depth).toBe(0);
+
+    for (const kind of Object.keys(ENEMY_ARCHETYPES) as (keyof typeof ENEMY_ARCHETYPES)[]) {
+      const sprite = getEnemySpriteRenderMetrics(kind);
+      const y =
+        kind === "imp" ? enemyCeilingY(kind, 4.4) : enemyGroundY(kind);
+      const feetY = enemyOpaqueFeetY(y, sprite.planeHeight, sprite.bottomPaddingRatio);
+      if (kind === "imp") {
+        expect(feetY).toBeGreaterThan(2.5);
+      } else if (ENEMY_ARCHETYPES[kind].hoverOffset > 0) {
+        expect(feetY).toBeGreaterThan(0.15);
+      } else {
+        expect(feetY).toBeCloseTo(0.02, 5);
+      }
+      const layout = resolveEnemyContactShadowLayout({
+        bodyWidth: ENEMY_ARCHETYPES[kind].width,
+        lowProfile: isLowProfileEnemy(kind),
+        feetY,
+        visibility: 1,
+        spectral: ENEMY_ARCHETYPES[kind].silhouette === "spectral",
+      });
+      expect(layout.width).toBeGreaterThan(0.05);
+    }
+  });
+
   test("enemy sprites use scene lights, tone mapping, depth and a soft contact mask", () => {
     const mood = getDungeonMood("frost");
     const sprite = createEnemyBillboardMaterial(new THREE.Texture(), mood);
@@ -284,11 +352,16 @@ describe("integrated dungeon lighting", () => {
       "#include <uv_vertex>\nvMapUv = uEnemyAtlasFrame.xy + vMapUv * uEnemyAtlasFrame.zw;",
     );
     expect(shader.fragmentShader).toContain("diffuseColor.a *= clamp(vEnemyVisibility");
+    expect(shader.fragmentShader).toContain("uEnemyFreeze");
+    expect(shader.fragmentShader).toContain("enemyCold");
+    expect(sprite.userData.enemyFreezeAmount).toEqual({ value: 0 });
     const contact = createEnemyContactShadowMaterial();
     expect((contact.map as THREE.DataTexture).isDataTexture).toBe(true);
     expect(contact.map?.minFilter).toBe(THREE.LinearFilter);
     expect(contact.map?.generateMipmaps).toBe(false);
     expect(contact.depthWrite).toBe(false);
+    expect(contact.toneMapped).toBe(false);
+    expect(contact.polygonOffset).toBe(true);
     const data = (contact.map as THREE.DataTexture).image.data as Uint8Array;
     expect(data[3]).toBeLessThan(data[(32 * 64 + 32) * 4 + 3]!);
   });

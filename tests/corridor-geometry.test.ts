@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 
 import { carveRoundedCorridor, FLOOR } from "../src/dungeon/generateDungeon";
+import { FORGE_THEME_PROFILES } from "../src/forge/ForgeThemeProfiles";
 
 function floorCount(grid: readonly Uint8Array[]): number {
   return grid.reduce(
@@ -47,12 +48,15 @@ describe("corridor geometry", () => {
   });
 
   test("Forge keeps biome-specific arc rates and a real arch profile", async () => {
-    const source = await Bun.file(new URL("../src/forge/main.js", import.meta.url)).text();
-    const rates = [...source.matchAll(/corridorArc:\s*(0\.\d+)/g)].map((match) => match[1]);
+    const [generatorSource, rendererSource] = await Promise.all([
+      Bun.file(new URL("../src/forge/generateForgeDungeon.js", import.meta.url)).text(),
+      Bun.file(new URL("../src/forge/main.js", import.meta.url)).text(),
+    ]);
+    const rates = Object.values(FORGE_THEME_PROFILES).map(({ corridorArc }) => corridorArc);
 
     expect(rates.length).toBe(9);
     expect(new Set(rates).size).toBeGreaterThan(5);
-    expect(source).toContain("roundedCorridor");
-    expect(source).toContain("TorusGeometry(0.46, 0.11");
+    expect(generatorSource).toContain("roundedCorridor");
+    expect(rendererSource).toContain("TorusGeometry(0.46, 0.11");
   });
 });

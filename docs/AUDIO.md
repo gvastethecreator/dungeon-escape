@@ -20,7 +20,7 @@ pwsh -File scripts/build-audio-pack.ps1
 | stone footsteps | 0.84 group; 0.10–0.11 per asset |        -30 LUFS |           soft bed  | Dry floors (left soft)  |
 | wet footsteps   | 0.84 group; 0.14–0.16 per asset |        -32 LUFS |           soft bed  | Water masks (left soft) |
 | threat          |                            0.72 | -24 to -18 LUFS |      ~-30 to -27 LUFS | Enemy voices            |
-| ui              |                            0.58 |        -24 LUFS |           ~-34 LUFS | Menu and mode clicks    |
+| ui              |                            0.28 |        -32 LUFS |           soft bed  | Soft menu clicks/ticks  |
 
 Master defaults to `0.76`. Effective level ≈ file LUFS + asset gain + group gain + master. Per-asset gains in `GameAudio` were matched to measured Opus loudness; footsteps stay intentionally quiet.
 
@@ -34,18 +34,43 @@ A compressor at -12 dB / 12:1 limits overlap. Encode uses loudnorm plus a pre-Op
 | `torch-crackle` | Nearby fire one-shot |
 | `step-stone-a/b` | Dry footstep variants |
 | `step-water-a/b` | Wet footstep variants |
-| `ui-metal` | UI / mode / forge click |
+| `ui-metal` | Forge / heavy UI confirm |
+| `ui-click` | Default interface click |
+| `ui-tick` | Slider ticks / seed chips |
+| `ui-hover` | Soft menu hover blip |
+| `ui-select` | Primary menu / biome select |
+| `ui-back` | Back / secondary actions |
+| `ui-toggle` | Mute / CRT / checkbox toggles |
+| `ui-deny` | Disabled control feedback |
+
+Regenerate synthetic UI clicks with:
+
+```powershell
+python scripts/generate-ui-sounds.py
+```
 | `pickup-stone` | Magic stone bind |
 | `pickup-resolve` | Health flask |
 | `pickup-time-freeze` | Time freeze power |
 | `pickup-ward` | Luminous ward power |
-| `enemy-alert` | Beast voice |
-| `enemy-growl` | Undead voice |
-| `enemy-attack` | Spectral attack voice |
-| `enemy-demon` | Demon voice |
-| `enemy-insect` | Insect voice |
-| `enemy-ooze` | Ooze voice |
-| `enemy-vermin` | Vermin voice |
+| `enemy-growl` / `enemy-attack` | Generic threat fallbacks |
+| `enemy-{kind}-v0..v2` | Three presence takes per kind (random, no immediate repeat) |
+| `enemy-{kind}-attack-v0..v2` | Three attack takes per kind |
+| `enemy-{kind}-{tone}` | Biome skin presence (`cold` / `wet` / `fire` / `weird`) |
+| `enemy-{kind}-attack-{tone}` | Biome skin attack |
+
+Kinds: `carrion`, `goblin`, `ghost`, `ratling`, `husk`, `imp`, `zombie-orc`, `spider`, `bone-slime`, `white-eyed-shadow`, `carrion-stalker`.
+
+`creatureVoiceForEnemy(kind)` is 1:1 with roster kind. Proximity picks from presence takes; `playEnemyHit` picks from attack takes. The active dungeon mood is on `DungeonAudioFrame.moodId` and maps via `creatureToneForMood`:
+
+| Mood | Tone | Pool effect |
+| ---- | ---- | ----------- |
+| frost | cold | skin clips double-weighted into take pool |
+| sunken, fungal | wet | same |
+| molten, obsidian | fire | same |
+| backrooms | weird | same |
+| others | base | only v0–v2 |
+
+Sources live in `scripts/enemy-audio-map.ps1` (personal library under `F:\# AUDIO\# SAMPLES\#SFX\`). Rebuild with `build-audio-pack.ps1`.
 | `door-open` / `door-close` | Dungeon doors |
 | `chest-open` / `chest-reward` | Chest lid + shimmer |
 | `damage` | Player hit |

@@ -2,11 +2,13 @@ import { describe, expect, test } from "bun:test";
 
 import {
   computePovFeel,
+  decayExhaustionTrauma,
   decayHitTrauma,
   POV_CHROMATIC_MAX,
   POV_CURVATURE_BASE,
   POV_CURVATURE_MIN,
   POV_CURVATURE_SPRINT,
+  POV_EXHAUST_TRAUMA_SECONDS,
   POV_HIT_TRAUMA_SECONDS,
   POV_SHAKE_MAX,
   POV_THREAT_FAR,
@@ -92,17 +94,55 @@ describe("pov feel curves", () => {
     expect(decayHitTrauma(0.1, 1)).toBe(0);
   });
 
-  test("reduced motion clamps warp and softens threat FX", () => {
-    const feel = computePovFeel({
+  test("exhaustion trauma shakes without a hit and decays over a few seconds", () => {
+    const exhausted = computePovFeel({
+      sprinting: false,
+      speedRatio: 0,
+      threatDistance: null,
+      exhaustionTrauma: 1,
+    });
+    const calm = computePovFeel({
+      sprinting: false,
+      speedRatio: 0,
+      threatDistance: null,
+      exhaustionTrauma: 0,
+    });
+    expect(exhausted.shake).toBeGreaterThan(0.5);
+    expect(exhausted.shake).toBeLessThan(1.001);
+    expect(calm.shake).toBe(0);
+    expect(decayExhaustionTrauma(1, 0)).toBe(1);
+    expect(decayExhaustionTrauma(1, POV_EXHAUST_TRAUMA_SECONDS)).toBe(0);
+    expect(decayExhaustionTrauma(1, POV_EXHAUST_TRAUMA_SECONDS * 0.5)).toBeCloseTo(0.5, 5);
+  });
+
+  test("reduced motion keeps the POV static despite sprint, threat, and trauma", () => {
+    const reduced = computePovFeel({
       sprinting: true,
       speedRatio: 1,
       threatDistance: 1.5,
       hitTrauma: 1,
+      exhaustionTrauma: 1,
       reducedMotion: true,
     });
-    expect(feel.curvature).toBe(POV_CURVATURE_MIN);
-    expect(feel.shake).toBeLessThan(0.2);
-    expect(feel.chromatic).toBeLessThan(POV_CHROMATIC_MAX * 0.35);
+    expect(reduced.curvature).toBe(POV_CURVATURE_MIN);
+    expect(reduced.shake).toBe(0);
+    expect(reduced.chromatic).toBe(0);
+
+    const state = new PovFeelState();
+    state.apply(
+      computePovFeel({
+        sprinting: true,
+        speedRatio: 1,
+        threatDistance: 1.5,
+        hitTrauma: 1,
+        exhaustionTrauma: 1,
+      }),
+      1,
+    );
+    const settled = state.apply(reduced, 1 / 60);
+    expect(settled.curvature).toBe(POV_CURVATURE_MIN);
+    expect(settled.shake).toBe(0);
+    expect(settled.chromatic).toBe(0);
   });
 
   test("feel state damps toward targets without snapping", () => {

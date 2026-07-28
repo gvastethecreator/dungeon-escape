@@ -7,7 +7,10 @@ export interface BiomeDecorationProfile {
   curvedArch: boolean;
   hardwareTint: number;
   doorRoughness: number;
+  /** Primary hang kind (legacy + weighted default). */
   hangingKind: HangingKind;
+  /** Pool of hang kinds mixed per room for ceiling variety. */
+  hangingKinds: readonly HangingKind[];
   hangingLength: number;
   hangingDensity: number;
   boneDensity: number;
@@ -19,15 +22,22 @@ export interface BiomeDecorationProfile {
   wallDecorScale: number;
 }
 
+function hangingPool(
+  primary: HangingKind,
+  extras: readonly HangingKind[],
+): { hangingKind: HangingKind; hangingKinds: readonly HangingKind[] } {
+  return { hangingKind: primary, hangingKinds: [primary, ...extras] };
+}
+
 const PROFILES: Record<DungeonMoodId, BiomeDecorationProfile> = {
   ancient: {
     doorStyle: "dungeon",
     curvedArch: true,
     hardwareTint: 0x77746c,
     doorRoughness: 0.9,
-    hangingKind: "chain",
+    ...hangingPool("chain", ["iron-cage", "oil-lantern", "tattered-banner", "meat-hooks"]),
     hangingLength: 2.5,
-    hangingDensity: 1,
+    hangingDensity: 1.55,
     boneDensity: 0.72,
     boneVariant: 0,
     rubbleDensity: 0.95,
@@ -41,9 +51,9 @@ const PROFILES: Record<DungeonMoodId, BiomeDecorationProfile> = {
     curvedArch: true,
     hardwareTint: 0x5b4038,
     doorRoughness: 0.74,
-    hangingKind: "chain",
+    ...hangingPool("chain", ["oil-lantern", "iron-cage", "meat-hooks"]),
     hangingLength: 2.35,
-    hangingDensity: 0.8,
+    hangingDensity: 1.25,
     boneDensity: 0.45,
     boneVariant: 2,
     rubbleDensity: 1.25,
@@ -57,9 +67,9 @@ const PROFILES: Record<DungeonMoodId, BiomeDecorationProfile> = {
     curvedArch: true,
     hardwareTint: 0x91aab6,
     doorRoughness: 0.66,
-    hangingKind: "chain",
+    ...hangingPool("chain", ["oil-lantern", "tattered-banner", "iron-cage"]),
     hangingLength: 2.8,
-    hangingDensity: 0.7,
+    hangingDensity: 1.15,
     boneDensity: 0.58,
     boneVariant: 1,
     rubbleDensity: 0.78,
@@ -73,9 +83,9 @@ const PROFILES: Record<DungeonMoodId, BiomeDecorationProfile> = {
     curvedArch: true,
     hardwareTint: 0x5b5a61,
     doorRoughness: 0.96,
-    hangingKind: "chain",
+    ...hangingPool("chain", ["bone-mobile", "meat-hooks", "iron-cage", "tattered-banner"]),
     hangingLength: 3,
-    hangingDensity: 1.3,
+    hangingDensity: 1.9,
     boneDensity: 1.35,
     boneVariant: 2,
     rubbleDensity: 1.08,
@@ -89,9 +99,9 @@ const PROFILES: Record<DungeonMoodId, BiomeDecorationProfile> = {
     curvedArch: true,
     hardwareTint: 0x50645a,
     doorRoughness: 0.94,
-    hangingKind: "vine",
+    ...hangingPool("vine", ["root-cluster", "tattered-banner", "oil-lantern"]),
     hangingLength: 3.1,
-    hangingDensity: 1.55,
+    hangingDensity: 2.1,
     boneDensity: 0.36,
     boneVariant: 0,
     rubbleDensity: 0.82,
@@ -105,9 +115,9 @@ const PROFILES: Record<DungeonMoodId, BiomeDecorationProfile> = {
     curvedArch: true,
     hardwareTint: 0x6f6963,
     doorRoughness: 0.92,
-    hangingKind: "chain",
+    ...hangingPool("chain", ["oil-lantern", "tattered-banner", "bone-mobile", "iron-cage"]),
     hangingLength: 2.65,
-    hangingDensity: 1.05,
+    hangingDensity: 1.6,
     boneDensity: 1.05,
     boneVariant: 1,
     rubbleDensity: 1.12,
@@ -121,9 +131,9 @@ const PROFILES: Record<DungeonMoodId, BiomeDecorationProfile> = {
     curvedArch: true,
     hardwareTint: 0x8a8178,
     doorRoughness: 0.64,
-    hangingKind: "chain",
+    ...hangingPool("chain", ["iron-cage", "meat-hooks", "oil-lantern", "tattered-banner"]),
     hangingLength: 3.25,
-    hangingDensity: 1.65,
+    hangingDensity: 2.25,
     boneDensity: 0.5,
     boneVariant: 0,
     rubbleDensity: 0.9,
@@ -137,9 +147,9 @@ const PROFILES: Record<DungeonMoodId, BiomeDecorationProfile> = {
     curvedArch: true,
     hardwareTint: 0x76547d,
     doorRoughness: 0.48,
-    hangingKind: "chain",
+    ...hangingPool("chain", ["oil-lantern", "iron-cage", "bone-mobile"]),
     hangingLength: 2.7,
-    hangingDensity: 0.85,
+    hangingDensity: 1.35,
     boneDensity: 0.55,
     boneVariant: 2,
     rubbleDensity: 1.3,
@@ -153,9 +163,9 @@ const PROFILES: Record<DungeonMoodId, BiomeDecorationProfile> = {
     curvedArch: true,
     hardwareTint: 0x4e7775,
     doorRoughness: 0.82,
-    hangingKind: "chain",
+    ...hangingPool("chain", ["root-cluster", "tattered-banner", "oil-lantern", "iron-cage"]),
     hangingLength: 3.15,
-    hangingDensity: 1.35,
+    hangingDensity: 2.0,
     boneDensity: 0.7,
     boneVariant: 1,
     rubbleDensity: 1.18,
@@ -169,9 +179,9 @@ const PROFILES: Record<DungeonMoodId, BiomeDecorationProfile> = {
     curvedArch: true,
     hardwareTint: 0x795c82,
     doorRoughness: 0.9,
-    hangingKind: "vine",
+    ...hangingPool("vine", ["root-cluster", "bone-mobile", "tattered-banner"]),
     hangingLength: 3.35,
-    hangingDensity: 1.75,
+    hangingDensity: 2.3,
     boneDensity: 0.42,
     boneVariant: 0,
     rubbleDensity: 0.76,
@@ -185,9 +195,9 @@ const PROFILES: Record<DungeonMoodId, BiomeDecorationProfile> = {
     curvedArch: false,
     hardwareTint: 0x6f6a55,
     doorRoughness: 0.88,
-    hangingKind: "chain",
+    ...hangingPool("oil-lantern", ["chain", "tattered-banner"]),
     hangingLength: 2.2,
-    hangingDensity: 0.55,
+    hangingDensity: 0.95,
     boneDensity: 0.25,
     boneVariant: 1,
     rubbleDensity: 0.48,

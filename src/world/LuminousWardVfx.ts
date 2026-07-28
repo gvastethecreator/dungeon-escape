@@ -9,9 +9,9 @@ export interface LuminousWardViewer {
 }
 
 /** Orbiting light motes around the player field. */
-export const WARD_PARTICLE_COUNT = 22;
+export const WARD_PARTICLE_COUNT = 16;
 /** History samples per mote used for the motion trail. */
-export const WARD_TRAIL_SAMPLES = 6;
+export const WARD_TRAIL_SAMPLES = 4;
 /** Soft green core of the ward field. */
 const WARD_COLOR = 0xc7f39a;
 const WARD_COLOR_OUTER = 0x84b75d;
@@ -226,12 +226,13 @@ export class LuminousWardVfx {
   private readonly trailPositions: Float32Array;
   private readonly trailSizes: Float32Array;
   private readonly trailAlphas: Float32Array;
-  private readonly baseLightIntensity = 6.2;
-  private readonly baseLightRange = 14;
+  private readonly baseLightIntensity = 2.8;
+  private readonly baseLightRange = 10;
   private readonly position = new THREE.Vector3();
   private readonly scale = new THREE.Vector3();
   private lastElapsed = 0;
   private hasElapsed = false;
+  private particlesActive = false;
 
   constructor() {
     this.root.name = "Luminous ward player field";
@@ -301,7 +302,10 @@ export class LuminousWardVfx {
     this.verticalHalo.position.y = 1.15;
     this.verticalHalo.renderOrder = 3;
 
-    this.shield = new THREE.Mesh(new THREE.SphereGeometry(3.15, 28, 18, 0, Math.PI * 2, 0, Math.PI * 0.58), createShieldMaterial());
+    this.shield = new THREE.Mesh(
+      new THREE.SphereGeometry(3.15, 28, 18, 0, Math.PI * 2, 0, Math.PI * 0.58),
+      createShieldMaterial(),
+    );
     this.shield.name = "Luminous ward protective shell";
     this.shield.position.y = 0.08;
     this.shield.renderOrder = 2;
@@ -313,10 +317,10 @@ export class LuminousWardVfx {
         phase: t * Math.PI * 2 + (index % 3) * 0.37,
         radius: 1.55 + (index % 7) * 0.28 + (index % 2) * 0.12,
         height: 0.42 + (index % 5) * 0.28 + (index % 3) * 0.08,
-        spin: 0.55 + (index % 5) * 0.18 + (index % 2 === 0 ? 0.12 : -0.08),
+        spin: 0.4 + (index % 5) * 0.12 + (index % 2 === 0 ? 0.08 : -0.05),
         bob: 1.1 + (index % 4) * 0.35,
-        bobAmp: 0.1 + (index % 3) * 0.045,
-        size: 0.085 + (index % 4) * 0.018,
+        bobAmp: 0.07 + (index % 3) * 0.03,
+        size: 0.072 + (index % 4) * 0.014,
         distanceSinceSample: 0,
         lastX: 0,
         lastY: 0,
@@ -425,18 +429,13 @@ export class LuminousWardVfx {
     this.update(0, 0, { x: 0, y: 0, z: 0 }, 0);
   }
 
-  update(
-    remaining: number,
-    elapsed: number,
-    viewer: LuminousWardViewer,
-    delta = 0,
-  ): void {
+  update(remaining: number, elapsed: number, viewer: LuminousWardViewer, delta = 0): void {
     const active = remaining > 0.0001;
     const life = THREE.MathUtils.clamp(remaining / LUMINOUS_WARD_DURATION_SECONDS, 0, 1);
-    const pulse = 0.9 + Math.sin(elapsed * 4.8) * 0.1;
-    const breath = 0.94 + Math.sin(elapsed * 1.7) * 0.06;
-    const fade = active ? 0.7 + life * 0.3 : 0;
-    const urgency = life < 0.2 ? 1 + (0.2 - life) * 2.4 : 1;
+    const pulse = 0.96 + Math.sin(elapsed * 3.4) * 0.04;
+    const breath = 0.98 + Math.sin(elapsed * 1.35) * 0.02;
+    const fade = active ? 0.76 + life * 0.24 : 0;
+    const urgency = life < 0.16 ? 1 + (0.16 - life) * 0.8 : 1;
 
     let step = delta;
     if (!Number.isFinite(step) || step <= 0) {
@@ -454,29 +453,27 @@ export class LuminousWardVfx {
     this.light.distance = this.baseLightRange;
     this.light.color.setHex(life < 0.18 ? 0xd4ff8a : 0xb9e879);
 
-    this.groundDisc.material.opacity = 0.55 * fade * breath;
-    this.innerRing.material.opacity = 0.22 * fade * pulse;
-    this.outerRing.material.opacity = 0.42 * fade * pulse * urgency;
-    this.midRing.material.opacity = 0.2 * fade * breath;
-    this.verticalHalo.material.opacity = 0.28 * fade * pulse;
+    this.groundDisc.material.opacity = 0.24 * fade * breath;
+    this.innerRing.material.opacity = 0.11 * fade * pulse;
+    this.outerRing.material.opacity = 0.2 * fade * pulse * urgency;
+    this.midRing.material.opacity = 0.09 * fade * breath;
+    this.verticalHalo.material.opacity = 0.12 * fade * pulse;
 
     const shieldMat = this.shield.material;
-    shieldMat.uniforms.uOpacity.value = 0.72 * fade;
+    shieldMat.uniforms.uOpacity.value = 0.28 * fade;
     shieldMat.uniforms.uPulse.value = pulse * breath * urgency;
     shieldMat.uniforms.uTime.value = elapsed;
     // Slight warm shift as the ward runs out.
-    (shieldMat.uniforms.uColor.value as THREE.Color).setHex(
-      life < 0.18 ? 0xd8ff90 : WARD_COLOR,
-    );
+    (shieldMat.uniforms.uColor.value as THREE.Color).setHex(life < 0.18 ? 0xd8ff90 : WARD_COLOR);
 
-    this.motes.material.opacity = 0.92 * fade;
-    this.trails.material.uniforms.uOpacity.value = 0.78 * fade;
+    this.motes.material.opacity = 0.5 * fade;
+    this.trails.material.uniforms.uOpacity.value = 0.34 * fade;
 
-    this.outerRing.rotation.z = elapsed * 0.42;
-    this.midRing.rotation.z = -elapsed * 0.58;
-    this.verticalHalo.rotation.y = -elapsed * 0.64;
-    this.verticalHalo.rotation.x = Math.sin(elapsed * 0.55) * 0.18;
-    this.shield.rotation.y = elapsed * 0.18;
+    this.outerRing.rotation.z = elapsed * 0.25;
+    this.midRing.rotation.z = -elapsed * 0.34;
+    this.verticalHalo.rotation.y = -elapsed * 0.38;
+    this.verticalHalo.rotation.x = Math.sin(elapsed * 0.45) * 0.12;
+    this.shield.rotation.y = elapsed * 0.11;
 
     this.scale.setScalar(0.96 + pulse * 0.06);
     this.groundDisc.scale.setScalar(0.98 + breath * 0.04);
@@ -486,7 +483,11 @@ export class LuminousWardVfx {
     this.verticalHalo.scale.set(1, 0.9 + life * 0.1, 1);
     this.shield.scale.setScalar((0.98 + breath * 0.05) * (0.96 + life * 0.05));
 
-    this.updateParticles(elapsed, step, active && fade > 0.001);
+    const nextParticlesActive = active && fade > 0.001;
+    if (nextParticlesActive || this.particlesActive) {
+      this.updateParticles(elapsed, step, nextParticlesActive);
+    }
+    this.particlesActive = nextParticlesActive;
   }
 
   private updateParticles(elapsed: number, delta: number, active: boolean): void {
@@ -520,8 +521,7 @@ export class LuminousWardVfx {
       const mote = this.moteData[index]!;
       const angle = mote.phase + elapsed * mote.spin;
       // Mild radius pulse so paths do not look perfectly circular.
-      const radius =
-        mote.radius * (0.94 + 0.06 * Math.sin(elapsed * 1.3 + mote.phase * 2.1));
+      const radius = mote.radius * (0.94 + 0.06 * Math.sin(elapsed * 1.3 + mote.phase * 2.1));
       const x = Math.cos(angle) * radius;
       const z = Math.sin(angle) * radius;
       const y = mote.height + Math.sin(elapsed * mote.bob + mote.phase) * mote.bobAmp;

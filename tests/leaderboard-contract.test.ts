@@ -5,6 +5,7 @@ import {
   leaderboardLimit,
   normalizePlayerName,
   parseLeaderboardSubmission,
+  totalBiomeStars,
 } from "../src/leaderboard/contract";
 
 const completeRun = {
@@ -65,5 +66,10 @@ describe("leaderboard contract", () => {
     expect(leaderboardLimit(null)).toBe(8);
     expect(leaderboardLimit("0")).toBe(1);
     expect(leaderboardLimit("999")).toBe(50);
+  });
+
+  test("sums biome star totals", () => {
+    expect(totalBiomeStars(undefined)).toBe(0);
+    expect(totalBiomeStars({ Molten: 2, Frost: 1 })).toBe(3);
   });
 });

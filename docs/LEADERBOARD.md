@@ -6,7 +6,24 @@
 - Local development: Vite middleware writes `.data/dungeon-escape.sqlite` through the native SQLite adapter for the active Bun or Node runtime.
 - Cloudflare: the Worker uses `LEADERBOARD_DB`, a D1 binding with the same SQLite migration.
 - Score version: `1`. Server code validates the run and calculates the score. `runId` prevents duplicate submissions.
-- Only completed four-stone escapes enter the ranking.
+- Only completed four-stone **campaign** escapes enter the ranking (New Game biome runs and Hall seed replays).
+- **Custom runs** (Custom Run, Forge maps, Map Tools) stay playable and still show a local score on victory, but never open the Hall submit form. The API rejects `runSource: "custom"`.
+- Biome stars: each saved escape awards one star for that biome under the player name. `GET /api/leaderboard` returns `playerBiomeStars` aggregated from all rows (not only the ranked page).
+
+## Hall faces (portraits)
+
+- Each player name hashes to one of **72** grotesque pixel portraits (`src/leaderboard/portraits.ts`).
+- Seed prefix: `portrait-v4:` + lowercased trimmed name, FNV-1a via `hashSeed`, then modulo roster size.
+- Art pack: intentionally crude / acid-humor busts (sources under `assets-source/imagegen/portraits-v2-grotesque/`).
+- Same name always gets the same face across clients and reloads. Assets live under `public/assets/ui/portraits/`.
+- Frame overlays:
+  - rank **1** gold
+  - rank **2** silver
+  - rank **3** bronze
+  - rank **4+** wood
+- Frames: `public/assets/ui/portraits/frames/frame-{wood,gold,silver,bronze}.png` (transparent center).
+- Rebuild processed assets: `python scripts/process-leaderboard-portraits.py` after adding sources under `assets-source/imagegen/portraits-v1/` and `portrait-frames-v1/`.
+- Roster order is a public contract: append only, never reorder existing slugs.
 
 ## Local use
 

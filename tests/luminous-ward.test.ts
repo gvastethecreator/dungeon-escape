@@ -92,6 +92,10 @@ describe("luminous ward power", () => {
     expect(moteMaterial.opacity).toBe(0);
     expect(shellMat.uniforms.uOpacity.value).toBe(0);
     expect((trails.material as THREE.ShaderMaterial).uniforms.uOpacity.value).toBe(0);
+    const motePositions = motes.geometry.getAttribute("position") as THREE.BufferAttribute;
+    const clearedVersion = motePositions.version;
+    vfx.update(0, 2, { x: 0, y: 1.5, z: 0 }, 1 / 60);
+    expect(motePositions.version).toBe(clearedVersion);
     vfx.dispose();
   });
 });
