@@ -2,11 +2,42 @@
 
 ## Alcance
 
-Cada bioma tiene una lámina de seis props: tres para paredes y tres para suelos.
-El runtime crea los props de pared como decals planos con normal fija hacia el
-interior de la sala. Los props de suelo son tarjetas verticales que giran solo
-en `Y` hacia el personaje. Son decorativos, no ocupan celdas físicas y respetan
-las reservas de spawn, salida, objetivos, hazards y props sólidos.
+Cada bioma tiene una lámina de seis props: tres anclados a paredes y tres
+props de suelo. El registro conserva una clasificación por frame para que la
+geometría siga la forma del objeto:
+
+- `wall-decal`: plano vertical pegado al muro, con normal fija hacia la sala.
+- `floor-decal`: plano horizontal para restos, manchas o piezas de poca
+  altura. Tiene un pequeño desplazamiento sobre el piso y recibe sombra.
+- `floor-standing`: tarjeta vertical con base en el piso. Gira en `Y` hacia el
+  personaje y conserva su base aunque la cámara se acerque.
+- `corner-standing`: tarjeta vertical en una esquina. Su orientación busca al
+  personaje dentro del sector libre entre los dos muros.
+
+Todos los props generados quedan fuera del LOD y del frustum culling. Los
+props de suelo, incluidos los planos horizontales, aplican un fade suave entre
+`0.9 m` y `2.35 m` para limpiar la lectura cuando el personaje entra en su
+espacio inmediato.
+
+## Clasificación de los frames
+
+| Bioma | Plano sobre suelo | Erguido en suelo | Esquina con giro limitado |
+| --- | --- | --- | --- |
+| Ancient | — | Broken column, Funerary urns | Rune tablet |
+| Molten | Cooling magma rocks | Copper slag bowl | Scorched anvil |
+| Frost | Frozen floor altar | Ice shard pile | Snow rune stone |
+| Grim | Rusted chain coil | Bone heap | Gravestone fragment |
+| Verdant | — | Mossy standing stone, Seed pods | Root cluster |
+| Ash | Cinder rubble | Ash urn | Charred crate |
+| Iron | Gear scraps | Pressure valve | Iron storage crate |
+| Obsidian | — | Purple crystals, Ritual prism | Obsidian rock |
+| Sunken | Coral rubble | Barnacle pot | Waterlogged crate |
+| Fungal | — | Mushroom cluster, Spore pod | Mycelium stone |
+| Backrooms | Carpet debris, Cable bundle | — | Office phone |
+
+La clasificación se guarda junto a `surface` en
+`src/world/BiomeSpriteDecorKit.ts`. Frost usa un altar de hielo en el frame 4;
+el cofre generado fue retirado del roster.
 
 ## Atlas
 
@@ -14,29 +45,25 @@ las reservas de spawn, salida, objetivos, hazards y props sólidos.
 - Rejilla: `3 × 2`.
 - Celda: `512 × 512`.
 - Marco transparente interior: `4 px`.
-- Frames `0..2`: pared.
-- Frames `3..5`: suelo.
+- Frames `0..2`: decals de pared.
+- Frames `3..5`: candidatos de suelo; su plano final depende de `placement`.
 - LOD de distancia: desactivado.
 - Frustum culling: desactivado para evitar que props pequeños desaparezcan al
   cambiar el ángulo de cámara.
 - Saturación del atlas: `0.38`.
 - Brillo previo al tone mapping: `0.78`.
-- Opacidad base de los props: `0.88`.
-- Fade de suelo: `0.9 m` a `2.35 m`, con curva smoothstep y material por
-  instancia.
-
-El registro de props vive en `src/world/BiomeSpriteDecorKit.ts`. Frost usa un
-altar bajo de hielo en el frame 4. El cofre generado fue retirado del roster.
+- Opacidad de mezcla: `0.76` en pared, `0.76` en tarjetas erguidas,
+  `0.72` en esquinas y `0.56` en planos sobre suelo.
 
 ## Producción de assets
 
 1. ImageGen genera cada lámina sobre una placa gris neutra `#808080`.
 2. Los originales quedan en `assets-source/imagegen/biome-props/`.
-3. `scripts/birefnet-biome-prop-sheets.py` ejecuta `ZhengPeng7/BiRefNet` con
-   el entorno local CUDA y crea los atlas transparentes en
-   `public/assets/sprites/biome-props/`.
-4. El script elimina la placa conectada a los bordes, corta un marco de 4 px y
-   escribe `manifest.json` con el bbox y el estado alpha de cada frame.
+3. `scripts/birefnet-biome-prop-sheets.py` ejecuta
+   `ZhengPeng7/BiRefNet` con el entorno local CUDA y crea los atlas
+   transparentes en `public/assets/sprites/biome-props/`.
+4. El script elimina la placa conectada a los bordes, corta un marco de `4 px`
+   y escribe `manifest.json` con el bbox y el estado alpha de cada frame.
 
 Comando de reproceso:
 
@@ -49,25 +76,25 @@ La validación exige seis bboxes por bioma y `edge_nonzero = 0` en todos los
 frames. El procesamiento usa la lámina completa para dar a BiRefNet contexto
 visual estable; después aplica la máscara de fondo por bordes.
 
-## Colocación
+## Colocación y mezcla
 
-`DungeonWorld.scatterBiomeSpriteProps` toma asientos de pared y de interior
-por habitación. La selección usa la semilla del dungeon, limita el total a 48
-sprites, mantiene libre la circulación y no añade colisión. Los materiales y
-las texturas se reutilizan por bioma y frame.
+`DungeonWorld.scatterBiomeSpriteProps` separa los asientos de pared, esquina
+e interior. Cada celda se reserva en el mismo registro usado por props sólidos,
+cofres, pickups y enemigos. Así la decoración no puede compartir celda con un
+objeto interactivo o un spawn.
 
-Los asientos de pared se reservan entre cuadros clásicos, decorado mural y
-props nuevos. El selector exige separación mínima entre asientos para evitar
-que un cuadro quede dentro de otro sprite. Los decals de pared quedan a
-`0.026 m` del plano de mampostería, usan `polygonOffset` y no escriben en el
-buffer de profundidad para evitar clipping y z-fighting.
+Los decals de pared se agrupan por frame, quedan a `0.026 m` del plano de
+mampostería, usan `polygonOffset` y no escriben en el buffer de profundidad.
+Los objetos de esquina se desplazan hacia los dos muros y usan un bisector
+interior. Su yaw se limita a `π/4 - 0.08`, con lo que la tarjeta mantiene un
+margen dentro del sector abierto y evita atravesar la pared al seguir al
+personaje.
 
-Los props de suelo usan un plano vertical con material iluminado. Su rotación
-solo cambia en el eje `Y` hacia la posición del personaje; así se mantienen
-erguidos cerca de la cámara. Al entrar en la banda de `0.9 m` a `2.35 m`, su
-opacidad baja de forma continua hasta ocultarlos. El desplazamiento inferior
-se calcula con el margen alpha medido en `manifest.json`, por lo que la parte
-visible toca el suelo aunque cada frame tenga un recorte distinto.
+Los planos `floor-decal` se rotan a `-π/2` en X y mantienen una orientación
+determinista. Los objetos `floor-standing` y `corner-standing` usan un plano
+vertical con el margen alpha inferior medido en `manifest.json`. Todos reciben
+el mismo tratamiento de tinte: mezcla de color del bioma, saturación `0.38`,
+brillo `0.78`, roughness alta, fog y opacidad por tipo.
 
-El mismo tratamiento de tinte y desaturación se aplica a los atlas murales
-existentes mediante `createWallSpriteMaterial`.
+El mismo tinte y desaturación se aplica a los atlas murales existentes mediante
+`createWallSpriteMaterial`.

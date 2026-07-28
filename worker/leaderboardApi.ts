@@ -36,8 +36,12 @@ export async function handleLeaderboardApi(
   const url = new URL(request.url);
   try {
     if (request.method === "GET") {
-      const entries = await repository.list(leaderboardLimit(url.searchParams.get("limit")));
-      return json({ entries, generatedAt: new Date().toISOString() });
+      const limit = leaderboardLimit(url.searchParams.get("limit"));
+      const [entries, playerBiomeStars] = await Promise.all([
+        repository.list(limit),
+        repository.listBiomeStars(),
+      ]);
+      return json({ entries, playerBiomeStars, generatedAt: new Date().toISOString() });
     }
     if (request.method === "POST") {
       const parsed = parseLeaderboardSubmission(await readJson(request));

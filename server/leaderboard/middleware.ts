@@ -49,8 +49,16 @@ export async function createLeaderboardMiddleware(): Promise<{
       }
       try {
         if (request.method === "GET") {
-          const entries = await repository.list(leaderboardLimit(url.searchParams.get("limit")));
-          sendJson(response, 200, { entries, generatedAt: new Date().toISOString() });
+          const limit = leaderboardLimit(url.searchParams.get("limit"));
+          const [entries, playerBiomeStars] = await Promise.all([
+            repository.list(limit),
+            repository.listBiomeStars(),
+          ]);
+          sendJson(response, 200, {
+            entries,
+            playerBiomeStars,
+            generatedAt: new Date().toISOString(),
+          });
           return;
         }
         if (request.method === "POST") {

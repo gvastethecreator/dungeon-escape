@@ -1,5 +1,10 @@
 import * as THREE from "three";
 
+import {
+  createImageSculptedHanging,
+  isImageSculptedHangingFamily,
+  type ImageSculptedHangingFamily,
+} from "./ImageSculptedHangingKit";
 import type { DungeonMaterials } from "./MaterialLibrary";
 
 /**
@@ -239,7 +244,7 @@ export function createBonePile(materials: DungeonMaterials, variant = 0): THREE.
 // ─── Hanging chain / vine ────────────────────────────────────────────────────
 
 /** Hangs from the ceiling; the group origin is the ceiling anchor. */
-export type HangingKind = "chain" | "vine";
+export type HangingKind = "chain" | "vine" | ImageSculptedHangingFamily;
 
 export function createHanging(
   materials: DungeonMaterials,
@@ -247,27 +252,73 @@ export function createHanging(
   length = 2.2,
   variant = 0,
 ): THREE.Group {
+  if (isImageSculptedHangingFamily(kind)) {
+    return createImageSculptedHanging(kind, materials, length, variant);
+  }
   const root = new THREE.Group();
   root.name = kind === "chain" ? "Hanging chain" : "Hanging vine";
   const material = kind === "chain" ? materials.iron : materials.wood;
   if (kind === "chain") {
-    const mount = mesh(new THREE.CylinderGeometry(0.12, 0.12, 0.055, 8), material, "Chain mount");
+    // Variants: short coil, long sway, double-drop lean, weighted end — baked
+    // into the template so InstancedMesh can fan distinct silhouettes.
+    const style = Math.abs(variant) % 4;
+    const leanX = ((style % 3) - 1) * 0.04;
+    const leanZ = (((style + 1) % 3) - 1) * 0.035;
+    const spacing = style === 1 ? 0.165 : style === 2 ? 0.21 : 0.19;
+    const linkRadius = style === 3 ? 0.068 : 0.075;
+    const linkTube = style === 3 ? 0.016 : 0.018;
+    const mountScale = style === 0 ? 0.9 : style === 2 ? 1.15 : 1;
+
+    const mount = mesh(
+      new THREE.CylinderGeometry(0.12 * mountScale, 0.12 * mountScale, 0.055, 8),
+      material,
+      "Chain mount",
+    );
     mount.position.y = -0.028;
     root.add(mount);
-    const anchor = mesh(new THREE.TorusGeometry(0.078, 0.022, 6, 10), material, "Chain anchor eye");
+    const anchor = mesh(
+      new THREE.TorusGeometry(0.078 * mountScale, 0.022, 6, 10),
+      material,
+      "Chain anchor eye",
+    );
     anchor.position.y = -0.13;
     root.add(anchor);
 
-    const spacing = 0.19;
     const linkCount = Math.max(4, Math.ceil((length - 0.32) / spacing) + 1);
-    const linkGeometry = new THREE.TorusGeometry(0.075, 0.018, 6, 10);
+    const linkGeometry = new THREE.TorusGeometry(linkRadius, linkTube, 6, 10);
     linkGeometry.scale(1, 1.32, 1);
     for (let i = 0; i < linkCount; i += 1) {
       const link = mesh(linkGeometry, material, "Chain link");
       // Torus starts in XY: both rotations stay vertical and cross at 90 degrees.
       link.rotation.y = (i % 2) * (Math.PI / 2);
-      link.position.set(0, -0.22 - i * spacing, 0);
+      // Gentle hanging lean so chains do not all fall as a rigid column.
+      const t = i / Math.max(1, linkCount - 1);
+      const drift = t * t;
+      link.position.set(leanX * drift, -0.22 - i * spacing, leanZ * drift);
       root.add(link);
+    }
+
+    // Optional end weight / open ring for silhouette variety.
+    if (style === 1 || style === 3) {
+      const tipY = -0.22 - (linkCount - 1) * spacing - spacing * 0.55;
+      if (style === 1) {
+        const weight = mesh(
+          new THREE.SphereGeometry(0.055, 7, 5),
+          material,
+          "Chain end weight",
+        );
+        weight.position.set(leanX, tipY, leanZ);
+        root.add(weight);
+      } else {
+        const hook = mesh(
+          new THREE.TorusGeometry(0.09, 0.016, 5, 10, Math.PI * 1.35),
+          material,
+          "Chain end hook",
+        );
+        hook.rotation.set(Math.PI / 2, 0, Math.PI * 0.15);
+        hook.position.set(leanX * 1.05, tipY - 0.02, leanZ * 1.05);
+        root.add(hook);
+      }
     }
   } else {
     const sway = ((variant % 3) - 1) * 0.035;

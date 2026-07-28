@@ -17,7 +17,24 @@
       rel="stylesheet"
     />
   </head>
-  <body>
+  <body class="is-booting">
+    <div
+      id="boot-screen"
+      class="boot-screen"
+      role="status"
+      aria-live="polite"
+      aria-busy="true"
+      aria-label="Loading Dungeon Escape"
+    >
+      <div class="boot-screen__inner">
+        <p class="boot-screen__kicker">DUNGEON ESCAPE</p>
+        <h1 class="boot-screen__title">Loading</h1>
+        <div class="boot-screen__track" aria-hidden="true">
+          <div id="boot-fill" class="boot-screen__fill"></div>
+        </div>
+        <p id="boot-status" class="boot-screen__status">Awakening the dungeon…</p>
+      </div>
+    </div>
     <main class="app-shell">
       <canvas id="scene" tabindex="0" aria-label="First-person grimdark dungeon"></canvas>
       <div class="view-falloff" aria-hidden="true"></div>
@@ -28,6 +45,7 @@
         role="dialog"
         aria-modal="true"
         aria-labelledby="welcome-title"
+        hidden
       >
         <img
           class="welcome-art"
@@ -40,35 +58,69 @@
         />
         <div class="welcome-content">
           <div class="welcome-card">
-            <small>DUNGEON ESCAPE</small>
-            <h1 id="welcome-title">Dungeon Escape</h1>
-            <p>Generate a dungeon, recover the four magic stones, and reach the exit.</p>
-            <div class="welcome-actions">
-              <button id="welcome-new" type="button">NEW GAME</button>
-              <button id="welcome-continue" type="button" disabled>CONTINUE</button>
-              <button id="welcome-custom" type="button" class="welcome-actions__span">
-                CUSTOM RUN
-              </button>
+            <div id="welcome-home" class="welcome-home">
+              <h1 id="welcome-title" class="welcome-title">Dungeon Escape</h1>
+              <nav class="welcome-menu" aria-label="Main menu">
+                <button
+                  id="welcome-new"
+                  type="button"
+                  class="welcome-menu__item welcome-menu__item--primary"
+                >
+                  NEW GAME
+                </button>
+                <button
+                  id="welcome-continue"
+                  type="button"
+                  class="welcome-menu__item welcome-menu__item--primary"
+                  disabled
+                >
+                  CONTINUE
+                </button>
+                <button
+                  id="welcome-custom"
+                  type="button"
+                  class="welcome-menu__item welcome-menu__item--secondary"
+                >
+                  CUSTOM RUN
+                </button>
+              </nav>
+              <p id="welcome-status" class="welcome-status" role="status" aria-live="polite">
+                Checking saved run…
+              </p>
             </div>
-            <div class="welcome-audio">
-              <button
-                id="welcome-music-toggle"
-                type="button"
-                class="is-active"
-                aria-pressed="false"
-                title="Toggle menu music"
-              >
-                MUSIC ON
-              </button>
+            <div
+              id="welcome-biome-picker"
+              class="welcome-biome-picker"
+              hidden
+              aria-labelledby="biome-picker-title"
+            >
+              <header class="welcome-biome-picker__header">
+                <button id="biome-picker-back" type="button" class="welcome-biome-picker__back">
+                  BACK
+                </button>
+                <h2 id="biome-picker-title">Choose biome</h2>
+                <p class="welcome-biome-picker__hint">
+                  Clear a biome to earn a star when you save your score.
+                </p>
+              </header>
+              <div id="biome-picker-grid" class="biome-picker-grid" role="list"></div>
             </div>
-            <p id="welcome-status" class="welcome-status" role="status" aria-live="polite">
-              Checking saved run…
-            </p>
+            <button
+              id="welcome-music-toggle"
+              type="button"
+              class="welcome-music-toggle is-active"
+              aria-pressed="false"
+              aria-label="Disable music"
+              title="Disable music"
+            >
+              <span class="welcome-music-toggle__note" aria-hidden="true">♪</span>
+            </button>
           </div>
           <section class="welcome-leaderboard" aria-labelledby="leaderboard-title">
             <header>
               <small>LOCAL RECORDS</small>
               <h2 id="leaderboard-title">Hall of Escapes</h2>
+              <p class="welcome-leaderboard__tag">Escapers earn a face from their name.</p>
             </header>
             <ol id="leaderboard-list" class="leaderboard-list" aria-live="polite"></ol>
             <p id="leaderboard-status" class="leaderboard-status" role="status">
@@ -125,7 +177,6 @@
             aria-valuetext="100 stamina"
             style="--fill: 100%"
           >
-            <span class="stamina-meter__label">STAMINA</span>
             <div class="stamina-meter__track" aria-hidden="true">
               <div id="stamina-fill" class="stamina-meter__fill"></div>
             </div>
@@ -205,7 +256,8 @@
       </aside>
 
       <!-- Feedback layers (not chrome) -->
-      <div id="damage-vignette" class="damage-vignette" aria-hidden="true"></div>
+      <div id="hazard-overlay" class="hazard-overlay" data-hazard="none" aria-hidden="true"></div>
+      <div id="damage-vignette" class="damage-vignette" data-kind="enemy" aria-hidden="true"></div>
       <div id="event-flash" class="event-flash" aria-hidden="true"></div>
       <div
         id="pickup-feedback"
@@ -251,17 +303,19 @@
             <button id="options-resume" type="button">RESUME <kbd>ESC</kbd></button>
           </header>
 
-          <nav class="mode-switcher" aria-label="Engine mode (shell: editor / debug / play)">
+          <nav class="mode-switcher" aria-label="Mode: Creation, Debug, or Play">
             <button
               type="button"
               data-engine-mode="editor"
               class="is-active"
-              title="Shell editor · key 1"
+              title="Creation · key 1"
             >
-              EDITOR
+              CREATION
             </button>
-            <button type="button" data-engine-mode="debug" title="Debug · key 2">DEBUG</button>
-            <button type="button" data-engine-mode="play" title="Shell play · key 3">PLAY</button>
+            <button type="button" data-engine-mode="debug" title="Debug · graph and telemetry · key 2">
+              DEBUG
+            </button>
+            <button type="button" data-engine-mode="play" title="Play · key 3">PLAY</button>
           </nav>
 
           <fieldset class="options-fx">
@@ -295,17 +349,18 @@
             </button>
           </fieldset>
 
-          <details class="record-panel">
-            <summary aria-label="Open run settings">
-              <span class="record-summary-mark" aria-hidden="true"></span><span>RUN AUTHORITY</span>
+          <!-- Map Tools + Server Runs: shown only in local dev (see LocalDevTools). -->
+          <details class="record-panel" data-local-dev-only="true">
+            <summary aria-label="Open map tools">
+              <span class="record-summary-mark" aria-hidden="true"></span><span>MAP TOOLS</span>
             </summary>
             <form id="generation-form" class="generation-form">
               <details class="editor-fieldset">
-                <summary class="editor-fieldset__legend">AUTHORITY / RUN</summary>
+                <summary class="editor-fieldset__legend">SERVER RUNS</summary>
                 <div class="editor-fieldset__body">
                   <label class="is-stacked">
                     <span>ACTIVE RUN</span>
-                    <select id="run-select" name="runSelect" aria-label="Select backend run">
+                    <select id="run-select" name="runSelect" aria-label="Select server run">
                       <option value="">local</option>
                     </select>
                   </label>
@@ -349,7 +404,7 @@
                       name="roomCount"
                       type="range"
                       min="8"
-                      max="28"
+                      max="48"
                       value="16"
                       aria-label="Room count"
                     />
@@ -362,7 +417,7 @@
                       name="loopRate"
                       type="range"
                       min="0"
-                      max="45"
+                      max="50"
                       value="20"
                       aria-label="Loop rate"
                     />
@@ -375,7 +430,7 @@
                       name="mapWidth"
                       type="range"
                       min="41"
-                      max="99"
+                      max="127"
                       step="2"
                       value="73"
                       aria-label="Map width"
@@ -389,7 +444,7 @@
                       name="mapHeight"
                       type="range"
                       min="41"
-                      max="99"
+                      max="127"
                       step="2"
                       value="73"
                       aria-label="Map height"
@@ -543,13 +598,13 @@
               <div class="record-actions">
                 <button type="submit">GENERATE</button>
                 <button id="reroll" type="button">NEW SEED</button>
-                <button id="push-authority" type="button">PUSH BACKEND</button>
+                <button id="push-server" type="button">PUSH TO SERVER</button>
               </div>
             </form>
             <div class="record-data">
               <p id="run-stats">Preparing grid.</p>
               <p id="position-readout">Cell —</p>
-              <p id="authority-readout">Authority: —</p>
+              <p id="server-readout">Server: —</p>
             </div>
           </details>
 
@@ -631,8 +686,8 @@
         </div>
       </section>
 
-      <aside id="debug-panel" class="debug-panel" hidden aria-label="Renderer diagnostics">
-        <header><strong>RUNTIME</strong><span id="debug-mode">DEBUG</span></header>
+      <aside id="debug-panel" class="debug-panel" hidden aria-label="Debug telemetry">
+        <header><strong>TELEMETRY</strong><span id="debug-mode">DEBUG</span></header>
         <dl>
           <div>
             <dt>FPS</dt>
@@ -670,9 +725,13 @@
         </div>
         <div class="touch-look">
           <button type="button" data-move="turnLeft" aria-label="Turn left">↶</button>
+          <button id="touch-pause" class="touch-pause" type="button" aria-label="Pause game">
+            PAUSE
+          </button>
           <button type="button" data-move="turnRight" aria-label="Turn right">↷</button>
           <button type="button" data-move="interact" aria-label="Interact">E</button>
           <button type="button" data-move="jump" aria-label="Jump">SPACE</button>
+          <button type="button" data-move="sprint" aria-label="Run: hold to sprint">RUN</button>
         </div>
       </nav>
 
@@ -724,9 +783,31 @@
               <dd id="end-seed">DUNGEON</dd>
             </div>
           </dl>
+          <p id="end-leaderboard-note" class="end-leaderboard-note" hidden role="status"></p>
           <form id="end-leaderboard-form" class="end-leaderboard-form" hidden>
+            <div class="end-leaderboard-preview" aria-hidden="true">
+              <div class="end-leaderboard-preview__face leaderboard-face is-wood">
+                <img
+                  id="leaderboard-portrait-preview"
+                  class="leaderboard-portrait"
+                  src="/assets/ui/portraits/candlebat.png"
+                  alt=""
+                  width="64"
+                  height="64"
+                  decoding="async"
+                />
+                <img
+                  class="leaderboard-frame"
+                  src="/assets/ui/portraits/frames/frame-wood.png"
+                  alt=""
+                  width="72"
+                  height="72"
+                  decoding="async"
+                />
+              </div>
+            </div>
             <label for="leaderboard-name">Name for the hall</label>
-            <div>
+            <div class="end-leaderboard-form__row">
               <input
                 id="leaderboard-name"
                 name="playerName"

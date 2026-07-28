@@ -3,7 +3,6 @@ import { describe, expect, test } from "bun:test";
 import { FLOOR } from "../src/dungeon/generateDungeon";
 import {
   importDungeonForge,
-  isForgeDungeonMessage,
   type ForgeDungeonPayload,
 } from "../src/dungeon/importDungeonForge";
 
@@ -76,15 +75,6 @@ const payload: ForgeDungeonPayload = {
 };
 
 describe("Dungeon Forge import bridge", () => {
-  test("accepts the versioned host message", () => {
-    expect(
-      isForgeDungeonMessage({ type: "black-flag:forge-dungeon", version: 1, dungeon: payload }),
-    ).toBe(true);
-    expect(
-      isForgeDungeonMessage({ type: "black-flag:forge-dungeon", version: 2, dungeon: payload }),
-    ).toBe(false);
-  });
-
   test("preserves Forge water as a visible, walkable part of the navigation grid", () => {
     const dungeon = importDungeonForge(payload);
     expect(dungeon.options).toMatchObject({

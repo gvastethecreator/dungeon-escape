@@ -39,6 +39,8 @@ describe("damage feedback — HUD markup and styles", () => {
     const css = await Bun.file(new URL("../src/styles.css", import.meta.url)).text();
     expect(css).toContain("damage-red-wash");
     expect(css).toContain(".damage-vignette.is-hit");
+    expect(css).toContain('.damage-vignette[data-kind="toxin"]');
+    expect(css).toContain('.damage-vignette[data-kind="fire"]');
     expect(css).toContain(".health-orb__splatter");
     expect(css).toContain(".health-orb__drop");
     expect(css).toContain("orb-splatter");
@@ -59,6 +61,8 @@ describe("damage feedback — HUD markup and styles", () => {
     expect(src).toContain("spawnOrbBloodSplash");
     expect(src).toContain("worldUpdate.knockback");
     expect(src).toContain("DAMAGE_WASH_SECONDS");
+    expect(src).toContain("resolveDamageWashKind");
+    expect(src).toContain("dataset.kind = washKind");
   });
 
   test("main arms hit trauma so the camera keeps shaking after a hit", async () => {

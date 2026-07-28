@@ -9,6 +9,10 @@ import {
   createHanging,
   createRubblePile,
 } from "../src/world/AtmospherePropsKit";
+import {
+  createImageSculptedHanging,
+  IMAGE_SCULPTED_HANGING_FAMILIES,
+} from "../src/world/ImageSculptedHangingKit";
 import { createDungeonMaterials } from "../src/world/MaterialLibrary";
 
 /** Collect every material in a group (including nested). */
@@ -121,6 +125,57 @@ describe("atmosphere props — hanging chain/vine", () => {
     expect(vine.getObjectsByProperty("name", "Vine segment")).toHaveLength(0);
     expect(vine.getObjectsByProperty("name", "Vine tendril").length).toBeGreaterThan(0);
     for (const material of materialsOf(vine)) expect(material).toBe(materials.wood);
+  });
+
+  test("chain variants differ in silhouette (length, lean, end piece)", () => {
+    const materials = createDungeonMaterials();
+    const plain = createHanging(materials, "chain", 2.4, 0);
+    const weighted = createHanging(materials, "chain", 2.4, 1);
+    const hook = createHanging(materials, "chain", 1.6, 3);
+    const long = createHanging(materials, "chain", 3.4, 2);
+    expect(weighted.getObjectByName("Chain end weight")).toBeDefined();
+    expect(hook.getObjectByName("Chain end hook")).toBeDefined();
+    expect(plain.getObjectByName("Chain end weight")).toBeUndefined();
+    expect(plain.getObjectByName("Chain end hook")).toBeUndefined();
+    const plainLinks = plain.getObjectsByProperty("name", "Chain link");
+    const longLinks = long.getObjectsByProperty("name", "Chain link");
+    expect(longLinks.length).toBeGreaterThan(plainLinks.length);
+    // Lean drifts outer links off the pure vertical axis.
+    expect(
+      plainLinks.some(
+        (link) => Math.abs(link.position.x) > 0.001 || Math.abs(link.position.z) > 0.001,
+      ),
+    ).toBe(true);
+  });
+
+  test("image-sculpted hang kinds hang below the ceiling origin and reuse shared materials", () => {
+    const materials = createDungeonMaterials();
+    const allowed = new Set([
+      materials.iron,
+      materials.brass,
+      materials.wood,
+      materials.bone,
+      materials.cloth,
+      materials.darkStone,
+      materials.crystal,
+    ]);
+    for (const family of IMAGE_SCULPTED_HANGING_FAMILIES) {
+      const prop = createImageSculptedHanging(family, materials, 2.4, 1);
+      expect(prop.name.toLowerCase()).toContain("image-sculpted");
+      expect(prop.userData.sculptRuntime?.family).toBe(family);
+      expect(prop.userData.sculptRuntime?.origin).toBe("ceiling-mount");
+      const bounds = new THREE.Box3().setFromObject(prop);
+      expect(bounds.max.y).toBeLessThanOrEqual(0.08);
+      expect(bounds.min.y).toBeLessThan(-0.5);
+      prop.traverse((child) => {
+        if (child instanceof THREE.Mesh) {
+          const childMaterials = Array.isArray(child.material) ? child.material : [child.material];
+          for (const material of childMaterials) expect(allowed.has(material)).toBe(true);
+        }
+      });
+      // createHanging dispatches sculpted families.
+      expect(createHanging(materials, family, 2.0, 0).userData.sculptRuntime?.family).toBe(family);
+    }
   });
 });
 

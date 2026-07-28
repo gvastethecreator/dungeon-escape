@@ -54,4 +54,22 @@ describe("local SQLite leaderboard", () => {
     expect(repeated.playerName).toBe(first.playerName);
     expect(await store.list(10)).toHaveLength(1);
   });
+
+  test("aggregates biome stars from every saved escape", async () => {
+    const store = await repository();
+    await store.create(submission("run_star_a1", "Star Runner", 180_000));
+    await store.create({
+      ...submission("run_star_a2", "Star Runner", 200_000),
+      biome: "Frost",
+    });
+    await store.create({
+      ...submission("run_star_a3", "Star Runner", 190_000),
+      biome: "Molten",
+    });
+    await store.create(submission("run_star_b1", "Other", 210_000));
+
+    const stars = await store.listBiomeStars();
+    expect(stars["Star Runner"]).toEqual({ Molten: 2, Frost: 1 });
+    expect(stars.Other).toEqual({ Molten: 1 });
+  });
 });

@@ -1,6 +1,8 @@
 import { describe, expect, test } from "bun:test";
 
-const worldSource = await Bun.file(new URL("../src/world/DungeonWorld.ts", import.meta.url)).text();
+const worldSource = await Bun.file(
+  new URL("../src/world/StaticDungeonScene.ts", import.meta.url),
+).text();
 const assetSource = await Bun.file(new URL("../src/world/AssetLibrary.ts", import.meta.url)).text();
 
 describe("flat wall sprite material contract", () => {

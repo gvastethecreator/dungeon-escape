@@ -10,6 +10,9 @@ const PLAYER_NAME_PATTERN = /^[\p{L}\p{N}][\p{L}\p{N} ._'-]*$/u;
 const BIOME_PATTERN = /^[A-Za-z][A-Za-z -]{1,31}$/;
 const SEED_PATTERN = /^[\p{L}\p{N}._:-]{1,80}$/u;
 
+/** Only campaign escapes may enter the Hall. Custom runs are client-play only. */
+export type LeaderboardRunSource = "campaign" | "custom";
+
 export interface LeaderboardSubmissionInput {
   runId: string;
   playerName: string;
@@ -20,6 +23,8 @@ export interface LeaderboardSubmissionInput {
   seed: string;
   difficultyValue: number;
   roomCount: number;
+  /** Required for ranked posts. Custom is always rejected. */
+  runSource?: LeaderboardRunSource;
 }
 
 export interface ValidLeaderboardSubmission extends LeaderboardSubmissionInput {
@@ -39,9 +44,31 @@ export interface LeaderboardEntry extends ValidLeaderboardSubmission {
   rank: number;
 }
 
+/** Completions per player name and biome label (one star per saved escape). */
+export type PlayerBiomeStars = Record<string, Record<string, number>>;
+
 export interface LeaderboardListResponse {
   entries: LeaderboardEntry[];
+  /** Aggregate stars from every saved escape, not only the ranked page. */
+  playerBiomeStars: PlayerBiomeStars;
   generatedAt: string;
+}
+
+export function emptyPlayerBiomeStars(): PlayerBiomeStars {
+  return {};
+}
+
+export function totalBiomeStars(stars: Record<string, number> | undefined): number {
+  if (!stars) return 0;
+  return Object.values(stars).reduce((sum, value) => sum + value, 0);
+}
+
+export function starsForBiome(
+  stars: Record<string, number> | undefined,
+  biomeLabel: string,
+): number {
+  if (!stars) return 0;
+  return stars[biomeLabel] ?? 0;
 }
 
 export interface LeaderboardCreateResponse {
@@ -122,6 +149,17 @@ export function parseLeaderboardSubmission(input: unknown): LeaderboardSubmissio
   }
   if (data.stonesFound !== 4) {
     return { ok: false, code: "INCOMPLETE_RUN", message: "Only completed escapes can rank." };
+  }
+  // Custom runs stay playable in the shell but never enter the Hall.
+  if (data.runSource === "custom") {
+    return {
+      ok: false,
+      code: "CUSTOM_RUN",
+      message: "Custom runs do not enter the Hall of Escapes.",
+    };
+  }
+  if (data.runSource !== undefined && data.runSource !== "campaign") {
+    return { ok: false, code: "INVALID_SOURCE", message: "Run source is invalid." };
   }
   if (typeof data.biome !== "string" || !BIOME_PATTERN.test(data.biome)) {
     return { ok: false, code: "INVALID_BIOME", message: "Biome is invalid." };

@@ -32,7 +32,7 @@ export interface ForgeDungeonPayload {
   roomId?: Int16Array | number[];
   corridor?: Uint8Array | number[];
   doorway?: Uint8Array | number[];
-  bfs?: Int32Array | number[];
+  bfs?: Int16Array | Int32Array | number[];
   maxBfs?: number;
   maxDepth?: number;
   rooms: ForgeRoom[];
@@ -108,7 +108,7 @@ function normalizeInt16(
 }
 
 function normalizeInt32(
-  source: Int32Array | number[] | undefined,
+  source: Int16Array | Int32Array | number[] | undefined,
   length: number,
   label: string,
 ): Int32Array {
@@ -137,37 +137,6 @@ function cellsToMask(
     mask[cell.y * width + cell.x] = 1;
   }
   return mask;
-}
-
-export interface ForgeDungeonMessage {
-  type: "black-flag:forge-dungeon";
-  version: 1;
-  dungeon: ForgeDungeonPayload;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
-}
-
-export function isForgeDungeonMessage(value: unknown): value is ForgeDungeonMessage {
-  if (
-    !isRecord(value) ||
-    value.type !== "black-flag:forge-dungeon" ||
-    value.version !== 1 ||
-    !isRecord(value.dungeon)
-  )
-    return false;
-  const dungeon = value.dungeon;
-  return (
-    dungeon.valid === true &&
-    Number.isInteger(dungeon.W) &&
-    Number.isInteger(dungeon.H) &&
-    Number(dungeon.W) > 0 &&
-    Number(dungeon.H) > 0 &&
-    Array.isArray(dungeon.rooms) &&
-    Array.isArray(dungeon.edges) &&
-    (dungeon.grid instanceof Uint8Array || Array.isArray(dungeon.grid))
-  );
 }
 
 function cellIndex(width: number, cell: GridCell): number {
@@ -259,7 +228,10 @@ function roomCenter(
   throw new Error(`Dungeon Creation room ${room.id} has no walkable cell.`);
 }
 
-export function importDungeonForge(payload: ForgeDungeonPayload): DungeonData {
+function importDungeonForgeWithParams(
+  payload: ForgeDungeonPayload,
+  params: DungeonParams,
+): DungeonData {
   if (!payload.valid) throw new Error("Dungeon Creation returned an unresolved dungeon.");
   if (
     !Number.isInteger(payload.W) ||
@@ -272,7 +244,6 @@ export function importDungeonForge(payload: ForgeDungeonPayload): DungeonData {
     throw new Error("Dungeon Creation grid size does not match its bounds.");
   if (payload.rooms.length < 2) throw new Error("Dungeon Creation returned too few rooms.");
 
-  const params = normalizeForgeDungeonParams(payload);
   const cellCount = payload.W * payload.H;
   const roomIds = normalizeInt16(payload.roomId, cellCount, "roomId");
   const corridors = normalizeUint8(payload.corridor, cellCount, "corridor");
@@ -372,7 +343,7 @@ export function importDungeonForge(payload: ForgeDungeonPayload): DungeonData {
       source: "dungeon-forge",
       seed: payload.seed,
       decorDensity: params.decorDensity / 100,
-      maxBfs: payload.maxBfs ?? Math.max(...sourceBfs),
+      maxBfs: payload.maxBfs ?? maxArrayValue(sourceBfs),
       maxDepth: payload.maxDepth ?? Math.max(...payload.rooms.map((room) => room.depth ?? 0)),
       roomIds,
       corridors,
@@ -389,6 +360,20 @@ export function importDungeonForge(payload: ForgeDungeonPayload): DungeonData {
   };
 }
 
+function maxArrayValue(source: ArrayLike<number>): number {
+  let maximum = Number.NEGATIVE_INFINITY;
+  for (let index = 0; index < source.length; index += 1) {
+    const value = source[index];
+    if (value !== undefined && value > maximum) maximum = value;
+  }
+  return maximum;
+}
+
+/** Import a Forge payload for callers that already own a validated DTO. */
+export function importDungeonForge(payload: ForgeDungeonPayload): DungeonData {
+  return importDungeonForgeWithParams(payload, normalizeForgeDungeonParams(payload));
+}
+
 export type PreparedDungeonForge = {
   dungeon: DungeonData;
   params: DungeonParams;
@@ -396,6 +381,6 @@ export type PreparedDungeonForge = {
 
 /** Fully import and validate the graph before the host commits any domain state. */
 export function prepareDungeonForge(payload: ForgeDungeonPayload): PreparedDungeonForge {
-  const dungeon = importDungeonForge(payload);
-  return { dungeon, params: normalizeForgeDungeonParams(payload) };
+  const params = normalizeForgeDungeonParams(payload);
+  return { dungeon: importDungeonForgeWithParams(payload, params), params };
 }

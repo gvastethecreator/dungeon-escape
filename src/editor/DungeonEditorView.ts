@@ -7,7 +7,7 @@ import {
   type EditorProjectionRoom,
 } from "./DungeonEditorProjection";
 import type { DungeonMood, DungeonMoodId } from "../systems/DungeonMood";
-import { getDungeonMood, listDungeonMoodIds } from "../systems/DungeonMood";
+import { getDungeonMood } from "../systems/DungeonMood";
 import { biomeTextureUrl } from "../world/AssetLibrary";
 import { ITEM_FRAMES } from "../world/AssetLibrary";
 import {
@@ -27,6 +27,8 @@ interface ViewTransform {
   originY: number;
 }
 
+const EDITOR_STONE_SHEET_IDS = ["ember", "ash", "crypt", "verdant"] as const;
+
 function loadImage(url: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
     const image = new Image();
@@ -42,6 +44,25 @@ function rgbaFromHex(value: number, alpha: number): string {
   const green = (value >> 8) & 0xff;
   const blue = value & 0xff;
   return `rgba(${red}, ${green}, ${blue}, ${alpha})`;
+}
+
+/** Bake lighting filter once. Per-cell canvas filters freeze large debug/editor maps. */
+function bakeFilteredTile(
+  image: HTMLImageElement,
+  lighting: EditorLightingProfile,
+): HTMLCanvasElement | null {
+  if (typeof document === "undefined") return null;
+  const size = Math.min(64, Math.max(16, image.width || 64));
+  const canvas = document.createElement("canvas");
+  canvas.width = size;
+  canvas.height = size;
+  const context = canvas.getContext("2d");
+  if (!context) return null;
+  context.imageSmoothingEnabled = false;
+  context.filter = `brightness(${lighting.mapBrightness}) contrast(${lighting.mapContrast}) saturate(${lighting.mapSaturation})`;
+  context.drawImage(image, 0, 0, image.width, image.height, 0, 0, size, size);
+  context.filter = "none";
+  return canvas;
 }
 
 export class DungeonEditorView {
@@ -60,12 +81,17 @@ export class DungeonEditorView {
   private lastY = 0;
   private floorImage: HTMLImageElement | null = null;
   private wallImage: HTMLImageElement | null = null;
+  private bakedFloorTile: HTMLCanvasElement | null = null;
+  private bakedWallTile: HTMLCanvasElement | null = null;
+  private bakedTileKey: string | null = null;
   private enemyImage: HTMLImageElement | null = null;
   private enemyTintImage: HTMLCanvasElement | null = null;
   private enemyTintMood: DungeonMoodId | null = null;
   private readonly biomeEnemyImages = new Map<DungeonMoodId, HTMLImageElement>();
+  private readonly biomeEnemyImageLoads = new Map<DungeonMoodId, Promise<void>>();
   private itemImage: HTMLImageElement | null = null;
   private readonly stoneImages = new Map<string, HTMLImageElement>();
+  private sharedFeatureImagesLoad: Promise<void> | null = null;
   private texturesReady = false;
   private mood: DungeonMood = getDungeonMood("ash");
   private lighting: EditorLightingProfile = resolveEditorLightingProfile("ash");
@@ -73,6 +99,9 @@ export class DungeonEditorView {
     DungeonMoodId,
     { floor: HTMLImageElement; wall: HTMLImageElement }
   >();
+  private readonly biomeImageLoads = new Map<DungeonMoodId, Promise<void>>();
+  private drawScheduled = false;
+  private drawFrameHandle = 0;
 
   constructor(canvas: HTMLCanvasElement, options: EditorViewOptions) {
     this.canvas = canvas;
@@ -83,8 +112,8 @@ export class DungeonEditorView {
     this.canvas.addEventListener("pointercancel", this.handlePointerCancel);
     this.canvas.addEventListener("wheel", this.handleWheel, { passive: false });
     this.canvas.addEventListener("contextmenu", this.preventContextMenu);
-    void this.loadTextures();
-    void this.loadFeatureImages();
+    this.loadMoodAssets(this.mood.id);
+    void this.loadSharedFeatureImages();
     void this.loadEditorFont();
   }
 
@@ -94,21 +123,24 @@ export class DungeonEditorView {
     try {
       await document.fonts.load('10px "Pixelify Sans"');
       await document.fonts.load('bold 10px "Pixelify Sans"');
-      this.draw();
+      this.scheduleDraw();
     } catch {
       /* fall back to Courier New silently */
     }
   }
 
   setDungeon(dungeon: DungeonData, mood?: DungeonMood): void {
-    this.dungeon = dungeon;
-    this.projection = createDungeonEditorProjection(dungeon);
-    this.spawn = { ...dungeon.spawn };
-    this.zoom = 1;
-    this.panX = 0;
-    this.panY = 0;
-    if (mood) this.applyMood(mood);
-    else this.draw();
+    const sameMap = this.dungeon === dungeon;
+    if (!sameMap) {
+      this.dungeon = dungeon;
+      this.projection = createDungeonEditorProjection(dungeon);
+      this.spawn = { ...dungeon.spawn };
+      this.zoom = 1;
+      this.panX = 0;
+      this.panY = 0;
+    }
+    if (mood && this.mood.id !== mood.id) this.applyMood(mood);
+    else if (!sameMap) this.scheduleDraw();
   }
 
   setMood(mood: DungeonMood): void {
@@ -116,18 +148,24 @@ export class DungeonEditorView {
   }
 
   setDebug(debug: boolean): void {
+    if (this.debug === debug) return;
     this.debug = debug;
-    this.draw();
+    this.scheduleDraw();
   }
   setSpawn(spawn: GridCell): void {
     this.spawn = { ...spawn };
-    this.draw();
+    this.scheduleDraw();
   }
   redraw(): void {
-    this.draw();
+    this.scheduleDraw();
   }
 
   dispose(): void {
+    if (this.drawFrameHandle && typeof cancelAnimationFrame === "function") {
+      cancelAnimationFrame(this.drawFrameHandle);
+    }
+    this.drawScheduled = false;
+    this.drawFrameHandle = 0;
     this.canvas.removeEventListener("pointerdown", this.handlePointerDown);
     this.canvas.removeEventListener("pointermove", this.handlePointerMove);
     this.canvas.removeEventListener("pointerup", this.handlePointerUp);
@@ -141,67 +179,141 @@ export class DungeonEditorView {
     this.lighting = resolveEditorLightingProfile(mood.id);
     this.enemyTintImage = null;
     this.enemyTintMood = null;
+    this.invalidateBakedTiles();
     const cached = this.biomeImages.get(mood.id);
-    if (cached) {
-      this.floorImage = cached.floor;
-      this.wallImage = cached.wall;
-      this.texturesReady = true;
-    }
-    this.draw();
+    // A prior biome must not remain visible while its replacement is loading.
+    // The structural fallback keeps the map usable if this request fails.
+    this.floorImage = cached?.floor ?? null;
+    this.wallImage = cached?.wall ?? null;
+    this.texturesReady = Boolean(cached);
+    this.loadMoodAssets(mood.id);
+    this.scheduleDraw();
   }
 
-  private async loadTextures(): Promise<void> {
-    try {
-      await Promise.all(
-        listDungeonMoodIds().map(async (id) => {
-          const [floor, wall] = await Promise.all([
-            loadImage(biomeTextureUrl(id, "floor")),
-            loadImage(biomeTextureUrl(id, "wall")),
-          ]);
-          this.biomeImages.set(id, { floor, wall });
-        }),
-      );
-      const active = this.biomeImages.get(this.mood.id);
-      if (active) {
-        this.floorImage = active.floor;
-        this.wallImage = active.wall;
-        this.texturesReady = true;
-      }
+  private invalidateBakedTiles(): void {
+    this.bakedFloorTile = null;
+    this.bakedWallTile = null;
+    this.bakedTileKey = null;
+  }
+
+  private ensureBakedTiles(): void {
+    if (!this.texturesReady) {
+      this.invalidateBakedTiles();
+      return;
+    }
+    const key = `${this.mood.id}|${this.lighting.mapBrightness}|${this.lighting.mapContrast}|${this.lighting.mapSaturation}|${this.floorImage?.src ?? ""}|${this.wallImage?.src ?? ""}`;
+    if (
+      this.bakedTileKey === key &&
+      (this.bakedFloorTile || !this.floorImage) &&
+      (this.bakedWallTile || !this.wallImage)
+    ) {
+      return;
+    }
+    this.bakedTileKey = key;
+    this.bakedFloorTile = this.floorImage ? bakeFilteredTile(this.floorImage, this.lighting) : null;
+    this.bakedWallTile = this.wallImage ? bakeFilteredTile(this.wallImage, this.lighting) : null;
+  }
+
+  /** Collapse setDebug + setDungeon + surface rAF into one paint per frame. */
+  private scheduleDraw(): void {
+    if (this.drawScheduled) return;
+    this.drawScheduled = true;
+    const run = (): void => {
+      this.drawScheduled = false;
+      this.drawFrameHandle = 0;
       this.draw();
-    } catch {
-      this.texturesReady = false;
+    };
+    if (typeof requestAnimationFrame === "function") {
+      this.drawFrameHandle = requestAnimationFrame(run);
+      return;
     }
+    run();
   }
 
-  private async loadFeatureImages(): Promise<void> {
-    try {
-      const moodIds = listDungeonMoodIds();
-      const [baseEnemies, items, ...rest] = await Promise.all([
-        loadImage("/assets/sprites/enemies-v8/iron-ash-enemies-v8.png"),
-        loadImage("/assets/sprites/iron-ash-items.png"),
-        ...moodIds.map((id) => loadImage(enemyAtlasSrcForMood(id)).catch(() => null)),
-        ...(["ember", "ash", "crypt", "verdant"] as const).map((id) =>
-          loadImage(`/assets/sprites/keyed/${id}-sheet.png`),
-        ),
-      ]);
-      this.enemyImage = baseEnemies;
-      this.enemyTintImage = null;
-      this.enemyTintMood = null;
-      this.biomeEnemyImages.clear();
-      moodIds.forEach((id, index) => {
-        const image = rest[index];
-        if (image) this.biomeEnemyImages.set(id, image);
+  private loadMoodAssets(moodId: DungeonMoodId): void {
+    void this.loadBiomeTextures(moodId);
+    void this.loadBiomeEnemyImage(moodId);
+  }
+
+  private loadBiomeTextures(moodId: DungeonMoodId): Promise<void> {
+    if (this.biomeImages.has(moodId)) return Promise.resolve();
+    const pending = this.biomeImageLoads.get(moodId);
+    if (pending) return pending;
+
+    const request = Promise.allSettled([
+      loadImage(biomeTextureUrl(moodId, "floor")),
+      loadImage(biomeTextureUrl(moodId, "wall")),
+    ])
+      .then(([floorResult, wallResult]) => {
+        if (floorResult.status !== "fulfilled" || wallResult.status !== "fulfilled") {
+          if (this.mood.id !== moodId) return;
+          this.floorImage = null;
+          this.wallImage = null;
+          this.texturesReady = false;
+          this.invalidateBakedTiles();
+          this.scheduleDraw();
+          return;
+        }
+        const floor = floorResult.value;
+        const wall = wallResult.value;
+        this.biomeImages.set(moodId, { floor, wall });
+        if (this.mood.id !== moodId) return;
+        this.floorImage = floor;
+        this.wallImage = wall;
+        this.texturesReady = true;
+        this.invalidateBakedTiles();
+        this.scheduleDraw();
+      })
+      .finally(() => {
+        this.biomeImageLoads.delete(moodId);
       });
-      this.itemImage = items;
-      const stoneOffset = moodIds.length;
-      (["ember", "ash", "crypt", "verdant"] as const).forEach((id, index) => {
-        const image = rest[stoneOffset + index];
+    this.biomeImageLoads.set(moodId, request);
+    return request;
+  }
+
+  private loadBiomeEnemyImage(moodId: DungeonMoodId): Promise<void> {
+    if (this.biomeEnemyImages.has(moodId)) return Promise.resolve();
+    const pending = this.biomeEnemyImageLoads.get(moodId);
+    if (pending) return pending;
+
+    const request = loadImage(enemyAtlasSrcForMood(moodId))
+      .then((image) => {
+        this.biomeEnemyImages.set(moodId, image);
+        if (this.mood.id !== moodId) return;
+        this.enemyTintImage = null;
+        this.enemyTintMood = null;
+        this.scheduleDraw();
+      })
+      .catch(() => {
+        // The base roster remains a safe preview fallback for this biome.
+        if (this.mood.id === moodId) this.scheduleDraw();
+      })
+      .finally(() => {
+        this.biomeEnemyImageLoads.delete(moodId);
+      });
+    this.biomeEnemyImageLoads.set(moodId, request);
+    return request;
+  }
+
+  private loadSharedFeatureImages(): Promise<void> {
+    if (this.sharedFeatureImagesLoad) return this.sharedFeatureImagesLoad;
+
+    this.sharedFeatureImagesLoad = Promise.all([
+      loadImage("/assets/sprites/enemies-v8/iron-ash-enemies-v8.png").catch(() => null),
+      loadImage("/assets/sprites/iron-ash-items.png").catch(() => null),
+      ...EDITOR_STONE_SHEET_IDS.map((id) =>
+        loadImage(`/assets/sprites/keyed/${id}-sheet.png`).catch(() => null),
+      ),
+    ]).then(([baseEnemies, items, ...stones]) => {
+      if (baseEnemies) this.enemyImage = baseEnemies;
+      if (items) this.itemImage = items;
+      EDITOR_STONE_SHEET_IDS.forEach((id, index) => {
+        const image = stones[index];
         if (image) this.stoneImages.set(id, image);
       });
-      this.draw();
-    } catch {
-      // Structural map stays usable if an optional preview sprite fails.
-    }
+      this.scheduleDraw();
+    });
+    return this.sharedFeatureImagesLoad;
   }
 
   private getTransform(width: number, height: number): ViewTransform {
@@ -217,19 +329,25 @@ export class DungeonEditorView {
 
   private paintCell(
     context: CanvasRenderingContext2D,
-    image: HTMLImageElement | null,
+    source: CanvasImageSource | null,
+    rawImage: HTMLImageElement | null,
     fallback: string,
     x: number,
     y: number,
     size: number,
     tint: string | null,
   ): void {
-    if (image && this.texturesReady) {
-      // Full tile sample — iron-ash maps are authored as seamless floor/wall tiles.
-      context.save();
-      context.filter = `brightness(${this.lighting.mapBrightness}) contrast(${this.lighting.mapContrast}) saturate(${this.lighting.mapSaturation})`;
-      context.drawImage(image, 0, 0, image.width, image.height, x, y, size, size);
-      context.restore();
+    if (source && this.texturesReady) {
+      // Prefer pre-filtered tiles. Fall back to the raw atlas only when bake failed.
+      if (source !== rawImage) {
+        const tile = source as CanvasImageSource & { width: number; height: number };
+        context.drawImage(source, 0, 0, tile.width, tile.height, x, y, size, size);
+      } else if (rawImage) {
+        context.save();
+        context.filter = `brightness(${this.lighting.mapBrightness}) contrast(${this.lighting.mapContrast}) saturate(${this.lighting.mapSaturation})`;
+        context.drawImage(rawImage, 0, 0, rawImage.width, rawImage.height, x, y, size, size);
+        context.restore();
+      }
       if (tint) {
         context.fillStyle = tint;
         context.fillRect(x, y, size, size);
@@ -238,6 +356,23 @@ export class DungeonEditorView {
     }
     context.fillStyle = fallback;
     context.fillRect(x, y, size, size);
+  }
+
+  private visibleCellBounds(
+    projection: DungeonEditorProjection,
+    view: ViewTransform,
+    width: number,
+    height: number,
+  ): { minX: number; minY: number; maxX: number; maxY: number } {
+    const pad = 1;
+    const minX = Math.max(0, Math.floor(-view.originX / view.scale) - pad);
+    const minY = Math.max(0, Math.floor(-view.originY / view.scale) - pad);
+    const maxX = Math.min(projection.width - 1, Math.ceil((width - view.originX) / view.scale) + pad);
+    const maxY = Math.min(
+      projection.height - 1,
+      Math.ceil((height - view.originY) / view.scale) + pad,
+    );
+    return { minX, minY, maxX, maxY };
   }
 
   private draw(): void {
@@ -261,11 +396,15 @@ export class DungeonEditorView {
     context.fillStyle = "#050606";
     context.fillRect(0, 0, width, height);
     if (!dungeon || !projection) return;
+    this.ensureBakedTiles();
     const view = this.getTransform(width, height);
     const cell = Math.max(1, Math.ceil(view.scale));
+    const visible = this.visibleCellBounds(projection, view, width, height);
+    const floorSource = this.bakedFloorTile ?? this.floorImage;
+    const wallSource = this.bakedWallTile ?? this.wallImage;
 
-    for (let y = 0; y < dungeon.height; y += 1) {
-      for (let x = 0; x < dungeon.width; x += 1) {
+    for (let y = visible.minY; y <= visible.maxY; y += 1) {
+      for (let x = visible.minX; x <= visible.maxX; x += 1) {
         const index = y * dungeon.width + x;
         const kind = projection.cells[index];
         if (kind === EDITOR_CELL_KIND.empty) continue;
@@ -274,6 +413,7 @@ export class DungeonEditorView {
         if (kind === EDITOR_CELL_KIND.wall) {
           this.paintCell(
             context,
+            wallSource,
             this.wallImage,
             "#1a1c1d",
             px,
@@ -290,6 +430,7 @@ export class DungeonEditorView {
         const isCorridor = kind === EDITOR_CELL_KIND.corridor;
         this.paintCell(
           context,
+          floorSource,
           this.floorImage,
           isCorridor ? "#2a2c2b" : "#323430",
           px,
@@ -300,7 +441,7 @@ export class DungeonEditorView {
       }
     }
 
-    this.drawMapLighting(context, projection, view);
+    this.drawMapLighting(context, projection, view, width, height);
     for (const room of projection.rooms) this.drawRoomIdentity(context, room, view);
     this.drawForgeFeatures(context, projection, view);
 
@@ -371,6 +512,8 @@ export class DungeonEditorView {
     context: CanvasRenderingContext2D,
     projection: DungeonEditorProjection,
     view: ViewTransform,
+    viewportWidth: number,
+    viewportHeight: number,
   ): void {
     const mapX = view.originX;
     const mapY = view.originY;
@@ -379,10 +522,16 @@ export class DungeonEditorView {
     const centerX = mapX + mapWidth * 0.5;
     const centerY = mapY + mapHeight * 0.5;
     const radius = Math.max(mapWidth, mapHeight) * 0.72;
+    const visible = this.visibleCellBounds(projection, view, viewportWidth, viewportHeight);
 
     context.save();
     context.beginPath();
-    context.rect(mapX, mapY, mapWidth, mapHeight);
+    context.rect(
+      Math.max(mapX, 0),
+      Math.max(mapY, 0),
+      Math.min(mapWidth, viewportWidth),
+      Math.min(mapHeight, viewportHeight),
+    );
     context.clip();
     context.globalCompositeOperation = "screen";
 
@@ -404,8 +553,8 @@ export class DungeonEditorView {
     context.strokeStyle = rgbaFromHex(this.mood.surfaceTint, this.lighting.mapEdgeOpacity);
     context.lineWidth = Math.max(0.65, Math.min(1.8, view.scale * 0.12));
     context.beginPath();
-    for (let y = 0; y < projection.height; y += 1) {
-      for (let x = 0; x < projection.width; x += 1) {
+    for (let y = visible.minY; y <= visible.maxY; y += 1) {
+      for (let x = visible.minX; x <= visible.maxX; x += 1) {
         const kind = cellAt(x, y);
         if (kind === EDITOR_CELL_KIND.empty) continue;
         const px = mapX + x * view.scale;
@@ -437,6 +586,14 @@ export class DungeonEditorView {
     const drawGlow = (cell: GridCell, color: number, strength: number, size: number): void => {
       const x = mapX + (cell.x + 0.5) * view.scale;
       const y = mapY + (cell.y + 0.5) * view.scale;
+      if (
+        x + size < 0 ||
+        y + size < 0 ||
+        x - size > viewportWidth ||
+        y - size > viewportHeight
+      ) {
+        return;
+      }
       const gradient = context.createRadialGradient(x, y, 0, x, y, size);
       gradient.addColorStop(0, rgbaFromHex(color, strength));
       gradient.addColorStop(0.42, rgbaFromHex(color, strength * 0.3));
@@ -715,7 +872,7 @@ export class DungeonEditorView {
     this.panX += dx;
     this.panY += dy;
     this.moved ||= Math.abs(dx) + Math.abs(dy) > 1;
-    this.draw();
+    this.scheduleDraw();
   };
 
   private readonly handlePointerUp = (event: PointerEvent): void => {
@@ -734,7 +891,7 @@ export class DungeonEditorView {
   private readonly handleWheel = (event: WheelEvent): void => {
     event.preventDefault();
     this.zoom = Math.max(0.55, Math.min(4.5, this.zoom * Math.exp(-event.deltaY * 0.0012)));
-    this.draw();
+    this.scheduleDraw();
   };
   private readonly preventContextMenu = (event: Event): void => {
     event.preventDefault();
