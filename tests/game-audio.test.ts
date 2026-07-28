@@ -1,8 +1,23 @@
 import { describe, expect, test } from "bun:test";
-import { GameAudio, type AudioCue } from "../src/audio/GameAudio";
+import {
+  CREATURE_TONES,
+  CREATURE_VOICES,
+  GameAudio,
+  creatureToneForMood,
+  type AudioCue,
+} from "../src/audio/GameAudio";
+import { ENEMY_ROSTER } from "../src/world/EnemySpriteAtlas";
+import { creatureVoiceForEnemy } from "../src/world/DungeonWorld";
 
 const CUES: AudioCue[] = [
   "ui",
+  "uiClick",
+  "uiTick",
+  "uiHover",
+  "uiSelect",
+  "uiBack",
+  "uiToggle",
+  "uiDeny",
   "mode",
   "forge",
   "spawn",
@@ -74,10 +89,67 @@ describe("GameAudio dungeon soundscape", () => {
     expect(source).toContain("music-menu.opus");
     expect(source).toContain("music-win.opus");
     expect(source).toContain("music-lose.opus");
+    expect(source).toContain("ui-click.opus");
+    expect(source).toContain("ui-tick.opus");
+    expect(source).toContain("ui-hover.opus");
+    expect(source).toContain("ui-select.opus");
     expect(source).toContain("setMusicTrack");
     expect(source).toContain('group === "music"');
     expect(source).toContain("PICKUP_ASSETS");
-    expect(source).toContain("CREATURE_VOICE_ASSETS");
+    expect(source).toContain("CREATURE_VOICE_TAKES");
+    expect(source).toContain("CREATURE_ATTACK_TAKES");
+    expect(source).toContain("CREATURE_VOICE_TONES");
+    expect(source).toContain("pickCreatureAsset");
+    expect(source).toContain("creatureToneForMood");
+    expect(source).toContain("buildEnemyThreatAssets");
+    expect(source).toContain("enemy-${kind}-v${take}.opus");
+    expect(source).toContain("enemy-${kind}-attack-${tone}.opus");
+  });
+
+  test("mood maps to creature tone families", () => {
+    expect(creatureToneForMood("frost")).toBe("cold");
+    expect(creatureToneForMood("sunken")).toBe("wet");
+    expect(creatureToneForMood("fungal")).toBe("wet");
+    expect(creatureToneForMood("molten")).toBe("fire");
+    expect(creatureToneForMood("obsidian")).toBe("fire");
+    expect(creatureToneForMood("backrooms")).toBe("weird");
+    expect(creatureToneForMood("ancient")).toBe("base");
+    expect(creatureToneForMood(null)).toBe("base");
+  });
+
+  test("every enemy take and biome skin asset exists on disk", async () => {
+    expect([...ENEMY_ROSTER]).toEqual([...CREATURE_VOICES]);
+    const seen = new Set<string>();
+    for (const kind of ENEMY_ROSTER) {
+      expect(creatureVoiceForEnemy(kind)).toBe(kind);
+      const names: string[] = [];
+      for (let take = 0; take < 3; take++) {
+        names.push(`enemy-${kind}-v${take}.opus`);
+        names.push(`enemy-${kind}-attack-v${take}.opus`);
+      }
+      for (const tone of CREATURE_TONES) {
+        names.push(`enemy-${kind}-${tone}.opus`);
+        names.push(`enemy-${kind}-attack-${tone}.opus`);
+      }
+      for (const file of names) {
+        const path = new URL(`../public/assets/audio/dungeon/${file}`, import.meta.url);
+        const blob = Bun.file(path);
+        expect(await blob.exists()).toBe(true);
+        expect(blob.size).toBeGreaterThan(800);
+        const bytes = new Uint8Array(await blob.arrayBuffer());
+        const fingerprint = `${file}:${bytes.length}:${bytes[0]}:${bytes[Math.floor(bytes.length / 2)]}`;
+        expect(seen.has(fingerprint)).toBe(false);
+        seen.add(fingerprint);
+      }
+    }
+  });
+
+  test("main wires global interface click and hover sounds", async () => {
+    const main = await Bun.file(new URL("../src/main.ts", import.meta.url)).text();
+    expect(main).toContain("wireInterfaceSounds()");
+    expect(main).toContain('playCue("uiHover")');
+    expect(main).toContain("resolveUiClickCue");
+    expect(main).toContain("uiSelect");
   });
 
   test("main wires menu and end-screen music beds", async () => {
@@ -132,13 +204,14 @@ describe("GameAudio dungeon soundscape", () => {
   test("touch play stays active when the browser rejects pointer lock", async () => {
     const main = await Bun.file(new URL("../src/main.ts", import.meta.url)).text();
     expect(main).toContain("const hasActivePlayInput = locked || touchSessionActive;");
-    expect(main).toContain('!hasActivePlayInput && engineMode === "play" && runMode === "playing"');
+    expect(main).toContain('playRuntime.state().runMode === "playing"');
   });
 
-  test("main uses RunSession and safe hydrate policy", async () => {
+  test("main uses PlayRuntime and safe hydrate policy", async () => {
     const main = await Bun.file(new URL("../src/main.ts", import.meta.url)).text();
-    expect(main).toContain("applyWorldUpdate");
+    expect(main).toContain("const playRuntime = new PlayRuntime(world);");
+    expect(main).toContain("playRuntime.step({");
     expect(main).toContain("shouldAdoptHydratedSeed");
-    expect(main).toContain("resetRunSession");
+    expect(main).not.toContain("resetRunSession");
   });
 });

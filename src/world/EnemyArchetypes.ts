@@ -471,8 +471,9 @@ export function getEnemyMotion(
   distance: number,
   elapsed: number,
   phase: number,
+  /** Live combat stats (biome/difficulty). Defaults to the authored base. */
+  archetype: EnemyArchetype = ENEMY_ARCHETYPES[kind],
 ): EnemyMotion {
-  const archetype = ENEMY_ARCHETYPES[kind];
   if (distance > archetype.detectionRange) return { forward: 0, strafe: 0, speedMultiplier: 0 };
   const close = distance < archetype.preferredRange;
 

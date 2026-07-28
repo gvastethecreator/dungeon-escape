@@ -7,9 +7,14 @@ import {
   tickTimeFreeze,
   TIME_FREEZE_DURATION_SECONDS,
 } from "../src/game/TimeFreeze";
+import {
+  createEnemyBillboardMaterial,
+  setEnemyFreezeAmount,
+} from "../src/world/EnemyBillboardMaterial";
 import { createDungeonMaterials } from "../src/world/MaterialLibrary";
 import { createTimeFreezeRelic } from "../src/world/ItemFactory";
 import { TimeFreezeVfx } from "../src/world/TimeFreezeVfx";
+import { getDungeonMood } from "../src/systems/DungeonMood";
 
 describe("time-freeze power", () => {
   test("holds enemies for exactly twenty gameplay seconds", () => {
@@ -39,7 +44,19 @@ describe("time-freeze power", () => {
     expect(runtime.colliders[0]).toMatchObject({ type: "sphere", isTrigger: true });
   });
 
-  test("keeps enemy aura geometry instanced and hides it after expiry", () => {
+  test("desaturates enemy billboards through the freeze uniform", () => {
+    const material = createEnemyBillboardMaterial(new THREE.Texture(), getDungeonMood("frost"));
+    expect(material.userData.enemyFreezeAmount?.value).toBe(0);
+    setEnemyFreezeAmount(material, 1);
+    expect(material.userData.enemyFreezeAmount?.value).toBe(1);
+    setEnemyFreezeAmount(material, -2);
+    expect(material.userData.enemyFreezeAmount?.value).toBe(0);
+    setEnemyFreezeAmount(material, 0.4);
+    expect(material.userData.enemyFreezeAmount?.value).toBeCloseTo(0.4, 5);
+    material.dispose();
+  });
+
+  test("spawns body frost motes while active and clears them after expiry", () => {
     const vfx = new TimeFreezeVfx(1);
     const target = {
       position: { x: 2, y: 0.8, z: -1 },
@@ -49,22 +66,33 @@ describe("time-freeze power", () => {
       scaleY: 1.4,
     };
 
-    expect(vfx.root.getObjectByName("Time freeze orbit rings")).toBeDefined();
-    expect(vfx.root.getObjectByName("Time freeze vertical halos")).toBeDefined();
+    const motes = vfx.root.getObjectByName("Time freeze body motes") as THREE.Points;
+    const moteMaterial = motes.material as THREE.PointsMaterial;
+    expect(motes).toBeInstanceOf(THREE.Points);
+    expect(vfx.root.getObjectByName("Time freeze orbit rings")).toBeUndefined();
+    expect(vfx.root.getObjectByName("Time freeze vertical halos")).toBeUndefined();
+    expect(vfx.root.getObjectByName("Time freeze suspended shards")).toBeUndefined();
+
     vfx.update(20, 1.2, [target]);
-    const activeMatrix = new THREE.Matrix4();
-    const activeScale = new THREE.Vector3();
-    const activeMesh = vfx.root.getObjectByName("Time freeze orbit rings") as THREE.InstancedMesh;
-    activeMesh.getMatrixAt(0, activeMatrix);
-    activeMatrix.decompose(new THREE.Vector3(), new THREE.Quaternion(), activeScale);
-    expect(activeScale.x).toBeGreaterThan(0);
+    const activePositions = motes.geometry.getAttribute("position") as THREE.BufferAttribute;
+    expect(motes.visible).toBe(true);
+    expect(moteMaterial.opacity).toBeGreaterThan(0.2);
+    expect(activePositions.getY(0)).toBeGreaterThan(-10);
+    expect(
+      Math.hypot(
+        activePositions.getX(0) - target.position.x,
+        activePositions.getZ(0) - target.position.z,
+      ),
+    ).toBeLessThan(1.2);
 
     vfx.update(0, 2, [target]);
-    const hiddenMatrix = new THREE.Matrix4();
-    const hiddenScale = new THREE.Vector3();
-    activeMesh.getMatrixAt(0, hiddenMatrix);
-    hiddenMatrix.decompose(new THREE.Vector3(), new THREE.Quaternion(), hiddenScale);
-    expect(hiddenScale.length()).toBe(0);
+    // Stay visible with zero opacity so the Points program is warmup-compiled.
+    expect(motes.visible).toBe(true);
+    expect(moteMaterial.opacity).toBe(0);
+    expect(activePositions.getY(0)).toBeLessThan(-100);
+    const clearedVersion = activePositions.version;
+    vfx.update(0, 3, [target]);
+    expect(activePositions.version).toBe(clearedVersion);
     vfx.dispose();
   });
 });

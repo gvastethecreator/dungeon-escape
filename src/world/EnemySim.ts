@@ -5,9 +5,12 @@ import {
   getEnemyMotion,
   isHoverEnemy,
   isLowProfileEnemy,
+  type EnemyArchetype,
   type EnemyKind,
 } from "./EnemyArchetypes";
+import { applyBiomeEnemyMods } from "./EnemyBiomeMods";
 import { knockbackAwayFrom } from "./knockback";
+import { DEFAULT_DIFFICULTY } from "../game/DifficultyDirector";
 
 /** Simulation-only enemy body (no Three mesh references). */
 export interface EnemySimBody {
@@ -47,6 +50,15 @@ export interface EnemySimContext {
   tileSize: number;
   /** Horizontal safety radius enforced by a luminous ward. */
   repelRadius?: number;
+  /** Active dungeon biome; drives EnemyBiomeMods. */
+  moodId?: string | null;
+  /** Run difficulty 0–1; scales biome mods. */
+  difficulty?: number;
+  /**
+   * Optional pre-resolved archetypes for this tick. When omitted, each enemy
+   * resolves through applyBiomeEnemyMods(kind, moodId, difficulty).
+   */
+  archetypes?: Readonly<Partial<Record<EnemyKind, EnemyArchetype>>>;
 }
 
 // Enemy simulation runs every rendered frame. Reuse its temporary vectors so
@@ -85,10 +97,21 @@ export function enemyPhaseVisibility(kind: EnemyKind, elapsed: number, phase: nu
   return fade * fade * (3 - 2 * fade);
 }
 
-export function spiderPounceHeight(distance: number, elapsed: number, phase: number): number {
-  if (distance <= ENEMY_ARCHETYPES.spider.attackRange * 0.9 || distance > 12) return 0;
+export function spiderPounceHeight(
+  distance: number,
+  elapsed: number,
+  phase: number,
+  attackRange = ENEMY_ARCHETYPES.spider.attackRange,
+): number {
+  if (distance <= attackRange * 0.9 || distance > 12) return 0;
   const pulse = Math.max(0, Math.sin(elapsed * 3.45 + phase));
   return Math.pow(pulse, 7) * 0.3;
+}
+
+function resolveSimArchetype(kind: EnemyKind, ctx: EnemySimContext): EnemyArchetype {
+  const cached = ctx.archetypes?.[kind];
+  if (cached) return cached;
+  return applyBiomeEnemyMods(kind, ctx.moodId ?? "ash", ctx.difficulty ?? DEFAULT_DIFFICULTY);
 }
 
 export function impFlightOffset(distance: number, elapsed: number, phase: number): number {
@@ -114,8 +137,8 @@ function relocatePhasedEnemy(
   tileSize: number,
   distance: number,
   epoch: number,
+  archetype: EnemyArchetype = ENEMY_ARCHETYPES[enemy.kind],
 ): void {
-  const archetype = ENEMY_ARCHETYPES[enemy.kind];
   if (distance <= archetype.attackRange + 0.9) return;
   const towardX = (player.x - enemy.position.x) / Math.max(distance, 1e-4);
   const towardZ = (player.z - enemy.position.z) / Math.max(distance, 1e-4);
@@ -160,7 +183,7 @@ export function tickEnemySim(
   const { delta, elapsed, player, dungeon, solidColliders, tileSize } = ctx;
   const repelRadius = Math.max(0, ctx.repelRadius ?? 0);
   for (const enemy of enemies) {
-    const archetype = ENEMY_ARCHETYPES[enemy.kind];
+    const archetype = resolveSimArchetype(enemy.kind, ctx);
     enemy.hitCooldown = Math.max(0, enemy.hitCooldown - delta);
     enemy.attackPulse = Math.max(0, enemy.attackPulse - delta * 3.8);
     const dx = enemy.position.x - player.x;
@@ -172,7 +195,16 @@ export function tickEnemySim(
     if (isPhasingEnemy(enemy.kind) && !wardRepel && dungeon && enemy.phaseVisibility <= 0.001) {
       const epoch = enemyPhaseEpoch(enemy.kind, elapsed, enemy.phase);
       if (enemy.phaseEpoch !== epoch) {
-        relocatePhasedEnemy(enemy, player, dungeon, solidColliders, tileSize, distance, epoch);
+        relocatePhasedEnemy(
+          enemy,
+          player,
+          dungeon,
+          solidColliders,
+          tileSize,
+          distance,
+          epoch,
+          archetype,
+        );
         enemy.phaseEpoch = epoch;
         distance = Math.hypot(enemy.position.x - player.x, enemy.position.z - player.z);
         nearestThreat = Math.min(nearestThreat, distance);
@@ -180,7 +212,7 @@ export function tickEnemySim(
       }
     }
     let travelled = 0;
-    const motion = getEnemyMotion(enemy.kind, distance, elapsed, enemy.phase);
+    const motion = getEnemyMotion(enemy.kind, distance, elapsed, enemy.phase, archetype);
     if (motion.speedMultiplier > 0 && dungeon) {
       // A luminous ward reverses pursuit inside its safety radius. Keep a
       // small lateral component so several enemies do not stack on one line.
@@ -232,7 +264,10 @@ export function tickEnemySim(
       isHoverEnemy(enemy.kind) && enemy.kind !== "imp"
         ? Math.sin(elapsed * 2.8 + enemy.phase) * (enemy.kind === "ghost" ? 0.12 : 0.08)
         : 0;
-    const pounce = enemy.kind === "spider" ? spiderPounceHeight(distance, elapsed, enemy.phase) : 0;
+    const pounce =
+      enemy.kind === "spider"
+        ? spiderPounceHeight(distance, elapsed, enemy.phase, archetype.attackRange)
+        : 0;
     const flight = enemy.kind === "imp" ? impFlightOffset(distance, elapsed, enemy.phase) : 0;
     const heavy =
       enemy.kind === "zombie-orc" || enemy.kind === "husk" || enemy.kind === "bone-slime"

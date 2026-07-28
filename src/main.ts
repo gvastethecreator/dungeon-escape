@@ -16,11 +16,9 @@ import {
 import { DUNGEON_PRESETS, type DungeonEditorParams, type DungeonPresetId } from "./editor/presets";
 import { generateDungeon, setDungeonSpawn } from "./dungeon/generateDungeon";
 import {
-  isForgeDungeonMessage,
-  prepareDungeonForge,
-  type ForgeDungeonPayload,
-} from "./dungeon/importDungeonForge";
-import { normalizeForgePayload } from "./dungeon/forgePayload";
+  parseForgeDungeonMessage,
+  type ForgeDungeonIntakeValue,
+} from "./dungeon/forgeIntake";
 import type { DungeonData } from "./dungeon/types";
 import { DungeonEditorView } from "./editor/DungeonEditorView";
 import { type EngineMode, isEngineMode, shouldMountForge } from "./game/EngineMode";
@@ -29,13 +27,25 @@ import {
   formatRunClock,
   type DifficultySnapshot,
 } from "./game/DifficultyDirector";
+import { isLocalDevToolsEnabled, readLocalDevToolsEnv } from "./game/LocalDevTools";
 import { FirstPersonController, type PlayerAction } from "./player/FirstPersonController";
 import { AtmosphereSystem } from "./systems/AtmosphereSystem";
-import { getDungeonMood, parseDungeonMoodId, resolveDungeonMood } from "./systems/DungeonMood";
+import {
+  getDungeonMood,
+  parseDungeonMoodId,
+  resolveDungeonMood,
+  type DungeonMoodId,
+} from "./systems/DungeonMood";
 import { LightingRig } from "./systems/LightingRig";
 import { resolveDungeonExposure } from "./systems/LightTuning";
 import { PovPostFx } from "./systems/PovPostFx";
 import { computeCriticalHealthFeel } from "./systems/CriticalHealthFeel";
+import {
+  computeHazardFeel,
+  decayHazardHitBoost,
+  resolveDamageWashKind,
+  type DamageWashKind,
+} from "./systems/HazardFeel";
 import { FrameGapProfiler, type FrameGapSnapshot } from "./systems/FrameGapProfiler";
 import { collectVisibleRenderInventory } from "./systems/RenderInventory";
 import { resolveRenderPixelRatio } from "./systems/RenderScale";
@@ -52,37 +62,46 @@ import {
   drawMinimap,
   MINIMAP_REVEAL_RADIUS,
 } from "./ui/drawMinimap";
-import { COPY, STONE_ORDER, formatTime, type StoneId } from "./ui/copy";
+import { COPY, formatTime, type StoneId } from "./ui/copy";
 import { createMinimapLayoutScheduler } from "./ui/minimapLayout";
-import { QuestState } from "./game/QuestState";
 import {
-  applyWorldUpdate,
-  createRunSession,
-  resetRunSession,
-  restoreRunSession,
-  snapshotRunSession,
+  PlayRuntime,
   type PersistedRunSession,
-} from "./game/RunSession";
+  type PlayRuntimeProgress,
+} from "./game/PlayRuntime";
 import { shouldAdoptHydratedSeed } from "./game/hydratePolicy";
 import { nextProceduralSeed } from "./game/SeedFactory";
 import {
   canContinueDomainRun,
   canContinueLocalRun,
   readLocalRunSave,
+  runSourceFromLocalSave,
   writeLocalRunSave,
   type LocalRunResumeState,
 } from "./game/LocalRunSave";
+import {
+  isLeaderboardEligible,
+  runSourceForDungeon,
+  type RunSource,
+} from "./game/RunSource";
 import { loadLeaderboard, submitLeaderboardEntry } from "./leaderboard/client";
 import {
   computeLeaderboardScore,
+  emptyPlayerBiomeStars,
   normalizePlayerName,
   type LeaderboardEntry,
   type LeaderboardSubmissionInput,
+  type PlayerBiomeStars,
 } from "./leaderboard/contract";
+import { frameForRank, portraitForName } from "./leaderboard/portraits";
+import { biomeCampaignParams } from "./systems/BiomeCampaign";
+import { listBiomeIdentities, type BiomeId } from "./systems/BiomeIdentity";
+import { biomeHoverColor, biomeIconSrc, expandBiomeStars } from "./systems/BiomeUi";
 import { DungeonWorld } from "./world/DungeonWorld";
 import type { HazardSurfaceEffect } from "./world/HazardTileSystem";
 import { WORLD_TILE_SIZE, WORLD_WALL_HEIGHT } from "./world/WorldMetrics";
 import "./styles.css";
+import "./styles/editor.css";
 
 function requireElement<T extends Element>(selector: string): T {
   const element = document.querySelector<T>(selector);
@@ -94,10 +113,14 @@ const elements = {
   shell: requireElement<HTMLElement>(".app-shell"),
   scene: requireElement<HTMLCanvasElement>("#scene"),
   welcomeScreen: requireElement<HTMLElement>("#welcome-screen"),
+  welcomeHome: requireElement<HTMLElement>("#welcome-home"),
   welcomeNew: requireElement<HTMLButtonElement>("#welcome-new"),
   welcomeContinue: requireElement<HTMLButtonElement>("#welcome-continue"),
   welcomeCustom: requireElement<HTMLButtonElement>("#welcome-custom"),
   welcomeStatus: requireElement<HTMLElement>("#welcome-status"),
+  welcomeBiomePicker: requireElement<HTMLElement>("#welcome-biome-picker"),
+  biomePickerGrid: requireElement<HTMLElement>("#biome-picker-grid"),
+  biomePickerBack: requireElement<HTMLButtonElement>("#biome-picker-back"),
   leaderboardList: requireElement<HTMLOListElement>("#leaderboard-list"),
   leaderboardStatus: requireElement<HTMLElement>("#leaderboard-status"),
   generationForm: requireElement<HTMLFormElement>("#generation-form"),
@@ -128,7 +151,7 @@ const elements = {
   runSelect: requireElement<HTMLSelectElement>("#run-select"),
   runNew: requireElement<HTMLButtonElement>("#run-new"),
   runRefresh: requireElement<HTMLButtonElement>("#run-refresh"),
-  pushAuthority: requireElement<HTMLButtonElement>("#push-authority"),
+  pushServer: requireElement<HTMLButtonElement>("#push-server"),
   cameraSensitivity: requireElement<HTMLInputElement>("#camera-sensitivity"),
   cameraSensitivityLabel: requireElement<HTMLOutputElement>("#camera-sensitivity-label"),
   cameraMotion: requireElement<HTMLInputElement>("#camera-motion"),
@@ -136,7 +159,7 @@ const elements = {
   reroll: requireElement<HTMLButtonElement>("#reroll"),
   runStats: requireElement<HTMLParagraphElement>("#run-stats"),
   position: requireElement<HTMLParagraphElement>("#position-readout"),
-  authorityReadout: requireElement<HTMLParagraphElement>("#authority-readout"),
+  serverReadout: requireElement<HTMLParagraphElement>("#server-readout"),
   presetButtons: [...document.querySelectorAll<HTMLButtonElement>("[data-dungeon-preset]")],
   status: requireElement<HTMLParagraphElement>("#status"),
   resolveValue: requireElement<HTMLOutputElement>("#resolve-value"),
@@ -151,6 +174,7 @@ const elements = {
   luminousWardStatus: requireElement<HTMLElement>("#luminous-ward-status"),
   luminousWardValue: requireElement<HTMLTimeElement>("#luminous-ward-value"),
   hazardStatus: requireElement<HTMLElement>("#hazard-status"),
+  hazardOverlay: requireElement<HTMLElement>("#hazard-overlay"),
   playObjective: requireElement<HTMLElement>("#play-objective"),
   stoneCount: requireElement<HTMLElement>("#stone-count"),
   stoneSockets: [...document.querySelectorAll<HTMLElement>(".stone-socket")],
@@ -164,6 +188,7 @@ const elements = {
   mapToggle: requireElement<HTMLButtonElement>("#map-toggle"),
   minimap: requireElement<HTMLCanvasElement>("#minimap"),
   touchButtons: [...document.querySelectorAll<HTMLButtonElement>("[data-move]")],
+  touchPause: requireElement<HTMLButtonElement>("#touch-pause"),
   endOverlay: requireElement<HTMLElement>("#end-overlay"),
   endKicker: requireElement<HTMLElement>("#end-kicker"),
   endTitle: requireElement<HTMLElement>("#end-title"),
@@ -176,7 +201,9 @@ const elements = {
   endBiome: requireElement<HTMLElement>("#end-biome"),
   endSeed: requireElement<HTMLElement>("#end-seed"),
   endLeaderboardForm: requireElement<HTMLFormElement>("#end-leaderboard-form"),
+  endLeaderboardNote: requireElement<HTMLElement>("#end-leaderboard-note"),
   leaderboardName: requireElement<HTMLInputElement>("#leaderboard-name"),
+  leaderboardPortraitPreview: requireElement<HTMLImageElement>("#leaderboard-portrait-preview"),
   leaderboardSubmit: requireElement<HTMLButtonElement>("#leaderboard-submit"),
   leaderboardSubmitStatus: requireElement<HTMLElement>("#leaderboard-submit-status"),
   retry: requireElement<HTMLButtonElement>("#retry"),
@@ -190,6 +217,9 @@ const elements = {
   audioToggle: requireElement<HTMLButtonElement>("#audio-toggle"),
   musicToggle: requireElement<HTMLButtonElement>("#music-toggle"),
   welcomeMusicToggle: requireElement<HTMLButtonElement>("#welcome-music-toggle"),
+  bootScreen: requireElement<HTMLElement>("#boot-screen"),
+  bootFill: requireElement<HTMLElement>("#boot-fill"),
+  bootStatus: requireElement<HTMLElement>("#boot-status"),
   crtToggle: requireElement<HTMLButtonElement>("#crt-toggle"),
   editorWorkspace: requireElement<HTMLElement>("#editor-workspace"),
   editorMap: requireElement<HTMLCanvasElement>("#editor-map"),
@@ -218,7 +248,11 @@ const PLAYER_SPRINT_MULT = 1.48;
 // Local domain bridge keeps seed, floor, exploration, and engine mode coherent.
 const urlSeed = readSeedFromUrl() ?? (elements.seed.value.trim() || COPY.hud.seedDefault);
 elements.seed.value = urlSeed;
-const authorityBaseUrl = new URLSearchParams(window.location.search).get("authority")?.trim() ?? "";
+/** Map Tools + Server Runs only on local dev hosts — never on public deploy. */
+const localDevTools = isLocalDevToolsEnabled(readLocalDevToolsEnv());
+const authorityBaseUrl = localDevTools
+  ? (new URLSearchParams(window.location.search).get("authority")?.trim() ?? "")
+  : "";
 const authority = createAuthorityClient({ baseUrl: authorityBaseUrl });
 const domainBridge: DomainBridge = createDomainBridge({
   initialSeed: urlSeed,
@@ -226,6 +260,20 @@ const domainBridge: DomainBridge = createDomainBridge({
 });
 const visitedCells = new Set<string>();
 let lastExploreCellKey = "";
+
+function applyLocalDevToolsChrome(): void {
+  elements.shell.dataset.localDevTools = localDevTools ? "true" : "false";
+  elements.recordPanel.hidden = !localDevTools;
+  elements.recordPanel.setAttribute("aria-hidden", localDevTools ? "false" : "true");
+  if (!localDevTools) elements.recordPanel.open = false;
+}
+
+/** Open Map Tools only when local developer chrome is enabled. */
+function setMapToolsOpen(open: boolean): void {
+  elements.recordPanel.open = localDevTools && open;
+}
+
+applyLocalDevToolsChrome();
 
 const scene = new THREE.Scene();
 
@@ -250,6 +298,7 @@ const lighting = new LightingRig(scene);
 // Neutral IBL so MeshStandard metals leave flat gray (low mood intensity keeps interiors grim).
 lighting.bindEnvironment(renderer);
 const world = new DungeonWorld(scene, { tileSize: TILE_SIZE, wallHeight: WORLD_WALL_HEIGHT });
+const playRuntime = new PlayRuntime(world);
 // Fog column shares WorldMetrics with the architecture stack.
 const atmosphere = new AtmosphereSystem(scene, TILE_SIZE, WORLD_WALL_HEIGHT);
 const povPost = new PovPostFx();
@@ -263,17 +312,6 @@ const cameraShakeEuler = new THREE.Euler(0, 0, 0, "YXZ");
 // non-trivial work on each call. The live MediaQueryList keeps .matches current.
 const REDUCED_MOTION_QUERY = window.matchMedia("(prefers-reduced-motion: reduce)");
 let dungeon: DungeonData | null = null;
-const session = createRunSession();
-/** @deprecated mirrors — prefer session; kept as short names for local call sites */
-let resolve = session.resolve;
-let runMode = session.runMode;
-let exitReached = session.exitReached;
-
-function syncSessionMirrors(): void {
-  resolve = session.resolve;
-  runMode = session.runMode;
-  exitReached = session.exitReached;
-}
 let mapExpanded = false;
 let lastMapDraw = 0;
 let lastRunTimerSecond = -1;
@@ -310,6 +348,10 @@ try {
   // Long-task entries are optional. Frame-gap percentiles remain available.
 }
 let damageTimer = 0;
+/** Brief boost for hazard post-FX right after a surface damage tick (0..1). */
+let hazardHitBoost = 0;
+/** Active surface for continuous hazard lens grade (toxin DoT keeps "toxin"). */
+let activeHazardKind: HazardSurfaceEffect["kind"] = null;
 /** Residual camera trauma after a hit (0..1); keeps shaking for a few seconds. */
 let hitTrauma = 0;
 /** Residual camera wobble after sprint stamina empties (0..1). */
@@ -317,16 +359,29 @@ let exhaustionTrauma = 0;
 /** Dirty cache for stamina HUD updates. */
 let lastStaminaHudKey = "";
 let touchSessionActive = false;
+let resumeTouchControls = false;
+let uiInteractQueued = false;
 let engineMode: EngineMode = "editor";
 let crtEnabled = true;
 let optionsOpen = false;
 let welcomeOpen = true;
 const LAST_LEADERBOARD_NAME_KEY = "dungeon-escape:leaderboard-name";
 const MUSIC_MUTED_KEY = "dungeon-escape:music-muted";
+const LOCAL_RUN_SAVE_DELAY_MS = 1_000;
 let leaderboardLoadSequence = 0;
 let pendingLeaderboardSubmission: Omit<LeaderboardSubmissionInput, "playerName"> | null = null;
+/**
+ * Campaign (New Game / Hall seed / eligible continue) may rank.
+ * Custom (Custom Run, Forge, Map Tools) never ranks.
+ */
+let runSource: RunSource = "campaign";
+/** When set, NEW GAME forces this biome instead of seed-random mood. */
+let forcedPlayMoodId: DungeonMoodId | null = null;
+/** Aggregate stars from every saved escape (player → biome label → count). */
+let playerBiomeStars: PlayerBiomeStars = emptyPlayerBiomeStars();
 let continueDomainState: DungeonDomainState | null = null;
 let localSaveTimer: ReturnType<typeof setTimeout> | null = null;
+let localSaveFailureNotified = false;
 let runHasStarted = false;
 let renderWarmupReady = false;
 let renderWarmupSequence = 0;
@@ -334,7 +389,7 @@ let lastDebugDraw = 0;
 let regenerateTimer = 0;
 let currentThreatDistance: number | null = null;
 let editorSurface: "runtime" | "forge" = "forge";
-let forgeDungeon: ForgeDungeonPayload | null = null;
+let forgeIntake: ForgeDungeonIntakeValue | null = null;
 let forgePreviewDungeon: DungeonData | null = null;
 let lastProceduralSeed = 0;
 let pendingProceduralSeed: number | null = null;
@@ -384,7 +439,11 @@ const controller = new FirstPersonController(camera, elements.scene, {
     // ESC releases pointer lock → open options in play.
     // Pointer lock can fail on touch browsers. Keep an armed touch session in
     // play instead of reopening the pause panel over its controls.
-    if (!hasActivePlayInput && engineMode === "play" && runMode === "playing") {
+    if (
+      !hasActivePlayInput &&
+      engineMode === "play" &&
+      playRuntime.state().runMode === "playing"
+    ) {
       setOptionsOpen(true);
     } else if (locked) {
       setOptionsOpen(false);
@@ -395,7 +454,6 @@ const controller = new FirstPersonController(camera, elements.scene, {
 
 const editorView = new DungeonEditorView(elements.editorMap, { onSelectSpawn: selectEditorSpawn });
 
-const quest = new QuestState();
 let objectiveBannerTimer: ReturnType<typeof setTimeout> | null = null;
 let objectiveFadeTimer: ReturnType<typeof setTimeout> | null = null;
 let lastPortalBanner = false;
@@ -405,7 +463,7 @@ function setStatus(message: string): void {
 }
 
 function currentDomainSave(): DungeonDomainState {
-  const persisted = snapshotRunSession(session, quest);
+  const persisted = playRuntime.snapshot();
   return {
     ...domainBridge.getDungeon(),
     ...persisted,
@@ -414,10 +472,11 @@ function currentDomainSave(): DungeonDomainState {
 }
 
 function captureLocalRunResume(): LocalRunResumeState | undefined {
-  if (!dungeon || session.runMode !== "playing") return undefined;
+  const state = playRuntime.state();
+  if (!dungeon || state.runMode !== "playing") return undefined;
   const player = controller.getState();
   const difficulty = world.getDifficultyState();
-  const questSnap = quest.snapshot();
+  const questSnap = playRuntime.snapshot();
   return {
     runSeconds: questSnap.runSeconds,
     difficultyElapsed: difficulty.elapsedSeconds,
@@ -451,6 +510,20 @@ function domainToPersistedSession(
   };
 }
 
+function runtimeProgressFromResume(
+  resume: LocalRunResumeState | undefined,
+): PlayRuntimeProgress | undefined {
+  if (!resume) return undefined;
+  return {
+    progress: {
+      difficultyElapsed: resume.difficultyElapsed,
+      timeFreezeRemaining: resume.timeFreezeRemaining,
+      luminousWardRemaining: resume.luminousWardRemaining,
+    },
+    player: { x: resume.player.x, z: resume.player.z },
+  };
+}
+
 function applyLocalRunResume(resume: LocalRunResumeState | undefined): void {
   if (!resume || !dungeon) return;
   visitedCells.clear();
@@ -459,33 +532,50 @@ function applyLocalRunResume(resume: LocalRunResumeState | undefined): void {
     revealMinimapCell(dungeon.spawn);
   }
   controller.restorePose(resume.player);
-  world.restoreRuntimeProgress(
-    {
-      difficultyElapsed: resume.difficultyElapsed,
-      timeFreezeRemaining: resume.timeFreezeRemaining,
-      luminousWardRemaining: resume.luminousWardRemaining,
-    },
-    { x: resume.player.x, z: resume.player.z },
-  );
   lastRunTimerSecond = -1;
-  syncRunTimer();
-  syncTimeFreezeHud(world.timeFreezeRemaining);
-  syncLuminousWardHud(world.luminousWardRemaining);
-  controller.setSolidColliders(world.getSolidColliders());
-  syncDomainExplore();
+}
+
+function setRunSource(next: RunSource, hasForge = Boolean(dungeon?.forge)): void {
+  runSource = runSourceForDungeon(next, hasForge);
+  elements.shell.dataset.runSource = runSource;
 }
 
 function persistCurrentRun(): void {
   if (!dungeon) return;
-  writeLocalRunSave(currentDomainSave(), localStorage, Date.now(), captureLocalRunResume());
+  const saved = writeLocalRunSave(
+    currentDomainSave(),
+    localStorage,
+    Date.now(),
+    captureLocalRunResume(),
+    runSource,
+  );
+  if (saved) {
+    localSaveFailureNotified = false;
+    return;
+  }
+  if (localSaveFailureNotified) return;
+  localSaveFailureNotified = true;
+  setStatus("Could not save this run locally. Continue may not be available.");
 }
 
-function scheduleLocalRunSave(delay = 650): void {
-  if (localSaveTimer !== null) clearTimeout(localSaveTimer);
+function scheduleLocalRunSave(delay = LOCAL_RUN_SAVE_DELAY_MS): void {
+  if (!runHasStarted || localSaveTimer !== null) return;
   localSaveTimer = setTimeout(() => {
     localSaveTimer = null;
     persistCurrentRun();
   }, delay);
+}
+
+function flushLocalRunSave(): void {
+  if (localSaveTimer !== null) {
+    clearTimeout(localSaveTimer);
+    localSaveTimer = null;
+  }
+  if (runHasStarted) persistCurrentRun();
+}
+
+function flushLocalRunSaveWhenHidden(): void {
+  if (document.visibilityState === "hidden") flushLocalRunSave();
 }
 
 function setContinueCandidate(state: DungeonDomainState | null, status: string): void {
@@ -502,12 +592,83 @@ function setWelcomeOpen(open: boolean): void {
     controller.releasePointerLock();
     audio.setPaused(true);
     setMusicBed("menu");
+    showWelcomeHome();
     window.requestAnimationFrame(() => elements.welcomeNew.focus());
   } else {
     elements.scene.focus({ preventScroll: true });
     // Leaving the welcome screen for play or editor stops the menu bed.
-    if (runMode === "playing") setMusicBed(null);
+    if (playRuntime.state().runMode === "playing") setMusicBed(null);
   }
+}
+
+function showWelcomeHome(): void {
+  elements.welcomeHome.hidden = false;
+  elements.welcomeBiomePicker.hidden = true;
+}
+
+function showBiomePicker(): void {
+  renderBiomePicker();
+  elements.welcomeHome.hidden = true;
+  elements.welcomeBiomePicker.hidden = false;
+  window.requestAnimationFrame(() => elements.biomePickerBack.focus());
+}
+
+function formatStarLabel(count: number): string {
+  if (count <= 0) return "—";
+  if (count <= 5) return "★".repeat(count);
+  return `★ ${count}`;
+}
+
+function renderBiomePicker(): void {
+  let storedName = "";
+  try {
+    storedName = localStorage.getItem(LAST_LEADERBOARD_NAME_KEY) ?? "";
+  } catch {
+    storedName = "";
+  }
+  const name = normalizePlayerName(storedName) ?? "";
+  const starsForPlayer = name ? (playerBiomeStars[name] ?? {}) : {};
+  const fragment = document.createDocumentFragment();
+  for (const biome of listBiomeIdentities()) {
+    const button = document.createElement("button");
+    const icon = document.createElement("img");
+    const label = document.createElement("span");
+    const stars = document.createElement("span");
+    const count = starsForPlayer[biome.label] ?? 0;
+    button.type = "button";
+    button.className = "biome-picker-option";
+    button.dataset.biomeId = biome.id;
+    button.style.setProperty("--biome-hover", biomeHoverColor(biome.id));
+    button.setAttribute("role", "listitem");
+    icon.className = "biome-picker-option__icon";
+    icon.src = biomeIconSrc(biome.id);
+    icon.alt = "";
+    icon.width = 32;
+    icon.height = 32;
+    icon.decoding = "async";
+    icon.draggable = false;
+    label.className = "biome-picker-option__name";
+    stars.className = count > 0 ? "biome-picker-option__stars" : "biome-picker-option__stars is-empty";
+    label.textContent = biome.label;
+    stars.textContent = formatStarLabel(count);
+    stars.title = count > 0 ? `${count} clear${count === 1 ? "" : "s"}` : "No clears yet";
+    button.append(icon, label, stars);
+    button.addEventListener("click", () => {
+      startNewGameWithBiome(biome.id);
+    });
+    fragment.append(button);
+  }
+  elements.biomePickerGrid.replaceChildren(fragment);
+}
+
+function startNewGameWithBiome(biomeId: BiomeId): void {
+  forcedPlayMoodId = biomeId;
+  void audio.unlock();
+  // Apply the campaign ramp for this biome (Ancient soft → Backrooms brutal).
+  applyEditorParamsToForm(biomeCampaignParams(biomeId));
+  setRunSource("campaign", false);
+  startPlayWithSeed(makeSeed(), { refreshProcedural: true, runSource: "campaign" });
+  setStatus(`New game · ${getDungeonMood(biomeId).label}. Click the scene to look.`);
 }
 
 /** Soft 8-bit scene beds. Menu / end screens keep music while play SFX are paused. */
@@ -534,24 +695,35 @@ function writeStoredMusicMuted(muted: boolean): void {
 function syncMusicToggleUi(): void {
   const muted = audio.isMusicMuted;
   const label = muted ? COPY.hud.musicOff : COPY.hud.musicOn;
-  for (const button of [elements.musicToggle, elements.welcomeMusicToggle]) {
-    button.setAttribute("aria-pressed", String(muted));
-    button.classList.toggle("is-active", !muted);
-    button.textContent = label;
-    button.title = muted ? "Enable music" : "Disable music";
-  }
+  const title = muted ? "Enable music" : "Disable music";
+
+  elements.musicToggle.setAttribute("aria-pressed", String(muted));
+  elements.musicToggle.classList.toggle("is-active", !muted);
+  elements.musicToggle.textContent = label;
+  elements.musicToggle.title = title;
+
+  // Welcome uses a note icon; keep the glyph and only update a11y state.
+  elements.welcomeMusicToggle.setAttribute("aria-pressed", String(muted));
+  elements.welcomeMusicToggle.setAttribute("aria-label", title);
+  elements.welcomeMusicToggle.classList.toggle("is-active", !muted);
+  elements.welcomeMusicToggle.classList.toggle("is-muted", muted);
+  elements.welcomeMusicToggle.title = title;
 }
 
 function setMusicMutedPreference(muted: boolean, options: { playClick?: boolean } = {}): void {
   audio.setMusicMuted(muted);
   writeStoredMusicMuted(muted);
   syncMusicToggleUi();
-  if (options.playClick !== false && !audio.isMuted) audio.play("ui");
+  if (options.playClick !== false && !audio.isMuted) audio.play("uiToggle");
   setStatus(muted ? "Music off." : "Music on.");
 }
 
-function startPlayWithSeed(seed: string, options: { refreshProcedural?: boolean } = {}): void {
+function startPlayWithSeed(
+  seed: string,
+  options: { refreshProcedural?: boolean; runSource?: RunSource } = {},
+): void {
   void audio.unlock();
+  if (options.runSource) setRunSource(options.runSource, false);
   if (options.refreshProcedural) queueNewProceduralSeed();
   const normalizedSeed = seed.trim() || COPY.hud.seedDefault;
   elements.seed.value = normalizedSeed;
@@ -562,57 +734,111 @@ function startPlayWithSeed(seed: string, options: { refreshProcedural?: boolean 
   setStatus(COPY.status.enterPlay);
 }
 
-function createLeaderboardStat(label: string, value: HTMLElement): HTMLElement {
-  const stat = document.createElement("span");
-  const labelEl = document.createElement("span");
-  stat.className = "leaderboard-stat";
-  labelEl.className = "leaderboard-stat__label";
-  labelEl.textContent = label;
-  stat.append(labelEl, value);
-  return stat;
+function updateLeaderboardPortraitPreview(rawName: string): void {
+  const name = normalizePlayerName(rawName) ?? (rawName.trim() || "Wanderer");
+  const portrait = portraitForName(name);
+  if (elements.leaderboardPortraitPreview.getAttribute("src") !== portrait.src) {
+    elements.leaderboardPortraitPreview.src = portrait.src;
+  }
 }
 
 function renderLeaderboard(entries: readonly LeaderboardEntry[]): void {
   const fragment = document.createDocumentFragment();
   for (const entry of entries) {
+    const portrait = portraitForName(entry.playerName);
+    const frame = frameForRank(entry.rank);
+    const playerStars = playerBiomeStars[entry.playerName] ?? {};
+    const starTokens = expandBiomeStars(playerStars);
     const item = document.createElement("li");
+    const face = document.createElement("div");
+    const portraitImg = document.createElement("img");
+    const frameImg = document.createElement("img");
     const rank = document.createElement("span");
     const body = document.createElement("div");
     const top = document.createElement("div");
+    const nameBlock = document.createElement("div");
     const name = document.createElement("span");
+    const stars = document.createElement("div");
     const score = document.createElement("span");
-    const stats = document.createElement("div");
+    const meta = document.createElement("div");
     const time = document.createElement("span");
+    const biome = document.createElement("span");
     const seed = document.createElement("button");
 
+    item.className = `leaderboard-entry is-${frame.kind}`;
+    face.className = `leaderboard-face is-${frame.kind}`;
+    portraitImg.className = "leaderboard-portrait";
+    frameImg.className = "leaderboard-frame";
     rank.className = "leaderboard-rank";
     body.className = "leaderboard-body";
     top.className = "leaderboard-top";
+    nameBlock.className = "leaderboard-name-block";
     name.className = "leaderboard-name";
+    stars.className = "leaderboard-stars";
     score.className = "leaderboard-score";
-    stats.className = "leaderboard-stats";
+    meta.className = "leaderboard-meta";
     time.className = "leaderboard-time";
+    biome.className = "leaderboard-biome";
     seed.className = "leaderboard-seed";
     seed.type = "button";
 
     const escapeTime = formatTime(entry.durationMs / 1000);
+    portraitImg.src = portrait.src;
+    portraitImg.alt = "";
+    portraitImg.decoding = "async";
+    portraitImg.loading = "lazy";
+    portraitImg.draggable = false;
+    frameImg.src = frame.src;
+    frameImg.alt = "";
+    frameImg.decoding = "async";
+    frameImg.loading = "lazy";
+    frameImg.draggable = false;
+    frameImg.setAttribute("aria-hidden", "true");
     rank.textContent = String(entry.rank);
+    rank.setAttribute("aria-label", COPY.leaderboard.rankLabel(entry.rank));
     name.textContent = entry.playerName;
     name.title = `${entry.biome} · ${entry.difficulty}`;
+    if (starTokens.length > 0) {
+      const counts = Object.entries(playerStars)
+        .filter(([, count]) => count > 0)
+        .map(([biomeLabel, count]) => `${biomeLabel}: ${count}`)
+        .join(" · ");
+      stars.title = counts;
+      stars.setAttribute("aria-label", `Biome stars: ${counts}`);
+      for (const token of starTokens) {
+        const star = document.createElement("span");
+        star.className = "leaderboard-star";
+        if (token.id) star.dataset.biome = token.id;
+        star.textContent = "★";
+        star.style.color = token.color;
+        star.title = token.label;
+        stars.append(star);
+      }
+    } else {
+      stars.hidden = true;
+    }
     score.textContent = entry.score.toLocaleString("en-US");
+    score.title = "Score";
     time.textContent = escapeTime;
+    time.title = "Escape time";
+    biome.textContent = entry.biome;
+    biome.title = "Biome";
     seed.textContent = entry.seed;
     seed.title = COPY.leaderboard.playSeed(entry.seed);
     seed.setAttribute("aria-label", COPY.leaderboard.playSeed(entry.seed));
     seed.addEventListener("click", (event) => {
       event.preventDefault();
-      startPlayWithSeed(entry.seed);
+      forcedPlayMoodId = null;
+      // Hall seeds are campaign attempts — still rank on escape.
+      startPlayWithSeed(entry.seed, { runSource: "campaign" });
     });
 
-    top.append(name, score);
-    stats.append(createLeaderboardStat("Time", time), createLeaderboardStat("Seed", seed));
-    body.append(top, stats);
-    item.append(rank, body);
+    face.append(portraitImg, frameImg, rank);
+    nameBlock.append(name, stars);
+    top.append(nameBlock, score);
+    meta.append(time, biome, seed);
+    body.append(top, meta);
+    item.append(face, body);
     fragment.append(item);
   }
   elements.leaderboardList.replaceChildren(fragment);
@@ -624,12 +850,15 @@ async function refreshLeaderboard(): Promise<void> {
   try {
     const response = await loadLeaderboard();
     if (sequence !== leaderboardLoadSequence) return;
+    playerBiomeStars = response.playerBiomeStars ?? emptyPlayerBiomeStars();
     renderLeaderboard(response.entries);
+    if (!elements.welcomeBiomePicker.hidden) renderBiomePicker();
     elements.leaderboardStatus.textContent = response.entries.length
       ? `${response.entries.length} completed escape${response.entries.length === 1 ? "" : "s"}.`
       : COPY.leaderboard.empty;
   } catch (error) {
     if (sequence !== leaderboardLoadSequence) return;
+    playerBiomeStars = emptyPlayerBiomeStars();
     renderLeaderboard([]);
     elements.leaderboardStatus.textContent = COPY.leaderboard.unavailable;
     console.warn("Leaderboard could not be loaded", error);
@@ -650,6 +879,18 @@ function prepareLeaderboardSubmission(
 ): void {
   const durationMs = Math.max(1_000, Math.round(runSeconds * 1000));
   const difficultyValue = getEnemyDensity();
+  const score = computeLeaderboardScore({ durationMs, difficultyValue, roomCount });
+  elements.endScore.textContent = score.toLocaleString("en-US");
+
+  // Custom Run / Forge / Map Tools: show the local score, never open Hall submit.
+  if (!isLeaderboardEligible(runSource) || Boolean(dungeon?.forge)) {
+    pendingLeaderboardSubmission = null;
+    elements.endLeaderboardForm.hidden = true;
+    elements.endLeaderboardNote.hidden = false;
+    elements.endLeaderboardNote.textContent = COPY.leaderboard.customExcluded;
+    return;
+  }
+
   pendingLeaderboardSubmission = {
     runId: createLeaderboardRunId(),
     durationMs,
@@ -659,9 +900,10 @@ function prepareLeaderboardSubmission(
     seed,
     difficultyValue,
     roomCount,
+    runSource: "campaign",
   };
-  const score = computeLeaderboardScore({ durationMs, difficultyValue, roomCount });
-  elements.endScore.textContent = score.toLocaleString("en-US");
+  elements.endLeaderboardNote.hidden = true;
+  elements.endLeaderboardNote.textContent = "";
   elements.endLeaderboardForm.hidden = false;
   elements.leaderboardName.disabled = false;
   elements.leaderboardSubmit.disabled = false;
@@ -672,10 +914,13 @@ function prepareLeaderboardSubmission(
   } catch {
     elements.leaderboardName.value = "";
   }
+  updateLeaderboardPortraitPreview(elements.leaderboardName.value || "Wanderer");
 }
 
 function canEnablePlayController(): boolean {
-  return renderWarmupReady && engineMode === "play" && runMode === "playing";
+  return (
+    renderWarmupReady && engineMode === "play" && playRuntime.state().runMode === "playing"
+  );
 }
 
 function beginRendererWarmup(): number {
@@ -776,16 +1021,16 @@ let questHudStonesFound = -1;
 let questHudPortalOpen = false;
 
 function syncQuestHud(): void {
-  const stonesFound = quest.stonesFound;
-  const portalOpen = quest.portalOpen;
+  const quest = playRuntime.state().quest;
+  const { stonesFound, portalOpen } = quest;
   if (stonesFound === questHudStonesFound && portalOpen === questHudPortalOpen) return;
   questHudStonesFound = stonesFound;
   questHudPortalOpen = portalOpen;
 
-  elements.stoneCount.textContent = `${stonesFound}/${quest.totalStones}`;
+  elements.stoneCount.textContent = `${stonesFound}/${quest.stonesTotal}`;
   for (const socket of elements.stoneSockets) {
     const id = socket.dataset.stone as StoneId | undefined;
-    const bound = id ? quest.hasStone(id) : false;
+    const bound = id ? quest.foundStoneIds.includes(id) : false;
     socket.classList.toggle("is-bound", bound);
     socket.setAttribute("aria-pressed", String(bound));
   }
@@ -803,32 +1048,32 @@ function applyPersistedRunSession(
   persisted: PersistedRunSession,
   resume?: LocalRunResumeState,
 ): void {
-  restoreRunSession(session, quest, persisted);
-  world.restoreSession(persisted.foundStoneIds);
+  const state = playRuntime.restore(persisted, runtimeProgressFromResume(resume));
   applyLocalRunResume(resume);
+  if (resume) syncDomainExplore();
   lastTimeFreezeDisplay = "";
   lastLuminousWardDisplay = "";
-  if (!resume) {
-    syncTimeFreezeHud();
-    syncLuminousWardHud();
-  }
-  syncSessionMirrors();
-  elements.shell.dataset.mode = session.runMode;
-  elements.shell.dataset.relic = String(quest.portalOpen);
-  elements.shell.dataset.stones = String(quest.stonesFound);
-  elements.shell.dataset.resolve = String(Math.ceil(session.resolve));
-  lastPortalBanner = quest.portalOpen;
+  lastRunTimerSecond = -1;
+  syncTimeFreezeHud();
+  syncLuminousWardHud();
+  syncRunTimer();
+  controller.setSolidColliders(world.getSolidColliders());
+  elements.shell.dataset.mode = state.runMode;
+  elements.shell.dataset.relic = String(state.quest.portalOpen);
+  elements.shell.dataset.stones = String(state.quest.stonesFound);
+  elements.shell.dataset.resolve = String(Math.ceil(state.resolve));
+  lastPortalBanner = state.quest.portalOpen;
   questHudStonesFound = -1;
   questHudPortalOpen = false;
   updateResolve();
   updateObjective();
-  if (session.runMode === "playing") closeEndOverlay();
-  else showEndOverlay(session.runMode);
+  if (state.runMode === "playing") closeEndOverlay();
+  else showEndOverlay(state.runMode);
 }
 
 function setOptionsOpen(open: boolean): void {
   if (engineMode !== "play") {
-    // Editor/debug always show the docked tools shell.
+    // Creation/Debug always show the docked tools shell.
     optionsOpen = false;
     elements.shell.classList.remove("options-open");
     elements.optionsMenu.hidden = false;
@@ -851,6 +1096,41 @@ function setOptionsOpen(open: boolean): void {
     audio.setPaused(!controller.getState().locked && !touchSessionActive);
   }
 }
+
+function clearTouchSession(): void {
+  for (const button of elements.touchButtons) {
+    const action = button.dataset.move as PlayerAction | undefined;
+    if (action) controller.setVirtualAction(action, false);
+  }
+  uiInteractQueued = false;
+  touchSessionActive = false;
+}
+
+function resumePlay(): void {
+  const useTouchControls = resumeTouchControls;
+  resumeTouchControls = false;
+  setOptionsOpen(false);
+  void audio.unlock();
+  if (
+    !useTouchControls &&
+    engineMode === "play" &&
+    playRuntime.state().runMode === "playing"
+  ) {
+    controller.requestPointerLock();
+  }
+}
+
+function pauseTouchPlay(): void {
+  if (engineMode !== "play" || playRuntime.state().runMode !== "playing") return;
+  clearTouchSession();
+  resumeTouchControls = true;
+  setOptionsOpen(true);
+}
+
+function clearTouchSessionWhenHidden(): void {
+  if (document.visibilityState === "hidden") clearTouchSession();
+}
+
 function getDecorDensity(): number {
   return Number(elements.decorDensity.value) / 100;
 }
@@ -863,7 +1143,7 @@ function syncDifficultyLabel(): void {
   elements.enemyDensity.setAttribute("aria-valuetext", label.toLowerCase());
 }
 function syncRunTimer(snapshot = world.getDifficultyState()): void {
-  const seconds = Math.floor(snapshot.elapsedSeconds);
+  const seconds = Math.floor(playRuntime.runSeconds());
   if (seconds === lastRunTimerSecond) return;
   lastRunTimerSecond = seconds;
   const clock = formatRunClock(seconds);
@@ -913,12 +1193,15 @@ function syncLuminousWardHud(remaining = world.luminousWardRemaining): void {
 }
 
 function syncHazardStatus(effect: HazardSurfaceEffect): void {
+  activeHazardKind = effect.kind;
   if (effect.kind === lastHazardKind) return;
   lastHazardKind = effect.kind;
+  const hazardKey = effect.kind ?? "none";
   elements.hazardStatus.hidden = effect.kind === null;
   elements.hazardStatus.textContent = effect.label;
-  elements.hazardStatus.dataset.hazard = effect.kind ?? "none";
-  elements.shell.dataset.hazard = effect.kind ?? "none";
+  elements.hazardStatus.dataset.hazard = hazardKey;
+  elements.shell.dataset.hazard = hazardKey;
+  elements.hazardOverlay.dataset.hazard = hazardKey;
 }
 function getLightLevel(): number {
   return Number(elements.lightLevel.value) / 100;
@@ -974,8 +1257,9 @@ function applyEditorParamsToForm(params: DungeonEditorParams): void {
     : "custom";
 }
 
-/** Resolve active mood: URL ?mood=/?theme= wins, else forge/profile/seed. */
+/** Resolve active mood: forced NEW GAME biome, URL, forge/profile, or seed. */
 function resolveActiveMood(nextDungeon: DungeonData) {
+  if (forcedPlayMoodId) return getDungeonMood(forcedPlayMoodId);
   const forced = parseDungeonMoodId(readMoodFromUrl());
   if (forced) return getDungeonMood(forced);
   return resolveDungeonMood(nextDungeon, readEditorParams().profile);
@@ -1027,10 +1311,14 @@ function applyDungeonDomainToForm(state: DungeonDomainState): void {
 }
 
 async function refreshRunSelect(): Promise<void> {
+  if (!localDevTools) {
+    elements.serverReadout.textContent = "Server: local tools off";
+    return;
+  }
   const online = await domainBridge.probeAuthority();
-  elements.authorityReadout.textContent = online
-    ? `Authority: ONLINE · run ${domainBridge.getStatus().lastError ?? "ok"}`
-    : "Authority: OFFLINE (local sim)";
+  elements.serverReadout.textContent = online
+    ? COPY.status.serverProbe(domainBridge.getStatus().lastError ?? "ok")
+    : COPY.status.serverOffline;
   if (!online) return;
   try {
     const list = await authority.listRuns();
@@ -1046,12 +1334,12 @@ async function refreshRunSelect(): Promise<void> {
       if (run.id === list.activeRunId) opt.selected = true;
       elements.runSelect.append(opt);
     }
-    elements.authorityReadout.textContent = COPY.status.authorityOnline(
+    elements.serverReadout.textContent = COPY.status.serverOnline(
       String(list.activeRunId),
       list.runs.length,
     );
   } catch (err) {
-    elements.authorityReadout.textContent = COPY.status.authorityError(
+    elements.serverReadout.textContent = COPY.status.serverError(
       err instanceof Error ? err.message : String(err),
     );
   }
@@ -1068,6 +1356,119 @@ function unlockAudioFromGesture(): void {
 
 document.addEventListener("pointerdown", unlockAudioFromGesture, { capture: true });
 document.addEventListener("keydown", unlockAudioFromGesture, { capture: true });
+
+const UI_SOUND_SELECTOR =
+  "button, [role='button'], a.button, summary, select, input[type='button'], input[type='submit'], input[type='checkbox'], input[type='radio'], .leaderboard-seed, .biome-picker-option, .welcome-menu__item, .welcome-music-toggle";
+let lastUiHoverAt = 0;
+let lastUiHoverTarget: EventTarget | null = null;
+let lastUiClickAt = 0;
+
+function isUiControlDisabled(node: Element): boolean {
+  if (node instanceof HTMLButtonElement || node instanceof HTMLInputElement || node instanceof HTMLSelectElement) {
+    return node.disabled;
+  }
+  return node.hasAttribute("disabled") || node.getAttribute("aria-disabled") === "true";
+}
+
+function resolveUiClickCue(target: Element): AudioCue {
+  if (isUiControlDisabled(target)) return "uiDeny";
+  if (
+    target.matches(
+      ".biome-picker-option, .welcome-menu__item--primary, #leaderboard-submit, #welcome-new, #options-resume",
+    ) ||
+    target.closest(".biome-picker-option, .welcome-menu__item--primary")
+  ) {
+    return "uiSelect";
+  }
+  if (
+    target.matches(
+      "#biome-picker-back, .welcome-menu__item--secondary, #welcome-custom, summary, #retry, #new-dungeon",
+    ) ||
+    target.closest("#biome-picker-back, .welcome-menu__item--secondary")
+  ) {
+    return "uiBack";
+  }
+  if (
+    target.matches(
+      "#music-toggle, #welcome-music-toggle, #audio-toggle, #crt-toggle, input[type='checkbox']",
+    ) ||
+    target.closest("#music-toggle, #welcome-music-toggle, #audio-toggle, #crt-toggle")
+  ) {
+    return "uiToggle";
+  }
+  if (target.matches("select, .leaderboard-seed") || target.closest(".leaderboard-seed")) {
+    return "uiTick";
+  }
+  return "uiClick";
+}
+
+function shouldPlayUiHover(target: Element): boolean {
+  return Boolean(
+    target.closest(
+      ".welcome-menu__item, .biome-picker-option, .leaderboard-seed, .welcome-music-toggle, #options-resume, button.mode-button, [data-engine-mode]",
+    ),
+  );
+}
+
+/** Light global UI SFX so menus, toggles, and pickers feel like a game shell. */
+function wireInterfaceSounds(): void {
+  document.addEventListener(
+    "pointerdown",
+    (event) => {
+      if (event.button !== 0) return;
+      const target = (event.target as Element | null)?.closest?.(UI_SOUND_SELECTOR);
+      if (!target || target.closest("#scene, .touch-controls")) return;
+      const now = performance.now();
+      if (now - lastUiClickAt < 40) return;
+      lastUiClickAt = now;
+      playCue(resolveUiClickCue(target));
+    },
+    true,
+  );
+
+  document.addEventListener(
+    "pointerover",
+    (event) => {
+      const target = (event.target as Element | null)?.closest?.(UI_SOUND_SELECTOR);
+      if (!target || target.closest("#scene, .touch-controls")) return;
+      if (isUiControlDisabled(target) || !shouldPlayUiHover(target)) return;
+      if (lastUiHoverTarget === target) return;
+      lastUiHoverTarget = target;
+      const now = performance.now();
+      if (now - lastUiHoverAt < 70) return;
+      lastUiHoverAt = now;
+      playCue("uiHover");
+    },
+    true,
+  );
+
+  document.addEventListener(
+    "change",
+    (event) => {
+      const target = event.target;
+      if (!(target instanceof HTMLElement)) return;
+      if (target.matches("select, input[type='range'], input[type='checkbox'], input[type='radio']")) {
+        playCue(target.matches("input[type='range']") ? "uiTick" : "uiToggle");
+      }
+    },
+    true,
+  );
+
+  document.addEventListener(
+    "input",
+    (event) => {
+      const target = event.target;
+      if (!(target instanceof HTMLInputElement) || target.type !== "range") return;
+      const now = performance.now();
+      if (now - lastUiClickAt < 55) return;
+      lastUiClickAt = now;
+      playCue("uiTick");
+    },
+    true,
+  );
+}
+
+wireInterfaceSounds();
 
 function flash(kind: "event" | "damage" = "event"): void {
   if (kind === "damage") {
@@ -1142,10 +1543,16 @@ function spawnOrbBloodSplash(): void {
   }
 }
 
-function triggerDamageFeedback(knockback: { x: number; z: number } | null): void {
+function triggerDamageFeedback(
+  knockback: { x: number; z: number } | null,
+  washKind: DamageWashKind = "enemy",
+): void {
   damageTimer = DAMAGE_WASH_SECONDS;
   // Fresh hits re-arm full trauma so multi-hits stay unstable for a few seconds.
   hitTrauma = 1;
+  if (washKind !== "enemy") hazardHitBoost = 1;
+  elements.damage.dataset.kind = washKind;
+  elements.healthOrb.dataset.damageKind = washKind;
   elements.damage.classList.remove("is-hit");
   void elements.damage.offsetWidth;
   elements.damage.classList.add("is-hit");
@@ -1222,7 +1629,7 @@ function applyCameraSettings(): void {
 }
 
 function updateResolve(): void {
-  const clamped = THREE.MathUtils.clamp(resolve, 0, 100);
+  const clamped = THREE.MathUtils.clamp(playRuntime.state().resolve, 0, 100);
   const shown = Math.ceil(clamped);
   const fill = `${clamped}%`;
   elements.resolveValue.value = String(shown);
@@ -1236,18 +1643,24 @@ function updateResolve(): void {
 function updateStaminaHud(ratio: number, exhausted: boolean, draining: boolean): void {
   const clamped = THREE.MathUtils.clamp(ratio, 0, 1);
   const percent = Math.round(clamped * 100);
-  const key = `${percent}|${exhausted ? 1 : 0}|${draining ? 1 : 0}`;
+  // Color follows fill so recharge recomposes: red → orange → yellow → green.
+  // Bands: empty red, <10% orange, <20% yellow, otherwise green (full).
+  const empty = percent <= 0;
+  const critical = !empty && percent < 10;
+  const warn = !empty && !critical && percent < 20;
+  const key = `${percent}|${empty ? 1 : 0}|${critical ? 1 : 0}|${warn ? 1 : 0}|${exhausted ? 1 : 0}|${draining ? 1 : 0}`;
   if (key === lastStaminaHudKey) return;
   lastStaminaHudKey = key;
   const fill = `${percent}%`;
   elements.staminaMeter.style.setProperty("--fill", fill);
-  elements.staminaMeter.classList.toggle("is-low", percent <= 30 && !exhausted);
-  elements.staminaMeter.classList.toggle("is-exhausted", exhausted);
+  elements.staminaMeter.classList.toggle("is-warn", warn);
+  elements.staminaMeter.classList.toggle("is-critical", critical);
+  elements.staminaMeter.classList.toggle("is-exhausted", empty);
   elements.staminaMeter.classList.toggle("is-draining", draining && percent > 0);
   elements.staminaMeter.setAttribute("aria-valuenow", String(percent));
   elements.staminaMeter.setAttribute(
     "aria-valuetext",
-    exhausted ? `${percent} stamina, exhausted` : `${percent} stamina`,
+    exhausted || empty ? `${percent} stamina, exhausted` : `${percent} stamina`,
   );
 }
 
@@ -1287,6 +1700,8 @@ function drawMap(): void {
 function closeEndOverlay(): void {
   elements.endOverlay.hidden = true;
   elements.endLeaderboardForm.hidden = true;
+  elements.endLeaderboardNote.hidden = true;
+  elements.endLeaderboardNote.textContent = "";
   pendingLeaderboardSubmission = null;
   elements.shell.dataset.mode = "playing";
   controller.setEnabled(canEnablePlayController());
@@ -1294,8 +1709,6 @@ function closeEndOverlay(): void {
 }
 
 function showEndOverlay(mode: "dead" | "won"): void {
-  session.runMode = mode;
-  runMode = mode;
   elements.shell.dataset.mode = mode;
   controller.setEnabled(false);
   controller.releasePointerLock();
@@ -1313,11 +1726,12 @@ function showEndOverlay(mode: "dead" | "won"): void {
     elements.endKicker.textContent = COPY.end.winKicker;
     elements.endTitle.textContent = COPY.end.winTitle;
     elements.endCopy.textContent = COPY.end.winLead;
-    const result = quest.snapshot();
+    const result = playRuntime.snapshot();
+    const quest = playRuntime.state().quest;
     const player = controller.getState();
     elements.endResults.hidden = false;
     elements.endTime.textContent = formatTime(result.runSeconds);
-    elements.endStones.textContent = `${result.stonesFound} / ${result.stonesTotal}`;
+    elements.endStones.textContent = `${quest.stonesFound} / ${quest.stonesTotal}`;
     elements.endDistance.textContent = `${Math.round(player.distanceTravelled)} m`;
     const biome = dungeon ? resolveActiveMood(dungeon).label : "Unknown";
     const seed = dungeon?.seed ?? "Unknown";
@@ -1340,6 +1754,8 @@ function showEndOverlay(mode: "dead" | "won"): void {
     elements.endCopy.textContent = COPY.end.loseCopy;
     elements.endResults.hidden = true;
     elements.endLeaderboardForm.hidden = true;
+    elements.endLeaderboardNote.hidden = true;
+    elements.endLeaderboardNote.textContent = "";
     pendingLeaderboardSubmission = null;
     elements.retry.textContent = COPY.end.retry;
     elements.retry.hidden = false;
@@ -1394,13 +1810,13 @@ async function beginAuthorityRunTransition(): Promise<boolean> {
   if (drained) return true;
   domainBridge.cancelRunTransition();
   runTransitionPending = false;
-  setStatus("Run change blocked by an unsynced dungeon. Use PUSH BACKEND, then retry.");
+  setStatus("Run change blocked by an unsynced dungeon. Use PUSH TO SERVER, then retry.");
   return false;
 }
 
 function bindAuthorityRunTransition(runId: string): void {
   if (!domainBridge.completeRunTransition(runId)) {
-    throw new Error(`Cannot bind dungeon authority to run ${runId}.`);
+    throw new Error(`Cannot bind dungeon run to server run ${runId}.`);
   }
 }
 
@@ -1431,24 +1847,39 @@ function activateDungeon(
 
   dungeon = nextDungeon;
   forgePreviewDungeon = nextDungeon.forge ? nextDungeon : null;
+  // Forge maps never rank, even if the session started as campaign by mistake.
+  setRunSource(runSource, Boolean(nextDungeon.forge));
+  // Scene graph changed — force the next materials inventory to rescan.
+  lastMaterialCountAt = 0;
   elements.seed.value = nextDungeon.seed;
   writeSeedToUrl(nextDungeon.seed);
   visitedCells.clear();
   collectExploredAround(nextDungeon, nextDungeon.spawn, MINIMAP_REVEAL_RADIUS, visitedCells);
   const mood = applyDungeonMood(nextDungeon);
   applyAtmosphereFromParams();
-  world.setDungeon(dungeon, mood);
+  const state = playRuntime.load({
+    dungeon,
+    mood,
+    persisted: options.persistedSession,
+    runtimeProgress: runtimeProgressFromResume(options.resume),
+  });
   lastTimeFreezeDisplay = "";
   lastLuminousWardDisplay = "";
   syncTimeFreezeHud(0);
   syncLuminousWardHud(0);
   controller.setSurfaceMovement(1, 1);
   lastHazardKind = undefined;
+  activeHazardKind = null;
+  hazardHitBoost = 0;
   syncHazardStatus({ kind: null, label: "", damage: 0, movementScale: 1, traction: 1 });
+  elements.damage.dataset.kind = "enemy";
+  elements.healthOrb.dataset.damageKind = "enemy";
   lastRunTimerSecond = -1;
   syncRunTimer();
   atmosphere.setDungeon(dungeon, mood);
   controller.setDungeon(dungeon);
+  applyLocalRunResume(options.resume);
+  if (options.resume) syncDomainExplore();
   controller.setBlockedCells([]);
   controller.setSolidColliders(world.getSolidColliders());
   controller.setEnabled(canEnablePlayController());
@@ -1458,20 +1889,11 @@ function activateDungeon(
     `PLAY MAP · ${nextDungeon.stats.roomCount} ROOMS · ${nextDungeon.stats.loopCount} LOOPS`,
     "ready",
   );
-  if (options.persistedSession) {
-    restoreRunSession(session, quest, options.persistedSession);
-    world.restoreSession(options.persistedSession.foundStoneIds);
-    applyLocalRunResume(options.resume);
-  } else {
-    resetRunSession(session, 100);
-    quest.start();
-  }
-  syncSessionMirrors();
   elements.shell.dataset.ready = "true";
-  elements.shell.dataset.mode = session.runMode;
-  elements.shell.dataset.relic = String(quest.portalOpen);
-  elements.shell.dataset.stones = String(quest.stonesFound);
-  elements.shell.dataset.resolve = String(Math.ceil(session.resolve));
+  elements.shell.dataset.mode = state.runMode;
+  elements.shell.dataset.relic = String(state.quest.portalOpen);
+  elements.shell.dataset.stones = String(state.quest.stonesFound);
+  elements.shell.dataset.resolve = String(Math.ceil(state.resolve));
   elements.editorCell.textContent = `SPAWN ${formatCell(dungeon.spawn)}`;
   damageTimer = 0;
   hitTrauma = 0;
@@ -1479,7 +1901,7 @@ function activateDungeon(
   lastStaminaHudKey = "";
   updateStaminaHud(1, false, false);
   povFeel.reset();
-  lastPortalBanner = quest.portalOpen;
+  lastPortalBanner = state.quest.portalOpen;
   // Invalidate the quest HUD dirty cache so the first syncQuestHud() repaints.
   questHudStonesFound = -1;
   questHudPortalOpen = false;
@@ -1487,14 +1909,14 @@ function activateDungeon(
     domainBridge.setEngineMode(engineMode);
     syncDomainExplore();
   }
-  if (session.runMode === "playing") closeEndOverlay();
-  else showEndOverlay(session.runMode);
+  if (state.runMode === "playing") closeEndOverlay();
+  else showEndOverlay(state.runMode);
   updateResolve();
   syncTimeFreezeHud();
   syncLuminousWardHud();
   updateObjective();
   // Intro objective: appears at run start, then fades so the scene stays clean.
-  if (engineMode === "play" && session.runMode === "playing" && !quest.portalOpen) {
+  if (engineMode === "play" && state.runMode === "playing" && !state.quest.portalOpen) {
     showObjectiveBanner(COPY.objective.intro, "hunt", 3400, 1500);
   } else {
     clearObjectiveBannerTimers();
@@ -1507,7 +1929,7 @@ function activateDungeon(
   startRendererWarmup(warmupSequence, message);
   if (persistBuild) {
     runHasStarted = true;
-    domainBridge.syncSession(snapshotRunSession(session, quest));
+    domainBridge.syncSession(playRuntime.snapshot());
     scheduleLocalRunSave(0);
   }
   return getRuntimeState();
@@ -1567,18 +1989,18 @@ function setEditorSurface(nextSurface: "runtime" | "forge"): void {
     { type: "black-flag:forge-visibility", visible },
     location.origin,
   );
-  if (engineMode === "editor") elements.recordPanel.open = nextSurface === "runtime";
+  if (engineMode === "editor") setMapToolsOpen(nextSurface === "runtime");
   if (nextSurface === "runtime") window.requestAnimationFrame(() => editorView.redraw());
 }
 
 function applyForgeDungeon(): void {
-  if (!forgeDungeon) return;
+  if (!forgeIntake) return;
   try {
-    const prepared = prepareDungeonForge(forgeDungeon);
-    const imported = forgePreviewDungeon ?? prepared.dungeon;
-    const { params } = prepared;
+    const imported = forgePreviewDungeon ?? forgeIntake.dungeon;
+    const { params } = forgeIntake;
     applyEditorParamsToForm(params);
     const mood = resolveActiveMood(imported);
+    setRunSource("custom", true);
     activateDungeon(
       imported,
       `${imported.forge?.name ?? "Dungeon Creation"} · ${mood.label} ready to play.`,
@@ -1615,7 +2037,10 @@ function selectEditorSpawn(cell: { x: number; y: number }): void {
   dungeon = setDungeonSpawn(dungeon, cell);
   const mood = applyDungeonMood(dungeon);
   applyAtmosphereFromParams();
-  world.setDungeon(dungeon, mood);
+  const state = playRuntime.load({ dungeon, mood, persisted: playRuntime.snapshot() });
+  lastTimeFreezeDisplay = "";
+  lastLuminousWardDisplay = "";
+  lastRunTimerSecond = -1;
   atmosphere.setDungeon(dungeon, mood);
   controller.setDungeon(dungeon);
   controller.setBlockedCells([]);
@@ -1624,6 +2049,19 @@ function selectEditorSpawn(cell: { x: number; y: number }): void {
   editorView.setSpawn(cell);
   elements.editorCell.textContent = `SPAWN ${formatCell(cell)} · EXIT ${formatCell(dungeon.exit)}`;
   elements.shell.dataset.spawn = `${cell.x},${cell.y}`;
+  elements.shell.dataset.mode = state.runMode;
+  elements.shell.dataset.relic = String(state.quest.portalOpen);
+  elements.shell.dataset.stones = String(state.quest.stonesFound);
+  elements.shell.dataset.resolve = String(Math.ceil(state.resolve));
+  lastPortalBanner = state.quest.portalOpen;
+  questHudStonesFound = -1;
+  questHudPortalOpen = false;
+  closeEndOverlay();
+  updateResolve();
+  updateObjective();
+  syncRunTimer();
+  syncTimeFreezeHud();
+  syncLuminousWardHud();
   updateReadout();
   drawMap();
   setStatus(`Spawn set to ${formatCell(cell)}. Exit was recalculated.`);
@@ -1647,7 +2085,7 @@ function setEngineMode(
   // Keep the URL state aligned with editor, debug, and play modes.
   writeModeToUrl(nextMode);
   if (options.persist !== false) domainBridge.setEngineMode(nextMode);
-  if (nextMode === "play" && options.hydrate !== false) {
+  if (nextMode === "play" && options.hydrate !== false && localDevTools) {
     void (async () => {
       const hydrated = await domainBridge.hydrateFromAuthority();
       if (!hydrated) {
@@ -1664,14 +2102,14 @@ function setEngineMode(
         setStatus(COPY.status.hydrate(hydrated.seed));
       } else if (dungeon && hydrated.seed === localSeed) {
         applyPersistedRunSession(domainToPersistedSession(hydrated.state));
-        setStatus("Hydrate backend · dungeon session restored");
+        setStatus("Server session restored for this dungeon.");
       } else if (hydrated.seed && hydrated.seed !== localSeed && dungeon) {
-        setStatus(`Backend seed ${hydrated.seed} (local map kept). Use SYNC RUNS to adopt.`);
+        setStatus(`Server seed ${hydrated.seed} (local map kept). Use SYNC RUNS to adopt.`);
       } else {
-        setStatus("Hydrate backend · dungeons domain online");
+        setStatus("Server online · dungeon domain ready.");
       }
     })();
-  } else {
+  } else if (localDevTools) {
     void domainBridge.probeAuthority();
   }
   elements.modeButtons.forEach((button) => {
@@ -1683,30 +2121,38 @@ function setEngineMode(
   controller.setEnabled(canEnablePlayController());
   elements.editorWorkspace.hidden = !external;
   elements.debugPanel.hidden = nextMode !== "debug";
-  // Editor/debug: open authority tools. Play pause: keep RUN AUTHORITY collapsed.
-  elements.recordPanel.open = external;
+  // Creation/Debug: Map Tools only when local developer chrome is on.
+  setMapToolsOpen(external);
   elements.editorTitle.textContent = nextMode === "debug" ? "Graph and cells" : "Generated map";
   elements.debugMode.textContent = nextMode.toUpperCase();
-  editorView.setDebug(nextMode === "debug");
+  // Apply map first, then debug overlays. setDungeon no-ops rebuild when the
+  // same dungeon reference is already loaded (mode toggles stay cheap).
   const editorDungeon = forgePreviewDungeon ?? dungeon;
   if (editorDungeon) editorView.setDungeon(editorDungeon, resolveActiveMood(editorDungeon));
+  editorView.setDebug(nextMode === "debug");
   if (nextMode === "debug") setEditorSurface("runtime");
   else setEditorSurface(editorSurface);
-  // Play starts with options closed (minimal HUD). Editor/debug keep tools docked.
+  // Play starts with options closed (minimal HUD). Creation/Debug keep tools docked.
   if (nextMode === "play") setOptionsOpen(false);
   else setOptionsOpen(false); // forces docked tools visible via engine mode CSS
-  if (runMode === "playing") closeEndOverlay();
-  else showEndOverlay(runMode);
+  const runtimeState = playRuntime.state();
+  if (runtimeState.runMode === "playing") closeEndOverlay();
+  else showEndOverlay(runtimeState.runMode);
   audio.setPaused(nextMode !== "play" || (!controller.getState().locked && !touchSessionActive));
   setStatus(
     nextMode === "play"
       ? COPY.status.enterPlay
       : nextMode === "editor"
-        ? "Editor/CREATION mode. Generate the map or validate spawn."
+        ? "Creation mode. Generate the map or set spawn."
         : "Debug mode. Graph, rooms, and telemetry visible.",
   );
   // Entering play mid-session: replay intro if the hunt is still open.
-  if (nextMode === "play" && dungeon && quest.isRunning && !quest.portalOpen) {
+  if (
+    nextMode === "play" &&
+    dungeon &&
+    runtimeState.quest.isRunning &&
+    !runtimeState.quest.portalOpen
+  ) {
     showObjectiveBanner(COPY.objective.intro, "hunt", 3400, 1500);
   } else if (nextMode !== "play") {
     clearObjectiveBannerTimers();
@@ -1716,6 +2162,7 @@ function setEngineMode(
   if (initialized) playCue("mode");
   flash();
   scheduleMinimapLayout();
+  // One paint after layout (surface unhide / deck height) — editorView coalesces.
   window.requestAnimationFrame(() => editorView.redraw());
 }
 
@@ -1827,13 +2274,25 @@ export interface DungeonRuntimeState {
   domainProjection?: ReturnType<DomainBridge["project"]>;
 }
 
-function getRendererDiagnostics(): RendererDiagnostics {
+/** Full scene material counts are expensive; cache for API consumers. */
+let cachedMaterialCount = 0;
+let lastMaterialCountAt = 0;
+const MATERIAL_COUNT_TTL_MS = 2500;
+
+function countSceneMaterials(now = performance.now()): number {
+  if (now - lastMaterialCountAt < MATERIAL_COUNT_TTL_MS) return cachedMaterialCount;
   const materials = new Set<THREE.Material>();
   scene.traverse((object) => {
     const material = (object as THREE.Mesh).material;
     if (Array.isArray(material)) material.forEach((entry) => materials.add(entry));
     else if (material) materials.add(material);
   });
+  cachedMaterialCount = materials.size;
+  lastMaterialCountAt = now;
+  return cachedMaterialCount;
+}
+
+function getRendererDiagnostics(): RendererDiagnostics {
   return {
     calls: lastRenderSnapshot.calls,
     triangles: lastRenderSnapshot.triangles,
@@ -1841,7 +2300,7 @@ function getRendererDiagnostics(): RendererDiagnostics {
     lines: lastRenderSnapshot.lines,
     geometries: renderer.info.memory.geometries,
     textures: renderer.info.memory.textures,
-    materials: materials.size,
+    materials: countSceneMaterials(),
     programs: renderer.info.programs?.length ?? 0,
     frameMs: Number(smoothedFrameMs.toFixed(2)),
     fps: Number((1000 / smoothedFrameMs).toFixed(1)),
@@ -1891,6 +2350,7 @@ function getRuntimeState(): DungeonRuntimeState {
       domainProjection: domainBridge.project(),
     };
   }
+  const state = playRuntime.state();
   return {
     id: "black-flag-dungeon-engine",
     ready: renderWarmupReady,
@@ -1900,13 +2360,13 @@ function getRuntimeState(): DungeonRuntimeState {
     exit: { ...dungeon.exit },
     stats: { ...dungeon.stats, ...world.stats },
     player: controller.getState(),
-    exitReached,
-    hasRelic: world.hasRelic,
-    stonesFound: world.stonesFound,
+    exitReached: state.exitReached,
+    hasRelic: state.quest.portalOpen,
+    stonesFound: state.quest.stonesFound,
     timeFreezeRemaining: Number(world.timeFreezeRemaining.toFixed(2)),
     luminousWardRemaining: Number(world.luminousWardRemaining.toFixed(2)),
-    resolve: Number(resolve.toFixed(1)),
-    mode: runMode,
+    resolve: Number(state.resolve.toFixed(1)),
+    mode: state.runMode,
     engineMode,
     audioMuted: audio.isMuted,
     crtEnabled,
@@ -1919,11 +2379,24 @@ function getRuntimeState(): DungeonRuntimeState {
 
 elements.generationForm.addEventListener("submit", (event) => {
   event.preventDefault();
+  if (!localDevTools) {
+    setStatus("Map tools are only available in local development.");
+    return;
+  }
+  setRunSource("custom", false);
   buildDungeon();
   playCue("forge");
 });
+elements.leaderboardName.addEventListener("input", () => {
+  updateLeaderboardPortraitPreview(elements.leaderboardName.value || "Wanderer");
+});
+
 elements.endLeaderboardForm.addEventListener("submit", (event) => {
   event.preventDefault();
+  if (!isLeaderboardEligible(runSource) || Boolean(dungeon?.forge)) {
+    setStatus(COPY.leaderboard.customExcluded);
+    return;
+  }
   if (!pendingLeaderboardSubmission || elements.leaderboardSubmit.disabled) return;
   const playerName = normalizePlayerName(elements.leaderboardName.value);
   if (!playerName) {
@@ -1944,6 +2417,7 @@ elements.endLeaderboardForm.addEventListener("submit", (event) => {
       elements.leaderboardName.value = entry.playerName;
       elements.leaderboardName.disabled = true;
       elements.leaderboardSubmit.textContent = "Saved";
+      updateLeaderboardPortraitPreview(entry.playerName);
       elements.leaderboardSubmitStatus.textContent = COPY.leaderboard.saved(
         entry.rank,
         entry.score,
@@ -1958,12 +2432,13 @@ elements.endLeaderboardForm.addEventListener("submit", (event) => {
     });
 });
 function scheduleEditorRegeneration(): void {
-  if (engineMode === "play") return;
+  if (!localDevTools || engineMode === "play") return;
   void audio.unlock();
   window.clearTimeout(regenerateTimer);
   setEditorSurfaceStatus("runtime", "PLAY MAP · UPDATING", "updating");
   regenerateTimer = window.setTimeout(() => {
     elements.profileSelect.value = "custom";
+    setRunSource("custom", false);
     buildDungeon();
     audio.play("forge");
   }, 280);
@@ -2006,10 +2481,12 @@ elements.profileSelect.addEventListener("change", () => {
 });
 elements.presetButtons.forEach((button) => {
   button.addEventListener("click", () => {
+    if (!localDevTools) return;
     const id = button.dataset.dungeonPreset as DungeonPresetId;
     const preset = DUNGEON_PRESETS[id];
     if (!preset) return;
     applyEditorParamsToForm(preset);
+    setRunSource("custom", false);
     buildDungeon();
     playCue("forge");
     setStatus(`Preset ${id} applied and regenerated.`);
@@ -2018,22 +2495,28 @@ elements.presetButtons.forEach((button) => {
 elements.cameraSensitivity.addEventListener("input", applyCameraSettings);
 elements.cameraMotion.addEventListener("input", applyCameraSettings);
 elements.reroll.addEventListener("click", () => {
+  if (!localDevTools) return;
   elements.seed.value = makeSeed();
+  setRunSource("custom", false);
   buildDungeon();
   playCue("forge");
 });
-elements.pushAuthority.addEventListener("click", () => {
+elements.pushServer.addEventListener("click", () => {
+  if (!localDevTools) {
+    setStatus("Map tools are only available in local development.");
+    return;
+  }
   if (!pushParamsToDomain()) return;
   const seeded = domainBridge.setSeed(elements.seed.value.trim() || "CAMPAIGN-17");
   if (!seeded.ok) {
-    setStatus(`Backend push rejected: ${seeded.error.message}`);
+    setStatus(`Server push rejected: ${seeded.error.message}`);
     return;
   }
   const reconciliationQueued = domainBridge.reconcileRemote();
   void domainBridge.probeAuthority().then((ok) => {
     setStatus(
       ok && reconciliationQueued
-        ? "Backend reconciliation queued with the current dungeon snapshot."
+        ? "Server sync queued with the current dungeon snapshot."
         : ok
           ? COPY.status.pushOk
           : COPY.status.pushOffline,
@@ -2042,13 +2525,18 @@ elements.pushAuthority.addEventListener("click", () => {
   });
 });
 elements.runRefresh.addEventListener("click", () => {
+  if (!localDevTools) return;
   void refreshRunSelect();
 });
 elements.runNew.addEventListener("click", () => {
   void (async () => {
+    if (!localDevTools) {
+      setStatus("Server runs are only available in local development.");
+      return;
+    }
     const online = await domainBridge.probeAuthority();
     if (!online) {
-      setStatus("Cannot create run: backend offline.");
+      setStatus("Cannot create run: server offline.");
       return;
     }
     if (!(await beginAuthorityRunTransition())) return;
@@ -2071,7 +2559,7 @@ elements.runNew.addEventListener("click", () => {
 });
 elements.runSelect.addEventListener("change", () => {
   const runId = elements.runSelect.value;
-  if (!runId) return;
+  if (!runId || !localDevTools) return;
   void (async () => {
     try {
       if (!(await beginAuthorityRunTransition())) return;
@@ -2100,13 +2588,20 @@ elements.runSelect.addEventListener("change", () => {
   })();
 });
 elements.welcomeNew.addEventListener("click", () => {
-  startPlayWithSeed(makeSeed(), { refreshProcedural: true });
+  void audio.unlock();
+  showBiomePicker();
+});
+elements.biomePickerBack.addEventListener("click", () => {
+  showWelcomeHome();
+  window.requestAnimationFrame(() => elements.welcomeNew.focus());
 });
 elements.welcomeContinue.addEventListener("click", () => {
   const save = readLocalRunSave();
   const state = canContinueLocalRun(save) ? save.state : continueDomainState;
   if (!state) return;
   void audio.unlock();
+  forcedPlayMoodId = null;
+  setRunSource(runSourceFromLocalSave(save), false);
   applyDungeonDomainToForm(state);
   elements.seed.value = state.seed;
   buildDungeon(state.seed, {
@@ -2122,6 +2617,8 @@ elements.welcomeContinue.addEventListener("click", () => {
 });
 elements.welcomeCustom.addEventListener("click", () => {
   void audio.unlock();
+  forcedPlayMoodId = null;
+  setRunSource("custom", false);
   const freshSeed = makeSeed();
   queueNewProceduralSeed();
   elements.seed.value = freshSeed;
@@ -2129,16 +2626,12 @@ elements.welcomeCustom.addEventListener("click", () => {
   setWelcomeOpen(false);
   setEngineMode("editor", { hydrate: false });
   setEditorSurface("forge");
-  setStatus("Create a dungeon, then select PLAY.");
+  setStatus("Custom run · practice only. Create a dungeon, then select PLAY.");
 });
-elements.optionsResume.addEventListener("click", () => {
-  setOptionsOpen(false);
-  void audio.unlock();
-  if (engineMode === "play" && runMode === "playing") controller.requestPointerLock();
-});
+elements.optionsResume.addEventListener("click", resumePlay);
 elements.optionsMenu.querySelectorAll("[data-options-dismiss]").forEach((node) => {
   node.addEventListener("click", () => {
-    if (engineMode === "play") setOptionsOpen(false);
+    if (engineMode === "play") resumePlay();
   });
 });
 elements.mapToggle.addEventListener("click", () => toggleMap());
@@ -2168,36 +2661,41 @@ elements.forgeFrame.addEventListener("load", () => {
   postPendingProceduralSeed();
 });
 window.addEventListener("message", (event) => {
-  if (
-    event.origin !== location.origin ||
-    event.source !== elements.forgeFrame.contentWindow ||
-    !isForgeDungeonMessage(event.data)
-  )
+  if (event.origin !== location.origin || event.source !== elements.forgeFrame.contentWindow) return;
+  const intake = parseForgeDungeonMessage(event.data);
+  if (intake.kind === "ignored") return;
+  if (intake.kind === "rejected") {
+    forgeIntake = null;
+    forgePreviewDungeon = null;
+    elements.forgeApply.disabled = true;
+    if (dungeon) editorView.setDungeon(dungeon, resolveActiveMood(dungeon));
+    setEditorSurfaceStatus("forge", intake.error.message.toUpperCase(), "error");
+    setEditorSurfaceStatus("runtime", "MAP PREVIEW · INVALID", "error");
     return;
-  const payload = normalizeForgePayload(event.data.dungeon);
-  if (!payload) return;
+  }
   try {
-    const prepared = prepareDungeonForge(payload);
-    forgeDungeon = payload;
-    forgePreviewDungeon = prepared.dungeon;
-    const mood = resolveActiveMood(prepared.dungeon);
-    editorView.setDungeon(prepared.dungeon, mood);
-    const theme = payload.params.themeKey.toUpperCase();
+    const { dungeon: imported, params } = intake.value;
+    forgeIntake = intake.value;
+    forgePreviewDungeon = imported;
+    const mood = resolveActiveMood(imported);
+    editorView.setDungeon(imported, mood);
+    const theme = (imported.forge?.themeKey ?? params.profile).toUpperCase();
     setEditorSurfaceStatus(
       "forge",
-      `${payload.name.toUpperCase()} · ${payload.rooms.length} ROOMS · ${theme}`,
+      `${(imported.forge?.name ?? "Dungeon Creation").toUpperCase()} · ${imported.stats.roomCount} ROOMS · ${theme}`,
       "ready",
     );
     setEditorSurfaceStatus(
       "runtime",
-      `MAP PREVIEW · ${prepared.dungeon.stats.roomCount} ROOMS · ${prepared.dungeon.stats.loopCount} LOOPS`,
+      `MAP PREVIEW · ${imported.stats.roomCount} ROOMS · ${imported.stats.loopCount} LOOPS`,
       "ready",
     );
     elements.forgeApply.disabled = false;
   } catch (error) {
-    forgeDungeon = null;
+    forgeIntake = null;
     forgePreviewDungeon = null;
     elements.forgeApply.disabled = true;
+    if (dungeon) editorView.setDungeon(dungeon, resolveActiveMood(dungeon));
     const message =
       error instanceof Error ? error.message : "Dungeon Creation preview could not be validated.";
     setEditorSurfaceStatus("forge", message.toUpperCase(), "error");
@@ -2210,13 +2708,14 @@ elements.audioToggle.addEventListener("click", () => {
     elements.audioToggle.setAttribute("aria-pressed", String(muted));
     elements.audioToggle.classList.toggle("is-active", !muted);
     elements.audioToggle.textContent = muted ? COPY.hud.mute : COPY.hud.audioOn;
-    if (!muted) audio.play("ui");
+    // Global UI click wiring already plays uiToggle; only speak status here.
     setStatus(muted ? "Audio muted." : "Audio on.");
   });
 });
 function onMusicToggleClick(): void {
   void audio.unlock().then(() => {
-    setMusicMutedPreference(!audio.isMusicMuted);
+    // Skip the extra click — pointerdown handler already fired uiToggle.
+    setMusicMutedPreference(!audio.isMusicMuted, { playClick: false });
   });
 }
 elements.musicToggle.addEventListener("click", onMusicToggleClick);
@@ -2228,7 +2727,6 @@ elements.crtToggle.addEventListener("click", () => {
   elements.crtToggle.setAttribute("aria-pressed", String(crtEnabled));
   elements.crtToggle.classList.toggle("is-active", crtEnabled);
   elements.crtToggle.textContent = crtEnabled ? COPY.hud.crtOn : COPY.hud.crtOff;
-  playCue("ui");
   setStatus(crtEnabled ? "CRT on." : "CRT off.");
 });
 elements.retry.addEventListener("click", () => {
@@ -2260,8 +2758,7 @@ document.addEventListener("keydown", (event) => {
     // While pointer-locked, the browser unlocks first; onLockChange opens options.
     if (controller.getState().locked) return;
     if (optionsOpen) {
-      setOptionsOpen(false);
-      if (runMode === "playing") controller.requestPointerLock();
+      resumePlay();
     } else {
       setOptionsOpen(true);
     }
@@ -2296,6 +2793,7 @@ elements.touchButtons.forEach((button) => {
   button.addEventListener("pointercancel", release);
   button.addEventListener("lostpointercapture", release);
 });
+elements.touchPause.addEventListener("click", pauseTouchPlay);
 
 const minimapResizeObserver = new ResizeObserver(() => scheduleMinimapLayout());
 minimapResizeObserver.observe(elements.minimap);
@@ -2361,8 +2859,6 @@ let lastFrameMs = performance.now();
 let damageHitActive = false;
 let lastPaused = "";
 let lastAudioFrameSync = Number.NEGATIVE_INFINITY;
-let uiInteractQueued = false;
-
 function frame(now: number): void {
   requestAnimationFrame(frame);
   renderer.info.reset();
@@ -2371,15 +2867,19 @@ function frame(now: number): void {
   lastFrameMs = now;
   smoothedFrameMs = THREE.MathUtils.lerp(smoothedFrameMs, delta * 1000, 0.08);
   const reducedMotion = REDUCED_MOTION_QUERY.matches;
-  const criticalHealth = computeCriticalHealthFeel(session.resolve, now * 0.001, reducedMotion);
+  const criticalHealth = computeCriticalHealthFeel(
+    playRuntime.state().resolve,
+    now * 0.001,
+    reducedMotion,
+  );
   controller.setCriticalMovementDrift(criticalHealth.movementDrift);
   const result = controller.update(delta);
   const player = controller.getState();
   playerPosition.set(player.position.x, player.position.y, player.position.z);
   // Local fog volume follows the player (smooth height gradient around the view).
   atmosphere.update(delta, playerPosition);
-  // Fire LOD + LOS is play-path cost; skip full torch budget work in editor chrome.
-  if (engineMode === "play" || engineMode === "debug") {
+  // Fire LOD + LOS is play-path cost; skip full torch budget work in editor/debug chrome.
+  if (engineMode === "play") {
     world.updateEffects(delta, playerPosition);
   }
 
@@ -2406,85 +2906,79 @@ function frame(now: number): void {
     lastPaused = pausedFlag;
     elements.shell.dataset.paused = pausedFlag;
   }
-  if (session.runMode === "playing" && simulationActive && document.visibilityState === "visible") {
-    const worldUpdate = world.update(
+  if (simulationActive && document.visibilityState === "visible") {
+    const step = playRuntime.step({
       delta,
-      playerPosition,
-      result.atExit,
-      result.interactPressed || uiInteractQueued,
-    );
-    syncTimeFreezeHud(worldUpdate.timeFreezeRemaining);
-    syncLuminousWardHud(worldUpdate.luminousWardRemaining);
-    controller.setSurfaceMovement(
-      worldUpdate.surfaceEffect.movementScale,
-      worldUpdate.surfaceEffect.traction,
-    );
-    syncHazardStatus(worldUpdate.surfaceEffect);
+      player: playerPosition,
+      atExit: result.atExit,
+      interactPressed: result.interactPressed || uiInteractQueued,
+    });
     uiInteractQueued = false;
-    elements.interactionPrompt.hidden = worldUpdate.interactionPrompt !== "open-chest";
-    const effects = applyWorldUpdate(
-      session,
-      quest,
-      {
-        collectedPickupKind: worldUpdate.collectedPickup?.kind ?? null,
-        collectedStoneId: worldUpdate.collectedStoneId as StoneId | null,
-        stonesFound: worldUpdate.stonesFound,
-        stonesTotal: worldUpdate.stonesTotal,
-        portalOpen: worldUpdate.portalOpen,
-        resolveGain: worldUpdate.resolveGain,
-        damage: worldUpdate.damage,
-        reachedLockedExit: worldUpdate.reachedLockedExit,
-        reachedOpenExit: worldUpdate.reachedOpenExit,
-      },
-      now,
-    );
-    syncSessionMirrors();
-
-    if (effects.questStonesFound !== undefined) {
-      elements.shell.dataset.relic = effects.questPortalOpen ? "true" : "false";
-      elements.shell.dataset.stones = String(effects.questStonesFound);
-      updateObjective();
-    }
-    if (effects.sessionChanged) {
-      domainBridge.syncSession(snapshotRunSession(session, quest));
-      scheduleLocalRunSave();
-    }
-    if (effects.status) setStatus(effects.status);
-    if (effects.playPickup && effects.pickup) {
-      audio.playPickup(worldUpdate.collectedPickup);
-      if (effects.questPortalOpen) audio.playPortal(world.getAudioFrame().portal);
-      showPickupFeedback(
-        effects.pickup.label,
-        Boolean(effects.pickup.restoreResolve),
-        effects.pickup.stoneId,
-        Boolean(effects.pickup.timeFreeze),
-        Boolean(effects.pickup.luminousWard),
+    const { worldUpdate, effects, state } = step;
+    if (worldUpdate) {
+      syncTimeFreezeHud(worldUpdate.timeFreezeRemaining);
+      syncLuminousWardHud(worldUpdate.luminousWardRemaining);
+      controller.setSurfaceMovement(
+        worldUpdate.surfaceEffect.movementScale,
+        worldUpdate.surfaceEffect.traction,
       );
+      syncHazardStatus(worldUpdate.surfaceEffect);
+      elements.interactionPrompt.hidden = worldUpdate.interactionPrompt !== "open-chest";
+
+      if (effects.questStonesFound !== undefined) {
+        elements.shell.dataset.relic = effects.questPortalOpen ? "true" : "false";
+        elements.shell.dataset.stones = String(effects.questStonesFound);
+        updateObjective();
+      }
+      if (effects.sessionChanged) {
+        domainBridge.syncSession(playRuntime.snapshot());
+        scheduleLocalRunSave();
+      }
+      if (effects.status) setStatus(effects.status);
+      if (effects.playPickup && effects.pickup) {
+        audio.playPickup(worldUpdate.collectedPickup);
+        if (effects.questPortalOpen) audio.playPortal(world.getAudioFrame().portal);
+        showPickupFeedback(
+          effects.pickup.label,
+          Boolean(effects.pickup.restoreResolve),
+          effects.pickup.stoneId,
+          Boolean(effects.pickup.timeFreeze),
+          Boolean(effects.pickup.luminousWard),
+        );
+      }
+      if (effects.playEnemyHit) {
+        elements.shell.dataset.resolve = String(Math.ceil(state.resolve));
+        const washKind = resolveDamageWashKind(
+          worldUpdate.surfaceEffect.kind,
+          worldUpdate.surfaceEffect.damage,
+        );
+        triggerDamageFeedback(worldUpdate.knockback, washKind);
+        if (worldUpdate.damageSource) {
+          audio.playEnemyHit(worldUpdate.damageSource.position, worldUpdate.damageSource.voice);
+        } else {
+          // Hazard floor damage: hit sting only (no creature bark).
+          audio.play("damage");
+        }
+      }
+      if (worldUpdate.doorSound) {
+        audio.playDoor(worldUpdate.doorSound.kind, worldUpdate.doorSound.position);
+      }
+      if (worldUpdate.chestSound) {
+        audio.playChest(worldUpdate.chestSound.position);
+      }
+      if (effects.flash) flash(effects.flash);
+      if (
+        effects.damageHit ||
+        effects.pickup?.restoreResolve ||
+        effects.questStonesFound !== undefined
+      ) {
+        updateResolve();
+      }
+      if (effects.endOverlay) showEndOverlay(effects.endOverlay);
+      syncQuestHud();
+      // Threat distance still drives lighting / audio feel; no HUD spam.
+      currentThreatDistance = worldUpdate.nearestThreat;
     }
-    if (effects.playEnemyHit) {
-      elements.shell.dataset.resolve = String(Math.ceil(session.resolve));
-      triggerDamageFeedback(worldUpdate.knockback);
-      if (worldUpdate.damageSource)
-        audio.playEnemyHit(worldUpdate.damageSource.position, worldUpdate.damageSource.voice);
-    }
-    if (worldUpdate.doorSound) {
-      audio.playDoor(worldUpdate.doorSound.kind, worldUpdate.doorSound.position);
-    }
-    if (worldUpdate.chestSound) {
-      audio.playChest(worldUpdate.chestSound.position);
-    }
-    if (effects.flash) flash(effects.flash);
-    if (
-      effects.damageHit ||
-      effects.pickup?.restoreResolve ||
-      effects.questStonesFound !== undefined
-    ) {
-      updateResolve();
-    }
-    if (effects.endOverlay) showEndOverlay(effects.endOverlay);
-    syncQuestHud();
-    // Threat distance still drives lighting / audio feel; no HUD spam.
-    currentThreatDistance = worldUpdate.nearestThreat;
   }
   syncTimeFreezeHud();
   syncLuminousWardHud();
@@ -2495,6 +2989,7 @@ function frame(now: number): void {
     damageHitActive = false;
     elements.damage.classList.remove("is-hit");
   }
+  hazardHitBoost = simulationActive ? decayHazardHitBoost(hazardHitBoost, delta) : 0;
   hitTrauma = simulationActive ? decayHitTrauma(hitTrauma, delta) : 0;
   if (simulationActive && result.justExhausted) exhaustionTrauma = 1;
   exhaustionTrauma = simulationActive ? decayExhaustionTrauma(exhaustionTrauma, delta) : 0;
@@ -2549,24 +3044,34 @@ function frame(now: number): void {
     reducedMotion ? 0.004 : 0.008,
     !reducedMotion,
   );
+  const hazardFeel = simulationActive
+    ? computeHazardFeel(activeHazardKind, hazardHitBoost, reducedMotion)
+    : computeHazardFeel(null);
+  povPost.setHazardFeel(
+    hazardFeel.heatwave,
+    hazardFeel.toxinGreen,
+    hazardFeel.iceBlue,
+    hazardFeel.spikeEdge,
+  );
 
   if (result.changedCell) {
     updateReadout();
     drawMap();
+    scheduleLocalRunSave();
   } else if (now - lastMapDraw > 220) {
     drawMap();
     lastMapDraw = now;
   }
+  // Debug HUD only needs cheap counters — never walk the scene graph here.
   if (engineMode === "debug" && now - lastDebugDraw > 240) {
-    const diagnostics = getRendererDiagnostics();
-    elements.debugFps.textContent = String(Math.round(diagnostics.fps));
-    elements.debugFrame.textContent = `${diagnostics.frameMs.toFixed(1)}ms`;
-    elements.debugCalls.textContent = String(diagnostics.calls);
+    const frameMs = Number(smoothedFrameMs.toFixed(1));
+    const triangles = lastRenderSnapshot.triangles;
+    elements.debugFps.textContent = String(Math.round(1000 / Math.max(smoothedFrameMs, 0.001)));
+    elements.debugFrame.textContent = `${frameMs}ms`;
+    elements.debugCalls.textContent = String(lastRenderSnapshot.calls);
     elements.debugTris.textContent =
-      diagnostics.triangles > 9999
-        ? `${Math.round(diagnostics.triangles / 1000)}k`
-        : String(diagnostics.triangles);
-    elements.debugTextures.textContent = String(diagnostics.textures);
+      triangles > 9999 ? `${Math.round(triangles / 1000)}k` : String(triangles);
+    elements.debugTextures.textContent = String(renderer.info.memory.textures);
     elements.debugLights.textContent = String(world.stats.lights);
     lastDebugDraw = now;
   }
@@ -2583,9 +3088,12 @@ function frame(now: number): void {
   publishPerformanceDiagnostics(now);
 }
 
+window.addEventListener("pagehide", clearTouchSession);
+window.addEventListener("pagehide", flushLocalRunSave);
+document.addEventListener("visibilitychange", clearTouchSessionWhenHidden);
+document.addEventListener("visibilitychange", flushLocalRunSaveWhenHidden);
 window.addEventListener("beforeunload", () => {
-  if (localSaveTimer !== null) clearTimeout(localSaveTimer);
-  if (runHasStarted) persistCurrentRun();
+  flushLocalRunSave();
   longTaskObserver?.disconnect();
   minimapResizeObserver.disconnect();
   minimapLayout.dispose();
@@ -2595,22 +3103,74 @@ window.addEventListener("beforeunload", () => {
   atmosphere.dispose();
   povPost.dispose();
   lighting.dispose();
-  world.dispose();
+  playRuntime.dispose();
   renderer.dispose();
 });
+function setBootProgress(progress: number, message: string): void {
+  const pct = Math.max(0, Math.min(1, progress));
+  elements.bootFill.style.width = `${Math.round(pct * 100)}%`;
+  elements.bootStatus.textContent = message;
+}
+
+function waitAnimationFrames(count: number): Promise<void> {
+  return new Promise((resolve) => {
+    let left = Math.max(1, count);
+    const step = (): void => {
+      left -= 1;
+      if (left <= 0) resolve();
+      else window.requestAnimationFrame(step);
+    };
+    window.requestAnimationFrame(step);
+  });
+}
+
+function preloadImage(src: string): Promise<void> {
+  return new Promise((resolve) => {
+    const image = new Image();
+    image.decoding = "async";
+    image.onload = () => resolve();
+    image.onerror = () => resolve();
+    image.src = src;
+    if (image.complete) resolve();
+  });
+}
+
+async function waitForRendererWarmup(timeoutMs = 6_000): Promise<void> {
+  if (renderWarmupReady) return;
+  const started = performance.now();
+  while (!renderWarmupReady && performance.now() - started < timeoutMs) {
+    await waitAnimationFrames(1);
+  }
+}
+
+async function dismissBootScreen(): Promise<void> {
+  setBootProgress(1, "Ready.");
+  await waitAnimationFrames(1);
+  document.body.classList.remove("is-booting");
+  elements.bootScreen.classList.add("is-done");
+  elements.bootScreen.setAttribute("aria-busy", "false");
+  window.setTimeout(() => {
+    elements.bootScreen.hidden = true;
+  }, 480);
+}
+
 resize();
 applyCameraSettings();
+setBootProgress(0.12, "Binding audio…");
 // Restore music preference before the welcome bed is requested.
 audio.setMusicMuted(readStoredMusicMuted());
 syncMusicToggleUi();
 // Welcome owns the first choice. New Game starts play; Custom Run opens Creation.
+setBootProgress(0.28, "Forging the first map…");
 setEngineMode("editor", { hydrate: false, persist: false });
-setWelcomeOpen(true);
+// Keep welcome closed until boot finishes so the UI does not pop in mid-stutter.
+setWelcomeOpen(false);
 void refreshLeaderboard();
 const localContinue = readLocalRunSave();
 let bootBuilt = false;
 if (canContinueLocalRun(localContinue)) {
   try {
+    setRunSource(runSourceFromLocalSave(localContinue), false);
     applyDungeonDomainToForm(localContinue.state);
     elements.seed.value = localContinue.state.seed;
     buildDungeon(localContinue.state.seed, {
@@ -2628,42 +3188,68 @@ if (!bootBuilt) {
   buildDungeon(urlSeed, { persistBuild: false });
   setContinueCandidate(null, "No active saved run. Start a new game.");
 }
+setBootProgress(0.55, "Warming the renderer…");
 const visualQaState = readVisualQaState(window.location.search);
 if (visualQaState) {
   runHasStarted = false;
   setWelcomeOpen(false);
   setEngineMode("play", { hydrate: false, persist: false });
-  session.resolve = visualQaState === "dead" ? 0 : visualQaState === "critical" ? 10 : 100;
-  syncSessionMirrors();
+  const qaState = playRuntime.loadFixture(visualQaState);
+  lastPortalBanner = qaState.quest.portalOpen;
+  questHudStonesFound = -1;
+  questHudPortalOpen = false;
   updateResolve();
-  elements.shell.dataset.resolve = String(session.resolve);
-  if (visualQaState === "dead") {
-    quest.stop();
-    showEndOverlay("dead");
-  } else if (visualQaState === "won") {
-    const qaNow = performance.now();
-    quest.start(qaNow - 154_000);
-    STONE_ORDER.forEach((id, index) => quest.collectStone(id, qaNow - (3 - index) * 28_000));
-    quest.markEscaped(qaNow);
-    showEndOverlay("won");
-  }
+  elements.shell.dataset.resolve = String(qaState.resolve);
+  elements.shell.dataset.relic = String(qaState.quest.portalOpen);
+  elements.shell.dataset.stones = String(qaState.quest.stonesFound);
+  syncQuestHud();
+  if (qaState.runMode !== "playing") showEndOverlay(qaState.runMode);
   setStatus(`Visual QA state · ${visualQaState}`);
+  void (async () => {
+    setBootProgress(0.8, "Loading type…");
+    await Promise.all([
+      document.fonts.ready.catch(() => undefined),
+      preloadImage("/assets/ui/dungeon-cover-v1.webp"),
+      waitForRendererWarmup(8_000),
+    ]);
+    await waitAnimationFrames(2);
+    await dismissBootScreen();
+  })();
 } else {
   void (async () => {
-    const hydrated = await domainBridge.hydrateFromAuthority();
-    if (hydrated && canContinueDomainRun(hydrated.state)) {
-      applyDungeonDomainToForm(hydrated.state);
-      elements.seed.value = hydrated.seed;
-      buildDungeon(hydrated.seed, {
-        persistBuild: false,
-        persistedSession: domainToPersistedSession(hydrated.state),
-      });
-      setContinueCandidate(hydrated.state, `Continue ready · ${hydrated.seed}`);
-      setStatus(`Saved run ready · seed ${hydrated.seed}`);
-    } else if (!continueDomainState) {
-      setContinueCandidate(null, "No active saved run. Start a new game.");
+    setBootProgress(0.62, "Checking saved runs…");
+    try {
+      if (localDevTools) {
+        const hydrated = await domainBridge.hydrateFromAuthority();
+        if (hydrated && canContinueDomainRun(hydrated.state)) {
+          applyDungeonDomainToForm(hydrated.state);
+          elements.seed.value = hydrated.seed;
+          buildDungeon(hydrated.seed, {
+            persistBuild: false,
+            persistedSession: domainToPersistedSession(hydrated.state),
+          });
+          setContinueCandidate(hydrated.state, `Continue ready · ${hydrated.seed}`);
+          setStatus(`Saved run ready · seed ${hydrated.seed}`);
+        } else if (!continueDomainState) {
+          setContinueCandidate(null, "No active saved run. Start a new game.");
+        }
+        await refreshRunSelect();
+      } else if (!continueDomainState) {
+        setContinueCandidate(null, "No active saved run. Start a new game.");
+      }
+    } catch (error) {
+      console.warn("Boot hydrate failed", error);
     }
-    await refreshRunSelect();
+    setBootProgress(0.8, "Loading type and art…");
+    await Promise.all([
+      document.fonts.ready.catch(() => undefined),
+      preloadImage("/assets/ui/dungeon-cover-v1.webp"),
+      waitForRendererWarmup(8_000),
+    ]);
+    setBootProgress(0.96, "Opening the hall…");
+    await waitAnimationFrames(2);
+    setWelcomeOpen(true);
+    await dismissBootScreen();
   })();
 }
 requestAnimationFrame(frame);

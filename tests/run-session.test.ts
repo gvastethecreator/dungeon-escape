@@ -190,7 +190,7 @@ describe("RunSession applyWorldUpdate", () => {
     quest.start(0);
     for (const id of STONE_ORDER) quest.collectStone(id, 1_000);
     applyWorldUpdate(session, quest, emptyUpdate({ reachedOpenExit: true }), 2_000);
-    const persisted = snapshotRunSession(session, quest);
+    const persisted = snapshotRunSession(session, quest, 2_000);
 
     const restoredSession = createRunSession();
     const restoredQuest = new QuestState();
@@ -201,6 +201,25 @@ describe("RunSession applyWorldUpdate", () => {
       foundIds: [...STONE_ORDER],
       portalOpen: true,
       escaped: true,
+      runSeconds: 2,
     });
+    expect(persisted.runSeconds).toBeCloseTo(2, 5);
+  });
+
+  test("continue snapshot keeps the live run clock", () => {
+    const session = createRunSession(80);
+    const quest = new QuestState();
+    quest.start(0);
+    quest.collectStone("ember", 40_000);
+    const persisted = snapshotRunSession(session, quest, 95_000);
+    expect(persisted.runSeconds).toBeCloseTo(95, 5);
+    expect(persisted.perStoneSeconds?.ember).toBeCloseTo(40, 5);
+
+    const restoredSession = createRunSession();
+    const restoredQuest = new QuestState();
+    restoreRunSession(restoredSession, restoredQuest, persisted, 500_000);
+    expect(restoredQuest.runSeconds(500_000)).toBeCloseTo(95, 5);
+    expect(restoredQuest.runSeconds(510_000)).toBeCloseTo(105, 5);
+    expect(restoredSession.resolve).toBe(80);
   });
 });

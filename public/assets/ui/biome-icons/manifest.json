@@ -1,0 +1,100 @@
+{
+  "version": 1,
+  "cell": 128,
+  "cols": 4,
+  "rows": 3,
+  "order": [
+    "ancient",
+    "molten",
+    "frost",
+    "grim",
+    "verdant",
+    "ash",
+    "iron",
+    "obsidian",
+    "sunken",
+    "fungal",
+    "backrooms"
+  ],
+  "sheetBlack": "/assets/ui/biome-icons/biome-icons-sheet-black.png",
+  "sheet": "/assets/ui/biome-icons/biome-icons-sheet.png",
+  "entries": [
+    {
+      "id": "ancient",
+      "src": "/assets/ui/biome-icons/ancient.png",
+      "hover": "#8a96b0",
+      "cell": 0,
+      "method": "black-flood"
+    },
+    {
+      "id": "molten",
+      "src": "/assets/ui/biome-icons/molten.png",
+      "hover": "#e07030",
+      "cell": 1,
+      "method": "black-flood"
+    },
+    {
+      "id": "frost",
+      "src": "/assets/ui/biome-icons/frost.png",
+      "hover": "#7ec8e8",
+      "cell": 2,
+      "method": "black-flood"
+    },
+    {
+      "id": "grim",
+      "src": "/assets/ui/biome-icons/grim.png",
+      "hover": "#8a7088",
+      "cell": 3,
+      "method": "black-flood"
+    },
+    {
+      "id": "verdant",
+      "src": "/assets/ui/biome-icons/verdant.png",
+      "hover": "#4a9a58",
+      "cell": 4,
+      "method": "black-flood"
+    },
+    {
+      "id": "ash",
+      "src": "/assets/ui/biome-icons/ash.png",
+      "hover": "#9a9088",
+      "cell": 5,
+      "method": "black-flood"
+    },
+    {
+      "id": "iron",
+      "src": "/assets/ui/biome-icons/iron.png",
+      "hover": "#8a94a0",
+      "cell": 6,
+      "method": "black-flood"
+    },
+    {
+      "id": "obsidian",
+      "src": "/assets/ui/biome-icons/obsidian.png",
+      "hover": "#7a4aaa",
+      "cell": 7,
+      "method": "black-flood"
+    },
+    {
+      "id": "sunken",
+      "src": "/assets/ui/biome-icons/sunken.png",
+      "hover": "#2f9aaa",
+      "cell": 8,
+      "method": "black-flood"
+    },
+    {
+      "id": "fungal",
+      "src": "/assets/ui/biome-icons/fungal.png",
+      "hover": "#9a6aba",
+      "cell": 9,
+      "method": "black-flood"
+    },
+    {
+      "id": "backrooms",
+      "src": "/assets/ui/biome-icons/backrooms.png",
+      "hover": "#c4b44a",
+      "cell": 10,
+      "method": "black-flood"
+    }
+  ]
+}

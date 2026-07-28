@@ -37,11 +37,12 @@ export type DungeonParamRange = Readonly<{
 
 /** Editor and procedural-generator input. These limits keep generation tractable. */
 export const DUNGEON_GENERATION_INPUT_RANGES = Object.freeze({
-  roomTarget: { min: 8, max: 28 },
-  loopRate: { min: 0, max: 45 },
+  // Upper bounds leave headroom for the hardest biome campaign maps (Backrooms).
+  roomTarget: { min: 8, max: 48 },
+  loopRate: { min: 0, max: 50 },
   decorDensity: { min: 0, max: 100 },
-  mapWidth: { min: 41, max: 99, step: 2 },
-  mapHeight: { min: 41, max: 99, step: 2 },
+  mapWidth: { min: 41, max: 127, step: 2 },
+  mapHeight: { min: 41, max: 127, step: 2 },
   minRoomSize: { min: 3, max: 12 },
   maxRoomSize: { min: 4, max: 16 },
   corridorRadius: { min: 0, max: 2 },

@@ -1,18 +1,13 @@
 import type { DungeonData } from "../dungeon/types";
+import {
+  isBiomeId,
+  listBiomeIds,
+  parseBiomeId,
+  type BiomeId,
+} from "./BiomeIdentity";
 
 /** Dungeon-wide look: forge theme when present, else profile/seed. */
-export type DungeonMoodId =
-  | "ancient"
-  | "molten"
-  | "frost"
-  | "grim"
-  | "verdant"
-  | "ash"
-  | "iron"
-  | "obsidian"
-  | "sunken"
-  | "fungal"
-  | "backrooms";
+export type DungeonMoodId = BiomeId;
 
 /**
  * Interior lighting response for one biome.
@@ -454,19 +449,7 @@ const MOODS: Record<DungeonMoodId, DungeonMood> = {
   },
 };
 
-const ALL_MOOD_IDS: readonly DungeonMoodId[] = [
-  "ancient",
-  "molten",
-  "frost",
-  "grim",
-  "verdant",
-  "ash",
-  "iron",
-  "obsidian",
-  "sunken",
-  "fungal",
-  "backrooms",
-];
+const ALL_MOOD_IDS = listBiomeIds();
 const FORGE_THEME_IDS = new Set<string>(ALL_MOOD_IDS);
 const PROFILE_MOOD: Record<string, DungeonMoodId> = {
   crypt: "grim",
@@ -537,15 +520,12 @@ export function listDungeonMoodIds(): readonly DungeonMoodId[] {
 
 /** True when `raw` is a known mood id (case-insensitive). */
 export function isDungeonMoodId(raw: string | null | undefined): raw is DungeonMoodId {
-  if (!raw) return false;
-  return (ALL_MOOD_IDS as readonly string[]).includes(raw.toLowerCase());
+  return isBiomeId(raw);
 }
 
 /** Parse a mood id from free text (URL param, etc.). */
 export function parseDungeonMoodId(raw: string | null | undefined): DungeonMoodId | null {
-  if (!raw) return null;
-  const key = raw.trim().toLowerCase();
-  return isDungeonMoodId(key) ? key : null;
+  return parseBiomeId(raw);
 }
 
 /**

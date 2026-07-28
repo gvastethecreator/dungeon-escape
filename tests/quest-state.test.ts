@@ -52,4 +52,22 @@ describe("four-stone quest", () => {
     expect(quest.collectStone("ember", 9_000)).toBe(false);
     expect(quest.collectStone("ash", 9_000)).toBe(true);
   });
+
+  test("restores the stopwatch and per-stone find times for continue", () => {
+    const quest = new QuestState();
+    quest.restore(
+      {
+        foundIds: ["ember", "ash"],
+        escaped: false,
+        running: true,
+        runSeconds: 120,
+        perStoneSeconds: { ember: 30, ash: 90 },
+      },
+      200_000,
+    );
+
+    expect(quest.runSeconds(200_000)).toBeCloseTo(120, 5);
+    expect(quest.runSeconds(205_000)).toBeCloseTo(125, 5);
+    expect(quest.perStoneSeconds()).toEqual({ ember: 30, ash: 90 });
+  });
 });

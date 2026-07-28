@@ -2,6 +2,8 @@ import { describe, expect, test } from "bun:test";
 
 import { generateDungeon } from "../src/dungeon/generateDungeon";
 import type { DungeonData } from "../src/dungeon/types";
+import { FORGE_THEME_PROFILES } from "../src/forge/ForgeThemeProfiles";
+import { listBiomeIds, listForgeBiomeIds } from "../src/systems/BiomeIdentity";
 import {
   listDungeonMoodIds,
   parseDungeonMoodId,
@@ -172,20 +174,18 @@ describe("dungeon mood tints", () => {
   });
 
   test("Forge exposes every expansion biome and loads its surface pack", async () => {
-    const host = await Bun.file(new URL("../forge.html", import.meta.url)).text();
     const source = await Bun.file(new URL("../src/forge/main.js", import.meta.url)).text();
-    const biomeKeys = source.slice(
-      source.indexOf("const BIOME_KEYS"),
-      source.indexOf("const BIOME_TEX"),
-    );
-    for (const id of ["obsidian", "sunken", "fungal", "backrooms"]) {
-      expect(host).toContain(`data-t="${id}"`);
-      expect(source).toContain(`${id}: {`);
-      expect(biomeKeys).toContain(`"${id}"`);
+    for (const id of ["obsidian", "sunken", "fungal", "backrooms"] as const) {
+      expect(listForgeBiomeIds()).toContain(id);
+      expect(listBiomeIds()).toContain(id);
+      expect(FORGE_THEME_PROFILES[id]).toBeDefined();
     }
+    expect(source).toContain("const THEME_KEYS = listForgeBiomeIds();");
+    expect(source).toContain("const BIOME_KEYS = listBiomeIds();");
+    expect(source).toContain("for (const identity of listForgeBiomeIdentities())");
     expect(source).toContain('moodChannel(seed, 0xa5a5a5a5) % 100 < 8');
     expect(source).toContain('return "backrooms"');
-    expect(source).toContain("fluorescent: true");
+    expect(FORGE_THEME_PROFILES.backrooms.fluorescent).toBe(true);
     expect(source).toContain("if (TH.fluorescent)");
     expect(source).toContain('["panelGlow", GEO.panelGlow, matGlow');
   });

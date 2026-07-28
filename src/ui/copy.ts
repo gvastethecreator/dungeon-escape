@@ -45,15 +45,17 @@ export const COPY = {
     luminousWard: "Ward active for 30 seconds.",
     won: "You escaped the dungeon",
     dead: "Keep distance. Shadows strike on contact.",
-    hydrate: (seed: string) => `Hydrate backend · seed ${seed}`,
+    hydrate: (seed: string) => `Loaded from server · seed ${seed}`,
     generation: (profile: string, mood: string) =>
       `Profile ${profile} · mood ${mood}. Collect four stones. Avoid the presence.`,
     forgeLoaded: "Dungeon creation loaded",
-    pushOk: "Params/seed pushed to backend (best-effort).",
-    pushOffline: "Backend offline: local sim only.",
-    authorityOnline: (active: string, count: number) =>
-      `Authority: ONLINE · active ${active} · ${count} runs`,
-    authorityError: (message: string) => `Authority: error ${message}`,
+    pushOk: "Map params sent to the server (best effort).",
+    pushOffline: "Server offline · local only.",
+    serverOnline: (active: string, count: number) =>
+      `Server: online · active ${active} · ${count} runs`,
+    serverError: (message: string) => `Server: error · ${message}`,
+    serverOffline: "Server: offline · local only",
+    serverProbe: (detail: string) => `Server: online · ${detail}`,
   },
   end: {
     winKicker: "Portal escape",
@@ -63,7 +65,7 @@ export const COPY = {
       `Escape in ${formatTime(totalSec)}. Stones: ${stones}`,
     loseKicker: "The dungeon keeps its dead",
     loseTitle: "You Died",
-    loseCopy: "Return to this layout or leave it for a new descent.",
+    loseCopy: "",
     retry: "Try again",
     newDungeon: "New dungeon",
     next: "Another run",
@@ -71,7 +73,7 @@ export const COPY = {
   leaderboard: {
     title: "Hall of Escapes",
     loading: "Reading local records…",
-    empty: "No completed escapes yet.",
+    empty: "No completed escapes yet. Be the first face on the wall.",
     unavailable: "Local records are unavailable.",
     nameLabel: "Name for the hall",
     namePlaceholder: "Wanderer",
@@ -80,6 +82,9 @@ export const COPY = {
     saved: (rank: number, score: number) =>
       `Saved at rank ${rank}. Score ${score.toLocaleString("en-US")}.`,
     playSeed: (seed: string) => `Play seed ${seed}`,
+    rankLabel: (rank: number) => `Rank ${rank}`,
+    /** End-screen note when the escape used Custom Run / Forge / Map Tools. */
+    customExcluded: "Custom run · practice only. New Game scores enter the Hall.",
   },
   hud: {
     map: "MAP",
@@ -93,7 +98,7 @@ export const COPY = {
     musicOn: "MUSIC ON",
     crtOn: "CRT ON",
     crtOff: "CRT OFF",
-    registry: "RUN AUTHORITY",
+    mapTools: "MAP TOOLS",
     seedDefault: "CAMPAIGN-17",
   },
   timer: {

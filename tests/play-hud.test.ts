@@ -9,6 +9,8 @@ describe("Play HUD structure (Ash Binding)", () => {
     expect(host).toContain('id="stamina-meter"');
     expect(host).toContain('id="stamina-fill"');
     expect(host).toContain("stamina-meter__track");
+    expect(host).not.toContain("stamina-meter__label");
+    expect(host).not.toContain(">STAMINA</span>");
     expect(host).toContain("health-orb__liquid");
     expect(host).toContain("health-orb__mount");
     expect(host).toContain("health-orb__meniscus");
@@ -22,6 +24,7 @@ describe("Play HUD structure (Ash Binding)", () => {
     expect(host).toContain('id="luminous-ward-status"');
     expect(host).toContain('id="luminous-ward-value"');
     expect(host).toContain('id="hazard-status"');
+    expect(host).toContain('id="hazard-overlay"');
     expect(host).toContain('datetime="PT0S"');
     expect(host).toContain("stone-socket__empty");
     expect(host).toContain("stone-socket__gem");
@@ -33,7 +36,13 @@ describe("Play HUD structure (Ash Binding)", () => {
     expect(host).toContain('id="map-toggle"');
     expect(host).toContain('aria-label="Expand map"');
     expect(host).not.toContain('id="pointer-lock"');
-    expect(host).toContain("RUN AUTHORITY");
+    expect(host).toContain("MAP TOOLS");
+    expect(host).toContain('data-local-dev-only="true"');
+    expect(host).toContain("SERVER RUNS");
+    expect(host).toContain("PUSH TO SERVER");
+    expect(host).toContain("CREATION");
+    expect(host).not.toContain("RUN AUTHORITY");
+    expect(host).not.toContain("PUSH BACKEND");
     expect(host).not.toContain('class="resolve-track"');
     expect(host).not.toContain("map-toggle-sr");
     expect(host).not.toContain("Kredit");
@@ -105,7 +114,10 @@ describe("Play HUD structure (Ash Binding)", () => {
     expect(css).toContain(".stone-socket.is-bound .stone-socket__gem");
     expect(css).toContain(".stamina-meter");
     expect(css).toContain(".stamina-meter__fill");
+    expect(css).toContain(".stamina-meter.is-warn");
+    expect(css).toContain(".stamina-meter.is-critical");
     expect(css).toContain(".stamina-meter.is-exhausted");
+    expect(css).not.toContain(".stamina-meter__label");
     expect(css).toContain(".play-progress");
     expect(css).toContain(".run-timer");
     expect(css).toContain(".time-freeze-status");
@@ -124,5 +136,86 @@ describe("Play HUD structure (Ash Binding)", () => {
   test("copy mentions shift sprint", async () => {
     const { COPY } = await import("../src/ui/copy");
     expect(COPY.status.exploring.toLowerCase()).toContain("shift sprint");
+  });
+
+  test("maps hold-to-run touch input through PlayerAction on a 48px phone grid", async () => {
+    const [host, controller, source, css] = await Promise.all([
+      Bun.file(new URL("../index.html", import.meta.url)).text(),
+      Bun.file(new URL("../src/player/FirstPersonController.ts", import.meta.url)).text(),
+      Bun.file(new URL("../src/main.ts", import.meta.url)).text(),
+      Bun.file(new URL("../src/styles.css", import.meta.url)).text(),
+    ]);
+    const touchControls = host.match(/<nav class="touch-controls"[\s\S]*?<\/nav>/)?.[0] ?? "";
+
+    for (const action of [
+      "forward",
+      "left",
+      "backward",
+      "right",
+      "turnLeft",
+      "turnRight",
+      "interact",
+      "jump",
+      "sprint",
+    ]) {
+      expect(touchControls).toContain(`data-move="${action}"`);
+    }
+    expect(touchControls).toContain('aria-label="Run: hold to sprint">RUN</button>');
+    expect(controller).toContain('| "sprint"');
+    expect(source).toContain("button.dataset.move as PlayerAction | undefined");
+    expect(css).toMatch(
+      /\.touch-move\s*\{[^}]*grid-template:\s*repeat\(2,\s*48px\)\s*\/\s*repeat\(3,\s*48px\);/s,
+    );
+    expect(css).toMatch(
+      /\.touch-look\s*\{[^}]*grid-template:\s*repeat\(2,\s*48px\)\s*\/\s*repeat\(3,\s*48px\);/s,
+    );
+    expect(css).toMatch(
+      /\.touch-controls button\s*\{[^}]*min-width:\s*48px;[^}]*min-height:\s*48px;/s,
+    );
+    expect(css).toMatch(
+      /\.play-vitals\s*\{[^}]*bottom:\s*max\(112px,\s*calc\(env\(safe-area-inset-bottom\) \+ 106px\)\);/s,
+    );
+    expect(css).not.toContain("repeat(2, 46px)");
+  });
+
+  test("pauses touch play after clearing held actions and keeps resume touch-ready", async () => {
+    const [host, source, css] = await Promise.all([
+      Bun.file(new URL("../index.html", import.meta.url)).text(),
+      Bun.file(new URL("../src/main.ts", import.meta.url)).text(),
+      Bun.file(new URL("../src/styles.css", import.meta.url)).text(),
+    ]);
+    const pauseButton = host.match(/<button id="touch-pause"[\s\S]*?<\/button>/)?.[0] ?? "";
+    const clearStart = source.indexOf("function clearTouchSession(): void {");
+    const clearEnd = source.indexOf("\n}\n\nfunction resumePlay", clearStart);
+    const pauseStart = source.indexOf("function pauseTouchPlay(): void {");
+    const pauseEnd = source.indexOf("\n}\n\nfunction clearTouchSessionWhenHidden", pauseStart);
+    const cleanup = source.slice(clearStart, clearEnd);
+    const pause = source.slice(pauseStart, pauseEnd);
+
+    expect(pauseButton).toContain('type="button"');
+    expect(pauseButton).toContain('aria-label="Pause game"');
+    expect(pauseButton).toContain("PAUSE");
+    expect(css).toMatch(
+      /\.touch-look \.touch-pause\s*\{[^}]*grid-row:\s*1;[^}]*grid-column:\s*2;/s,
+    );
+    expect(css).toMatch(/\.touch-controls \.touch-pause\s*\{[^}]*font-size:\s*9px;/s);
+    expect(cleanup).toContain("controller.setVirtualAction(action, false);");
+    expect(cleanup).toContain("uiInteractQueued = false;");
+    expect(cleanup).toContain("touchSessionActive = false;");
+    expect(pause.indexOf("clearTouchSession();")).toBeLessThan(
+      pause.indexOf("setOptionsOpen(true);"),
+    );
+    expect(pause).toContain("resumeTouchControls = true;");
+    expect(source).toContain('elements.touchPause.addEventListener("click", pauseTouchPlay);');
+    expect(source).toContain('elements.optionsResume.addEventListener("click", resumePlay);');
+    expect(source).toMatch(
+      /if\s*\(\s*!useTouchControls\s*&&\s*engineMode === "play"\s*&&\s*playRuntime\.state\(\)\.runMode === "playing"\s*\)/,
+    );
+    expect(source).toContain('window.addEventListener("pagehide", clearTouchSession);');
+    expect(source).toContain(
+      'document.addEventListener("visibilitychange", clearTouchSessionWhenHidden);',
+    );
+    expect(source).toContain('if (document.visibilityState === "hidden") clearTouchSession();');
+    expect(source).toContain('window.addEventListener("pagehide", flushLocalRunSave);');
   });
 });

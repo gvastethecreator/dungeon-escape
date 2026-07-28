@@ -17,18 +17,15 @@ describe("minimal full-shell CRT", () => {
     expect(css).toMatch(/\.crt-overlay\s*\{[^}]*radial-gradient/s);
   });
 
-  test("adds restrained full-shell phosphor glow and decay", async () => {
+  test("avoids an extra full-shell SVG blur over the WebGL CRT", async () => {
     const [host, css] = await Promise.all([
       readProjectFile("index.html"),
       readProjectFile("src/styles.css"),
     ]);
 
-    expect(host).toContain('id="crt-phosphor"');
-    expect(host).toContain('stdDeviation="0.78"');
-    expect(host).toContain('stdDeviation="0.32 1.1"');
-    expect(host).toContain('result="phosphor-decay"');
-    expect(host).toContain('mode="screen"');
-    expect(css).toMatch(/\.app-shell:not\(\.crt-off\)\s*\{[^}]*filter:\s*url\("#crt-phosphor"\);/s);
+    expect(host).not.toContain('id="crt-phosphor"');
+    expect(host).not.toContain("feGaussianBlur");
+    expect(css).not.toContain('filter: url("#crt-phosphor")');
   });
 
   test("keeps scanlines and noise without an RGB grille mask", async () => {
@@ -43,7 +40,8 @@ describe("minimal full-shell CRT", () => {
     expect(css).toContain('url("/assets/ui/crt-noise.svg")');
     expect(css).toMatch(/@keyframes\s+crt-noise-shift/);
     expect(css).toMatch(/@keyframes\s+crt-jitter/);
-    expect(css).toMatch(/translate3d\(0\.24px, 0, 0\)/);
+    expect(css).toMatch(/translate3d\(0\.12px, 0, 0\)/);
+    expect(css).toContain("animation: crt-noise-shift 1.2s steps(1, end) infinite");
     expect(css).toMatch(
       /@media \(prefers-reduced-motion: reduce\)[\s\S]*\.crt-overlay\s*\{\s*animation: none;/,
     );

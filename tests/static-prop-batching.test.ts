@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import * as THREE from "three";
 
-import { createStaticPropTemplateBatches } from "../src/world/DungeonWorld";
+import { createStaticPropTemplateBatches } from "../src/world/StaticDungeonScene";
 import { createDungeonProp } from "../src/world/DungeonPropKit";
 import { createDungeonMaterials } from "../src/world/MaterialLibrary";
 

@@ -1,4 +1,8 @@
-import type { LeaderboardEntry, ValidLeaderboardSubmission } from "../src/leaderboard/contract";
+import type {
+  LeaderboardEntry,
+  PlayerBiomeStars,
+  ValidLeaderboardSubmission,
+} from "../src/leaderboard/contract";
 import type { LeaderboardRepository } from "../src/leaderboard/repository";
 
 interface D1LeaderboardRow {
@@ -71,6 +75,22 @@ export class D1LeaderboardRepository implements LeaderboardRepository {
       .bind(limit)
       .all<D1LeaderboardRow>();
     return result.results.map(toEntry);
+  }
+
+  async listBiomeStars(): Promise<PlayerBiomeStars> {
+    const result = await this.database
+      .prepare(
+        `SELECT player_name AS playerName, biome, COUNT(*) AS stars
+         FROM leaderboard_entries
+         GROUP BY player_name, biome`,
+      )
+      .all<{ playerName: string; biome: string; stars: number }>();
+    const map: PlayerBiomeStars = {};
+    for (const row of result.results) {
+      const player = map[row.playerName] ?? (map[row.playerName] = {});
+      player[row.biome] = Number(row.stars) || 0;
+    }
+    return map;
   }
 
   async create(submission: ValidLeaderboardSubmission): Promise<LeaderboardEntry> {

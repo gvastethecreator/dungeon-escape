@@ -1,0 +1,356 @@
+{
+  "params": { "seed": 424242, "roomCount": 24, "loopChance": 0.15, "decorDensity": 0.6 },
+  "cases": {
+    "ancient": {
+      "seed": 424242,
+      "name": "The Broken Barrows of Ith’oth",
+      "W": 70,
+      "H": 77,
+      "entrance": 6,
+      "boss": 9,
+      "maxBfs": 129,
+      "maxDepth": 12,
+      "stats": {
+        "rooms": 24,
+        "edges": 27,
+        "loops": 4,
+        "critLen": 10,
+        "floorTiles": 1509,
+        "reach": 1509,
+        "attempts": 1,
+        "sealedBoundaryLeaks": 12,
+        "preservedBoundaryOpenings": 4
+      },
+      "arrays": {
+        "grid": "Uint8Array:5390:039ed80c",
+        "roomId": "Int16Array:5390:32776b71",
+        "corridor": "Uint8Array:5390:e76f22ac",
+        "doorway": "Uint8Array:5390:86aaf983",
+        "bfs": "Int16Array:5390:1cb0a09f",
+        "lakeMask": "Uint8Array:5390:3cfc623d"
+      },
+      "lists": {
+        "rooms": "1a71f110",
+        "edges": "5af38a8a",
+        "props": "099dc4d3",
+        "spawns": "89b3a4d9",
+        "torches": "ccd4768f",
+        "pools": "741638a5",
+        "lakeCells": "741638a5",
+        "arches": "76ca6f35"
+      }
+    },
+    "molten": {
+      "seed": 424242,
+      "name": "The Cindered Calderas of Ash’gul",
+      "W": 70,
+      "H": 77,
+      "entrance": 6,
+      "boss": 9,
+      "maxBfs": 131,
+      "maxDepth": 12,
+      "stats": {
+        "rooms": 24,
+        "edges": 27,
+        "loops": 4,
+        "critLen": 10,
+        "floorTiles": 1490,
+        "reach": 1490,
+        "attempts": 1,
+        "sealedBoundaryLeaks": 12,
+        "preservedBoundaryOpenings": 4
+      },
+      "arrays": {
+        "grid": "Uint8Array:5390:c7aff555",
+        "roomId": "Int16Array:5390:32776b71",
+        "corridor": "Uint8Array:5390:e76f22ac",
+        "doorway": "Uint8Array:5390:86aaf983",
+        "bfs": "Int16Array:5390:d626b384",
+        "lakeMask": "Uint8Array:5390:3cfc623d"
+      },
+      "lists": {
+        "rooms": "1a71f110",
+        "edges": "5af38a8a",
+        "props": "25546aa1",
+        "spawns": "c0bd9663",
+        "torches": "411fdeb7",
+        "pools": "6917ec23",
+        "lakeCells": "741638a5",
+        "arches": "76ca6f35"
+      }
+    },
+    "frost": {
+      "seed": 424242,
+      "name": "The Howling Caverns of Gol’ash",
+      "W": 70,
+      "H": 77,
+      "entrance": 6,
+      "boss": 9,
+      "maxBfs": 135,
+      "maxDepth": 12,
+      "stats": {
+        "rooms": 24,
+        "edges": 27,
+        "loops": 4,
+        "critLen": 10,
+        "floorTiles": 1505,
+        "reach": 1505,
+        "attempts": 1,
+        "sealedBoundaryLeaks": 10,
+        "preservedBoundaryOpenings": 2
+      },
+      "arrays": {
+        "grid": "Uint8Array:5390:10ad39be",
+        "roomId": "Int16Array:5390:32776b71",
+        "corridor": "Uint8Array:5390:0a858bfa",
+        "doorway": "Uint8Array:5390:bfff66a5",
+        "bfs": "Int16Array:5390:741e3ba6",
+        "lakeMask": "Uint8Array:5390:ad65a96f"
+      },
+      "lists": {
+        "rooms": "a52f82a8",
+        "edges": "5af38a8a",
+        "props": "82f00141",
+        "spawns": "2e250f6a",
+        "torches": "0137ccdd",
+        "pools": "741638a5",
+        "lakeCells": "bdcfeb4c",
+        "arches": "605338d4"
+      }
+    },
+    "grim": {
+      "seed": 424242,
+      "name": "The Blighted Morgue of Gol’ruk",
+      "W": 70,
+      "H": 77,
+      "entrance": 6,
+      "boss": 9,
+      "maxBfs": 137,
+      "maxDepth": 12,
+      "stats": {
+        "rooms": 24,
+        "edges": 27,
+        "loops": 4,
+        "critLen": 10,
+        "floorTiles": 1490,
+        "reach": 1490,
+        "attempts": 1,
+        "sealedBoundaryLeaks": 10,
+        "preservedBoundaryOpenings": 2
+      },
+      "arrays": {
+        "grid": "Uint8Array:5390:d94aeba3",
+        "roomId": "Int16Array:5390:32776b71",
+        "corridor": "Uint8Array:5390:0a858bfa",
+        "doorway": "Uint8Array:5390:bfff66a5",
+        "bfs": "Int16Array:5390:532ed2e2",
+        "lakeMask": "Uint8Array:5390:3cfc623d"
+      },
+      "lists": {
+        "rooms": "bb381fb0",
+        "edges": "5af38a8a",
+        "props": "87c987d7",
+        "spawns": "b15f32be",
+        "torches": "a513efdf",
+        "pools": "c25e5e01",
+        "lakeCells": "741638a5",
+        "arches": "605338d4"
+      }
+    },
+    "verdant": {
+      "seed": 424242,
+      "name": "The Verdant Conservatory of Vor’gul",
+      "W": 70,
+      "H": 77,
+      "entrance": 6,
+      "boss": 9,
+      "maxBfs": 129,
+      "maxDepth": 12,
+      "stats": {
+        "rooms": 24,
+        "edges": 27,
+        "loops": 4,
+        "critLen": 10,
+        "floorTiles": 1492,
+        "reach": 1492,
+        "attempts": 1,
+        "sealedBoundaryLeaks": 12,
+        "preservedBoundaryOpenings": 4
+      },
+      "arrays": {
+        "grid": "Uint8Array:5390:cfae3188",
+        "roomId": "Int16Array:5390:32776b71",
+        "corridor": "Uint8Array:5390:e76f22ac",
+        "doorway": "Uint8Array:5390:86aaf983",
+        "bfs": "Int16Array:5390:6c991cbf",
+        "lakeMask": "Uint8Array:5390:3cfc623d"
+      },
+      "lists": {
+        "rooms": "1a71f110",
+        "edges": "5af38a8a",
+        "props": "a2e6542c",
+        "spawns": "322e6ba8",
+        "torches": "e54c021c",
+        "pools": "e90769d5",
+        "lakeCells": "741638a5",
+        "arches": "76ca6f35"
+      }
+    },
+    "obsidian": {
+      "seed": 424242,
+      "name": "The Shattered Vaults of Ul’ruk",
+      "W": 70,
+      "H": 77,
+      "entrance": 6,
+      "boss": 9,
+      "maxBfs": 129,
+      "maxDepth": 12,
+      "stats": {
+        "rooms": 24,
+        "edges": 27,
+        "loops": 4,
+        "critLen": 10,
+        "floorTiles": 1492,
+        "reach": 1492,
+        "attempts": 1,
+        "sealedBoundaryLeaks": 12,
+        "preservedBoundaryOpenings": 4
+      },
+      "arrays": {
+        "grid": "Uint8Array:5390:cfae3188",
+        "roomId": "Int16Array:5390:32776b71",
+        "corridor": "Uint8Array:5390:e76f22ac",
+        "doorway": "Uint8Array:5390:86aaf983",
+        "bfs": "Int16Array:5390:6c991cbf",
+        "lakeMask": "Uint8Array:5390:3cfc623d"
+      },
+      "lists": {
+        "rooms": "1a71f110",
+        "edges": "5af38a8a",
+        "props": "9e0bb59f",
+        "spawns": "322e6ba8",
+        "torches": "e54c021c",
+        "pools": "e90769d5",
+        "lakeCells": "741638a5",
+        "arches": "76ca6f35"
+      }
+    },
+    "sunken": {
+      "seed": 424242,
+      "name": "The Lost Halls of Vor’ath",
+      "W": 70,
+      "H": 77,
+      "entrance": 6,
+      "boss": 9,
+      "maxBfs": 139,
+      "maxDepth": 12,
+      "stats": {
+        "rooms": 24,
+        "edges": 27,
+        "loops": 4,
+        "critLen": 10,
+        "floorTiles": 1487,
+        "reach": 1487,
+        "attempts": 1,
+        "sealedBoundaryLeaks": 10,
+        "preservedBoundaryOpenings": 2
+      },
+      "arrays": {
+        "grid": "Uint8Array:5390:f2290151",
+        "roomId": "Int16Array:5390:32776b71",
+        "corridor": "Uint8Array:5390:0a858bfa",
+        "doorway": "Uint8Array:5390:bfff66a5",
+        "bfs": "Int16Array:5390:18700283",
+        "lakeMask": "Uint8Array:5390:ad65a96f"
+      },
+      "lists": {
+        "rooms": "a52f82a8",
+        "edges": "5af38a8a",
+        "props": "1ca1d2ed",
+        "spawns": "f2cbcaca",
+        "torches": "18e75c51",
+        "pools": "a5f5a712",
+        "lakeCells": "bdcfeb4c",
+        "arches": "605338d4"
+      }
+    },
+    "fungal": {
+      "seed": 424242,
+      "name": "The Pale Veins of Zar’ath",
+      "W": 70,
+      "H": 77,
+      "entrance": 6,
+      "boss": 9,
+      "maxBfs": 129,
+      "maxDepth": 12,
+      "stats": {
+        "rooms": 24,
+        "edges": 27,
+        "loops": 4,
+        "critLen": 10,
+        "floorTiles": 1492,
+        "reach": 1492,
+        "attempts": 1,
+        "sealedBoundaryLeaks": 12,
+        "preservedBoundaryOpenings": 4
+      },
+      "arrays": {
+        "grid": "Uint8Array:5390:53cd34e0",
+        "roomId": "Int16Array:5390:32776b71",
+        "corridor": "Uint8Array:5390:e76f22ac",
+        "doorway": "Uint8Array:5390:86aaf983",
+        "bfs": "Int16Array:5390:6c991cbf",
+        "lakeMask": "Uint8Array:5390:3cfc623d"
+      },
+      "lists": {
+        "rooms": "1a71f110",
+        "edges": "5af38a8a",
+        "props": "b6743e77",
+        "spawns": "322e6ba8",
+        "torches": "a313dd1b",
+        "pools": "ee5f60a4",
+        "lakeCells": "741638a5",
+        "arches": "76ca6f35"
+      }
+    },
+    "backrooms": {
+      "seed": 424242,
+      "name": "The Lost Rooms of Ith’oth",
+      "W": 70,
+      "H": 77,
+      "entrance": 6,
+      "boss": 9,
+      "maxBfs": 129,
+      "maxDepth": 12,
+      "stats": {
+        "rooms": 24,
+        "edges": 27,
+        "loops": 4,
+        "critLen": 10,
+        "floorTiles": 1509,
+        "reach": 1509,
+        "attempts": 1,
+        "sealedBoundaryLeaks": 12,
+        "preservedBoundaryOpenings": 4
+      },
+      "arrays": {
+        "grid": "Uint8Array:5390:039ed80c",
+        "roomId": "Int16Array:5390:32776b71",
+        "corridor": "Uint8Array:5390:e76f22ac",
+        "doorway": "Uint8Array:5390:86aaf983",
+        "bfs": "Int16Array:5390:1cb0a09f",
+        "lakeMask": "Uint8Array:5390:3cfc623d"
+      },
+      "lists": {
+        "rooms": "1a71f110",
+        "edges": "5af38a8a",
+        "props": "099dc4d3",
+        "spawns": "89b3a4d9",
+        "torches": "ccd4768f",
+        "pools": "741638a5",
+        "lakeCells": "741638a5",
+        "arches": "76ca6f35"
+      }
+    }
+  }
+}
