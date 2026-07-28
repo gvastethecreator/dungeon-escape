@@ -5,15 +5,27 @@ import type { DungeonData, GridCell } from "../dungeon/types";
 
 export const MAGIC_PORTAL_ENTRY_RADIUS = 0.7;
 
+/** Matches the clear opening inside the fixed stone frame in StaticDungeonScene. */
+export const MAGIC_PORTAL_APERTURE = Object.freeze({
+  halfWidth: 0.7,
+  baseY: 0.2,
+  shoulderY: 2.52,
+  apexY: 3.22,
+});
+
 export const MAGIC_PORTAL_NAMES = Object.freeze({
   interior: "Portal magic interior",
   veil: "Portal veil",
   vortex: "Portal vortex field",
-  spiral: "Portal spiral",
-  runeRing: "Portal rune ring",
+  spiral: "Portal spiral current",
+  runeArch: "Portal rune arch",
+  runes: "Portal arch runes",
 });
 
-const PORTAL_CENTER_Y = 1.65;
+const PORTAL_HEIGHT = MAGIC_PORTAL_APERTURE.apexY - MAGIC_PORTAL_APERTURE.baseY;
+const PORTAL_SHOULDER_UV =
+  (MAGIC_PORTAL_APERTURE.shoulderY - MAGIC_PORTAL_APERTURE.baseY) / PORTAL_HEIGHT;
+const PORTAL_HEIGHT_TO_RADIUS = PORTAL_HEIGHT / MAGIC_PORTAL_APERTURE.halfWidth;
 
 const PORTAL_VERTEX_SHADER = /* glsl */ `
   varying vec2 vUv;
@@ -24,61 +36,209 @@ const PORTAL_VERTEX_SHADER = /* glsl */ `
   }
 `;
 
-const PORTAL_FRAGMENT_SHADER = /* glsl */ `
+const PORTAL_APERTURE_GLSL = /* glsl */ `
+  float apertureEdgeDistance(vec2 uv) {
+    float normalizedX = (uv.x - 0.5) * 2.0;
+    float sideDistance = 1.0 - abs(normalizedX);
+    float bottomDistance = uv.y * 2.0;
+    if (uv.y <= ${PORTAL_SHOULDER_UV.toFixed(8)}) {
+      return min(sideDistance, bottomDistance);
+    }
+    float archY = (uv.y - ${PORTAL_SHOULDER_UV.toFixed(8)}) * ${PORTAL_HEIGHT_TO_RADIUS.toFixed(8)};
+    return 1.0 - length(vec2(normalizedX, archY));
+  }
+`;
+
+const PORTAL_FIELD_FRAGMENT_SHADER = /* glsl */ `
   varying vec2 vUv;
   uniform float uTime;
 
+  ${PORTAL_APERTURE_GLSL}
+
   void main() {
-    vec2 point = vUv * 2.0 - 1.0;
+    vec2 point = vec2((vUv.x - 0.5) * 1.42, (vUv.y - 0.46) * 2.15);
     float radius = length(point);
     float angle = atan(point.y, point.x);
-    float disc = 1.0 - smoothstep(0.76, 1.0, radius);
-    float spiral = 0.5 + 0.5 * sin(angle * 3.0 - radius * 18.0 + uTime * 2.1);
-    spiral = spiral * spiral * spiral;
-    float core = 1.0 - smoothstep(0.0, 0.32, radius);
-    float pulse = 0.88 + sin(uTime * 2.7 - radius * 7.0) * 0.12;
-    vec3 deepColor = vec3(0.035, 0.075, 0.18);
-    vec3 magicColor = vec3(0.22, 0.68, 1.0);
-    vec3 color = mix(deepColor, magicColor, spiral * 0.84 + core * 0.35);
-    float alpha = disc * (0.32 + spiral * 0.56 + core * 0.18) * pulse;
+    float broadFlow = 0.5 + 0.5 * sin(angle * 3.0 - radius * 13.0 + uTime * 1.75);
+    float counterFlow = 0.5 + 0.5 * sin(angle * 5.0 + radius * 9.0 - uTime * 1.15);
+    float current = pow(broadFlow, 2.2) * 0.72 + pow(counterFlow, 4.0) * 0.28;
+    float depthPulse = 0.9 + sin(uTime * 2.3 - radius * 5.0) * 0.1;
+    float edgeGlow = 1.0 - smoothstep(0.0, 0.16, apertureEdgeDistance(vUv));
+    float core = exp(-radius * 2.6);
+    vec3 deepColor = vec3(0.018, 0.045, 0.14);
+    vec3 magicColor = vec3(0.08, 0.48, 0.96);
+    vec3 brightColor = vec3(0.44, 0.84, 1.0);
+    vec3 color = mix(deepColor, magicColor, current * 0.82 + core * 0.14);
+    color = mix(color, brightColor, edgeGlow * 0.42);
+    float alpha = (0.5 + current * 0.36 + edgeGlow * 0.12) * depthPulse;
+    gl_FragColor = vec4(color, alpha);
+  }
+`;
+
+const PORTAL_SPIRAL_FRAGMENT_SHADER = /* glsl */ `
+  varying vec2 vUv;
+  uniform float uTime;
+
+  ${PORTAL_APERTURE_GLSL}
+
+  void main() {
+    vec2 point = vec2((vUv.x - 0.5) * 1.42, (vUv.y - 0.46) * 2.15);
+    float radius = length(point);
+    float angle = atan(point.y, point.x);
+    float primaryWave = 0.5 + 0.5 * sin(angle * 3.0 - radius * 13.0 + uTime * 1.75);
+    float secondaryWave = 0.5 + 0.5 * sin(angle * 6.0 - radius * 20.0 + uTime * 1.2);
+    float primary = smoothstep(0.86, 0.99, primaryWave);
+    float secondary = smoothstep(0.94, 0.995, secondaryWave) * 0.38;
+    float edgeEcho = 1.0 - smoothstep(0.0, 0.055, apertureEdgeDistance(vUv));
+    float pulse = 0.84 + sin(uTime * 2.8 - radius * 4.0) * 0.16;
+    float alpha = min(1.0, primary + secondary + edgeEcho * 0.24) * pulse * 0.82;
+    vec3 color = mix(vec3(0.18, 0.62, 1.0), vec3(0.78, 0.95, 1.0), primary);
     gl_FragColor = vec4(color, alpha);
   }
 `;
 
 export interface MagicPortalInterior {
   root: THREE.Group;
-  veil: THREE.Mesh<THREE.CircleGeometry, THREE.MeshBasicMaterial>;
-  vortex: THREE.Mesh<THREE.CircleGeometry, THREE.ShaderMaterial>;
-  spiral: THREE.Mesh<THREE.TubeGeometry, THREE.MeshBasicMaterial>;
-  runeRing: THREE.Mesh<THREE.TorusGeometry, THREE.MeshBasicMaterial>;
+  veil: THREE.Mesh<THREE.ShapeGeometry, THREE.MeshBasicMaterial>;
+  vortex: THREE.Mesh<THREE.ShapeGeometry, THREE.ShaderMaterial>;
+  spiral: THREE.Mesh<THREE.ShapeGeometry, THREE.ShaderMaterial>;
+  runeArch: THREE.Mesh<THREE.TubeGeometry, THREE.MeshBasicMaterial>;
+  runes: THREE.InstancedMesh<THREE.OctahedronGeometry, THREE.MeshBasicMaterial>;
 }
 
-function createSpiralGeometry(): THREE.TubeGeometry {
-  const points: THREE.Vector3[] = [];
-  const segments = 72;
-  const turns = Math.PI * 5.5;
-  for (let index = 0; index <= segments; index += 1) {
-    const progress = index / segments;
-    const angle = progress * turns;
-    const radius = 0.055 + progress * 0.69;
-    points.push(new THREE.Vector3(Math.cos(angle) * radius, Math.sin(angle) * radius, 0));
+function createPortalApertureShape(inset = 0): THREE.Shape {
+  const halfWidth = MAGIC_PORTAL_APERTURE.halfWidth - inset;
+  const baseY = MAGIC_PORTAL_APERTURE.baseY + inset;
+  const shoulderY = MAGIC_PORTAL_APERTURE.shoulderY;
+  const shape = new THREE.Shape();
+  shape.moveTo(-halfWidth, baseY);
+  shape.lineTo(halfWidth, baseY);
+  shape.lineTo(halfWidth, shoulderY);
+  shape.absarc(0, shoulderY, halfWidth, 0, Math.PI, false);
+  shape.lineTo(-halfWidth, baseY);
+  shape.closePath();
+  return shape;
+}
+
+/** Full door aperture with normalized UVs for shader layers. */
+export function createPortalApertureGeometry(inset = 0): THREE.ShapeGeometry {
+  const geometry = new THREE.ShapeGeometry(createPortalApertureShape(inset), 32);
+  geometry.name = "Magic portal door aperture geometry";
+  const position = geometry.getAttribute("position");
+  const uv = geometry.getAttribute("uv");
+  const halfWidth = MAGIC_PORTAL_APERTURE.halfWidth - inset;
+  const baseY = MAGIC_PORTAL_APERTURE.baseY + inset;
+  const height = MAGIC_PORTAL_APERTURE.shoulderY + halfWidth - baseY;
+  for (let index = 0; index < position.count; index += 1) {
+    uv.setXY(
+      index,
+      (position.getX(index) + halfWidth) / (halfWidth * 2),
+      (position.getY(index) - baseY) / height,
+    );
   }
-  return new THREE.TubeGeometry(new THREE.CatmullRomCurve3(points), 96, 0.018, 5, false);
+  uv.needsUpdate = true;
+  geometry.computeBoundingBox();
+  geometry.computeBoundingSphere();
+  return geometry;
 }
 
-/** Animated layers mounted inside the fixed stone portal frame. */
+class PortalBoundaryCurve extends THREE.Curve<THREE.Vector3> {
+  constructor(private readonly inset: number) {
+    super();
+  }
+
+  override getPoint(t: number, target = new THREE.Vector3()): THREE.Vector3 {
+    const halfWidth = MAGIC_PORTAL_APERTURE.halfWidth - this.inset;
+    const baseY = MAGIC_PORTAL_APERTURE.baseY + this.inset;
+    const shoulderY = MAGIC_PORTAL_APERTURE.shoulderY;
+    const bottomLength = halfWidth * 2;
+    const sideLength = shoulderY - baseY;
+    const archLength = Math.PI * halfWidth;
+    const totalLength = bottomLength + sideLength * 2 + archLength;
+    let distance = THREE.MathUtils.clamp(t, 0, 1) * totalLength;
+
+    if (distance <= bottomLength) return target.set(-halfWidth + distance, baseY, 0);
+    distance -= bottomLength;
+    if (distance <= sideLength) return target.set(halfWidth, baseY + distance, 0);
+    distance -= sideLength;
+    if (distance <= archLength) {
+      const angle = distance / halfWidth;
+      return target.set(Math.cos(angle) * halfWidth, shoulderY + Math.sin(angle) * halfWidth, 0);
+    }
+    distance -= archLength;
+    return target.set(-halfWidth, shoulderY - Math.min(distance, sideLength), 0);
+  }
+}
+
+/** Reusable trim that follows the rectangular sides and curved crown. */
+export function createPortalApertureOutlineGeometry(
+  tubeRadius: number,
+  inset = 0,
+): THREE.TubeGeometry {
+  const geometry = new THREE.TubeGeometry(new PortalBoundaryCurve(inset), 72, tubeRadius, 5, true);
+  geometry.name = "Magic portal aperture outline geometry";
+  return geometry;
+}
+
+function createPortalRunes(
+  material: THREE.MeshBasicMaterial,
+): THREE.InstancedMesh<THREE.OctahedronGeometry, THREE.MeshBasicMaterial> {
+  const geometry = new THREE.OctahedronGeometry(0.045, 0);
+  geometry.name = "Magic portal rune geometry";
+  const count = 14;
+  const runes = new THREE.InstancedMesh(geometry, material, count);
+  runes.name = MAGIC_PORTAL_NAMES.runes;
+  const curve = new PortalBoundaryCurve(0.055);
+  const matrix = new THREE.Matrix4();
+  const position = new THREE.Vector3();
+  const quaternion = new THREE.Quaternion();
+  const scale = new THREE.Vector3();
+  const euler = new THREE.Euler();
+  for (let index = 0; index < count; index += 1) {
+    const progress = (index + 0.5) / count;
+    curve.getPoint(progress, position);
+    const tangent = curve.getTangent(progress);
+    euler.set(0, 0, Math.atan2(tangent.y, tangent.x) + Math.PI / 4);
+    quaternion.setFromEuler(euler);
+    const size = index % 2 === 0 ? 1 : 0.72;
+    scale.set(size, size * 1.24, 0.65);
+    matrix.compose(position, quaternion, scale);
+    runes.setMatrixAt(index, matrix);
+  }
+  runes.instanceMatrix.needsUpdate = true;
+  runes.computeBoundingBox();
+  runes.computeBoundingSphere();
+  runes.renderOrder = 5;
+  return runes;
+}
+
+function portalShaderMaterial(fragmentShader: string): THREE.ShaderMaterial {
+  return new THREE.ShaderMaterial({
+    uniforms: { uTime: { value: 0 } },
+    vertexShader: PORTAL_VERTEX_SHADER,
+    fragmentShader,
+    transparent: true,
+    side: THREE.DoubleSide,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+    toneMapped: false,
+  });
+}
+
+/** Animated layers fill the whole arch instead of forming a disc in its center. */
 export function createMagicPortalInterior(): MagicPortalInterior {
   const root = new THREE.Group();
   root.name = MAGIC_PORTAL_NAMES.interior;
-  root.position.set(0, PORTAL_CENTER_Y, 0.025);
+  root.position.z = 0.025;
   root.visible = false;
 
+  const apertureGeometry = createPortalApertureGeometry();
   const veil = new THREE.Mesh(
-    new THREE.CircleGeometry(0.87, 40),
+    apertureGeometry,
     new THREE.MeshBasicMaterial({
-      color: 0x102342,
+      color: 0x07142e,
       transparent: true,
-      opacity: 0.62,
+      opacity: 0.76,
       side: THREE.DoubleSide,
       depthWrite: false,
       toneMapped: false,
@@ -88,55 +248,39 @@ export function createMagicPortalInterior(): MagicPortalInterior {
   veil.renderOrder = 2;
 
   const vortex = new THREE.Mesh(
-    new THREE.CircleGeometry(0.83, 40),
-    new THREE.ShaderMaterial({
-      uniforms: { uTime: { value: 0 } },
-      vertexShader: PORTAL_VERTEX_SHADER,
-      fragmentShader: PORTAL_FRAGMENT_SHADER,
-      transparent: true,
-      side: THREE.DoubleSide,
-      depthWrite: false,
-      blending: THREE.AdditiveBlending,
-      toneMapped: false,
-    }),
+    apertureGeometry,
+    portalShaderMaterial(PORTAL_FIELD_FRAGMENT_SHADER),
   );
   vortex.name = MAGIC_PORTAL_NAMES.vortex;
-  vortex.position.z = 0.018;
+  vortex.position.z = 0.014;
   vortex.renderOrder = 3;
 
   const spiral = new THREE.Mesh(
-    createSpiralGeometry(),
-    new THREE.MeshBasicMaterial({
-      color: 0x8bdcff,
-      transparent: true,
-      opacity: 0.86,
-      side: THREE.DoubleSide,
-      depthWrite: false,
-      blending: THREE.AdditiveBlending,
-      toneMapped: false,
-    }),
+    apertureGeometry,
+    portalShaderMaterial(PORTAL_SPIRAL_FRAGMENT_SHADER),
   );
   spiral.name = MAGIC_PORTAL_NAMES.spiral;
-  spiral.position.z = 0.055;
+  spiral.position.z = 0.032;
   spiral.renderOrder = 4;
 
-  const runeRing = new THREE.Mesh(
-    new THREE.TorusGeometry(0.79, 0.022, 5, 48),
-    new THREE.MeshBasicMaterial({
-      color: 0xa6e6ff,
-      transparent: true,
-      opacity: 0.72,
-      depthWrite: false,
-      blending: THREE.AdditiveBlending,
-      toneMapped: false,
-    }),
-  );
-  runeRing.name = MAGIC_PORTAL_NAMES.runeRing;
-  runeRing.position.z = 0.064;
-  runeRing.renderOrder = 4;
+  const runeMaterial = new THREE.MeshBasicMaterial({
+    color: 0x9ce5ff,
+    transparent: true,
+    opacity: 0.76,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+    toneMapped: false,
+  });
+  const runeArch = new THREE.Mesh(createPortalApertureOutlineGeometry(0.014, 0.045), runeMaterial);
+  runeArch.name = MAGIC_PORTAL_NAMES.runeArch;
+  runeArch.position.z = 0.052;
+  runeArch.renderOrder = 5;
 
-  root.add(veil, vortex, spiral, runeRing);
-  return { root, veil, vortex, spiral, runeRing };
+  const runes = createPortalRunes(runeMaterial);
+  runes.position.z = 0.057;
+
+  root.add(veil, vortex, spiral, runeArch, runes);
+  return { root, veil, vortex, spiral, runeArch, runes };
 }
 
 export function setMagicPortalOpen(portalRoot: THREE.Object3D, open: boolean): void {
@@ -158,24 +302,21 @@ export function updateMagicPortal(portalRoot: THREE.Object3D, elapsed: number): 
   const interior = portalRoot.getObjectByName(MAGIC_PORTAL_NAMES.interior);
   if (!interior?.visible) return;
 
-  const vortex = portalRoot.getObjectByName(MAGIC_PORTAL_NAMES.vortex);
-  if (vortex instanceof THREE.Mesh && vortex.material instanceof THREE.ShaderMaterial) {
-    vortex.material.uniforms.uTime!.value = elapsed;
-    vortex.rotation.z = elapsed * 0.12;
+  for (const name of [MAGIC_PORTAL_NAMES.vortex, MAGIC_PORTAL_NAMES.spiral]) {
+    const layer = portalRoot.getObjectByName(name);
+    if (layer instanceof THREE.Mesh && layer.material instanceof THREE.ShaderMaterial) {
+      layer.material.uniforms.uTime!.value = elapsed;
+    }
   }
 
-  const spiral = portalRoot.getObjectByName(MAGIC_PORTAL_NAMES.spiral);
-  if (spiral instanceof THREE.Mesh) {
-    spiral.rotation.z = -elapsed * 0.58;
-    spiral.scale.setScalar(0.98 + Math.sin(elapsed * 2.4) * 0.025);
+  const runeArch = portalRoot.getObjectByName(MAGIC_PORTAL_NAMES.runeArch);
+  if (runeArch instanceof THREE.Mesh && runeArch.material instanceof THREE.MeshBasicMaterial) {
+    runeArch.material.opacity = 0.68 + Math.sin(elapsed * 2.2) * 0.12;
   }
-
-  const runeRing = portalRoot.getObjectByName(MAGIC_PORTAL_NAMES.runeRing);
-  if (runeRing instanceof THREE.Mesh) runeRing.rotation.z = elapsed * 0.26;
 
   const veil = portalRoot.getObjectByName(MAGIC_PORTAL_NAMES.veil);
   if (veil instanceof THREE.Mesh && veil.material instanceof THREE.MeshBasicMaterial) {
-    veil.material.opacity = 0.57 + Math.sin(elapsed * 3.1) * 0.07;
+    veil.material.opacity = 0.72 + Math.sin(elapsed * 1.7) * 0.05;
   }
 }
 
