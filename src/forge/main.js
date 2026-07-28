@@ -2912,6 +2912,33 @@ addEventListener("message", (event) => {
       return;
     }
     hostPaused = false;
+    // Host may ship the real play layout (isometric of that topology). Prefer it
+    // over re-rolling a cosmetic Creation seed.
+    const hostDungeon = event.data.dungeon;
+    if (hostDungeon && typeof hostDungeon === "object" && hostDungeon.grid && hostDungeon.W) {
+      if (!forceThemeKey(event.data.themeKey || hostDungeon.params?.themeKey) && event.data.themeKey) {
+        console.warn(`Forge presentation theme unsupported: ${event.data.themeKey}`);
+      }
+      const shouldAnimate = event.data.animate !== false;
+      el.tAnim.checked = shouldAnimate;
+      try {
+        buildScene(hostDungeon);
+        applyObjectVis();
+        if (shouldAnimate) {
+          animating = true;
+          animT = 0;
+          for (const k in meshes) meshes[k].userData.settled = false;
+          setFxRamp(0);
+        } else finishAnim();
+        requestAnimationFrame(() => {
+          if (presentationMode && D) fitCameraToDungeon(D.W, D.H);
+        });
+      } catch (error) {
+        console.warn("Forge host dungeon presentation failed; falling back to generator.", error);
+        forge(shouldAnimate);
+      }
+      return;
+    }
     const requested = Number(event.data.seed);
     if (Number.isFinite(requested)) {
       el.seed.value = nextProceduralSeed(requested, Number(el.seed.value) || 0);
