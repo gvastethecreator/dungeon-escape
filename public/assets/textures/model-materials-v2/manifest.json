@@ -1,0 +1,526 @@
+{
+  "schemaVersion": 1,
+  "mapSize": 512,
+  "materials": [
+    {
+      "id": "aged-oak",
+      "source": "assets-source/imagegen/material-textures-v2/aged-oak-albedo-source.png",
+      "sourceSha256": "4f1b4d2dd2c1c20d28cbc517ae7fad397276cf26bcc291e8ba602d6a31a99683",
+      "sourceCropMargin": 0.055,
+      "sourceSampleHeight": 1.0,
+      "saturation": 0.7,
+      "contrast": 1.0,
+      "sourceSampleWidth": 1.0,
+      "wrapMode": "mirrored-repeat",
+      "maps": {
+        "albedo": "public/assets/textures/model-materials-v2/aged-oak/aged-oak_albedo.png",
+        "height": "public/assets/textures/model-materials-v2/aged-oak/aged-oak_height.png",
+        "normal": "public/assets/textures/model-materials-v2/aged-oak/aged-oak_normal.png",
+        "roughness": "public/assets/textures/model-materials-v2/aged-oak/aged-oak_roughness.png",
+        "ao": "public/assets/textures/model-materials-v2/aged-oak/aged-oak_ao.png"
+      },
+      "outputSha256": {
+        "albedo": "018414db5765be10579fa71ce9d2d323a6896895102d2c8ca9dc3f53eb5148b8",
+        "height": "2ef9f744221fb411dc6a54adc2c80ce793a9300f5b6d22b027d4fa161e4286b3",
+        "normal": "9cc425a1dbc8468dcd519603c4d68af8a2d51237ed78481a7f001df082e5d036",
+        "roughness": "8114caea00c8cb02e373fa671d3df6720e28403df0f4840e0f98177326301184",
+        "ao": "e5f94a24e10f5f9b53a880ec93fce1818cb7b294410ad03f7dde702bdc14346b"
+      },
+      "meanLuma": 0.42,
+      "meanRgb": [0.4582, 0.4128, 0.3781],
+      "roughnessRange": [0.8754, 0.93],
+      "albedoEdgeDelta": {
+        "horizontal": 0.033206,
+        "vertical": 0.04165
+      },
+      "heightEdgeDelta": {
+        "horizontal": 0.061381,
+        "vertical": 0.084786
+      },
+      "centerDetailRatio": {
+        "horizontal": 0.9765,
+        "vertical": 1.0022
+      }
+    },
+    {
+      "id": "black-iron",
+      "source": "assets-source/imagegen/material-textures-v2/black-iron-albedo-source.png",
+      "sourceSha256": "4c7d2ece8740347f74e41f71db60eba8d1326c1a82b3ee93e872286722f2a79e",
+      "sourceCropMargin": 0.055,
+      "sourceSampleHeight": 1.0,
+      "saturation": 0.72,
+      "contrast": 1.0,
+      "sourceSampleWidth": 1.0,
+      "wrapMode": "mirrored-repeat",
+      "maps": {
+        "albedo": "public/assets/textures/model-materials-v2/black-iron/black-iron_albedo.png",
+        "height": "public/assets/textures/model-materials-v2/black-iron/black-iron_height.png",
+        "normal": "public/assets/textures/model-materials-v2/black-iron/black-iron_normal.png",
+        "roughness": "public/assets/textures/model-materials-v2/black-iron/black-iron_roughness.png",
+        "ao": "public/assets/textures/model-materials-v2/black-iron/black-iron_ao.png"
+      },
+      "outputSha256": {
+        "albedo": "05fa5f19acc22535880d22fb3c7e6eafe0cf39c6e3bdd3ec3274f3b49686b200",
+        "height": "e6322e823dd3f47000cfa625a07453ce4810bdad7c6c22c44b2fbe2e09190037",
+        "normal": "c06e8f8ab3ad9980da31217ce8499bd8428994c0d5d367de0b1149135b00e0a8",
+        "roughness": "dbb6fc3f2683b5ce1dfff6d601249685d8f97dffdd014b70889e0c4cbfccdca0",
+        "ao": "e9daabf79f9b4ff028ea04c53f201ef7632f6f4bcb808260659e3c1fe9f03c7d"
+      },
+      "meanLuma": 0.32,
+      "meanRgb": [0.3221, 0.3198, 0.3155],
+      "roughnessRange": [0.71, 0.81],
+      "albedoEdgeDelta": {
+        "horizontal": 0.066206,
+        "vertical": 0.071594
+      },
+      "heightEdgeDelta": {
+        "horizontal": 0.13046,
+        "vertical": 0.135057
+      },
+      "centerDetailRatio": {
+        "horizontal": 0.9973,
+        "vertical": 0.9956
+      }
+    },
+    {
+      "id": "dull-brass",
+      "source": "assets-source/imagegen/material-textures-v2/dull-brass-albedo-source.png",
+      "sourceSha256": "bbb35cb681dea429371b556f942f45c61c1c993dfb0f8f61a72295755322830d",
+      "sourceCropMargin": 0.055,
+      "sourceSampleHeight": 1.0,
+      "saturation": 0.78,
+      "contrast": 1.0,
+      "sourceSampleWidth": 1.0,
+      "wrapMode": "mirrored-repeat",
+      "maps": {
+        "albedo": "public/assets/textures/model-materials-v2/dull-brass/dull-brass_albedo.png",
+        "height": "public/assets/textures/model-materials-v2/dull-brass/dull-brass_height.png",
+        "normal": "public/assets/textures/model-materials-v2/dull-brass/dull-brass_normal.png",
+        "roughness": "public/assets/textures/model-materials-v2/dull-brass/dull-brass_roughness.png",
+        "ao": "public/assets/textures/model-materials-v2/dull-brass/dull-brass_ao.png"
+      },
+      "outputSha256": {
+        "albedo": "d5d0a955006e8f90fb8ea967e856a832605bfae8bdae3b5e994ec9d48bb23911",
+        "height": "3a07e70eb909ab4c22468d2579844a47c841c0101c3e7b4b59251bdcda839b2f",
+        "normal": "800dbd3ff0c35d0ce6da82c85e02db90839c034c6271255fe36fde61ac1b4b1e",
+        "roughness": "2d56059ceb1d2f73da1c0bd4bdb4e1d934ed1a039f97fe9e15d82173310cb719",
+        "ao": "368a51c583e16e6be5e5bf5217c1caf47478b7f5d924b2a844f761ebee960e59"
+      },
+      "meanLuma": 0.45,
+      "meanRgb": [0.5266, 0.4482, 0.2453],
+      "roughnessRange": [0.6855, 0.73],
+      "albedoEdgeDelta": {
+        "horizontal": 0.036909,
+        "vertical": 0.04084
+      },
+      "heightEdgeDelta": {
+        "horizontal": 0.043702,
+        "vertical": 0.048902
+      },
+      "centerDetailRatio": {
+        "horizontal": 0.9562,
+        "vertical": 1.0379
+      }
+    },
+    {
+      "id": "dungeon-stone",
+      "source": "assets-source/imagegen/material-textures-v2/dungeon-stone-albedo-source.png",
+      "sourceSha256": "43424db9462947779dc3b388a0a1cec691522ac70fe465dc69a8ef9d2791671f",
+      "sourceCropMargin": 0.055,
+      "sourceSampleHeight": 1.0,
+      "saturation": 1.0,
+      "contrast": 1.0,
+      "sourceSampleWidth": 1.0,
+      "wrapMode": "mirrored-repeat",
+      "maps": {
+        "albedo": "public/assets/textures/model-materials-v2/dungeon-stone/dungeon-stone_albedo.png",
+        "height": "public/assets/textures/model-materials-v2/dungeon-stone/dungeon-stone_height.png",
+        "normal": "public/assets/textures/model-materials-v2/dungeon-stone/dungeon-stone_normal.png",
+        "roughness": "public/assets/textures/model-materials-v2/dungeon-stone/dungeon-stone_roughness.png",
+        "ao": "public/assets/textures/model-materials-v2/dungeon-stone/dungeon-stone_ao.png"
+      },
+      "outputSha256": {
+        "albedo": "dfc68c42e61c6ce040882984000a9037791ce43174ffbce61cac5e55b0bcc50b",
+        "height": "3f344ffcce0e7fef325711fa0fb5fce826c8d582de66e1abd717873b6224481b",
+        "normal": "788ae053078dfbce443001f6a30ac92365f38bdf5ee17233d3f3a6fc8a8c7815",
+        "roughness": "0d38d7c8860a74686e988639e39eede9b9310ec8e4ace38a80edc6cb1b3a1788",
+        "ao": "78a84736f2d2850591653063991dbb1aa26af8253dab42816502a011d2177b3a"
+      },
+      "meanLuma": 0.42,
+      "meanRgb": [0.4269, 0.4193, 0.4063],
+      "roughnessRange": [0.9426, 0.97],
+      "albedoEdgeDelta": {
+        "horizontal": 0.036262,
+        "vertical": 0.032528
+      },
+      "heightEdgeDelta": {
+        "horizontal": 0.062293,
+        "vertical": 0.058387
+      },
+      "centerDetailRatio": {
+        "horizontal": 0.9903,
+        "vertical": 0.945
+      }
+    },
+    {
+      "id": "ash-ceramic",
+      "source": "assets-source/imagegen/material-textures-v2/ash-ceramic-albedo-source.png",
+      "sourceSha256": "dbff924ba3d9f6c9d3e42092167cabbd89d9dc1fb2d638f702df9be3e9e80fbe",
+      "sourceCropMargin": 0.055,
+      "sourceSampleHeight": 1.0,
+      "saturation": 1.0,
+      "contrast": 1.0,
+      "sourceSampleWidth": 1.0,
+      "wrapMode": "mirrored-repeat",
+      "maps": {
+        "albedo": "public/assets/textures/model-materials-v2/ash-ceramic/ash-ceramic_albedo.png",
+        "height": "public/assets/textures/model-materials-v2/ash-ceramic/ash-ceramic_height.png",
+        "normal": "public/assets/textures/model-materials-v2/ash-ceramic/ash-ceramic_normal.png",
+        "roughness": "public/assets/textures/model-materials-v2/ash-ceramic/ash-ceramic_roughness.png",
+        "ao": "public/assets/textures/model-materials-v2/ash-ceramic/ash-ceramic_ao.png"
+      },
+      "outputSha256": {
+        "albedo": "53456dbf2eabb60618c08c02bc6d51ae252f71af9e08fe2d73870937789f935d",
+        "height": "e65bdcf576d689a912a923cc76f07e28da088d6d7e0e91e88ea3f8e2e073b9d0",
+        "normal": "a21fc84e96cd2db23001b1669bb3c426f89330ba6a4dd5bd4779f8cce5abcefd",
+        "roughness": "e7b9f3ad2fd89e2743a5d44f3bddedc4a73efbe8b33334aa69f7f2ccc4dab352",
+        "ao": "4a548dbeaaeb28a284be4e2d6dcd2df0aea42181ebd4ed5a3591899270fa478d"
+      },
+      "meanLuma": 0.43,
+      "meanRgb": [0.4608, 0.425, 0.3918],
+      "roughnessRange": [0.8753, 0.91],
+      "albedoEdgeDelta": {
+        "horizontal": 0.016943,
+        "vertical": 0.017283
+      },
+      "heightEdgeDelta": {
+        "horizontal": 0.023623,
+        "vertical": 0.023642
+      },
+      "centerDetailRatio": {
+        "horizontal": 1.001,
+        "vertical": 1.005
+      }
+    },
+    {
+      "id": "aged-bone",
+      "source": "assets-source/imagegen/material-textures-v2/aged-bone-albedo-source.png",
+      "sourceSha256": "3746209a0cb7a0635c266af76f262e1235254e09613edcc7b8e301bd089ea7c8",
+      "sourceCropMargin": 0.055,
+      "sourceSampleHeight": 1.0,
+      "saturation": 1.0,
+      "contrast": 1.0,
+      "sourceSampleWidth": 1.0,
+      "wrapMode": "mirrored-repeat",
+      "maps": {
+        "albedo": "public/assets/textures/model-materials-v2/aged-bone/aged-bone_albedo.png",
+        "height": "public/assets/textures/model-materials-v2/aged-bone/aged-bone_height.png",
+        "normal": "public/assets/textures/model-materials-v2/aged-bone/aged-bone_normal.png",
+        "roughness": "public/assets/textures/model-materials-v2/aged-bone/aged-bone_roughness.png",
+        "ao": "public/assets/textures/model-materials-v2/aged-bone/aged-bone_ao.png"
+      },
+      "outputSha256": {
+        "albedo": "3e7d70c900691be5aeffe32b314be8770416ed42464e1b103a5dd60efbcb25a0",
+        "height": "67f83b1692d91698a0672ba9c0d6552cc0b2990c1bb4fef58460eb2f164b5357",
+        "normal": "a237d25489b242e4f323e99b60b2addfc63b58dc978340abe2aef786899d3aab",
+        "roughness": "863887ace8bf4c87fd1c263e032f3e66faeb34e383d6d57eef9e762e3c23e724",
+        "ao": "fa2718306dfdc9834ce78798a722d516355c917aa3f463f3692b35add72dfa73"
+      },
+      "meanLuma": 0.68,
+      "meanRgb": [0.7571, 0.6756, 0.4965],
+      "roughnessRange": [0.9616, 0.98],
+      "albedoEdgeDelta": {
+        "horizontal": 0.032978,
+        "vertical": 0.022258
+      },
+      "heightEdgeDelta": {
+        "horizontal": 0.029861,
+        "vertical": 0.024204
+      },
+      "centerDetailRatio": {
+        "horizontal": 1.0062,
+        "vertical": 0.9761
+      }
+    },
+    {
+      "id": "woven-cloth",
+      "source": "assets-source/imagegen/material-textures-v2/woven-cloth-albedo-source.png",
+      "sourceSha256": "e56e850ce10948de0fce3c43cac245795f77c68ae2c7ebeb63fb091868231325",
+      "sourceCropMargin": 0.055,
+      "sourceSampleHeight": 1.0,
+      "saturation": 1.0,
+      "contrast": 1.0,
+      "sourceSampleWidth": 1.0,
+      "wrapMode": "mirrored-repeat",
+      "maps": {
+        "albedo": "public/assets/textures/model-materials-v2/woven-cloth/woven-cloth_albedo.png",
+        "height": "public/assets/textures/model-materials-v2/woven-cloth/woven-cloth_height.png",
+        "normal": "public/assets/textures/model-materials-v2/woven-cloth/woven-cloth_normal.png",
+        "roughness": "public/assets/textures/model-materials-v2/woven-cloth/woven-cloth_roughness.png",
+        "ao": "public/assets/textures/model-materials-v2/woven-cloth/woven-cloth_ao.png"
+      },
+      "outputSha256": {
+        "albedo": "61f1f55f876029c209ed21cac10f4190d0efc1f2a3f1aaa6310793164a12deef",
+        "height": "96fd7a0c1d09a1314cad6d95005d228788d25a9da92d06d0e54fe70d894cb9b0",
+        "normal": "6f78ab4dc878edd4660c9914cab0281143368e33c953d72f55a3c9f7654dab36",
+        "roughness": "57be73d3ed7c6f5a8c5be595d7d5bb143180d313b9318afedf679dc989150240",
+        "ao": "0e42074df3e9ecd5125b115114071b396efa376f5149a9e64eb059c3654a2acd"
+      },
+      "meanLuma": 0.34,
+      "meanRgb": [0.4387, 0.3127, 0.319],
+      "roughnessRange": [0.97, 0.99],
+      "albedoEdgeDelta": {
+        "horizontal": 0.095688,
+        "vertical": 0.106595
+      },
+      "heightEdgeDelta": {
+        "horizontal": 0.169633,
+        "vertical": 0.196895
+      },
+      "centerDetailRatio": {
+        "horizontal": 0.9867,
+        "vertical": 0.9906
+      }
+    },
+    {
+      "id": "cured-meat",
+      "source": "assets-source/imagegen/material-textures-v2/cured-meat-albedo-source.png",
+      "sourceSha256": "42661e06f1f3f1709940f47f8633c2742b3e06d180a1885da78ecc54850c792b",
+      "sourceCropMargin": 0.055,
+      "sourceSampleHeight": 1.0,
+      "saturation": 0.78,
+      "contrast": 0.74,
+      "sourceSampleWidth": 1.0,
+      "wrapMode": "clamp-to-edge",
+      "maps": {
+        "albedo": "public/assets/textures/model-materials-v2/cured-meat/cured-meat_albedo.png",
+        "height": "public/assets/textures/model-materials-v2/cured-meat/cured-meat_height.png",
+        "normal": "public/assets/textures/model-materials-v2/cured-meat/cured-meat_normal.png",
+        "roughness": "public/assets/textures/model-materials-v2/cured-meat/cured-meat_roughness.png",
+        "ao": "public/assets/textures/model-materials-v2/cured-meat/cured-meat_ao.png"
+      },
+      "outputSha256": {
+        "albedo": "f1e06564a63b0066858d16b20bd28fc8534b4db7660ed1063ff85c0209fabb71",
+        "height": "678ae6b6ebf9181288c08b4a70eb56a14929cc93c38b19c22f2d13e446d4841b",
+        "normal": "e4f5e04348e72120f8ea4161b6822d8c33715b11edae3db464460022bae60505",
+        "roughness": "0cef3c856f211eb512a07cb70bcc5662d0f91491ae02835ed722bfa7f8c8b3f0",
+        "ao": "ce69b9fced3164b723d0ace1d5c09d7f7ac2de473518ce53a38c0b79b907ae9c"
+      },
+      "meanLuma": 0.33,
+      "meanRgb": [0.476, 0.2919, 0.2778],
+      "roughnessRange": [0.75, 0.81],
+      "albedoEdgeDelta": {
+        "horizontal": 0.050424,
+        "vertical": 0.062691
+      },
+      "heightEdgeDelta": {
+        "horizontal": 0.095419,
+        "vertical": 0.113221
+      },
+      "centerDetailRatio": {
+        "horizontal": 1.0649,
+        "vertical": 1.0714
+      }
+    },
+    {
+      "id": "dungeon-ice",
+      "source": "assets-source/imagegen/material-textures-v2/dungeon-ice-albedo-source.png",
+      "sourceSha256": "4924d030cef4bf16816392a4a46b7ad18798ab72af8bbc75010cf527e6eba21c",
+      "sourceCropMargin": 0.055,
+      "sourceSampleHeight": 1.0,
+      "saturation": 1.0,
+      "contrast": 1.0,
+      "sourceSampleWidth": 1.0,
+      "wrapMode": "mirrored-repeat",
+      "maps": {
+        "albedo": "public/assets/textures/model-materials-v2/dungeon-ice/dungeon-ice_albedo.png",
+        "height": "public/assets/textures/model-materials-v2/dungeon-ice/dungeon-ice_height.png",
+        "normal": "public/assets/textures/model-materials-v2/dungeon-ice/dungeon-ice_normal.png",
+        "roughness": "public/assets/textures/model-materials-v2/dungeon-ice/dungeon-ice_roughness.png",
+        "ao": "public/assets/textures/model-materials-v2/dungeon-ice/dungeon-ice_ao.png"
+      },
+      "outputSha256": {
+        "albedo": "2685f7a429abb95ff6fafc584fef606478ba559d962a0e20904a4fe76199b9f6",
+        "height": "683f466603dc1a18746715aa9f0a33dddcbec4abe0be8625db933cbb6ca35121",
+        "normal": "33d8cedee1e8db5d3d6cfbf2f8919821180be558da9c33e11a4088130baa97f5",
+        "roughness": "91fe1d3d39b2d000b96a81af5c86fffe42620452b266aaca746eeae949a9f550",
+        "ao": "dd054f41c8b91e11652052cdcedf7e32fd29a10ea578bbf89b6acff54ec25729"
+      },
+      "meanLuma": 0.6,
+      "meanRgb": [0.4274, 0.6385, 0.7268],
+      "roughnessRange": [0.5231, 0.6],
+      "albedoEdgeDelta": {
+        "horizontal": 0.080186,
+        "vertical": 0.051733
+      },
+      "heightEdgeDelta": {
+        "horizontal": 0.069519,
+        "vertical": 0.064603
+      },
+      "centerDetailRatio": {
+        "horizontal": 1.1022,
+        "vertical": 1.0596
+      }
+    },
+    {
+      "id": "arcane-crystal",
+      "source": "assets-source/imagegen/material-textures-v2/arcane-crystal-albedo-source.png",
+      "sourceSha256": "c7b7f2229891d9f5eb1c555d90044f362d1ba737fa4cd6f25355be5a87f35aaa",
+      "sourceCropMargin": 0.055,
+      "sourceSampleHeight": 1.0,
+      "saturation": 1.0,
+      "contrast": 1.0,
+      "sourceSampleWidth": 1.0,
+      "wrapMode": "mirrored-repeat",
+      "maps": {
+        "albedo": "public/assets/textures/model-materials-v2/arcane-crystal/arcane-crystal_albedo.png",
+        "height": "public/assets/textures/model-materials-v2/arcane-crystal/arcane-crystal_height.png",
+        "normal": "public/assets/textures/model-materials-v2/arcane-crystal/arcane-crystal_normal.png",
+        "roughness": "public/assets/textures/model-materials-v2/arcane-crystal/arcane-crystal_roughness.png",
+        "ao": "public/assets/textures/model-materials-v2/arcane-crystal/arcane-crystal_ao.png"
+      },
+      "outputSha256": {
+        "albedo": "c4f382e70f47b680a4cb573d3d7ed5dfa3f0e4d1ab4293760a6efc7923312a47",
+        "height": "88aa9cf1d5a2ff880d7a1e8f763357c7d05ab749f4f9caf0b42ffca2ff7d78ae",
+        "normal": "aabf0faceb42352093fef4b0283299d9b153f610384b9bf539f84af6d1079961",
+        "roughness": "1d58cbbb28533d11e272ed14130847be181cf5b71d78b4a41bef30c7d5023ec0",
+        "ao": "1a6bb12d7963cf49788b4ed61962ce5c7600f53c4d93d0cdb06d14f5f9908ad3"
+      },
+      "meanLuma": 0.45,
+      "meanRgb": [0.4692, 0.4253, 0.6378],
+      "roughnessRange": [0.41, 0.55],
+      "albedoEdgeDelta": {
+        "horizontal": 0.127568,
+        "vertical": 0.105173
+      },
+      "heightEdgeDelta": {
+        "horizontal": 0.127006,
+        "vertical": 0.109888
+      },
+      "centerDetailRatio": {
+        "horizontal": 0.9709,
+        "vertical": 0.8691
+      }
+    },
+    {
+      "id": "luminous-ward-gold",
+      "source": "assets-source/imagegen/material-textures-v2/luminous-ward-gold-albedo-source.png",
+      "sourceSha256": "07aa4e12efcb0136de5633e9b2cd64554cd7354c92dc56204886798b6576e1dd",
+      "sourceCropMargin": 0.055,
+      "sourceSampleHeight": 1.0,
+      "saturation": 0.76,
+      "contrast": 0.72,
+      "sourceSampleWidth": 1.0,
+      "wrapMode": "mirrored-repeat",
+      "maps": {
+        "albedo": "public/assets/textures/model-materials-v2/luminous-ward-gold/luminous-ward-gold_albedo.png",
+        "height": "public/assets/textures/model-materials-v2/luminous-ward-gold/luminous-ward-gold_height.png",
+        "normal": "public/assets/textures/model-materials-v2/luminous-ward-gold/luminous-ward-gold_normal.png",
+        "roughness": "public/assets/textures/model-materials-v2/luminous-ward-gold/luminous-ward-gold_roughness.png",
+        "ao": "public/assets/textures/model-materials-v2/luminous-ward-gold/luminous-ward-gold_ao.png"
+      },
+      "outputSha256": {
+        "albedo": "04604406325f484fdcb4f5e6045d8a74b59d6950e719e41b01b3fef32f5f4b7f",
+        "height": "45b2e149c1dbe46db29cb0bce7fe01cee31e536e63d0011966f3c9ec01e71e1f",
+        "normal": "7844eedee80f28e3d763b86b1c959c30e916ca08b935ac65fd09fa4fcefa89b9",
+        "roughness": "74e8497c6bb1ee9c5d81ee8deddd1c005ba53fe94dd2d7ecd63dc2ea5d611b77",
+        "ao": "c1d67aa7a100e6a9d4ebed50981aa45ade780df387217d7ef13d6bf986a91121"
+      },
+      "meanLuma": 0.62,
+      "meanRgb": [0.685, 0.6148, 0.4801],
+      "roughnessRange": [0.8525, 0.865],
+      "albedoEdgeDelta": {
+        "horizontal": 0.013747,
+        "vertical": 0.018825
+      },
+      "heightEdgeDelta": {
+        "horizontal": 0.011661,
+        "vertical": 0.015905
+      },
+      "centerDetailRatio": {
+        "horizontal": 0.9421,
+        "vertical": 1.0268
+      }
+    },
+    {
+      "id": "root-bark",
+      "source": "assets-source/imagegen/material-textures-v2/root-bark-albedo-source.png",
+      "sourceSha256": "7588bcc19e4a1b846636553c23edfdc4e003df0cc7f99ca4e7fe2fbbcdc422b3",
+      "sourceCropMargin": 0.055,
+      "sourceSampleHeight": 0.46,
+      "saturation": 0.62,
+      "contrast": 0.52,
+      "sourceSampleWidth": 0.48,
+      "wrapMode": "mirrored-repeat",
+      "maps": {
+        "albedo": "public/assets/textures/model-materials-v2/root-bark/root-bark_albedo.png",
+        "height": "public/assets/textures/model-materials-v2/root-bark/root-bark_height.png",
+        "normal": "public/assets/textures/model-materials-v2/root-bark/root-bark_normal.png",
+        "roughness": "public/assets/textures/model-materials-v2/root-bark/root-bark_roughness.png",
+        "ao": "public/assets/textures/model-materials-v2/root-bark/root-bark_ao.png"
+      },
+      "outputSha256": {
+        "albedo": "f9421d5e87ca7eb89b0c54487de5f09c87fe490aa86ed9f17d4e1e4ab3a6a84c",
+        "height": "4fb3a0f19def1fc20c2d85dc28f5c76f805d9395bf636faaa222d73265d69446",
+        "normal": "f83a6f93c35734a9615c7282b5fb7c8edf258a789c0d9bcb4f6a8e5ee2478657",
+        "roughness": "03392c03eefa81edc919dd05bff1fc18ecf130b019fa6719f27155db27fcbc21",
+        "ao": "dc46ee0ef6f9aaa5b6035fdf04c5d1ad26f39ba08fdfa3571523eb2a5d2ae412"
+      },
+      "meanLuma": 0.29,
+      "meanRgb": [0.3264, 0.2861, 0.2215],
+      "roughnessRange": [0.901, 0.92],
+      "albedoEdgeDelta": {
+        "horizontal": 0.049833,
+        "vertical": 0.040036
+      },
+      "heightEdgeDelta": {
+        "horizontal": 0.046448,
+        "vertical": 0.048994
+      },
+      "centerDetailRatio": {
+        "horizontal": 1.0483,
+        "vertical": 1.0394
+      }
+    },
+    {
+      "id": "ochre-painted-steel",
+      "source": "assets-source/imagegen/material-textures-v2/ochre-painted-steel-albedo-source.png",
+      "sourceSha256": "dbdc14addce7d16635c48ac8a5d5facc253b3a797caa317a0ba1cc379f0c2f01",
+      "sourceCropMargin": 0.055,
+      "sourceSampleHeight": 1.0,
+      "saturation": 0.82,
+      "contrast": 1.0,
+      "sourceSampleWidth": 1.0,
+      "wrapMode": "mirrored-repeat",
+      "maps": {
+        "albedo": "public/assets/textures/model-materials-v2/ochre-painted-steel/ochre-painted-steel_albedo.png",
+        "height": "public/assets/textures/model-materials-v2/ochre-painted-steel/ochre-painted-steel_height.png",
+        "normal": "public/assets/textures/model-materials-v2/ochre-painted-steel/ochre-painted-steel_normal.png",
+        "roughness": "public/assets/textures/model-materials-v2/ochre-painted-steel/ochre-painted-steel_roughness.png",
+        "ao": "public/assets/textures/model-materials-v2/ochre-painted-steel/ochre-painted-steel_ao.png"
+      },
+      "outputSha256": {
+        "albedo": "1caf811cd8e7e3872475e5fedde49dcdc73fd008505c05b684a44de73f561589",
+        "height": "c2300bfba3ceeaa4eef42f767a9ab78c664251ec451a231930140cf4e783a30f",
+        "normal": "456b7685fc5b25fe9f5c38ceadd26d3c715ca2f01269a12f023e359b310e3fee",
+        "roughness": "3f0f92d9cb3f9d53a8851bc02da51f514d7d3632c867accd5b7bf8a3b7856bd0",
+        "ao": "7cebd0759e92320d8f8a818e8679c267d1ef60e8f03c560356fe70bf7e38c975"
+      },
+      "meanLuma": 0.48,
+      "meanRgb": [0.5761, 0.4752, 0.2454],
+      "roughnessRange": [0.78, 0.86],
+      "albedoEdgeDelta": {
+        "horizontal": 0.028604,
+        "vertical": 0.029049
+      },
+      "heightEdgeDelta": {
+        "horizontal": 0.045231,
+        "vertical": 0.049541
+      },
+      "centerDetailRatio": {
+        "horizontal": 1.0157,
+        "vertical": 1.067
+      }
+    }
+  ]
+}

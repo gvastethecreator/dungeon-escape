@@ -38,6 +38,8 @@
     <main class="app-shell">
       <canvas id="scene" tabindex="0" aria-label="First-person grimdark dungeon"></canvas>
       <div class="view-falloff" aria-hidden="true"></div>
+      <div id="scene-fade" class="scene-fade" hidden aria-hidden="true"></div>
+      <p id="run-intro-status" class="run-intro-status" role="status" aria-live="polite" hidden></p>
 
       <section
         id="welcome-screen"
@@ -49,13 +51,21 @@
       >
         <img
           class="welcome-art"
-          src="/assets/ui/dungeon-cover-v1.webp"
+          src="/assets/ui/biome-screens/ancient-main.webp"
+          data-biome-id="ancient"
           alt=""
           width="1672"
           height="941"
           decoding="async"
           fetchpriority="high"
         />
+        <canvas
+          id="welcome-particles"
+          class="biome-screen-particles"
+          data-biome-id="ancient"
+          data-particle-state="paused"
+          aria-hidden="true"
+        ></canvas>
         <div class="welcome-content">
           <div class="welcome-card">
             <div id="welcome-home" class="welcome-home">
@@ -204,6 +214,16 @@
             <span class="luminous-ward-status__label">WARD ACTIVE</span>
             <time id="luminous-ward-value" datetime="PT0S">30.0s</time>
           </div>
+          <div
+            id="annihilation-pulse-status"
+            class="annihilation-pulse-status"
+            role="status"
+            aria-live="polite"
+            hidden
+          >
+            <span class="annihilation-pulse-status__label">PULSE ACTIVE</span>
+            <time id="annihilation-pulse-value" datetime="PT0S">26.0s</time>
+          </div>
           <time id="run-timer" class="run-timer" datetime="PT0S" aria-label="Run time 00:00"
             >00:00</time
           >
@@ -312,7 +332,11 @@
             >
               CREATION
             </button>
-            <button type="button" data-engine-mode="debug" title="Debug · graph and telemetry · key 2">
+            <button
+              type="button"
+              data-engine-mode="debug"
+              title="Debug · graph and telemetry · key 2"
+            >
               DEBUG
             </button>
             <button type="button" data-engine-mode="play" title="Play · key 3">PLAY</button>
@@ -746,13 +770,21 @@
       >
         <img
           class="end-art"
-          src="/assets/ui/dungeon-victory-results-v1.webp"
+          src="/assets/ui/biome-screens/ancient-ending.webp"
+          data-biome-id="ancient"
           alt=""
           width="1672"
           height="941"
           decoding="async"
           loading="lazy"
         />
+        <canvas
+          id="end-particles"
+          class="biome-screen-particles"
+          data-biome-id="ancient"
+          data-particle-state="paused"
+          aria-hidden="true"
+        ></canvas>
         <div class="end-card">
           <small id="end-kicker">Run interrupted</small>
           <h1 id="end-title">The ash claims you</h1>
@@ -785,8 +817,15 @@
           </dl>
           <p id="end-leaderboard-note" class="end-leaderboard-note" hidden role="status"></p>
           <form id="end-leaderboard-form" class="end-leaderboard-form" hidden>
-            <div class="end-leaderboard-preview" aria-hidden="true">
-              <div class="end-leaderboard-preview__face leaderboard-face is-wood">
+            <div class="end-leaderboard-preview">
+              <div
+                id="leaderboard-portrait-preview-face"
+                class="end-leaderboard-preview__face leaderboard-face is-wood"
+                role="button"
+                tabindex="0"
+                title="Click to change portrait"
+                aria-label="Click to change portrait"
+              >
                 <img
                   id="leaderboard-portrait-preview"
                   class="leaderboard-portrait"
@@ -823,6 +862,7 @@
             <p id="leaderboard-submit-status" role="status" aria-live="polite"></p>
           </form>
           <div class="end-actions">
+            <button id="end-next-biome" type="button" hidden>Next biome</button>
             <button id="retry" type="button">Try again</button>
             <button id="new-dungeon" type="button">New dungeon</button>
           </div>

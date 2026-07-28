@@ -44,6 +44,7 @@ export interface PlayRuntimeProgress {
     difficultyElapsed: number;
     timeFreezeRemaining?: number;
     luminousWardRemaining?: number;
+    annihilationPulseRemaining?: number;
   };
   player: { x: number; z: number };
 }

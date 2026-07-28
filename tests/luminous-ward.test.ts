@@ -35,6 +35,7 @@ describe("luminous ward power", () => {
     expect(bounds.y).toBeGreaterThan(0.7);
     expect(stone.getObjectByName("Luminous ward faceted crystal")).toBeDefined();
     expect(stone.getObjectByName("Luminous ward iron foot ring")).toBeDefined();
+    expect(stone.getObjectByName("Luminous ward bolted neck collar")?.userData.boltCount).toBe(6);
     expect(stone.getObjectByName("Luminous ward pickup light")).toBeInstanceOf(THREE.PointLight);
     expect(runtime.sockets.pickup.name).toBe("Luminous ward pickup anchor");
     expect(runtime.colliders[0]).toMatchObject({ type: "sphere", isTrigger: true });

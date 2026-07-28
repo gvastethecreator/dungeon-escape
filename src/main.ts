@@ -15,10 +15,7 @@ import {
 } from "./domain/bridge";
 import { DUNGEON_PRESETS, type DungeonEditorParams, type DungeonPresetId } from "./editor/presets";
 import { generateDungeon, setDungeonSpawn } from "./dungeon/generateDungeon";
-import {
-  parseForgeDungeonMessage,
-  type ForgeDungeonIntakeValue,
-} from "./dungeon/forgeIntake";
+import { parseForgeDungeonMessage, type ForgeDungeonIntakeValue } from "./dungeon/forgeIntake";
 import type { DungeonData } from "./dungeon/types";
 import { DungeonEditorView } from "./editor/DungeonEditorView";
 import { type EngineMode, isEngineMode, shouldMountForge } from "./game/EngineMode";
@@ -49,7 +46,7 @@ import {
 import { FrameGapProfiler, type FrameGapSnapshot } from "./systems/FrameGapProfiler";
 import { collectVisibleRenderInventory } from "./systems/RenderInventory";
 import { resolveRenderPixelRatio } from "./systems/RenderScale";
-import { readVisualQaState } from "./systems/VisualQaState";
+import { readVisualQaSeed, readVisualQaState } from "./systems/VisualQaState";
 import {
   computePovFeel,
   decayExhaustionTrauma,
@@ -57,12 +54,9 @@ import {
   PovFeelState,
   samplePovShake,
 } from "./systems/povFeel";
-import {
-  collectExploredAround,
-  drawMinimap,
-  MINIMAP_REVEAL_RADIUS,
-} from "./ui/drawMinimap";
+import { collectExploredAround, drawMinimap, MINIMAP_REVEAL_RADIUS } from "./ui/drawMinimap";
 import { COPY, formatTime, type StoneId } from "./ui/copy";
+import { BiomeScreenParticles } from "./ui/BiomeScreenParticles";
 import { createMinimapLayoutScheduler } from "./ui/minimapLayout";
 import {
   PlayRuntime,
@@ -79,11 +73,7 @@ import {
   writeLocalRunSave,
   type LocalRunResumeState,
 } from "./game/LocalRunSave";
-import {
-  isLeaderboardEligible,
-  runSourceForDungeon,
-  type RunSource,
-} from "./game/RunSource";
+import { isLeaderboardEligible, runSourceForDungeon, type RunSource } from "./game/RunSource";
 import { loadLeaderboard, submitLeaderboardEntry } from "./leaderboard/client";
 import {
   computeLeaderboardScore,
@@ -93,9 +83,16 @@ import {
   type LeaderboardSubmissionInput,
   type PlayerBiomeStars,
 } from "./leaderboard/contract";
-import { frameForRank, portraitForName } from "./leaderboard/portraits";
-import { biomeCampaignParams } from "./systems/BiomeCampaign";
+import {
+  LEADERBOARD_PORTRAIT_COUNT,
+  frameForRank,
+  portraitForIndex,
+  portraitForName,
+  portraitIndexForName,
+} from "./leaderboard/portraits";
+import { biomeCampaignParams, nextBiomeId } from "./systems/BiomeCampaign";
 import { listBiomeIdentities, type BiomeId } from "./systems/BiomeIdentity";
+import { biomeScreenArtSrc, mainScreenBiomeForPlayer } from "./systems/BiomeScreenArt";
 import { biomeHoverColor, biomeIconSrc, expandBiomeStars } from "./systems/BiomeUi";
 import { DungeonWorld } from "./world/DungeonWorld";
 import type { HazardSurfaceEffect } from "./world/HazardTileSystem";
@@ -113,6 +110,8 @@ const elements = {
   shell: requireElement<HTMLElement>(".app-shell"),
   scene: requireElement<HTMLCanvasElement>("#scene"),
   welcomeScreen: requireElement<HTMLElement>("#welcome-screen"),
+  welcomeArt: requireElement<HTMLImageElement>(".welcome-art"),
+  welcomeParticles: requireElement<HTMLCanvasElement>("#welcome-particles"),
   welcomeHome: requireElement<HTMLElement>("#welcome-home"),
   welcomeNew: requireElement<HTMLButtonElement>("#welcome-new"),
   welcomeContinue: requireElement<HTMLButtonElement>("#welcome-continue"),
@@ -173,6 +172,8 @@ const elements = {
   timeFreezeValue: requireElement<HTMLTimeElement>("#time-freeze-value"),
   luminousWardStatus: requireElement<HTMLElement>("#luminous-ward-status"),
   luminousWardValue: requireElement<HTMLTimeElement>("#luminous-ward-value"),
+  annihilationPulseStatus: requireElement<HTMLElement>("#annihilation-pulse-status"),
+  annihilationPulseValue: requireElement<HTMLTimeElement>("#annihilation-pulse-value"),
   hazardStatus: requireElement<HTMLElement>("#hazard-status"),
   hazardOverlay: requireElement<HTMLElement>("#hazard-overlay"),
   playObjective: requireElement<HTMLElement>("#play-objective"),
@@ -190,6 +191,8 @@ const elements = {
   touchButtons: [...document.querySelectorAll<HTMLButtonElement>("[data-move]")],
   touchPause: requireElement<HTMLButtonElement>("#touch-pause"),
   endOverlay: requireElement<HTMLElement>("#end-overlay"),
+  endArt: requireElement<HTMLImageElement>(".end-art"),
+  endParticles: requireElement<HTMLCanvasElement>("#end-particles"),
   endKicker: requireElement<HTMLElement>("#end-kicker"),
   endTitle: requireElement<HTMLElement>("#end-title"),
   endCopy: requireElement<HTMLElement>("#end-copy"),
@@ -204,8 +207,10 @@ const elements = {
   endLeaderboardNote: requireElement<HTMLElement>("#end-leaderboard-note"),
   leaderboardName: requireElement<HTMLInputElement>("#leaderboard-name"),
   leaderboardPortraitPreview: requireElement<HTMLImageElement>("#leaderboard-portrait-preview"),
+  leaderboardPortraitPreviewFace: requireElement<HTMLElement>("#leaderboard-portrait-preview-face"),
   leaderboardSubmit: requireElement<HTMLButtonElement>("#leaderboard-submit"),
   leaderboardSubmitStatus: requireElement<HTMLElement>("#leaderboard-submit-status"),
+  endNextBiome: requireElement<HTMLButtonElement>("#end-next-biome"),
   retry: requireElement<HTMLButtonElement>("#retry"),
   newDungeon: requireElement<HTMLButtonElement>("#new-dungeon"),
   optionsMenu: requireElement<HTMLElement>("#options-menu"),
@@ -220,6 +225,8 @@ const elements = {
   bootScreen: requireElement<HTMLElement>("#boot-screen"),
   bootFill: requireElement<HTMLElement>("#boot-fill"),
   bootStatus: requireElement<HTMLElement>("#boot-status"),
+  sceneFade: requireElement<HTMLElement>("#scene-fade"),
+  runIntroStatus: requireElement<HTMLElement>("#run-intro-status"),
   crtToggle: requireElement<HTMLButtonElement>("#crt-toggle"),
   editorWorkspace: requireElement<HTMLElement>("#editor-workspace"),
   editorMap: requireElement<HTMLCanvasElement>("#editor-map"),
@@ -240,6 +247,15 @@ const elements = {
   debugTextures: requireElement<HTMLElement>("#debug-textures"),
   debugLights: requireElement<HTMLElement>("#debug-lights"),
 };
+
+const welcomeScreenParticles = new BiomeScreenParticles(elements.welcomeParticles, "ancient", {
+  density: 1,
+  seedSalt: 17,
+});
+const endScreenParticles = new BiomeScreenParticles(elements.endParticles, "ancient", {
+  density: 0.9,
+  seedSalt: 43,
+});
 
 const TILE_SIZE = WORLD_TILE_SIZE;
 const PLAYER_MOVE_SPEED = 4.25;
@@ -317,6 +333,7 @@ let lastMapDraw = 0;
 let lastRunTimerSecond = -1;
 let lastTimeFreezeDisplay = "";
 let lastLuminousWardDisplay = "";
+let lastAnnihilationPulseDisplay = "";
 let lastHazardKind: HazardSurfaceEffect["kind"] | undefined;
 /**
  * Cached minimap viewport (CSS size + clamped DPR). Refreshed on resize so the
@@ -379,6 +396,7 @@ let runSource: RunSource = "campaign";
 let forcedPlayMoodId: DungeonMoodId | null = null;
 /** Aggregate stars from every saved escape (player → biome label → count). */
 let playerBiomeStars: PlayerBiomeStars = emptyPlayerBiomeStars();
+let welcomeArtSequence = 0;
 let continueDomainState: DungeonDomainState | null = null;
 let localSaveTimer: ReturnType<typeof setTimeout> | null = null;
 let localSaveFailureNotified = false;
@@ -393,6 +411,11 @@ let forgeIntake: ForgeDungeonIntakeValue | null = null;
 let forgePreviewDungeon: DungeonData | null = null;
 let lastProceduralSeed = 0;
 let pendingProceduralSeed: number | null = null;
+/** Bumps to cancel an in-flight new-game map theater sequence. */
+let runIntroToken = 0;
+let runIntroActive = false;
+/** Resolvers waiting for Forge build-reveal completion (or timeout). */
+const forgeAnimWaiters = new Set<() => void>();
 type EditorSurfaceState = "idle" | "loading" | "updating" | "ready" | "error";
 const editorSurfaceStatus: Record<
   "runtime" | "forge",
@@ -439,11 +462,7 @@ const controller = new FirstPersonController(camera, elements.scene, {
     // ESC releases pointer lock → open options in play.
     // Pointer lock can fail on touch browsers. Keep an armed touch session in
     // play instead of reopening the pause panel over its controls.
-    if (
-      !hasActivePlayInput &&
-      engineMode === "play" &&
-      playRuntime.state().runMode === "playing"
-    ) {
+    if (!hasActivePlayInput && engineMode === "play" && playRuntime.state().runMode === "playing") {
       setOptionsOpen(true);
     } else if (locked) {
       setOptionsOpen(false);
@@ -491,6 +510,7 @@ function captureLocalRunResume(): LocalRunResumeState | undefined {
     visitedCells: [...visitedCells],
     timeFreezeRemaining: world.timeFreezeRemaining,
     luminousWardRemaining: world.luminousWardRemaining,
+    annihilationPulseRemaining: world.annihilationPulseRemaining,
     perStoneSeconds: questSnap.perStoneSeconds,
   };
 }
@@ -519,6 +539,7 @@ function runtimeProgressFromResume(
       difficultyElapsed: resume.difficultyElapsed,
       timeFreezeRemaining: resume.timeFreezeRemaining,
       luminousWardRemaining: resume.luminousWardRemaining,
+      annihilationPulseRemaining: resume.annihilationPulseRemaining,
     },
     player: { x: resume.player.x, z: resume.player.z },
   };
@@ -587,6 +608,7 @@ function setContinueCandidate(state: DungeonDomainState | null, status: string):
 function setWelcomeOpen(open: boolean): void {
   welcomeOpen = open;
   elements.welcomeScreen.hidden = !open;
+  welcomeScreenParticles.setActive(open);
   elements.shell.classList.toggle("is-welcome", open);
   if (open) {
     controller.releasePointerLock();
@@ -606,10 +628,40 @@ function showWelcomeHome(): void {
   elements.welcomeBiomePicker.hidden = true;
 }
 
+function storedLeaderboardName(): string | null {
+  try {
+    return normalizePlayerName(localStorage.getItem(LAST_LEADERBOARD_NAME_KEY) ?? "");
+  } catch {
+    return null;
+  }
+}
+
+function syncWelcomeArt(): void {
+  const biomeId = mainScreenBiomeForPlayer(storedLeaderboardName(), playerBiomeStars);
+  const src = biomeScreenArtSrc(biomeId, "main");
+  if (
+    elements.welcomeArt.dataset.biomeId === biomeId &&
+    elements.welcomeArt.getAttribute("src") === src
+  ) {
+    welcomeScreenParticles.setBiome(biomeId);
+    return;
+  }
+  const sequence = ++welcomeArtSequence;
+  void preloadImage(src).then(() => {
+    if (sequence !== welcomeArtSequence) return;
+    elements.welcomeArt.src = src;
+    elements.welcomeArt.dataset.biomeId = biomeId;
+    welcomeScreenParticles.setBiome(biomeId);
+  });
+}
+
 function showBiomePicker(): void {
   renderBiomePicker();
   elements.welcomeHome.hidden = true;
   elements.welcomeBiomePicker.hidden = false;
+  // Warm the Forge iframe while the player picks a biome so New Game does not
+  // stall on a cold WebGL load under the black curtain.
+  void ensureForgeFrameLoaded(8_000, { presentation: true });
   window.requestAnimationFrame(() => elements.biomePickerBack.focus());
 }
 
@@ -620,13 +672,7 @@ function formatStarLabel(count: number): string {
 }
 
 function renderBiomePicker(): void {
-  let storedName = "";
-  try {
-    storedName = localStorage.getItem(LAST_LEADERBOARD_NAME_KEY) ?? "";
-  } catch {
-    storedName = "";
-  }
-  const name = normalizePlayerName(storedName) ?? "";
+  const name = storedLeaderboardName() ?? "";
   const starsForPlayer = name ? (playerBiomeStars[name] ?? {}) : {};
   const fragment = document.createDocumentFragment();
   for (const biome of listBiomeIdentities()) {
@@ -648,7 +694,8 @@ function renderBiomePicker(): void {
     icon.decoding = "async";
     icon.draggable = false;
     label.className = "biome-picker-option__name";
-    stars.className = count > 0 ? "biome-picker-option__stars" : "biome-picker-option__stars is-empty";
+    stars.className =
+      count > 0 ? "biome-picker-option__stars" : "biome-picker-option__stars is-empty";
     label.textContent = biome.label;
     stars.textContent = formatStarLabel(count);
     stars.title = count > 0 ? `${count} clear${count === 1 ? "" : "s"}` : "No clears yet";
@@ -667,8 +714,13 @@ function startNewGameWithBiome(biomeId: BiomeId): void {
   // Apply the campaign ramp for this biome (Ancient soft → Backrooms brutal).
   applyEditorParamsToForm(biomeCampaignParams(biomeId));
   setRunSource("campaign", false);
-  startPlayWithSeed(makeSeed(), { refreshProcedural: true, runSource: "campaign" });
-  setStatus(`New game · ${getDungeonMood(biomeId).label}. Click the scene to look.`);
+  const visualQaSeed = readVisualQaSeed(window.location.search);
+  void startPlayWithSeed(visualQaSeed ?? makeSeed(), {
+    refreshProcedural: true,
+    runSource: "campaign",
+  }).then(() => {
+    setStatus(`New game · ${getDungeonMood(biomeId).label}. Click the scene to look.`);
+  });
 }
 
 /** Soft 8-bit scene beds. Menu / end screens keep music while play SFX are paused. */
@@ -718,34 +770,371 @@ function setMusicMutedPreference(muted: boolean, options: { playClick?: boolean 
   setStatus(muted ? "Music off." : "Music on.");
 }
 
-function startPlayWithSeed(
-  seed: string,
-  options: { refreshProcedural?: boolean; runSource?: RunSource } = {},
-): void {
-  void audio.unlock();
-  if (options.runSource) setRunSource(options.runSource, false);
-  if (options.refreshProcedural) queueNewProceduralSeed();
-  const normalizedSeed = seed.trim() || COPY.hud.seedDefault;
-  elements.seed.value = normalizedSeed;
-  buildDungeon(normalizedSeed);
-  setWelcomeOpen(false);
-  setMusicBed(null);
-  setEngineMode("play", { hydrate: false });
-  setStatus(COPY.status.enterPlay);
+function readSkipRunIntroFromUrl(search = window.location.search): boolean {
+  const params = new URLSearchParams(search.startsWith("?") ? search.slice(1) : search);
+  return params.get("skipRunIntro") === "1" || params.get("skipRunIntro") === "true";
 }
 
-function updateLeaderboardPortraitPreview(rawName: string): void {
+function setRunIntroActive(active: boolean, statusText = ""): void {
+  runIntroActive = active;
+  if (active) {
+    elements.shell.dataset.runIntro = "true";
+    elements.editorWorkspace.hidden = false;
+    elements.editorWorkspace.setAttribute("aria-busy", "true");
+    // Status is screen-reader only — the generation view is map-only, no chrome.
+    elements.runIntroStatus.hidden = false;
+    elements.runIntroStatus.textContent = statusText || COPY.status.forgingMap;
+  } else {
+    delete elements.shell.dataset.runIntro;
+    elements.editorWorkspace.removeAttribute("aria-busy");
+    elements.runIntroStatus.hidden = true;
+    elements.runIntroStatus.textContent = "";
+  }
+}
+
+function setRunIntroStatus(statusText: string): void {
+  if (!runIntroActive) return;
+  elements.runIntroStatus.hidden = false;
+  elements.runIntroStatus.textContent = statusText;
+}
+
+function notifyForgeAnimComplete(): void {
+  if (forgeAnimWaiters.size === 0) return;
+  const waiters = [...forgeAnimWaiters];
+  forgeAnimWaiters.clear();
+  for (const resolve of waiters) resolve();
+}
+
+function waitForForgeAnimComplete(timeoutMs: number): Promise<void> {
+  return new Promise((resolve) => {
+    let settled = false;
+    const done = (): void => {
+      if (settled) return;
+      settled = true;
+      window.clearTimeout(timer);
+      forgeAnimWaiters.delete(done);
+      resolve();
+    };
+    forgeAnimWaiters.add(done);
+    const timer = window.setTimeout(done, Math.max(200, timeoutMs));
+  });
+}
+
+/** Soft crossfade between map theater and Play — keep short so black never feels stuck. */
+const SCENE_FADE_OUT_MS = 260;
+const SCENE_FADE_IN_MS = 300;
+
+function waitMs(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    window.setTimeout(resolve, Math.max(0, ms));
+  });
+}
+
+async function setSceneFadeOpaque(
+  opaque: boolean,
+  options: { instant?: boolean; durationMs?: number } = {},
+): Promise<void> {
+  const fade = elements.sceneFade;
+  const instant = Boolean(options.instant) || REDUCED_MOTION_QUERY.matches;
+  const durationMs = options.durationMs ?? (opaque ? SCENE_FADE_OUT_MS : SCENE_FADE_IN_MS);
+  if (opaque) {
+    fade.hidden = false;
+    fade.setAttribute("aria-hidden", "false");
+    if (instant) {
+      fade.classList.add("is-instant");
+      fade.classList.add("is-opaque");
+      void fade.offsetWidth;
+      fade.classList.remove("is-instant");
+      return;
+    }
+    fade.style.transitionDuration = `${durationMs}ms`;
+    // Force reflow so the opacity transition always runs from 0.
+    void fade.offsetWidth;
+    fade.classList.add("is-opaque");
+  } else {
+    if (instant) {
+      fade.classList.add("is-instant");
+      fade.classList.remove("is-opaque");
+      void fade.offsetWidth;
+      fade.classList.remove("is-instant");
+      fade.style.transitionDuration = "";
+      fade.hidden = true;
+      fade.setAttribute("aria-hidden", "true");
+      return;
+    }
+    fade.style.transitionDuration = `${durationMs}ms`;
+    fade.classList.remove("is-opaque");
+  }
+  await waitMs(durationMs);
+  if (!opaque) {
+    fade.hidden = true;
+    fade.setAttribute("aria-hidden", "true");
+    fade.style.transitionDuration = "";
+  }
+}
+
+function postForgeMessage(payload: Record<string, unknown>): void {
+  elements.forgeFrame.contentWindow?.postMessage(payload, location.origin);
+}
+
+function postForgePresentation(options: {
+  enabled: boolean;
+  animate: boolean;
+  seed?: number;
+  /** Campaign biome id so the isometric theater matches play colors. */
+  themeKey?: string | null;
+}): void {
+  postForgeMessage({
+    type: "black-flag:forge-presentation",
+    version: 1,
+    enabled: options.enabled,
+    animate: options.animate,
+    seed: options.seed,
+    themeKey: options.themeKey ?? undefined,
+  });
+}
+
+/** Theme for the map theater: forced NEW GAME biome, else URL mood override. */
+function resolveIntroThemeKey(): string | null {
+  if (forcedPlayMoodId) return forcedPlayMoodId;
+  return readMoodFromUrl();
+}
+
+function forgeFrameSrc(presentation: boolean): string {
+  const base = elements.forgeFrame.dataset.src ?? "/forge.html";
+  if (!presentation) return base;
+  const url = new URL(base, window.location.origin);
+  url.searchParams.set("presentation", "1");
+  return `${url.pathname}${url.search}`;
+}
+
+async function ensureForgeFrameLoaded(
+  timeoutMs = 8_000,
+  options: { presentation?: boolean } = {},
+): Promise<boolean> {
+  if (elements.forgeFrame.dataset.loaded === "true") return true;
+  if (!elements.forgeFrame.hasAttribute("src")) {
+    elements.forgeFrame.src = forgeFrameSrc(Boolean(options.presentation));
+  }
+  const started = performance.now();
+  while (performance.now() - started < timeoutMs) {
+    if (elements.forgeFrame.dataset.loaded === "true") return true;
+    await waitAnimationFrames(1);
+  }
+  return elements.forgeFrame.dataset.loaded === "true";
+}
+
+/**
+ * Build the playable world while the map theater is on screen so the black
+ * gap between map and first-person is only a short crossfade, not a long hang.
+ */
+async function buildPlayWorldForIntro(
+  seed: string,
+  token: number,
+): Promise<{ ok: true } | { ok: false; message: string }> {
+  // One frame so the map can paint before the main-thread build.
+  await waitAnimationFrames(1);
+  if (token !== runIntroToken) return { ok: false, message: "cancelled" };
+  try {
+    buildDungeon(seed);
+    if (token !== runIntroToken) return { ok: false, message: "cancelled" };
+    await waitForRendererWarmup(10_000);
+    if (token !== runIntroToken) return { ok: false, message: "cancelled" };
+    return { ok: true };
+  } catch (error) {
+    return {
+      ok: false,
+      message: error instanceof Error ? error.message : "Could not generate the dungeon.",
+    };
+  }
+}
+
+/**
+ * Campaign New Game / Hall seed: show isometric map theater, then fade into Play.
+ * World build overlaps the map reveal so the handoff is a short crossfade.
+ */
+async function startPlayWithSeed(
+  seed: string,
+  options: { refreshProcedural?: boolean; runSource?: RunSource } = {},
+): Promise<void> {
+  const token = ++runIntroToken;
+  // Free any waiter from a previous intro so it can exit on the token check.
+  notifyForgeAnimComplete();
+  void audio.unlock();
+  if (options.runSource) setRunSource(options.runSource, false);
+  const normalizedSeed = seed.trim() || COPY.hud.seedDefault;
+  elements.seed.value = normalizedSeed;
+  // Theater seed is independent of the campaign play seed (cosmetic map reveal).
+  const proceduralSeed = makeProceduralSeed();
+  const introThemeKey = resolveIntroThemeKey();
+  const skipIntro = readSkipRunIntroFromUrl();
+  const animateMap = !skipIntro && !REDUCED_MOTION_QUERY.matches;
+
+  setWelcomeOpen(false);
+  setMusicBed(null);
+  controller.setEnabled(false);
+  closeEndOverlay();
+  setOptionsOpen(false);
+
+  if (skipIntro) {
+    if (options.refreshProcedural) {
+      pendingProceduralSeed = proceduralSeed;
+      postPendingProceduralSeed();
+    }
+    buildDungeon(normalizedSeed);
+    setEngineMode("play", { hydrate: false });
+    setStatus(COPY.status.enterPlay);
+    return;
+  }
+
+  // Full black first — no menu flash, no chrome, no status labels on screen.
+  await setSceneFadeOpaque(true, { instant: true });
+  if (token !== runIntroToken) return;
+
+  // Map theater uses the Creation workspace; stay out of Play until the fade.
+  if (engineMode === "play") {
+    setEngineMode("editor", { hydrate: false, persist: false });
+  }
+  setRunIntroActive(true, COPY.status.forgingMap);
+  setEditorSurface("forge");
+  setMapToolsOpen(false);
+  playCue("forge");
+
+  await waitAnimationFrames(1);
+  if (token !== runIntroToken) return;
+
+  const forgeReady = await ensureForgeFrameLoaded(6_000, { presentation: true });
+  if (token !== runIntroToken) return;
+
+  let mapShown = false;
+  if (forgeReady) {
+    postForgeMessage({
+      type: "black-flag:forge-visibility",
+      visible: true,
+    });
+    if (animateMap) {
+      // Start the reveal first, then listen. Avoids resolving on a leftover
+      // finishAnim from Forge's boot forge(true).
+      postForgePresentation({
+        enabled: true,
+        animate: true,
+        seed: proceduralSeed,
+        themeKey: introThemeKey,
+      });
+      await waitAnimationFrames(2);
+      if (token !== runIntroToken) return;
+      // Lift black only after presentation chrome is gone and the reveal has begun.
+      await setSceneFadeOpaque(false, { durationMs: SCENE_FADE_IN_MS });
+      mapShown = true;
+    } else {
+      // Non-animated settle is synchronous inside the iframe message handler.
+      const settled = waitForForgeAnimComplete(600);
+      postForgePresentation({
+        enabled: true,
+        animate: false,
+        seed: proceduralSeed,
+        themeKey: introThemeKey,
+      });
+      await settled;
+      if (token !== runIntroToken) return;
+      await setSceneFadeOpaque(false, { durationMs: 180 });
+      mapShown = true;
+    }
+  }
+
+  // Overlap: let the map play a beat, then build the playable world while the
+  // reveal continues so map→play is only a short fade, not a long black stall.
+  const mapDone = (async () => {
+    if (!forgeReady) {
+      await waitMs(animateMap ? 400 : 80);
+      return;
+    }
+    if (animateMap) {
+      await waitForForgeAnimComplete(10_000);
+      return;
+    }
+    // Settled map: brief hold so the handoff still reads as a beat.
+    await waitMs(mapShown ? 420 : 80);
+  })();
+
+  const worldDone = (async () => {
+    // Keep the first part of the map reveal free of main-thread stalls.
+    if (mapShown && animateMap) await waitMs(650);
+    else await waitAnimationFrames(1);
+    if (token !== runIntroToken) return { ok: false as const, message: "cancelled" };
+    return buildPlayWorldForIntro(normalizedSeed, token);
+  })();
+
+  const [, world] = await Promise.all([mapDone, worldDone]);
+  if (token !== runIntroToken) return;
+
+  setRunIntroStatus(COPY.status.enteringDungeon);
+  await setSceneFadeOpaque(true, { durationMs: SCENE_FADE_OUT_MS });
+  if (token !== runIntroToken) return;
+
+  postForgePresentation({ enabled: false, animate: false });
+  postForgeMessage({
+    type: "black-flag:forge-visibility",
+    visible: false,
+  });
+  setRunIntroActive(false);
+
+  if (!world || !world.ok) {
+    if (world && world.message !== "cancelled") {
+      await setSceneFadeOpaque(false, { durationMs: SCENE_FADE_IN_MS });
+      setWelcomeOpen(true);
+      setStatus(world.message);
+    }
+    return;
+  }
+
+  setEngineMode("play", { hydrate: false });
+  // Warmup already ran during the map theater; only wait if something re-armed it.
+  if (!renderWarmupReady) await waitForRendererWarmup(4_000);
+  if (token !== runIntroToken) return;
+
+  setStatus(COPY.status.enterPlay);
+  await setSceneFadeOpaque(false, { durationMs: SCENE_FADE_IN_MS });
+  controller.setEnabled(canEnablePlayController());
+  elements.scene.focus({ preventScroll: true });
+}
+
+let currentSelectedPortraitIndex: number | null = null;
+let hasCustomPortraitSelection = false;
+
+function updateLeaderboardPortraitPreview(rawName: string, forceReset = false): void {
   const name = normalizePlayerName(rawName) ?? (rawName.trim() || "Wanderer");
-  const portrait = portraitForName(name);
+  if (!hasCustomPortraitSelection || forceReset) {
+    currentSelectedPortraitIndex = portraitIndexForName(name);
+  }
+  if (currentSelectedPortraitIndex === null) {
+    currentSelectedPortraitIndex = portraitIndexForName(name);
+  }
+  const portrait = portraitForIndex(currentSelectedPortraitIndex);
   if (elements.leaderboardPortraitPreview.getAttribute("src") !== portrait.src) {
     elements.leaderboardPortraitPreview.src = portrait.src;
   }
 }
 
+function cycleLeaderboardPortrait(): void {
+  const rawName = elements.leaderboardName.value || "Wanderer";
+  const name = normalizePlayerName(rawName) ?? (rawName.trim() || "Wanderer");
+  if (currentSelectedPortraitIndex === null) {
+    currentSelectedPortraitIndex = portraitIndexForName(name);
+  }
+  currentSelectedPortraitIndex = (currentSelectedPortraitIndex + 1) % LEADERBOARD_PORTRAIT_COUNT;
+  hasCustomPortraitSelection = true;
+  const portrait = portraitForIndex(currentSelectedPortraitIndex);
+  elements.leaderboardPortraitPreview.src = portrait.src;
+}
+
 function renderLeaderboard(entries: readonly LeaderboardEntry[]): void {
   const fragment = document.createDocumentFragment();
   for (const entry of entries) {
-    const portrait = portraitForName(entry.playerName);
+    const portrait =
+      entry.portraitIndex !== undefined && entry.portraitIndex !== null
+        ? portraitForIndex(entry.portraitIndex)
+        : portraitForName(entry.playerName);
     const frame = frameForRank(entry.rank);
     const playerStars = playerBiomeStars[entry.playerName] ?? {};
     const starTokens = expandBiomeStars(playerStars);
@@ -830,7 +1219,7 @@ function renderLeaderboard(entries: readonly LeaderboardEntry[]): void {
       event.preventDefault();
       forcedPlayMoodId = null;
       // Hall seeds are campaign attempts — still rank on escape.
-      startPlayWithSeed(entry.seed, { runSource: "campaign" });
+      void startPlayWithSeed(entry.seed, { runSource: "campaign" });
     });
 
     face.append(portraitImg, frameImg, rank);
@@ -851,6 +1240,7 @@ async function refreshLeaderboard(): Promise<void> {
     const response = await loadLeaderboard();
     if (sequence !== leaderboardLoadSequence) return;
     playerBiomeStars = response.playerBiomeStars ?? emptyPlayerBiomeStars();
+    syncWelcomeArt();
     renderLeaderboard(response.entries);
     if (!elements.welcomeBiomePicker.hidden) renderBiomePicker();
     elements.leaderboardStatus.textContent = response.entries.length
@@ -859,6 +1249,7 @@ async function refreshLeaderboard(): Promise<void> {
   } catch (error) {
     if (sequence !== leaderboardLoadSequence) return;
     playerBiomeStars = emptyPlayerBiomeStars();
+    syncWelcomeArt();
     renderLeaderboard([]);
     elements.leaderboardStatus.textContent = COPY.leaderboard.unavailable;
     console.warn("Leaderboard could not be loaded", error);
@@ -914,13 +1305,13 @@ function prepareLeaderboardSubmission(
   } catch {
     elements.leaderboardName.value = "";
   }
-  updateLeaderboardPortraitPreview(elements.leaderboardName.value || "Wanderer");
+  hasCustomPortraitSelection = false;
+  currentSelectedPortraitIndex = portraitIndexForName(elements.leaderboardName.value || "Wanderer");
+  updateLeaderboardPortraitPreview(elements.leaderboardName.value || "Wanderer", true);
 }
 
 function canEnablePlayController(): boolean {
-  return (
-    renderWarmupReady && engineMode === "play" && playRuntime.state().runMode === "playing"
-  );
+  return renderWarmupReady && engineMode === "play" && playRuntime.state().runMode === "playing";
 }
 
 function beginRendererWarmup(): number {
@@ -1053,9 +1444,11 @@ function applyPersistedRunSession(
   if (resume) syncDomainExplore();
   lastTimeFreezeDisplay = "";
   lastLuminousWardDisplay = "";
+  lastAnnihilationPulseDisplay = "";
   lastRunTimerSecond = -1;
   syncTimeFreezeHud();
   syncLuminousWardHud();
+  syncAnnihilationPulseHud();
   syncRunTimer();
   controller.setSolidColliders(world.getSolidColliders());
   elements.shell.dataset.mode = state.runMode;
@@ -1111,11 +1504,7 @@ function resumePlay(): void {
   resumeTouchControls = false;
   setOptionsOpen(false);
   void audio.unlock();
-  if (
-    !useTouchControls &&
-    engineMode === "play" &&
-    playRuntime.state().runMode === "playing"
-  ) {
+  if (!useTouchControls && engineMode === "play" && playRuntime.state().runMode === "playing") {
     controller.requestPointerLock();
   }
 }
@@ -1190,6 +1579,25 @@ function syncLuminousWardHud(remaining = world.luminousWardRemaining): void {
   elements.luminousWardValue.dateTime = `PT${seconds.toFixed(1)}S`;
   elements.luminousWardValue.setAttribute("aria-label", `${display} ward remaining`);
   elements.luminousWardStatus.toggleAttribute("data-urgent", seconds <= 5);
+}
+
+function syncAnnihilationPulseHud(remaining = world.annihilationPulseRemaining): void {
+  const seconds = Math.max(0, remaining);
+  const active = seconds > 0.0001;
+  elements.annihilationPulseStatus.hidden = !active;
+  elements.shell.dataset.annihilationPulse = active ? "true" : "false";
+  if (!active) {
+    lastAnnihilationPulseDisplay = "";
+    elements.annihilationPulseStatus.removeAttribute("data-urgent");
+    return;
+  }
+  const display = `${seconds.toFixed(1)}s`;
+  if (display === lastAnnihilationPulseDisplay) return;
+  lastAnnihilationPulseDisplay = display;
+  elements.annihilationPulseValue.textContent = display;
+  elements.annihilationPulseValue.dateTime = `PT${seconds.toFixed(1)}S`;
+  elements.annihilationPulseValue.setAttribute("aria-label", `${display} pulse remaining`);
+  elements.annihilationPulseStatus.toggleAttribute("data-urgent", seconds <= 5);
 }
 
 function syncHazardStatus(effect: HazardSurfaceEffect): void {
@@ -1364,7 +1772,11 @@ let lastUiHoverTarget: EventTarget | null = null;
 let lastUiClickAt = 0;
 
 function isUiControlDisabled(node: Element): boolean {
-  if (node instanceof HTMLButtonElement || node instanceof HTMLInputElement || node instanceof HTMLSelectElement) {
+  if (
+    node instanceof HTMLButtonElement ||
+    node instanceof HTMLInputElement ||
+    node instanceof HTMLSelectElement
+  ) {
     return node.disabled;
   }
   return node.hasAttribute("disabled") || node.getAttribute("aria-disabled") === "true";
@@ -1374,7 +1786,7 @@ function resolveUiClickCue(target: Element): AudioCue {
   if (isUiControlDisabled(target)) return "uiDeny";
   if (
     target.matches(
-      ".biome-picker-option, .welcome-menu__item--primary, #leaderboard-submit, #welcome-new, #options-resume",
+      ".biome-picker-option, .welcome-menu__item--primary, #leaderboard-submit, #welcome-new, #options-resume, #end-next-biome",
     ) ||
     target.closest(".biome-picker-option, .welcome-menu__item--primary")
   ) {
@@ -1447,7 +1859,9 @@ function wireInterfaceSounds(): void {
     (event) => {
       const target = event.target;
       if (!(target instanceof HTMLElement)) return;
-      if (target.matches("select, input[type='range'], input[type='checkbox'], input[type='radio']")) {
+      if (
+        target.matches("select, input[type='range'], input[type='checkbox'], input[type='radio']")
+      ) {
         playCue(target.matches("input[type='range']") ? "uiTick" : "uiToggle");
       }
     },
@@ -1570,26 +1984,31 @@ function showPickupFeedback(
   stoneId?: StoneId,
   timeFreeze = false,
   luminousWard = false,
+  annihilationPulse = false,
 ): void {
   elements.pickupFeedbackText.textContent = label;
-  elements.pickupFeedbackKicker.textContent = luminousWard
-    ? COPY.pickup.luminousWard
-    : timeFreeze
-      ? COPY.pickup.timeFreeze
-      : restoreResolve
-        ? COPY.pickup.flask
-        : stoneId
-          ? COPY.pickup.small
-          : COPY.pickup.notice;
-  elements.pickupFeedback.dataset.kind = luminousWard
-    ? "luminous-ward"
-    : timeFreeze
-      ? "time-freeze"
-      : restoreResolve
-        ? "flask"
-        : stoneId
-          ? "stone"
-          : "notice";
+  elements.pickupFeedbackKicker.textContent = annihilationPulse
+    ? COPY.pickup.annihilationPulse
+    : luminousWard
+      ? COPY.pickup.luminousWard
+      : timeFreeze
+        ? COPY.pickup.timeFreeze
+        : restoreResolve
+          ? COPY.pickup.flask
+          : stoneId
+            ? COPY.pickup.small
+            : COPY.pickup.notice;
+  elements.pickupFeedback.dataset.kind = annihilationPulse
+    ? "annihilation-pulse"
+    : luminousWard
+      ? "luminous-ward"
+      : timeFreeze
+        ? "time-freeze"
+        : restoreResolve
+          ? "flask"
+          : stoneId
+            ? "stone"
+            : "notice";
   if (stoneId) elements.pickupFeedback.dataset.stone = stoneId;
   else delete elements.pickupFeedback.dataset.stone;
   elements.pickupFeedback.classList.add("is-active");
@@ -1697,11 +2116,46 @@ function drawMap(): void {
   });
 }
 
+function hideEndNextBiome(): void {
+  elements.endNextBiome.hidden = true;
+  elements.endNextBiome.dataset.biomeId = "";
+  elements.endNextBiome.textContent = COPY.end.nextBiome("…");
+}
+
+function revealEndNextBiomeAfterSave(): void {
+  const moodId = forcedPlayMoodId ?? (dungeon ? resolveActiveMood(dungeon).id : null);
+  if (!moodId) {
+    hideEndNextBiome();
+    return;
+  }
+  const nextId = nextBiomeId(moodId);
+  if (!nextId) {
+    hideEndNextBiome();
+    // Final campaign step: keep the save status and note the end of the ramp.
+    if (!elements.leaderboardSubmitStatus.textContent.includes("Final biome")) {
+      elements.leaderboardSubmitStatus.textContent = [
+        elements.leaderboardSubmitStatus.textContent,
+        COPY.end.finalBiomeSaved,
+      ]
+        .filter(Boolean)
+        .join(" ");
+    }
+    return;
+  }
+  const label = getDungeonMood(nextId).label;
+  elements.endNextBiome.dataset.biomeId = nextId;
+  elements.endNextBiome.textContent = COPY.end.nextBiome(label);
+  elements.endNextBiome.hidden = false;
+  window.requestAnimationFrame(() => elements.endNextBiome.focus());
+}
+
 function closeEndOverlay(): void {
+  endScreenParticles.setActive(false);
   elements.endOverlay.hidden = true;
   elements.endLeaderboardForm.hidden = true;
   elements.endLeaderboardNote.hidden = true;
   elements.endLeaderboardNote.textContent = "";
+  hideEndNextBiome();
   pendingLeaderboardSubmission = null;
   elements.shell.dataset.mode = "playing";
   controller.setEnabled(canEnablePlayController());
@@ -1715,11 +2169,18 @@ function showEndOverlay(mode: "dead" | "won"): void {
   // A restored finished run remains useful context in editor/debug, but its
   // play-only ending must never cover the creation workspace.
   if (engineMode !== "play") {
+    endScreenParticles.setActive(false);
     elements.endOverlay.hidden = true;
     return;
   }
-  elements.endOverlay.hidden = false;
+  const activeMood = dungeon ? resolveActiveMood(dungeon) : null;
+  const endingBiomeId = activeMood?.id ?? "ancient";
+  elements.endArt.src = biomeScreenArtSrc(endingBiomeId, "ending");
+  elements.endArt.dataset.biomeId = endingBiomeId;
   elements.endOverlay.dataset.end = mode === "won" ? "won" : "dead";
+  elements.endOverlay.hidden = false;
+  endScreenParticles.setBiome(endingBiomeId);
+  endScreenParticles.setActive(mode === "won");
   if (mode === "won") {
     audio.play("win");
     setMusicBed("win");
@@ -1733,7 +2194,7 @@ function showEndOverlay(mode: "dead" | "won"): void {
     elements.endTime.textContent = formatTime(result.runSeconds);
     elements.endStones.textContent = `${quest.stonesFound} / ${quest.stonesTotal}`;
     elements.endDistance.textContent = `${Math.round(player.distanceTravelled)} m`;
-    const biome = dungeon ? resolveActiveMood(dungeon).label : "Unknown";
+    const biome = activeMood?.label ?? "Unknown";
     const seed = dungeon?.seed ?? "Unknown";
     elements.endBiome.textContent = biome;
     elements.endSeed.textContent = seed;
@@ -1744,6 +2205,7 @@ function showEndOverlay(mode: "dead" | "won"): void {
       seed,
       dungeon?.stats.roomCount ?? 28,
     );
+    hideEndNextBiome();
     elements.retry.hidden = true;
     elements.newDungeon.textContent = COPY.end.next;
   } else {
@@ -1756,6 +2218,7 @@ function showEndOverlay(mode: "dead" | "won"): void {
     elements.endLeaderboardForm.hidden = true;
     elements.endLeaderboardNote.hidden = true;
     elements.endLeaderboardNote.textContent = "";
+    hideEndNextBiome();
     pendingLeaderboardSubmission = null;
     elements.retry.textContent = COPY.end.retry;
     elements.retry.hidden = false;
@@ -1865,8 +2328,10 @@ function activateDungeon(
   });
   lastTimeFreezeDisplay = "";
   lastLuminousWardDisplay = "";
+  lastAnnihilationPulseDisplay = "";
   syncTimeFreezeHud(0);
   syncLuminousWardHud(0);
+  syncAnnihilationPulseHud(0);
   controller.setSurfaceMovement(1, 1);
   lastHazardKind = undefined;
   activeHazardKind = null;
@@ -1982,9 +2447,11 @@ function setEditorSurface(nextSurface: "runtime" | "forge"): void {
     button.classList.toggle("is-active", active);
     button.setAttribute("aria-selected", String(active));
   });
-  if (shouldMountForge(nextSurface, engineMode, elements.forgeFrame.hasAttribute("src")))
-    elements.forgeFrame.src = elements.forgeFrame.dataset.src ?? "/forge.html";
-  const visible = nextSurface === "forge" && engineMode === "editor";
+  if (shouldMountForge(nextSurface, engineMode, elements.forgeFrame.hasAttribute("src"))) {
+    // Presentation query hides Forge chrome before the first paint of a cold load.
+    elements.forgeFrame.src = forgeFrameSrc(runIntroActive);
+  }
+  const visible = nextSurface === "forge" && (engineMode === "editor" || runIntroActive);
   elements.forgeFrame.contentWindow?.postMessage(
     { type: "black-flag:forge-visibility", visible },
     location.origin,
@@ -2040,6 +2507,7 @@ function selectEditorSpawn(cell: { x: number; y: number }): void {
   const state = playRuntime.load({ dungeon, mood, persisted: playRuntime.snapshot() });
   lastTimeFreezeDisplay = "";
   lastLuminousWardDisplay = "";
+  lastAnnihilationPulseDisplay = "";
   lastRunTimerSecond = -1;
   atmosphere.setDungeon(dungeon, mood);
   controller.setDungeon(dungeon);
@@ -2062,6 +2530,7 @@ function selectEditorSpawn(cell: { x: number; y: number }): void {
   syncRunTimer();
   syncTimeFreezeHud();
   syncLuminousWardHud();
+  syncAnnihilationPulseHud();
   updateReadout();
   drawMap();
   setStatus(`Spawn set to ${formatCell(cell)}. Exit was recalculated.`);
@@ -2263,6 +2732,7 @@ export interface DungeonRuntimeState {
   stonesFound?: number;
   timeFreezeRemaining?: number;
   luminousWardRemaining?: number;
+  annihilationPulseRemaining?: number;
   resolve?: number;
   mode?: "playing" | "dead" | "won";
   engineMode?: EngineMode;
@@ -2365,6 +2835,7 @@ function getRuntimeState(): DungeonRuntimeState {
     stonesFound: state.quest.stonesFound,
     timeFreezeRemaining: Number(world.timeFreezeRemaining.toFixed(2)),
     luminousWardRemaining: Number(world.luminousWardRemaining.toFixed(2)),
+    annihilationPulseRemaining: Number(world.annihilationPulseRemaining.toFixed(2)),
     resolve: Number(state.resolve.toFixed(1)),
     mode: state.runMode,
     engineMode,
@@ -2390,6 +2861,17 @@ elements.generationForm.addEventListener("submit", (event) => {
 elements.leaderboardName.addEventListener("input", () => {
   updateLeaderboardPortraitPreview(elements.leaderboardName.value || "Wanderer");
 });
+elements.leaderboardPortraitPreviewFace.addEventListener("click", () => {
+  cycleLeaderboardPortrait();
+  playCue("mode");
+});
+elements.leaderboardPortraitPreviewFace.addEventListener("keydown", (event) => {
+  if (event.key === "Enter" || event.key === " ") {
+    event.preventDefault();
+    cycleLeaderboardPortrait();
+    playCue("mode");
+  }
+});
 
 elements.endLeaderboardForm.addEventListener("submit", (event) => {
   event.preventDefault();
@@ -2407,7 +2889,11 @@ elements.endLeaderboardForm.addEventListener("submit", (event) => {
   elements.leaderboardSubmit.disabled = true;
   elements.leaderboardSubmit.textContent = COPY.leaderboard.saving;
   elements.leaderboardSubmitStatus.textContent = COPY.leaderboard.saving;
-  void submitLeaderboardEntry({ ...pendingLeaderboardSubmission, playerName })
+  const portraitIndex =
+    currentSelectedPortraitIndex !== null
+      ? currentSelectedPortraitIndex
+      : portraitIndexForName(playerName);
+  void submitLeaderboardEntry({ ...pendingLeaderboardSubmission, playerName, portraitIndex })
     .then(({ entry }) => {
       try {
         localStorage.setItem(LAST_LEADERBOARD_NAME_KEY, entry.playerName);
@@ -2422,6 +2908,8 @@ elements.endLeaderboardForm.addEventListener("submit", (event) => {
         entry.rank,
         entry.score,
       );
+      // Campaign path only: after Hall save, offer the next harder biome.
+      revealEndNextBiomeAfterSave();
       void refreshLeaderboard();
     })
     .catch((error) => {
@@ -2661,7 +3149,12 @@ elements.forgeFrame.addEventListener("load", () => {
   postPendingProceduralSeed();
 });
 window.addEventListener("message", (event) => {
-  if (event.origin !== location.origin || event.source !== elements.forgeFrame.contentWindow) return;
+  if (event.origin !== location.origin || event.source !== elements.forgeFrame.contentWindow)
+    return;
+  if (event.data?.type === "black-flag:forge-anim-complete") {
+    notifyForgeAnimComplete();
+    return;
+  }
   const intake = parseForgeDungeonMessage(event.data);
   if (intake.kind === "ignored") return;
   if (intake.kind === "rejected") {
@@ -2735,6 +3228,11 @@ elements.retry.addEventListener("click", () => {
 elements.newDungeon.addEventListener("click", () => {
   elements.seed.value = makeSeed();
   buildDungeon();
+});
+elements.endNextBiome.addEventListener("click", () => {
+  const biomeId = parseDungeonMoodId(elements.endNextBiome.dataset.biomeId);
+  if (!biomeId) return;
+  startNewGameWithBiome(biomeId);
 });
 elements.interactionPrompt.addEventListener("pointerdown", (event) => {
   event.preventDefault();
@@ -2918,6 +3416,7 @@ function frame(now: number): void {
     if (worldUpdate) {
       syncTimeFreezeHud(worldUpdate.timeFreezeRemaining);
       syncLuminousWardHud(worldUpdate.luminousWardRemaining);
+      syncAnnihilationPulseHud(worldUpdate.annihilationPulseRemaining);
       controller.setSurfaceMovement(
         worldUpdate.surfaceEffect.movementScale,
         worldUpdate.surfaceEffect.traction,
@@ -2944,7 +3443,18 @@ function frame(now: number): void {
           effects.pickup.stoneId,
           Boolean(effects.pickup.timeFreeze),
           Boolean(effects.pickup.luminousWard),
+          Boolean(effects.pickup.annihilationPulse),
         );
+      }
+      if (worldUpdate.annihilationPulse) {
+        audio.playAnnihilationPulse(worldUpdate.annihilationPulse.position);
+        if (worldUpdate.annihilationPulse.hits > 0) {
+          hitTrauma = Math.max(
+            hitTrauma,
+            Math.min(0.72, 0.18 + worldUpdate.annihilationPulse.hits * 0.03),
+          );
+          flash("event");
+        }
       }
       if (effects.playEnemyHit) {
         elements.shell.dataset.resolve = String(Math.ceil(state.resolve));
@@ -2982,6 +3492,7 @@ function frame(now: number): void {
   }
   syncTimeFreezeHud();
   syncLuminousWardHud();
+  syncAnnihilationPulseHud();
   syncRunTimer();
 
   damageTimer = Math.max(0, damageTimer - delta);
@@ -3209,7 +3720,8 @@ if (visualQaState) {
     setBootProgress(0.8, "Loading type…");
     await Promise.all([
       document.fonts.ready.catch(() => undefined),
-      preloadImage("/assets/ui/dungeon-cover-v1.webp"),
+      preloadImage("/assets/ui/biome-screens/ancient-main.webp"),
+      preloadImage(elements.endArt.src),
       waitForRendererWarmup(8_000),
     ]);
     await waitAnimationFrames(2);
@@ -3243,7 +3755,7 @@ if (visualQaState) {
     setBootProgress(0.8, "Loading type and art…");
     await Promise.all([
       document.fonts.ready.catch(() => undefined),
-      preloadImage("/assets/ui/dungeon-cover-v1.webp"),
+      preloadImage("/assets/ui/biome-screens/ancient-main.webp"),
       waitForRendererWarmup(8_000),
     ]);
     setBootProgress(0.96, "Opening the hall…");

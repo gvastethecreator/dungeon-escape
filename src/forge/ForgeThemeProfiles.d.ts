@@ -1,6 +1,7 @@
-import type { BiomeIdentity } from "../systems/BiomeIdentity";
+import type { BiomeId } from "../systems/BiomeIdentity";
 
-export type ForgeThemeId = Extract<BiomeIdentity, { forgeSupported: true }>["id"];
+/** Every campaign biome has a Forge profile; the editor exposes a smaller chip set. */
+export type ForgeThemeId = BiomeId;
 
 export type ForgeThemePoolProfile = Readonly<{
   mode: number;

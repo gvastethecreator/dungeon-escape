@@ -48,6 +48,8 @@ describe("GameAudio dungeon soundscape", () => {
     audio.playChest({ x: 0.5, y: 1, z: -0.5 });
     audio.playPickup({ kind: "time-freeze", position: { x: 1, y: 1, z: 0 } });
     audio.playPickup({ kind: "luminous-ward", position: { x: 1, y: 1, z: 0 } });
+    audio.playPickup({ kind: "annihilation-pulse", position: { x: 1, y: 1, z: 0 } });
+    audio.playAnnihilationPulse({ x: 1, y: 1, z: 0 });
     audio.playEnemyHit({ x: 1.2, y: 1, z: -2 });
     audio.setMusicTrack("menu");
     expect(audio.currentMusic).toBe("menu");

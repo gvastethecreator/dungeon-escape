@@ -37,7 +37,7 @@ describe("time-freeze power", () => {
     expect(bounds.x).toBeGreaterThan(0.5);
     expect(bounds.y).toBeGreaterThan(0.8);
     expect(relic.getObjectByName("Time freeze frozen core")).toBeDefined();
-    expect(relic.getObjectByName("Time freeze minute hand")).toBeDefined();
+    expect(relic.getObjectByName("Time freeze eight flush rune strokes")).toBeDefined();
     expect(relic.getObjectByName("Time freeze orbit halo")).toBeDefined();
     expect(relic.getObjectByName("Time freeze pickup light")).toBeInstanceOf(THREE.PointLight);
     expect(runtime.sockets.pickup.name).toBe("Time freeze pickup anchor");

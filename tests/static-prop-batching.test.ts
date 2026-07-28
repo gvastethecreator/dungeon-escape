@@ -44,11 +44,28 @@ describe("static Creation prop batching", () => {
     });
 
     const batches = createStaticPropTemplateBatches(template);
-    expect(sourceMeshes.length).toBeGreaterThan(30);
+    const authorBatching = template.userData.renderBatching as {
+      sourceMeshes: number;
+      drawCalls: number;
+      materialBatches: number;
+    };
+
+    expect(sourceMeshes).toHaveLength(3);
+    expect(authorBatching.sourceMeshes).toBeGreaterThan(100);
+    expect(authorBatching.drawCalls).toBe(3);
+    expect(authorBatching.materialBatches).toBe(3);
     expect(batches).toHaveLength(3);
-    expect(new Set(batches.map((batch) => batch.material))).toEqual(
-      new Set([materials.wood, materials.iron, materials.brass]),
+    const batchedMaterials = new Set(batches.map((batch) => batch.material));
+    expect(batchedMaterials.size).toBe(3);
+    expect(batchedMaterials.has(materials.iron)).toBe(true);
+    expect(batchedMaterials.has(materials.brass)).toBe(true);
+    const crateWoodBatch = batches.find(
+      (batch) => !Array.isArray(batch.material) && batch.material.userData.crateWood === true,
     );
+    const crateWood = crateWoodBatch?.material as THREE.MeshStandardMaterial;
+    expect(crateWood).toBeDefined();
+    expect(crateWood.map).toBe(materials.wood.map);
+    expect(crateWood.vertexColors).toBe(true);
 
     batches.forEach((batch) => batch.geometry.dispose());
   });

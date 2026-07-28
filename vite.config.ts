@@ -21,12 +21,21 @@ function localLeaderboardApi(): Plugin {
 
 export default defineConfig({
   plugins: [localLeaderboardApi()],
+  server: {
+    watch: {
+      // QA renders and source masters can contain thousands of large files.
+      // Watching them made fresh dev servers exhaust Windows file handles and
+      // stop answering while a model matrix was being written.
+      ignored: ["**/.scratch/**", "**/assets-source/**"],
+    },
+  },
   build: {
     rollupOptions: {
       input: {
         engine: resolve(__dirname, "index.html"),
         forge: resolve(__dirname, "forge.html"),
         reliquary: resolve(__dirname, "reliquary.html"),
+        modelLab: resolve(__dirname, "model-lab.html"),
       },
     },
   },
