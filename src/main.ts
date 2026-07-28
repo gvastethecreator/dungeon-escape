@@ -14,7 +14,10 @@ import {
   type DungeonDomainState,
 } from "./domain/bridge";
 import { DUNGEON_PRESETS, type DungeonEditorParams, type DungeonPresetId } from "./editor/presets";
-import { generateDungeon, setDungeonSpawn } from "./dungeon/generateDungeon";
+import { generateCompletableDungeon } from "./dungeon/completeness";
+import { exportPlayDungeonToForgePresentation } from "./dungeon/exportPlayDungeonToForge";
+import { setDungeonSpawn } from "./dungeon/generateDungeon";
+import { hashSeed } from "./core/random";
 import { parseForgeDungeonMessage, type ForgeDungeonIntakeValue } from "./dungeon/forgeIntake";
 import type { DungeonData } from "./dungeon/types";
 import { DungeonEditorView } from "./editor/DungeonEditorView";
@@ -44,6 +47,10 @@ import {
   type DamageWashKind,
 } from "./systems/HazardFeel";
 import { FrameGapProfiler, type FrameGapSnapshot } from "./systems/FrameGapProfiler";
+import {
+  detectRenderCapabilities,
+  raceWithTimeout,
+} from "./systems/RenderCapabilities";
 import { collectVisibleRenderInventory } from "./systems/RenderInventory";
 import { resolveRenderPixelRatio } from "./systems/RenderScale";
 import { readVisualQaSeed, readVisualQaState } from "./systems/VisualQaState";
@@ -296,30 +303,50 @@ applyLocalDevToolsChrome();
 const scene = new THREE.Scene();
 
 const camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.08, 120);
-const renderer = new THREE.WebGLRenderer({
-  canvas: elements.scene,
-  antialias: false,
-  powerPreference: "high-performance",
-});
+const renderCaps = detectRenderCapabilities();
+function createPlayRenderer(): THREE.WebGLRenderer {
+  const common = {
+    canvas: elements.scene,
+    antialias: false as const,
+  };
+  try {
+    return new THREE.WebGLRenderer({
+      ...common,
+      // Firefox dual-GPU + high-performance often picks a dead adapter (black canvas).
+      powerPreference: renderCaps.preferDefaultGpu ? "default" : "high-performance",
+    });
+  } catch (error) {
+    console.warn("Primary WebGL context failed; retrying with defaults", error);
+    return new THREE.WebGLRenderer(common);
+  }
+}
+const renderer = createPlayRenderer();
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.18;
 // Soft shadows + many torch lights stutter on mid GPUs; keep maps off for play smoothness.
 renderer.shadowMap.enabled = false;
 renderer.shadowMap.type = THREE.PCFShadowMap;
-renderer.setPixelRatio(resolveRenderPixelRatio(window.devicePixelRatio, 1.25));
+renderer.setPixelRatio(resolveRenderPixelRatio(window.devicePixelRatio, renderCaps.pixelRatioCap));
 // The CRT path draws the scene plus two full-screen passes. Keep renderer.info across all draws, then
 // reset once per animation frame so diagnostics describe the real scene cost.
 renderer.info.autoReset = false;
 
 const lighting = new LightingRig(scene);
 // Neutral IBL so MeshStandard metals leave flat gray (low mood intensity keeps interiors grim).
-lighting.bindEnvironment(renderer);
+try {
+  lighting.bindEnvironment(renderer);
+} catch (error) {
+  // PMREM/RoomEnvironment can fail on broken Firefox WebGL adapters; continue without IBL.
+  console.warn("Environment bind failed; continuing without IBL", error);
+}
 const world = new DungeonWorld(scene, { tileSize: TILE_SIZE, wallHeight: WORLD_WALL_HEIGHT });
 const playRuntime = new PlayRuntime(world);
 // Fog column shares WorldMetrics with the architecture stack.
 const atmosphere = new AtmosphereSystem(scene, TILE_SIZE, WORLD_WALL_HEIGHT);
 const povPost = new PovPostFx();
+// CRT history + multi-sample composite is the usual Firefox stutter source.
+povPost.setCrtEnabled(renderCaps.enableCrtByDefault);
 const povFeel = new PovFeelState();
 const audio = new GameAudio();
 const playerPosition = new THREE.Vector3();
@@ -381,7 +408,10 @@ let touchSessionActive = false;
 let resumeTouchControls = false;
 let uiInteractQueued = false;
 let engineMode: EngineMode = "editor";
-let crtEnabled = true;
+let crtEnabled = renderCaps.enableCrtByDefault;
+/** When frame time stays above budget, drop CRT without fighting a manual toggle. */
+let crtAutoDisabled = false;
+let crtManualOverride = false;
 let optionsOpen = false;
 let welcomeOpen = true;
 const LAST_LEADERBOARD_NAME_KEY = "dungeon-escape:leaderboard-name";
@@ -479,8 +509,36 @@ let objectiveBannerTimer: ReturnType<typeof setTimeout> | null = null;
 let objectiveFadeTimer: ReturnType<typeof setTimeout> | null = null;
 let lastPortalBanner = false;
 
-function setStatus(message: string): void {
+/**
+ * Player-facing status stays short. Tech telemetry (renderer ms, profile keys)
+ * only surfaces when local developer chrome is on.
+ */
+function isPlayerFacingStatus(message: string): boolean {
+  const text = message.trim();
+  if (!text) return false;
+  if (/renderer ready|warmup|preparing renderer|compile/i.test(text)) return false;
+  if (/^profile\s+/i.test(text)) return false;
+  if (/\bmood\b/i.test(text) && /collect four stones/i.test(text)) return false;
+  if (/topology|draw calls|programs|long.?task/i.test(text)) return false;
+  return true;
+}
+
+function setStatus(message: string, options: { forceDev?: boolean } = {}): void {
+  if (options.forceDev && !localDevTools) return;
+  if (!localDevTools && !isPlayerFacingStatus(message)) {
+    if (import.meta.env.DEV) console.info("[status:dev]", message);
+    return;
+  }
   elements.status.textContent = message;
+}
+
+function setToggleValue(button: HTMLButtonElement, on: boolean, onLabel: string, offLabel: string): void {
+  const value = button.querySelector<HTMLElement>("[data-toggle-value]");
+  const label = on ? onLabel : offLabel;
+  if (value) value.textContent = label;
+  else button.textContent = label;
+  button.classList.toggle("is-active", on);
+  button.setAttribute("aria-pressed", String(on));
 }
 
 function currentDomainSave(): DungeonDomainState {
@@ -748,16 +806,12 @@ function writeStoredMusicMuted(muted: boolean): void {
 
 function syncMusicToggleUi(): void {
   const muted = audio.isMusicMuted;
-  const label = muted ? COPY.hud.musicOff : COPY.hud.musicOn;
   const title = muted ? "Enable music" : "Disable music";
-
-  elements.musicToggle.setAttribute("aria-pressed", String(muted));
-  elements.musicToggle.classList.toggle("is-active", !muted);
-  elements.musicToggle.textContent = label;
+  setToggleValue(elements.musicToggle, !muted, COPY.hud.musicOn, COPY.hud.musicOff);
   elements.musicToggle.title = title;
 
   // Welcome uses a note icon; keep the glyph and only update a11y state.
-  elements.welcomeMusicToggle.setAttribute("aria-pressed", String(muted));
+  elements.welcomeMusicToggle.setAttribute("aria-pressed", String(!muted));
   elements.welcomeMusicToggle.setAttribute("aria-label", title);
   elements.welcomeMusicToggle.classList.toggle("is-active", !muted);
   elements.welcomeMusicToggle.classList.toggle("is-muted", muted);
@@ -805,21 +859,6 @@ function notifyForgeAnimComplete(): void {
   const waiters = [...forgeAnimWaiters];
   forgeAnimWaiters.clear();
   for (const resolve of waiters) resolve();
-}
-
-function waitForForgeAnimComplete(timeoutMs: number): Promise<void> {
-  return new Promise((resolve) => {
-    let settled = false;
-    const done = (): void => {
-      if (settled) return;
-      settled = true;
-      window.clearTimeout(timer);
-      forgeAnimWaiters.delete(done);
-      resolve();
-    };
-    forgeAnimWaiters.add(done);
-    const timer = window.setTimeout(done, Math.max(200, timeoutMs));
-  });
 }
 
 /** Soft crossfade between map theater and Play — keep short so black never feels stuck. */
@@ -875,33 +914,6 @@ async function setSceneFadeOpaque(
   }
 }
 
-function postForgeMessage(payload: Record<string, unknown>): void {
-  elements.forgeFrame.contentWindow?.postMessage(payload, location.origin);
-}
-
-function postForgePresentation(options: {
-  enabled: boolean;
-  animate: boolean;
-  seed?: number;
-  /** Campaign biome id so the isometric theater matches play colors. */
-  themeKey?: string | null;
-}): void {
-  postForgeMessage({
-    type: "black-flag:forge-presentation",
-    version: 1,
-    enabled: options.enabled,
-    animate: options.animate,
-    seed: options.seed,
-    themeKey: options.themeKey ?? undefined,
-  });
-}
-
-/** Theme for the map theater: forced NEW GAME biome, else URL mood override. */
-function resolveIntroThemeKey(): string | null {
-  if (forcedPlayMoodId) return forcedPlayMoodId;
-  return readMoodFromUrl();
-}
-
 function forgeFrameSrc(presentation: boolean): string {
   const base = elements.forgeFrame.dataset.src ?? "/forge.html";
   if (!presentation) return base;
@@ -951,9 +963,51 @@ async function buildPlayWorldForIntro(
   }
 }
 
+function postForgeMessage(payload: Record<string, unknown>): void {
+  elements.forgeFrame.contentWindow?.postMessage(payload, location.origin);
+}
+
+function postForgePresentation(options: {
+  enabled: boolean;
+  animate: boolean;
+  seed?: number;
+  themeKey?: string | null;
+  dungeon?: ReturnType<typeof exportPlayDungeonToForgePresentation>;
+}): void {
+  postForgeMessage({
+    type: "black-flag:forge-presentation",
+    version: 1,
+    enabled: options.enabled,
+    animate: options.animate,
+    seed: options.seed,
+    themeKey: options.themeKey ?? undefined,
+    dungeon: options.dungeon,
+  });
+}
+
+function waitForForgeAnimComplete(timeoutMs: number): Promise<void> {
+  return new Promise((resolve) => {
+    let settled = false;
+    const done = (): void => {
+      if (settled) return;
+      settled = true;
+      window.clearTimeout(timer);
+      forgeAnimWaiters.delete(done);
+      resolve();
+    };
+    forgeAnimWaiters.add(done);
+    const timer = window.setTimeout(done, Math.max(200, timeoutMs));
+  });
+}
+
+function resolveIntroThemeKey(): string {
+  if (forcedPlayMoodId) return forcedPlayMoodId;
+  return readMoodFromUrl() || "ancient";
+}
+
 /**
- * Campaign New Game / Hall seed: show isometric map theater, then fade into Play.
- * World build overlaps the map reveal so the handoff is a short crossfade.
+ * Campaign New Game / Hall seed: build the real play map, show it isometrically
+ * in Forge (same topology), then fade into first-person Play.
  */
 async function startPlayWithSeed(
   seed: string,
@@ -966,11 +1020,9 @@ async function startPlayWithSeed(
   if (options.runSource) setRunSource(options.runSource, false);
   const normalizedSeed = seed.trim() || COPY.hud.seedDefault;
   elements.seed.value = normalizedSeed;
-  // Theater seed is independent of the campaign play seed (cosmetic map reveal).
-  const proceduralSeed = makeProceduralSeed();
-  const introThemeKey = resolveIntroThemeKey();
   const skipIntro = readSkipRunIntroFromUrl();
   const animateMap = !skipIntro && !REDUCED_MOTION_QUERY.matches;
+  const introThemeKey = resolveIntroThemeKey();
 
   setWelcomeOpen(false);
   setMusicBed(null);
@@ -980,7 +1032,7 @@ async function startPlayWithSeed(
 
   if (skipIntro) {
     if (options.refreshProcedural) {
-      pendingProceduralSeed = proceduralSeed;
+      pendingProceduralSeed = makeProceduralSeed();
       postPendingProceduralSeed();
     }
     buildDungeon(normalizedSeed);
@@ -993,7 +1045,7 @@ async function startPlayWithSeed(
   await setSceneFadeOpaque(true, { instant: true });
   if (token !== runIntroToken) return;
 
-  // Map theater uses the Creation workspace; stay out of Play until the fade.
+  // Map theater uses the editor workspace; stay out of Play until the fade.
   if (engineMode === "play") {
     setEngineMode("editor", { hydrate: false, persist: false });
   }
@@ -1005,69 +1057,49 @@ async function startPlayWithSeed(
   await waitAnimationFrames(1);
   if (token !== runIntroToken) return;
 
+  // Build the exact dungeon the player will explore first.
+  const world = await buildPlayWorldForIntro(normalizedSeed, token);
+  if (token !== runIntroToken) return;
+  if (!world.ok) {
+    setRunIntroActive(false);
+    await setSceneFadeOpaque(false, { durationMs: SCENE_FADE_IN_MS });
+    setWelcomeOpen(true);
+    if (world.message !== "cancelled") setStatus(world.message);
+    return;
+  }
+  if (!dungeon) {
+    setRunIntroActive(false);
+    await setSceneFadeOpaque(false, { durationMs: SCENE_FADE_IN_MS });
+    setWelcomeOpen(true);
+    setStatus("Could not generate the dungeon.");
+    return;
+  }
+
   const forgeReady = await ensureForgeFrameLoaded(6_000, { presentation: true });
   if (token !== runIntroToken) return;
 
+  const presentationDungeon = exportPlayDungeonToForgePresentation(dungeon, introThemeKey);
   let mapShown = false;
   if (forgeReady) {
-    postForgeMessage({
-      type: "black-flag:forge-visibility",
-      visible: true,
+    postForgeMessage({ type: "black-flag:forge-visibility", visible: true });
+    const settled = waitForForgeAnimComplete(animateMap ? 10_000 : 800);
+    postForgePresentation({
+      enabled: true,
+      animate: animateMap,
+      seed: hashSeed(normalizedSeed) % 999_999 || 1,
+      themeKey: introThemeKey,
+      dungeon: presentationDungeon,
     });
-    if (animateMap) {
-      // Start the reveal first, then listen. Avoids resolving on a leftover
-      // finishAnim from Forge's boot forge(true).
-      postForgePresentation({
-        enabled: true,
-        animate: true,
-        seed: proceduralSeed,
-        themeKey: introThemeKey,
-      });
-      await waitAnimationFrames(2);
-      if (token !== runIntroToken) return;
-      // Lift black only after presentation chrome is gone and the reveal has begun.
-      await setSceneFadeOpaque(false, { durationMs: SCENE_FADE_IN_MS });
-      mapShown = true;
-    } else {
-      // Non-animated settle is synchronous inside the iframe message handler.
-      const settled = waitForForgeAnimComplete(600);
-      postForgePresentation({
-        enabled: true,
-        animate: false,
-        seed: proceduralSeed,
-        themeKey: introThemeKey,
-      });
-      await settled;
-      if (token !== runIntroToken) return;
-      await setSceneFadeOpaque(false, { durationMs: 180 });
-      mapShown = true;
-    }
+    await waitAnimationFrames(2);
+    if (token !== runIntroToken) return;
+    await setSceneFadeOpaque(false, { durationMs: SCENE_FADE_IN_MS });
+    mapShown = true;
+    await settled;
+  } else {
+    // No Forge iframe: still hold a beat so the handoff does not snap.
+    await setSceneFadeOpaque(false, { durationMs: SCENE_FADE_IN_MS });
+    await waitMs(animateMap ? 900 : 320);
   }
-
-  // Overlap: let the map play a beat, then build the playable world while the
-  // reveal continues so map→play is only a short fade, not a long black stall.
-  const mapDone = (async () => {
-    if (!forgeReady) {
-      await waitMs(animateMap ? 400 : 80);
-      return;
-    }
-    if (animateMap) {
-      await waitForForgeAnimComplete(10_000);
-      return;
-    }
-    // Settled map: brief hold so the handoff still reads as a beat.
-    await waitMs(mapShown ? 420 : 80);
-  })();
-
-  const worldDone = (async () => {
-    // Keep the first part of the map reveal free of main-thread stalls.
-    if (mapShown && animateMap) await waitMs(650);
-    else await waitAnimationFrames(1);
-    if (token !== runIntroToken) return { ok: false as const, message: "cancelled" };
-    return buildPlayWorldForIntro(normalizedSeed, token);
-  })();
-
-  const [, world] = await Promise.all([mapDone, worldDone]);
   if (token !== runIntroToken) return;
 
   setRunIntroStatus(COPY.status.enteringDungeon);
@@ -1075,23 +1107,9 @@ async function startPlayWithSeed(
   if (token !== runIntroToken) return;
 
   postForgePresentation({ enabled: false, animate: false });
-  postForgeMessage({
-    type: "black-flag:forge-visibility",
-    visible: false,
-  });
+  postForgeMessage({ type: "black-flag:forge-visibility", visible: false });
   setRunIntroActive(false);
-
-  if (!world || !world.ok) {
-    if (world && world.message !== "cancelled") {
-      await setSceneFadeOpaque(false, { durationMs: SCENE_FADE_IN_MS });
-      setWelcomeOpen(true);
-      setStatus(world.message);
-    }
-    return;
-  }
-
   setEngineMode("play", { hydrate: false });
-  // Warmup already ran during the map theater; only wait if something re-armed it.
   if (!renderWarmupReady) await waitForRendererWarmup(4_000);
   if (token !== runIntroToken) return;
 
@@ -1099,6 +1117,7 @@ async function startPlayWithSeed(
   await setSceneFadeOpaque(false, { durationMs: SCENE_FADE_IN_MS });
   controller.setEnabled(canEnablePlayController());
   elements.scene.focus({ preventScroll: true });
+  void mapShown;
 }
 
 let currentSelectedPortraitIndex: number | null = null;
@@ -1325,21 +1344,40 @@ function beginRendererWarmup(): number {
 }
 
 function startRendererWarmup(sequence: number, readyMessage: string): void {
-  setStatus("Preparing renderer...");
+  if (localDevTools) setStatus("Preparing renderer...");
   window.requestAnimationFrame(() => {
     if (sequence !== renderWarmupSequence) return;
     const startedAt = performance.now();
     world.setPickupEffectsWarmupVisible(true);
     void (async () => {
       try {
-        // Precompile both output paths used by the POV pass. The fixed light count
-        // then keeps the same shader set valid as the player crosses rooms.
-        await renderer.compileAsync(scene, camera);
-        await povPost.compileSceneAsync(renderer, scene, camera);
-        await povPost.compileAsync(renderer);
-        // One locked-control draw uploads the pooled burst geometry as part of
-        // warmup, instead of doing that work in the stone collection frame.
-        povPost.render(renderer, scene, camera);
+        const warmupWork = async (): Promise<void> => {
+          // Firefox: skip compileAsync — parallel compile is weak and long tasks
+          // freeze the tab (Chrome already spends ~12s here with 100+ programs).
+          if (!renderCaps.skipShaderPrecompile) {
+            await renderer.compileAsync(scene, camera);
+            await povPost.compileSceneAsync(renderer, scene, camera);
+            await povPost.compileAsync(renderer);
+          }
+          // One locked-control draw uploads pooled geometry and forces a first
+          // program link on the constrained path without blocking the UI thread
+          // on a full scene compile.
+          povPost.render(renderer, scene, camera);
+        };
+        const raced = await raceWithTimeout(
+          warmupWork(),
+          renderCaps.compileTimeoutMs,
+          "renderer-warmup-timeout",
+        );
+        if (!raced.ok) {
+          console.warn("Dungeon renderer warmup timed out or failed", raced.reason);
+          // Still attempt a single draw so the canvas is not left black.
+          try {
+            povPost.render(renderer, scene, camera);
+          } catch (drawError) {
+            console.warn("Warmup fallback draw failed", drawError);
+          }
+        }
       } finally {
         world.setPickupEffectsWarmupVisible(false);
       }
@@ -1348,19 +1386,38 @@ function startRendererWarmup(sequence: number, readyMessage: string): void {
         if (sequence !== renderWarmupSequence) return;
         renderWarmupReady = true;
         elements.shell.dataset.rendererReady = "true";
+        elements.shell.dataset.renderPath = renderCaps.isFirefox
+          ? "firefox"
+          : renderCaps.isLowEnd
+            ? "low-end"
+            : renderCaps.skipShaderPrecompile
+              ? "safe"
+              : "default";
         controller.setEnabled(canEnablePlayController());
-        setStatus(
-          `${readyMessage} Renderer ready in ${Math.round(performance.now() - startedAt)}ms.`,
-        );
+        const readyMs = Math.round(performance.now() - startedAt);
+        if (localDevTools) {
+          setStatus(`${readyMessage} Renderer ready in ${readyMs}ms.`);
+        } else if (engineMode === "play") {
+          setStatus(COPY.status.enterPlay);
+        } else {
+          setStatus(readyMessage);
+        }
       })
       .catch((error: unknown) => {
         if (sequence !== renderWarmupSequence) return;
+        // Never leave play locked if warmup throws — first frames compile lazily.
         renderWarmupReady = true;
         elements.shell.dataset.rendererReady = "error";
         controller.setEnabled(canEnablePlayController());
         const detail = error instanceof Error ? error.message : "unknown error";
         console.error("Dungeon renderer warmup failed", error);
-        setStatus(`${readyMessage} Renderer warmup failed: ${detail}.`);
+        if (localDevTools) {
+          setStatus(`${readyMessage} Renderer warmup failed: ${detail}.`);
+        } else if (engineMode === "play") {
+          setStatus(COPY.status.enterPlay);
+        } else {
+          setStatus(readyMessage);
+        }
       });
   });
 }
@@ -2150,21 +2207,41 @@ function drawMap(): void {
   });
 }
 
-function hideEndNextBiome(): void {
-  elements.endNextBiome.hidden = true;
+/** Next run stays in the layout: enabled only when a campaign biome remains. */
+function setEndNextBiomeDisabled(label = COPY.end.nextRun): void {
+  elements.endNextBiome.hidden = false;
+  elements.endNextBiome.disabled = true;
   elements.endNextBiome.dataset.biomeId = "";
-  elements.endNextBiome.textContent = COPY.end.nextBiome("…");
+  elements.endNextBiome.textContent = label;
+  elements.endNextBiome.setAttribute("aria-disabled", "true");
+}
+
+function setEndNextBiomeEnabled(biomeId: string, label: string): void {
+  elements.endNextBiome.hidden = false;
+  elements.endNextBiome.disabled = false;
+  elements.endNextBiome.dataset.biomeId = biomeId;
+  elements.endNextBiome.textContent = COPY.end.nextBiome(label);
+  elements.endNextBiome.setAttribute("aria-disabled", "false");
+}
+
+function hideEndNextBiome(): void {
+  // Overlay closed: drop out of the action row entirely.
+  elements.endNextBiome.hidden = true;
+  elements.endNextBiome.disabled = true;
+  elements.endNextBiome.dataset.biomeId = "";
+  elements.endNextBiome.textContent = COPY.end.nextRun;
+  elements.endNextBiome.setAttribute("aria-disabled", "true");
 }
 
 function revealEndNextBiomeAfterSave(): void {
   const moodId = forcedPlayMoodId ?? (dungeon ? resolveActiveMood(dungeon).id : null);
   if (!moodId) {
-    hideEndNextBiome();
+    setEndNextBiomeDisabled();
     return;
   }
   const nextId = nextBiomeId(moodId);
   if (!nextId) {
-    hideEndNextBiome();
+    setEndNextBiomeDisabled();
     // Final campaign step: keep the save status and note the end of the ramp.
     if (!elements.leaderboardSubmitStatus.textContent.includes("Final biome")) {
       elements.leaderboardSubmitStatus.textContent = [
@@ -2177,9 +2254,7 @@ function revealEndNextBiomeAfterSave(): void {
     return;
   }
   const label = getDungeonMood(nextId).label;
-  elements.endNextBiome.dataset.biomeId = nextId;
-  elements.endNextBiome.textContent = COPY.end.nextBiome(label);
-  elements.endNextBiome.hidden = false;
+  setEndNextBiomeEnabled(nextId, label);
   window.requestAnimationFrame(() => elements.endNextBiome.focus());
 }
 
@@ -2239,7 +2314,8 @@ function showEndOverlay(mode: "dead" | "won"): void {
       seed,
       dungeon?.stats.roomCount ?? 28,
     );
-    hideEndNextBiome();
+    // Visible but locked until Hall save unlocks the next campaign biome (if any).
+    setEndNextBiomeDisabled();
     elements.retry.hidden = true;
     elements.newDungeon.textContent = COPY.end.next;
   } else {
@@ -2252,7 +2328,7 @@ function showEndOverlay(mode: "dead" | "won"): void {
     elements.endLeaderboardForm.hidden = true;
     elements.endLeaderboardNote.hidden = true;
     elements.endLeaderboardNote.textContent = "";
-    hideEndNextBiome();
+    setEndNextBiomeDisabled();
     pendingLeaderboardSubmission = null;
     elements.retry.textContent = COPY.end.retry;
     elements.retry.hidden = false;
@@ -2424,7 +2500,10 @@ function activateDungeon(
   }
   updateReadout();
   toggleMap(mapExpanded);
-  setStatus(message);
+  // Players never need profile/renderer telemetry in the pause strip.
+  if (localDevTools) setStatus(message);
+  else if (engineMode === "play") setStatus(COPY.status.enterPlay);
+  else setStatus(message);
   startRendererWarmup(warmupSequence, message);
   if (persistBuild) {
     runHasStarted = true;
@@ -2446,7 +2525,7 @@ function buildDungeon(
   const normalizedSeed = seed.trim() || COPY.hud.seedDefault;
   const params = readEditorParams();
   try {
-    const generated = generateDungeon(normalizedSeed, {
+    const generated = generateCompletableDungeon(normalizedSeed, {
       roomTarget: params.roomTarget,
       extraConnectionRate: params.loopRate / 100,
       width: params.mapWidth,
@@ -2457,12 +2536,10 @@ function buildDungeon(
       roomPadding: params.roomPadding,
     });
     const mood = resolveActiveMood(generated);
-    return activateDungeon(
-      generated,
-      COPY.status.generation(params.profile, mood.label),
-      params,
-      options,
-    );
+    const statusMessage = localDevTools
+      ? COPY.status.generation(params.profile, mood.label)
+      : COPY.status.generationPlayer(mood.label);
+    return activateDungeon(generated, statusMessage, params, options);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Could not generate the dungeon.";
     setEditorSurfaceStatus("runtime", "PLAY MAP · GENERATION FAILED", "error");
@@ -3235,14 +3312,17 @@ window.addEventListener("message", (event) => {
     setEditorSurfaceStatus("runtime", "MAP PREVIEW · INVALID", "error");
   }
 });
+function syncAudioToggleUi(): void {
+  const muted = audio.isMuted;
+  setToggleValue(elements.audioToggle, !muted, COPY.hud.audioOn, COPY.hud.mute);
+  elements.audioToggle.title = muted ? "Unmute all audio" : "Mute all audio";
+}
+
 elements.audioToggle.addEventListener("click", () => {
   void audio.unlock().then(() => {
     const muted = audio.toggleMuted();
-    elements.audioToggle.setAttribute("aria-pressed", String(muted));
-    elements.audioToggle.classList.toggle("is-active", !muted);
-    elements.audioToggle.textContent = muted ? COPY.hud.mute : COPY.hud.audioOn;
-    // Global UI click wiring already plays uiToggle; only speak status here.
-    setStatus(muted ? "Audio muted." : "Audio on.");
+    syncAudioToggleUi();
+    setStatus(muted ? "Audio off." : "Audio on.");
   });
 });
 function onMusicToggleClick(): void {
@@ -3253,13 +3333,23 @@ function onMusicToggleClick(): void {
 }
 elements.musicToggle.addEventListener("click", onMusicToggleClick);
 elements.welcomeMusicToggle.addEventListener("click", onMusicToggleClick);
+function syncCrtToggleUi(): void {
+  elements.shell.classList.toggle("crt-off", !crtEnabled);
+  setToggleValue(elements.crtToggle, crtEnabled, COPY.hud.crtOn, COPY.hud.crtOff);
+  elements.crtToggle.title = crtEnabled ? "Turn CRT off" : "Turn CRT on";
+}
+
+// Apply capability default before first paint (toggle reflects Firefox/low-end path).
+povPost.setCrtEnabled(crtEnabled);
+syncCrtToggleUi();
+syncAudioToggleUi();
+
 elements.crtToggle.addEventListener("click", () => {
   crtEnabled = !crtEnabled;
+  crtManualOverride = true;
+  crtAutoDisabled = false;
   povPost.setCrtEnabled(crtEnabled);
-  elements.shell.classList.toggle("crt-off", !crtEnabled);
-  elements.crtToggle.setAttribute("aria-pressed", String(crtEnabled));
-  elements.crtToggle.classList.toggle("is-active", crtEnabled);
-  elements.crtToggle.textContent = crtEnabled ? COPY.hud.crtOn : COPY.hud.crtOff;
+  syncCrtToggleUi();
   setStatus(crtEnabled ? "CRT on." : "CRT off.");
 });
 elements.retry.addEventListener("click", () => {
@@ -3270,6 +3360,7 @@ elements.newDungeon.addEventListener("click", () => {
   buildDungeon();
 });
 elements.endNextBiome.addEventListener("click", () => {
+  if (elements.endNextBiome.disabled) return;
   const biomeId = parseDungeonMoodId(elements.endNextBiome.dataset.biomeId);
   if (!biomeId) return;
   startNewGameWithBiome(biomeId);
@@ -3588,6 +3679,27 @@ function frame(now: number): void {
     camera.quaternion.setFromEuler(cameraShakeEuler);
   }
   povPost.setEnabled(engineMode === "play");
+  // Auto-drop CRT when the frame budget is missed (Firefox especially). Manual
+  // toggle wins so players can force CRT back on after recovery.
+  if (!crtManualOverride && engineMode === "play") {
+    if (!crtAutoDisabled && crtEnabled && smoothedFrameMs >= renderCaps.adaptiveCrtDisableMs) {
+      crtAutoDisabled = true;
+      crtEnabled = false;
+      povPost.setCrtEnabled(false);
+      syncCrtToggleUi();
+    } else if (
+      crtAutoDisabled &&
+      !crtEnabled &&
+      smoothedFrameMs <= renderCaps.adaptiveCrtDisableMs - 8
+    ) {
+      crtAutoDisabled = false;
+      crtEnabled = renderCaps.enableCrtByDefault;
+      if (crtEnabled) {
+        povPost.setCrtEnabled(true);
+        syncCrtToggleUi();
+      }
+    }
+  }
   elements.shell.dataset.criticalHealth = String(criticalHealth.active);
   povPost.setParams(
     feel.curvature,
@@ -3763,7 +3875,7 @@ if (visualQaState) {
       document.fonts.ready.catch(() => undefined),
       preloadImage("/assets/ui/biome-screens/ancient-main.webp"),
       preloadImage(elements.endArt.src),
-      waitForRendererWarmup(8_000),
+      waitForRendererWarmup(renderCaps.skipShaderPrecompile ? 2_500 : 8_000),
     ]);
     await waitAnimationFrames(2);
     await dismissBootScreen();
@@ -3797,7 +3909,8 @@ if (visualQaState) {
     await Promise.all([
       document.fonts.ready.catch(() => undefined),
       preloadImage("/assets/ui/biome-screens/ancient-main.webp"),
-      waitForRendererWarmup(8_000),
+      // Firefox skips full precompile; do not hold the boot curtain for Chrome-length compiles.
+      waitForRendererWarmup(renderCaps.skipShaderPrecompile ? 2_500 : 8_000),
     ]);
     setBootProgress(0.96, "Opening the hall…");
     await waitAnimationFrames(2);
