@@ -4,6 +4,9 @@ export const LEADERBOARD_SCORE_VERSION = 1;
 export const PLAYER_NAME_MAX_LENGTH = 20;
 export const LEADERBOARD_DEFAULT_LIMIT = 8;
 export const LEADERBOARD_MAX_LIMIT = 50;
+/** Matches campaign generation floor (Ancient = 10 rooms; editor min target = 8). */
+export const LEADERBOARD_MIN_ROOM_COUNT = 8;
+export const LEADERBOARD_MAX_ROOM_COUNT = 80;
 
 const RUN_ID_PATTERN = /^[A-Za-z0-9_-]{8,80}$/;
 const PLAYER_NAME_PATTERN = /^[\p{L}\p{N}][\p{L}\p{N} ._'-]*$/u;
@@ -115,7 +118,10 @@ export function computeLeaderboardScore(input: {
 }): number {
   const durationSeconds = Math.max(1, input.durationMs / 1000);
   const difficulty = Math.min(1, Math.max(0, input.difficultyValue));
-  const rooms = Math.min(80, Math.max(12, input.roomCount));
+  const rooms = Math.min(
+    LEADERBOARD_MAX_ROOM_COUNT,
+    Math.max(LEADERBOARD_MIN_ROOM_COUNT, input.roomCount),
+  );
   const targetSeconds = 60 + rooms * 5;
   const paceFactor = Math.min(1.65, Math.max(0.35, targetSeconds / durationSeconds));
   const difficultyFactor = 0.75 + difficulty * 0.5;
@@ -171,7 +177,11 @@ export function parseLeaderboardSubmission(input: unknown): LeaderboardSubmissio
   if (difficultyValue === null || difficultyValue < 0 || difficultyValue > 1) {
     return { ok: false, code: "INVALID_DIFFICULTY", message: "Difficulty is invalid." };
   }
-  const roomCount = boundedInteger(data.roomCount, 12, 80);
+  const roomCount = boundedInteger(
+    data.roomCount,
+    LEADERBOARD_MIN_ROOM_COUNT,
+    LEADERBOARD_MAX_ROOM_COUNT,
+  );
   if (roomCount === null) {
     return { ok: false, code: "INVALID_MAP", message: "Map size is invalid." };
   }
