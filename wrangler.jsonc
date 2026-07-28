@@ -13,7 +13,14 @@
     {
       "binding": "LEADERBOARD_DB",
       "database_name": "dungeon-escape-leaderboard",
+      "database_id": "9c26bf98-e33a-471f-84a8-0582cf62c369",
       "migrations_dir": "./migrations",
+    },
+  ],
+  "routes": [
+    {
+      "pattern": "dungeon.gvaste.ar",
+      "custom_domain": true,
     },
   ],
   "observability": {
