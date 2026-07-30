@@ -271,14 +271,37 @@ describe("integrated dungeon lighting", () => {
     expect(materials.iron.metalness).toBeGreaterThan(0.35);
   });
 
-  test("portal-style volumetric beam is additive dithered shaft with strength uniform", () => {
+  test("world-space volumetric beam keeps the authored signal contract", () => {
     const beam = createVolumetricBeam(0xc88a51, 3, 0.7, 0.1);
-    expect(beam.name).toBe("Dithered volumetric beam");
+    expect(beam.name).toBe("World-space volumetric light shaft");
     expect(beam.material).toBeInstanceOf(THREE.ShaderMaterial);
     const mat = beam.material as THREE.ShaderMaterial;
     expect(mat.uniforms.uStrength.value).toBeCloseTo(0.1);
     expect(mat.blending).toBe(THREE.AdditiveBlending);
     expect(mat.toneMapped).toBe(false);
+    expect(mat.depthTest).toBe(true);
+    expect(mat.depthWrite).toBe(false);
+    expect(mat.fragmentShader).toContain("valueNoise3");
+    expect(mat.fragmentShader).not.toContain("gl_FragCoord");
+    expect(mat.vertexShader).toContain("vWorldPos");
+    expect(beam.userData.volumetricSpace).toBe("world");
+    expect(beam.userData.screenSpace).toBe(false);
+  });
+
+  test("ambient shafts opt into scene fog, tone mapping, and normal blending", () => {
+    const beam = createVolumetricBeam(0xc8c0b0, 4.2, 0.8, 0.1, {
+      role: "ambient",
+      blending: THREE.NormalBlending,
+      fog: true,
+      toneMapped: true,
+    });
+    const mat = beam.material as THREE.ShaderMaterial;
+    expect(mat.blending).toBe(THREE.NormalBlending);
+    expect(mat.fog).toBe(true);
+    expect(mat.toneMapped).toBe(true);
+    expect(beam.userData.beamRole).toBe("ambient");
+    expect(beam.userData.sourceRadius).toBeGreaterThan(0.04);
+    expect(beam.geometry.getAttribute("position").count).toBe(189);
   });
 
   test("wall torch keeps spherical halos and no forward light cone", () => {

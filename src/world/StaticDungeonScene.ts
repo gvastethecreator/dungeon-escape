@@ -1667,9 +1667,9 @@ export class StaticDungeonScene {
           ? 0.62
           : rewardKind === "mobility"
             ? 0.58
-        : rewardKind === "time-freeze" || rewardKind === "annihilation-pulse"
-          ? 0.54
-          : 0.52;
+            : rewardKind === "time-freeze" || rewardKind === "annihilation-pulse"
+              ? 0.54
+              : 0.52;
     const baseScale = new THREE.Vector3(rewardScale, rewardScale, rewardScale);
     const baseY = anchor.y + 0.08;
     item.position.set(anchor.x, baseY - 0.34, anchor.z);
@@ -2228,15 +2228,7 @@ export class StaticDungeonScene {
     core.userData.decorativeVfx = true;
     core.userData.preserveWarmCore = true;
 
-    const leanGeometry = createCurvedBrazierFlameGeometry(
-      0.043,
-      0.205,
-      6,
-      0.045,
-      0.03,
-      0.55,
-      0.66,
-    );
+    const leanGeometry = createCurvedBrazierFlameGeometry(0.043, 0.205, 6, 0.045, 0.03, 0.55, 0.66);
     const lean = new THREE.Mesh(
       leanGeometry,
       new THREE.MeshBasicMaterial({
@@ -2373,7 +2365,13 @@ export class StaticDungeonScene {
         color,
         this.wallHeight - 0.18,
         Math.min(0.92, Math.max(0.58, Math.min(room.width, room.height) * 0.12)),
-        0.065 + index * 0.012,
+        0.1 + index * 0.012,
+        {
+          role: "ambient",
+          blending: THREE.NormalBlending,
+          fog: true,
+          toneMapped: true,
+        },
       );
       beam.name = `Ambient godray ${index + 1}`;
       beam.position.set(
