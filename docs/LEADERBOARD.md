@@ -16,18 +16,21 @@
 
 ## Hall faces (portraits)
 
-- Each player name hashes to one of **72** grotesque pixel portraits (`src/leaderboard/portraits.ts`).
+- A fresh New Game profile starts with a random portrait. The saved avatar remains stable until the player changes it.
+- Legacy rows without a saved portrait still hash the player name to one of **72** grotesque pixel portraits (`src/leaderboard/portraits.ts`).
 - Seed prefix: `portrait-v4:` + lowercased trimmed name, FNV-1a via `hashSeed`, then modulo roster size.
 - Art pack: intentionally crude / acid-humor busts (sources under `assets-source/imagegen/portraits-v2-grotesque/`).
-- Same name always gets the same face across clients and reloads. Assets live under `public/assets/ui/portraits/`.
+- Saved profiles keep the same face across reloads. Runtime assets live under `public/assets/ui/portraits/`.
 - Frame overlays:
   - rank **1** gold
   - rank **2** silver
   - rank **3** bronze
   - rank **4+** wood
-- Frames: `public/assets/ui/portraits/frames/frame-{wood,gold,silver,bronze}.png` (transparent center).
+- Frames: `public/assets/ui/portraits/frames/frame-{wood,gold,silver,bronze}.webp` (transparent center).
 - Rebuild processed assets: `python scripts/process-leaderboard-portraits.py` after adding sources under `assets-source/imagegen/portraits-v1/` and `portrait-frames-v1/`.
 - Roster order is a public contract: append only, never reorder existing slugs.
+
+Campaign victories submit with the saved profile identity automatically. The existing `runId` is reused when a failed submission is retried, so a retry cannot create a second score.
 
 ## Local use
 
