@@ -10,7 +10,7 @@ describe("render capabilities", () => {
     expect(isFirefoxUserAgent("Mozilla/5.0 SeaMonkey/2.53")).toBe(false);
   });
 
-  test("Firefox profile disables CRT and precompile by default", () => {
+  test("Firefox profile disables CRT and uses the short readiness deadline by default", () => {
     const caps = detectRenderCapabilities({
       userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:153.0) Gecko/20100101 Firefox/153.0",
       hardwareConcurrency: 16,
@@ -18,12 +18,13 @@ describe("render capabilities", () => {
     });
     expect(caps.isFirefox).toBe(true);
     expect(caps.enableCrtByDefault).toBe(false);
-    expect(caps.skipShaderPrecompile).toBe(true);
+    expect(caps.telemetryPath).toBe("firefox");
+    expect(caps.rendererReadyTimeoutMs).toBe(2_500);
     expect(caps.preferDefaultGpu).toBe(true);
     expect(caps.pixelRatioCap).toBe(1);
   });
 
-  test("Chrome desktop keeps CRT and full precompile", () => {
+  test("Chrome desktop keeps CRT and the full readiness deadline", () => {
     const caps = detectRenderCapabilities({
       userAgent:
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36",
@@ -33,7 +34,8 @@ describe("render capabilities", () => {
     });
     expect(caps.isFirefox).toBe(false);
     expect(caps.enableCrtByDefault).toBe(true);
-    expect(caps.skipShaderPrecompile).toBe(false);
+    expect(caps.telemetryPath).toBe("default");
+    expect(caps.rendererReadyTimeoutMs).toBe(8_000);
     expect(caps.preferDefaultGpu).toBe(false);
     expect(caps.pixelRatioCap).toBe(1.25);
   });
@@ -50,6 +52,7 @@ describe("render capabilities", () => {
     expect(caps.isLowEnd).toBe(true);
     expect(caps.enableCrtByDefault).toBe(false);
     expect(caps.preferDefaultGpu).toBe(true);
+    expect(caps.telemetryPath).toBe("low-end");
   });
 
   test("query overrides force quality or safe render", () => {
@@ -58,7 +61,8 @@ describe("render capabilities", () => {
       hardwareConcurrency: 8,
       search: "?quality=1",
     });
-    expect(forced.skipShaderPrecompile).toBe(false);
+    expect(forced.telemetryPath).toBe("firefox");
+    expect(forced.rendererReadyTimeoutMs).toBe(8_000);
     expect(forced.enableCrtByDefault).toBe(true);
 
     const safe = detectRenderCapabilities({
@@ -68,7 +72,8 @@ describe("render capabilities", () => {
       deviceMemory: 16,
       search: "?safeRender=1",
     });
-    expect(safe.skipShaderPrecompile).toBe(true);
+    expect(safe.telemetryPath).toBe("safe");
+    expect(safe.rendererReadyTimeoutMs).toBe(2_500);
     expect(safe.enableCrtByDefault).toBe(false);
 
     const crtOff = detectRenderCapabilities({
@@ -89,7 +94,8 @@ describe("render capabilities", () => {
       overrides: { quality: null, crt: null, safeRender: null },
     });
 
-    expect(caps.skipShaderPrecompile).toBe(true);
+    expect(caps.telemetryPath).toBe("firefox");
+    expect(caps.rendererReadyTimeoutMs).toBe(2_500);
     expect(caps.enableCrtByDefault).toBe(false);
   });
 
@@ -99,10 +105,9 @@ describe("render capabilities", () => {
     const end = source.indexOf("\nfunction clearObjectiveBannerTimers", start);
     const warmup = source.slice(start, end);
 
-    expect(warmup).toContain("renderer.compile(scene, camera);");
-    expect(warmup).toContain("povPost.compileScene(renderer, scene, camera);");
     expect(warmup).toContain("povPost.render(renderer, scene, camera);");
-    expect(warmup).not.toContain("compileAsync(");
+    expect(warmup).not.toContain("renderer.compile(");
+    expect(warmup).not.toContain("compileScene(");
     expect(warmup).not.toContain("rendererWarmupQueue");
     expect(warmup).not.toContain("raceWithTimeout");
     expect(warmup).toContain("world.setPickupEffectsWarmupVisible(false);");

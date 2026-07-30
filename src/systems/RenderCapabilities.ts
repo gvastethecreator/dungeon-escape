@@ -1,6 +1,6 @@
 /**
  * Browser/device render path selection.
- * Firefox and low-end hosts choke on full shader precompile + CRT history passes.
+ * Firefox and low-end hosts choke on high-cost render profiles + CRT history passes.
  */
 
 import type { LaunchRenderOverrides } from "../launch/LaunchConfiguration";
@@ -14,11 +14,10 @@ export interface RenderCapabilityProfile {
   readonly enableCrtByDefault: boolean;
   /** Cap passed to resolveRenderPixelRatio. */
   readonly pixelRatioCap: number;
-  /**
-   * Skip explicit scene shader registration and only draw the warmup frame.
-   * Firefox shader registration can freeze the tab for too long.
-   */
-  readonly skipShaderPrecompile: boolean;
+  /** Public telemetry label for the selected browser/device render path. */
+  readonly telemetryPath: "firefox" | "low-end" | "safe" | "default";
+  /** Maximum Visual QA boot wait for the first live-world draw. */
+  readonly rendererReadyTimeoutMs: number;
   /** Soften grain/CRT motion cost when frames already miss budget. */
   readonly adaptiveCrtDisableMs: number;
 }
@@ -87,8 +86,16 @@ export function detectRenderCapabilities(
   if (forceCrt === true) enableCrtByDefault = true;
   if (forceCrt === false) enableCrtByDefault = false;
 
-  // High quality force: ?quality=1 keeps CRT/precompile even on Firefox.
+  // High quality force keeps quality caps and optional CRT even on Firefox.
   const highQuality = forceQuality === true && forceSafe !== true;
+  const shortWarmupDeadline = highQuality ? false : isFirefox || safeMode;
+  const telemetryPath = isFirefox
+    ? "firefox"
+    : isLowEnd
+      ? "low-end"
+      : shortWarmupDeadline
+        ? "safe"
+        : "default";
 
   return {
     isFirefox,
@@ -96,7 +103,8 @@ export function detectRenderCapabilities(
     preferDefaultGpu: treatAsConstrained && !highQuality,
     enableCrtByDefault: highQuality ? forceCrt !== false : enableCrtByDefault,
     pixelRatioCap: highQuality ? 1.25 : treatAsConstrained ? 1 : 1.25,
-    skipShaderPrecompile: highQuality ? false : isFirefox || safeMode,
+    telemetryPath,
+    rendererReadyTimeoutMs: shortWarmupDeadline ? 2_500 : 8_000,
     adaptiveCrtDisableMs: treatAsConstrained ? 28 : 36,
   };
 }

@@ -201,7 +201,7 @@ describe("GameAudio dungeon soundscape", () => {
     expect(main).toContain("audio.syncWorld(world.getAudioFrame())");
     expect(main).toContain("now - lastAudioFrameSync >= 125");
     expect(main).toContain("renderer.info.autoReset = false");
-    expect(main).toContain("renderer.compile(scene, camera)");
+    expect(main).not.toContain("renderer.compile(");
     expect(main).not.toContain("compileAsync(");
     expect(main).toContain("renderWarmupReady");
   });
