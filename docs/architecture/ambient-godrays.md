@@ -12,6 +12,7 @@ Ambient godrays are environment VFX. `StaticDungeonScene` places each shaft in a
 - An eight-sided, four-ring non-indexed shell with flat normals. Ambient geometry is deliberately polygonal; portal and stone signals retain their smoother profile.
 - Four authored density bands, 5-bit color quantization, and a 4x4 Bayer transition pattern sampled from local cylindrical UV. The shader must not sample `gl_FragCoord` for its body or dither.
 - `BackSide` rendering so one far shell describes the volume from outside and the containing surface remains visible when the camera enters it.
+- Local camera containment detection reduces shell alpha from inside the shaft. The fake volume must not become a full-screen color wash when the player crosses it.
 
 The local mesh origin is the ceiling source (`y = 0`); the beam descends along local `-Y`. `DungeonWorld.updateEffects` continues to advance `uTime` for the shared signal profile. Ambient Bayer cells stay fixed to local UV, so camera movement cannot make them swim across the shaft.
 
