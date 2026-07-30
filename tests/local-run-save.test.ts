@@ -123,47 +123,40 @@ describe("local dungeon continue save", () => {
     expect(readLocalRunSave(storage)).toBeNull();
   });
 
-  test("keeps the first changed-cell save deadline and flushes it when the page is hidden", async () => {
+  test("routes changed cells and browser lifecycle through the save coordinator", async () => {
     const source = await Bun.file(new URL("../src/main.ts", import.meta.url)).text();
-    const schedulerStart = source.indexOf("function scheduleLocalRunSave");
-    const schedulerEnd = source.indexOf("\n}\n\nfunction flushLocalRunSave", schedulerStart);
-    const flushStart = source.indexOf("function flushLocalRunSave(): void {");
-    const flushEnd = source.indexOf("\n}\n\nfunction flushLocalRunSaveWhenHidden", flushStart);
     const frameStart = source.indexOf("function frame(now: number): void {");
     const changedCellStart = source.indexOf("if (result.changedCell) {", frameStart);
     const changedCellEnd = source.indexOf("\n  } else if (now - lastMapDraw", changedCellStart);
 
-    expect(source).toContain("const LOCAL_RUN_SAVE_DELAY_MS = 1_000;");
-    expect(schedulerStart).toBeGreaterThanOrEqual(0);
-    expect(schedulerEnd).toBeGreaterThan(schedulerStart);
-    expect(source.slice(schedulerStart, schedulerEnd)).toContain(
-      "if (!runHasStarted || localSaveTimer !== null) return;",
-    );
-    expect(source.slice(schedulerStart, schedulerEnd)).not.toContain(
-      "clearTimeout(localSaveTimer);",
-    );
+    expect(source).toContain("const localRunSave = new LocalRunSaveCoordinator({");
+    expect(source).not.toContain("localSaveTimer");
+    expect(source).not.toContain("localSaveFailureNotified");
+    expect(source).not.toContain("function scheduleLocalRunSave");
     expect(frameStart).toBeGreaterThanOrEqual(0);
     expect(changedCellStart).toBeGreaterThan(frameStart);
     expect(changedCellEnd).toBeGreaterThan(changedCellStart);
-    expect(source.slice(changedCellStart, changedCellEnd)).toContain("scheduleLocalRunSave();");
-    expect(flushStart).toBeGreaterThan(schedulerEnd);
-    expect(flushEnd).toBeGreaterThan(flushStart);
-    expect(source.slice(flushStart, flushEnd)).toContain("if (runHasStarted) persistCurrentRun();");
-    expect(source).toContain('window.addEventListener("pagehide", flushLocalRunSave);');
+    expect(source.slice(changedCellStart, changedCellEnd)).toContain("localRunSave.schedule();");
+    expect(source).toContain('window.addEventListener("pagehide", () => localRunSave.flush());');
     expect(source).toContain(
       'document.addEventListener("visibilitychange", flushLocalRunSaveWhenHidden);',
     );
-    const pagehideStart = source.indexOf('window.addEventListener("pagehide", flushLocalRunSave);');
+    expect(source).toContain('if (document.visibilityState === "hidden") localRunSave.flush();');
+    const pagehideStart = source.indexOf(
+      'window.addEventListener("pagehide", () => localRunSave.flush());',
+    );
     const beforeUnloadStart = source.indexOf('window.addEventListener("beforeunload", () => {');
     expect(pagehideStart).toBeGreaterThanOrEqual(0);
     expect(beforeUnloadStart).toBeGreaterThan(pagehideStart);
     expect(source.slice(pagehideStart, beforeUnloadStart)).not.toContain(".dispose()");
+    expect(source.slice(beforeUnloadStart)).toContain("localRunSave.flush();");
+    expect(source.slice(beforeUnloadStart)).toContain("localRunSave.dispose();");
     expect(source).toContain("if (appDisposed) return;");
     expect(source).toContain("cancelAnimationFrame(animationFrameId);");
     expect([...source.matchAll(/renderer\.dispose\(\)/g)]).toHaveLength(1);
   });
 
-  test("latches local-save failure feedback until a later write succeeds", async () => {
+  test("keeps storage writes and user failure copy in host callbacks", async () => {
     const blockedStorage = {
       getItem: () => null,
       setItem: () => {
@@ -174,21 +167,18 @@ describe("local dungeon continue save", () => {
     expect(writeLocalRunSave(state(), blockedStorage, 42)).toBe(false);
 
     const source = await Bun.file(new URL("../src/main.ts", import.meta.url)).text();
-    const persistStart = source.indexOf("function persistCurrentRun(): void {");
-    const persistEnd = source.indexOf("\n}\n\nfunction scheduleLocalRunSave", persistStart);
-    const persistSource = source.slice(persistStart, persistEnd);
+    const coordinatorStart = source.indexOf("const localRunSave = new LocalRunSaveCoordinator({");
+    const coordinatorEnd = source.indexOf("\n});", coordinatorStart) + 4;
+    const coordinatorSource = source.slice(coordinatorStart, coordinatorEnd);
 
-    expect(persistStart).toBeGreaterThanOrEqual(0);
-    expect(persistEnd).toBeGreaterThan(persistStart);
-    expect(persistSource).toContain("const saved = writeLocalRunSave(");
-    expect(persistSource).toContain(
-      "if (saved) {\n    localSaveFailureNotified = false;\n    return;",
+    expect(coordinatorStart).toBeGreaterThanOrEqual(0);
+    expect(coordinatorEnd).toBeGreaterThan(coordinatorStart);
+    expect(source).toContain("return writeLocalRunSave(");
+    expect(coordinatorSource).toContain("isActive: () => runHasStarted");
+    expect(coordinatorSource).toContain("persist: persistCurrentRun");
+    expect(coordinatorSource).toContain(
+      'setStatus("Could not save this run locally. Continue may not be available.")',
     );
-    expect(persistSource).toContain("if (localSaveFailureNotified) return;");
-    expect(persistSource).toContain("localSaveFailureNotified = true;");
-    expect(persistSource).toContain(
-      'setStatus("Could not save this run locally. Continue may not be available.");',
-    );
-    expect([...persistSource.matchAll(/setStatus\(/g)]).toHaveLength(1);
+    expect([...coordinatorSource.matchAll(/setStatus\(/g)]).toHaveLength(1);
   });
 });
