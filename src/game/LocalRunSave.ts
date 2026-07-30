@@ -1,9 +1,14 @@
 import type { DungeonDomainState } from "../domain/bridge";
+import { ANNIHILATION_PULSE_DURATION_SECONDS } from "./AnnihilationPulse";
+import { LUMINOUS_WARD_DURATION_SECONDS } from "./LuminousWard";
+import { MOBILITY_BOOST_DURATION_SECONDS } from "./MobilityBoost";
 import { isRunSource, type RunSource } from "./RunSource";
+import { TIME_FREEZE_DURATION_SECONDS } from "./TimeFreeze";
 import { STONE_ORDER, type StoneId } from "../ui/copy";
 
 export const LOCAL_RUN_SAVE_KEY = "blackflag.dungeon.run.v1";
-export const LOCAL_RUN_SAVE_VERSION = 3 as const;
+export const LOCAL_RUN_SAVE_VERSION = 4 as const;
+export type CustomMapKind = "procedural" | "forge";
 
 /** Player + clock fields that domain session sync does not carry. */
 export interface LocalRunResumeState {
@@ -42,7 +47,7 @@ export interface LocalRunResumeState {
 }
 
 export interface LocalRunSave {
-  version: 1 | 2 | typeof LOCAL_RUN_SAVE_VERSION;
+  version: 1 | 2 | 3 | typeof LOCAL_RUN_SAVE_VERSION;
   savedAt: number;
   state: DungeonDomainState;
   /** Present on v2 saves; missing on older item-only continues. */
@@ -52,6 +57,8 @@ export interface LocalRunSave {
    * Missing on older saves → treated as campaign for continue compatibility.
    */
   runSource?: RunSource;
+  /** v4 distinguishes reproducible custom seeds from session-only Forge imports. */
+  customMapKind?: CustomMapKind;
 }
 
 type StoragePort = Pick<Storage, "getItem" | "setItem" | "removeItem">;
@@ -74,6 +81,10 @@ const NUMBER_FIELDS = [
   "exploredCells",
   "resolve",
 ] as const satisfies readonly (keyof DungeonDomainState)[];
+
+// Reject corrupt/exploit-sized payloads without imposing a gameplay duration policy.
+const MAX_RESUME_SECONDS = 1_000_000_000;
+const MAX_RESUME_DISTANCE_M = 1_000_000;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
@@ -107,13 +118,35 @@ function isDungeonDomainState(value: unknown): value is DungeonDomainState {
 
 function isLocalRunResumeState(value: unknown): value is LocalRunResumeState {
   if (!isRecord(value)) return false;
-  if (!isFiniteNumber(value.runSeconds) || value.runSeconds < 0) return false;
-  if (!isFiniteNumber(value.difficultyElapsed) || value.difficultyElapsed < 0) return false;
-  if (!isFiniteNumber(value.timeFreezeRemaining) || value.timeFreezeRemaining < 0) return false;
-  if (!isFiniteNumber(value.luminousWardRemaining) || value.luminousWardRemaining < 0) return false;
+  if (
+    !isFiniteNumber(value.runSeconds) ||
+    value.runSeconds < 0 ||
+    value.runSeconds > MAX_RESUME_SECONDS
+  )
+    return false;
+  if (
+    !isFiniteNumber(value.difficultyElapsed) ||
+    value.difficultyElapsed < 0 ||
+    value.difficultyElapsed > MAX_RESUME_SECONDS
+  )
+    return false;
+  if (
+    !isFiniteNumber(value.timeFreezeRemaining) ||
+    value.timeFreezeRemaining < 0 ||
+    value.timeFreezeRemaining > TIME_FREEZE_DURATION_SECONDS
+  )
+    return false;
+  if (
+    !isFiniteNumber(value.luminousWardRemaining) ||
+    value.luminousWardRemaining < 0 ||
+    value.luminousWardRemaining > LUMINOUS_WARD_DURATION_SECONDS
+  )
+    return false;
   if (
     value.annihilationPulseRemaining !== undefined &&
-    (!isFiniteNumber(value.annihilationPulseRemaining) || value.annihilationPulseRemaining < 0)
+    (!isFiniteNumber(value.annihilationPulseRemaining) ||
+      value.annihilationPulseRemaining < 0 ||
+      value.annihilationPulseRemaining > ANNIHILATION_PULSE_DURATION_SECONDS)
   )
     return false;
   if (
@@ -145,7 +178,9 @@ function isLocalRunResumeState(value: unknown): value is LocalRunResumeState {
   if (value.mapRevealed !== undefined && typeof value.mapRevealed !== "boolean") return false;
   if (
     value.mobilityBoostRemaining !== undefined &&
-    (!isFiniteNumber(value.mobilityBoostRemaining) || value.mobilityBoostRemaining < 0)
+    (!isFiniteNumber(value.mobilityBoostRemaining) ||
+      value.mobilityBoostRemaining < 0 ||
+      value.mobilityBoostRemaining > MOBILITY_BOOST_DURATION_SECONDS)
   )
     return false;
   if (!Array.isArray(value.visitedCells)) return false;
@@ -170,13 +205,15 @@ function isLocalRunResumeState(value: unknown): value is LocalRunResumeState {
   ) {
     return false;
   }
-  if (distanceTravelled < 0) return false;
+  if ([x, y, z].some((coordinate) => Math.abs(coordinate) > 1_000_000)) return false;
+  if (Math.abs(yaw) > 1_000_000 || Math.abs(pitch) > 1_000_000) return false;
+  if (distanceTravelled < 0 || distanceTravelled > MAX_RESUME_DISTANCE_M) return false;
   if (value.perStoneSeconds !== undefined) {
     if (!isRecord(value.perStoneSeconds)) return false;
     const validStones = new Set<StoneId>(STONE_ORDER);
     for (const [id, seconds] of Object.entries(value.perStoneSeconds)) {
       if (!validStones.has(id as StoneId)) return false;
-      if (!isFiniteNumber(seconds) || seconds < 0) return false;
+      if (!isFiniteNumber(seconds) || seconds < 0 || seconds > MAX_RESUME_SECONDS) return false;
     }
   }
   return true;
@@ -189,7 +226,12 @@ export function readLocalRunSave(storage: StoragePort = localStorage): LocalRunS
     const parsed = JSON.parse(raw) as unknown;
     if (!isRecord(parsed) || typeof parsed.savedAt !== "number") return null;
     if (!Number.isFinite(parsed.savedAt) || !isDungeonDomainState(parsed.state)) return null;
-    if (parsed.version !== 1 && parsed.version !== 2 && parsed.version !== LOCAL_RUN_SAVE_VERSION)
+    if (
+      parsed.version !== 1 &&
+      parsed.version !== 2 &&
+      parsed.version !== 3 &&
+      parsed.version !== LOCAL_RUN_SAVE_VERSION
+    )
       return null;
     const resume =
       parsed.resume === undefined
@@ -199,12 +241,17 @@ export function readLocalRunSave(storage: StoragePort = localStorage): LocalRunS
           : null;
     if (resume === null) return null;
     const runSource = isRunSource(parsed.runSource) ? parsed.runSource : undefined;
+    const customMapKind =
+      parsed.customMapKind === "procedural" || parsed.customMapKind === "forge"
+        ? parsed.customMapKind
+        : undefined;
     return {
       version: parsed.version,
       savedAt: parsed.savedAt,
       state: parsed.state,
       resume,
       ...(runSource ? { runSource } : {}),
+      ...(customMapKind ? { customMapKind } : {}),
     };
   } catch {
     return null;
@@ -217,6 +264,7 @@ export function writeLocalRunSave(
   savedAt = Date.now(),
   resume?: LocalRunResumeState,
   runSource?: RunSource,
+  customMapKind?: CustomMapKind,
 ): boolean {
   try {
     const save: LocalRunSave = {
@@ -225,6 +273,7 @@ export function writeLocalRunSave(
       state,
       ...(resume ? { resume } : {}),
       ...(runSource ? { runSource } : {}),
+      ...(runSource === "custom" && customMapKind ? { customMapKind } : {}),
     };
     storage.setItem(LOCAL_RUN_SAVE_KEY, JSON.stringify(save));
     return true;
@@ -247,7 +296,9 @@ export function clearLocalRunSave(storage: StoragePort = localStorage): void {
 }
 
 export function canContinueLocalRun(save: LocalRunSave | null): save is LocalRunSave {
-  return Boolean(save && canContinueDomainRun(save.state));
+  if (!save || !canContinueDomainRun(save.state)) return false;
+  if (save.runSource === "custom") return save.customMapKind === "procedural";
+  return true;
 }
 
 export function canContinueDomainRun(

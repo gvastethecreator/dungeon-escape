@@ -54,6 +54,8 @@ interface LoadWaiter {
 }
 
 interface ActivePresentation {
+  readonly presentationId: number;
+  readonly acceptLegacyCompletion: boolean;
   readonly session: ForgePresentationSession;
   readonly settle: (result: ForgeAnimationResult) => void;
   supersede(): void;
@@ -82,6 +84,8 @@ export class ForgeFrameClient {
   #postedVisibility: boolean | null = null;
   #pendingProceduralSeed: number | null = null;
   #activePresentation: ActivePresentation | null = null;
+  #nextPresentationId = 1;
+  #legacyCompletionSafe = true;
 
   constructor(port: ForgeFramePort, clock: ForgeFrameClock = SYSTEM_CLOCK) {
     this.#port = port;
@@ -114,6 +118,15 @@ export class ForgeFrameClient {
           this.#clock.clearTimeout(timer);
           options.signal?.removeEventListener("abort", abort);
           this.#loadWaiters.delete(waiter);
+          if (
+            (loadResult === "timeout" || loadResult === "aborted") &&
+            this.#state === "loading" &&
+            this.#loadWaiters.size === 0
+          ) {
+            // A navigation that never loaded must not poison every later try.
+            // A late load remains valid and will promote this state to loaded.
+            this.#state = "unmounted";
+          }
           resolve(loadResult);
         },
       };
@@ -160,6 +173,9 @@ export class ForgeFrameClient {
 
     this.#activePresentation?.supersede();
     this.setVisible(true);
+    const presentationId = this.#nextPresentationId;
+    this.#nextPresentationId =
+      presentationId === Number.MAX_SAFE_INTEGER ? 1 : presentationId + 1;
 
     let settleCompletion: (result: ForgeAnimationResult) => void = () => undefined;
     let detachAbort = (): void => undefined;
@@ -173,6 +189,9 @@ export class ForgeFrameClient {
       settleCompletion = (result) => {
         if (settled) return;
         settled = true;
+        // An uncorrelated v1 completion is safe only for the first presentation.
+        // Once any session settles, a later legacy message could be a duplicate.
+        this.#legacyCompletionSafe = false;
         this.#clock.clearTimeout(timer);
         detachAbort();
         resolve(result);
@@ -187,10 +206,12 @@ export class ForgeFrameClient {
         if (this.#activePresentation?.session !== session) return;
         settleCompletion("cancelled");
         this.#activePresentation = null;
-        this.#postPresentationEnd();
+        this.#postPresentationEnd(presentationId);
       },
     };
     const active: ActivePresentation = {
+      presentationId,
+      acceptLegacyCompletion: this.#legacyCompletionSafe,
       session,
       settle: settleCompletion,
       supersede: () => {
@@ -210,9 +231,9 @@ export class ForgeFrameClient {
 
     if (options.signal?.aborted) return { ok: false, reason: "aborted" };
 
-    if (!this.#port.post(forgePresentationMessage(true, options.presentation))) {
+    if (!this.#port.post(forgePresentationMessage(true, options.presentation, presentationId))) {
       active.supersede();
-      this.#postPresentationEnd();
+      this.#postPresentationEnd(presentationId);
       return { ok: false, reason: "post-failed" };
     }
     return { ok: true, session };
@@ -223,7 +244,7 @@ export class ForgeFrameClient {
     if (!active) return;
     active.settle("cancelled");
     this.#activePresentation = null;
-    this.#postPresentationEnd();
+    this.#postPresentationEnd(active.presentationId);
   }
 
   onTrustedMessage(listener: (data: unknown) => void): () => void {
@@ -266,7 +287,14 @@ export class ForgeFrameClient {
     const source = this.#port.currentSource();
     if (source === null || source === undefined || event.source !== source) return;
     if (isForgeAnimationCompleteMessage(event.data)) {
-      this.#activePresentation?.settle("completed");
+      const active = this.#activePresentation;
+      if (
+        active &&
+        (active.presentationId === event.data.presentationId ||
+          (event.data.presentationId === undefined && active.acceptLegacyCompletion))
+      ) {
+        active.settle("completed");
+      }
       return;
     }
     for (const listener of this.#trustedMessageListeners) listener(event.data);
@@ -284,9 +312,9 @@ export class ForgeFrameClient {
     this.#postedVisibility = this.#desiredVisibility;
   }
 
-  #postPresentationEnd(): void {
+  #postPresentationEnd(presentationId: number): void {
     if (this.#state !== "loaded") return;
-    this.#port.post(forgePresentationMessage(false, { animate: false }));
+    this.#port.post(forgePresentationMessage(false, { animate: false }, presentationId));
     this.setVisible(false);
   }
 

@@ -23,11 +23,18 @@ export class ThreeResourceDisposer {
         : mesh.material
           ? [mesh.material]
           : [];
-      for (const material of materials) {
-        if (material.userData.sharedDungeonMaterial || this.materials.has(material)) continue;
-        this.materials.add(material);
-        material.dispose();
-      }
+      for (const material of materials) this.#disposeMaterial(material, false);
     });
+  }
+
+  /** Dispose an explicitly owned cache entry through the same ledger as mounted roots. */
+  disposeOwnedMaterial(material: THREE.Material): void {
+    this.#disposeMaterial(material, true);
+  }
+
+  #disposeMaterial(material: THREE.Material, owned: boolean): void {
+    if ((!owned && material.userData.sharedDungeonMaterial) || this.materials.has(material)) return;
+    this.materials.add(material);
+    material.dispose();
   }
 }

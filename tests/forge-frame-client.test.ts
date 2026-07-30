@@ -150,7 +150,7 @@ describe("Forge frame client", () => {
     expect(clock.pending.size).toBe(0);
   });
 
-  test("load timeout does not poison a later load and disposal settles every waiter", async () => {
+  test("load timeout remounts on retry and disposal settles every waiter", async () => {
     const clock = new FakeClock();
     const port = new FakeForgeFramePort();
     const client = new ForgeFrameClient(port, clock);
@@ -160,8 +160,10 @@ describe("Forge frame client", () => {
     expect(await timedOut).toBe("timeout");
     expect(clock.pending.size).toBe(0);
 
+    const retried = client.ensureLoaded({ timeoutMs: 80 });
+    expect(port.mounts).toHaveLength(2);
     port.emitLoad();
-    expect(await client.ensureLoaded()).toBe("loaded");
+    expect(await retried).toBe("loaded");
 
     const pendingPort = new FakeForgeFramePort();
     const pendingClient = new ForgeFrameClient(pendingPort, clock);
@@ -211,6 +213,7 @@ describe("Forge frame client", () => {
       {
         type: "black-flag:forge-presentation",
         version: 1,
+        presentationId: 1,
         enabled: false,
         animate: false,
         seed: undefined,
@@ -236,11 +239,11 @@ describe("Forge frame client", () => {
     port.emitMessage(hostileDungeon, { origin: "https://hostile.test" });
     port.emitMessage(hostileDungeon, { source: { stale: true } });
     port.emitMessage(
-      { type: "black-flag:forge-anim-complete", version: 1 },
+      { type: "black-flag:forge-anim-complete", version: 1, presentationId: 1 },
       { origin: "https://hostile.test" },
     );
     port.emitMessage(
-      { type: "black-flag:forge-anim-complete", version: 1 },
+      { type: "black-flag:forge-anim-complete", version: 1, presentationId: 1 },
       { source: { stale: true } },
     );
     expect(trusted).toEqual([]);
@@ -248,7 +251,7 @@ describe("Forge frame client", () => {
 
     port.emitMessage(hostileDungeon);
     expect(trusted).toEqual([hostileDungeon]);
-    port.emitMessage({ type: "black-flag:forge-anim-complete", version: 1 });
+    port.emitMessage({ type: "black-flag:forge-anim-complete", version: 1, presentationId: 1 });
     expect(await started.session.completion).toBe("completed");
     expect(clock.pending.size).toBe(0);
   });
@@ -267,6 +270,7 @@ describe("Forge frame client", () => {
       {
         type: "black-flag:forge-presentation",
         version: 1,
+        presentationId: 1,
         enabled: true,
         animate: true,
         seed: 42,
@@ -275,7 +279,7 @@ describe("Forge frame client", () => {
       },
     ]);
 
-    port.emitMessage({ type: "black-flag:forge-anim-complete", version: 1 });
+    port.emitMessage({ type: "black-flag:forge-anim-complete", version: 1, presentationId: 1 });
     expect(await started.session.completion).toBe("completed");
     started.session.stop();
     started.session.stop();
@@ -283,6 +287,7 @@ describe("Forge frame client", () => {
       {
         type: "black-flag:forge-presentation",
         version: 1,
+        presentationId: 1,
         enabled: false,
         animate: false,
         seed: undefined,
@@ -297,7 +302,11 @@ describe("Forge frame client", () => {
     const { client, port } = await makeLoadedClient();
     port.onPost = (message) => {
       if (message.type === "black-flag:forge-presentation" && message.enabled) {
-        port.emitMessage({ type: "black-flag:forge-anim-complete", version: 1 });
+        port.emitMessage({
+          type: "black-flag:forge-anim-complete",
+          version: 1,
+          presentationId: message.presentationId,
+        });
       }
     };
     const started = await client.startPresentation({
@@ -307,6 +316,28 @@ describe("Forge frame client", () => {
     expect(started.ok).toBe(true);
     if (!started.ok) throw new Error("presentation did not start");
     expect(await started.session.completion).toBe("completed");
+  });
+
+  test("accepts one uncorrelated completion from a legacy v1 frame", async () => {
+    const { client, clock, port } = await makeLoadedClient();
+    const started = await client.startPresentation({
+      presentation: { animate: true },
+      completionTimeoutMs: 800,
+    });
+    if (!started.ok) throw new Error("presentation did not start");
+
+    port.emitMessage({ type: "black-flag:forge-anim-complete", version: 1 });
+    expect(await started.session.completion).toBe("completed");
+
+    const next = await client.startPresentation({
+      presentation: { animate: true },
+      completionTimeoutMs: 900,
+    });
+    if (!next.ok) throw new Error("presentation did not start");
+    port.emitMessage({ type: "black-flag:forge-anim-complete", version: 1 });
+    expect(clock.pending.size).toBe(1);
+    port.emitMessage({ type: "black-flag:forge-anim-complete", version: 1, presentationId: 2 });
+    expect(await next.session.completion).toBe("completed");
   });
 
   test("settles supersede, timeout, cancel, and dispose without leaked timers", async () => {
@@ -347,6 +378,28 @@ describe("Forge frame client", () => {
     expect(clock.pending.size).toBe(0);
     disposed.session.stop();
     expect(port.messages).toHaveLength(messageCount);
+  });
+
+  test("ignores a late completion from a superseded presentation", async () => {
+    const { client, clock, port } = await makeLoadedClient();
+    const first = await client.startPresentation({
+      presentation: { animate: false, seed: 1 },
+      completionTimeoutMs: 100,
+    });
+    const second = await client.startPresentation({
+      presentation: { animate: true, seed: 2 },
+      completionTimeoutMs: 200,
+    });
+    if (!first.ok || !second.ok) throw new Error("presentation did not start");
+
+    expect(await first.session.completion).toBe("superseded");
+    port.emitMessage({ type: "black-flag:forge-anim-complete", version: 1 });
+    expect(clock.pending.size).toBe(1);
+    port.emitMessage({ type: "black-flag:forge-anim-complete", version: 1, presentationId: 1 });
+    expect(clock.pending.size).toBe(1);
+    port.emitMessage({ type: "black-flag:forge-anim-complete", version: 1, presentationId: 2 });
+    expect(await second.session.completion).toBe("completed");
+    expect(clock.pending.size).toBe(0);
   });
 
   test("fails closed when the current frame cannot receive presentation", async () => {

@@ -36,6 +36,20 @@ export interface RenderCapabilityInput {
   overrides?: LaunchRenderOverrides;
 }
 
+/** Serializes renderer work that cannot be cancelled by the browser once started. */
+export class SerialRenderWorkQueue {
+  #tail: Promise<void> = Promise.resolve();
+
+  run<T>(work: () => Promise<T>): Promise<T> {
+    const result = this.#tail.then(work, work);
+    this.#tail = result.then(
+      () => undefined,
+      () => undefined,
+    );
+    return result;
+  }
+}
+
 function readQueryFlag(search: string, key: string): boolean | null {
   try {
     const params = new URLSearchParams(search.startsWith("?") ? search.slice(1) : search);

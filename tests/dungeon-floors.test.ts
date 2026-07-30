@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { readFileSync } from "node:fs";
 
 import { generateDungeonFloorSet } from "../src/dungeon/generateDungeonFloors";
 
@@ -32,5 +33,25 @@ describe("multi-floor dungeon generation", () => {
   test("clamps the floor count to the supported campaign range", () => {
     expect(generateDungeonFloorSet("ONE", {}, 0).floors).toHaveLength(1);
     expect(generateDungeonFloorSet("MANY", {}, 99).floors).toHaveLength(4);
+  });
+
+  test("floor-transition host keeps one save owner and explicit failure recovery branches", () => {
+    const source = readFileSync("src/main.ts", "utf8");
+    const start = source.indexOf("async function transitionCampaignFloor(");
+    const end = source.indexOf("\nfunction descendFloor", start);
+    const transition = source.slice(start, end);
+
+    expect(start).toBeGreaterThanOrEqual(0);
+    expect(end).toBeGreaterThan(start);
+    expect(transition).toContain("transitionFailed = true;");
+    expect(transition).toContain("const floorCheckpointSaved = localRunSave.flush();");
+    expect(transition).not.toContain("writeLocalRunSave(");
+    expect(transition).toContain("if (dungeon === targetDungeon)");
+    expect(transition).toContain("setWelcomeOpen(true);");
+    expect(transition).toContain("{ resume, runSource }");
+    expect(transition).toContain('" Local save unavailable."');
+    expect(transition).toContain("floorTransitionPending = false;");
+    expect(transition).toContain("controller.setEnabled(canEnablePlayController());");
+    expect(transition).toContain("if (transitionFailed) throw transitionError;");
   });
 });

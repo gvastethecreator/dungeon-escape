@@ -1,6 +1,7 @@
 import * as THREE from "three";
 
 import {
+  canOccupy,
   feetClearColliderTop,
   gridToWorld,
   moveWithCollision,
@@ -96,6 +97,59 @@ export interface ControllerPose {
   yaw: number;
   pitch: number;
   distanceTravelled?: number;
+}
+
+interface RestorablePoseOptions {
+  readonly tileSize: number;
+  readonly eyeHeight: number;
+  readonly radius: number;
+  readonly headClearance: number;
+  readonly isBlockedCell?: (cell: GridCell) => boolean;
+  readonly colliders?: readonly WorldCollider[];
+}
+
+export function resolveRestorableControllerPose(
+  dungeon: DungeonData,
+  pose: ControllerPose,
+  options: RestorablePoseOptions,
+): Required<ControllerPose> | null {
+  const distanceTravelled = pose.distanceTravelled ?? 0;
+  if (
+    ![pose.x, pose.y, pose.z, pose.yaw, pose.pitch, distanceTravelled].every(Number.isFinite) ||
+    distanceTravelled < 0 ||
+    distanceTravelled > 1_000_000
+  ) {
+    return null;
+  }
+  if (Math.abs(pose.y) > 1_000_000) return null;
+  // Saves do not carry vertical velocity/grounded state. Resume on the floor
+  // instead of freezing a mid-jump camera at an unsupported height.
+  const restoredY = options.eyeHeight;
+  const verticalRange = {
+    minY: 0.08,
+    maxY: restoredY + options.headClearance,
+  };
+  if (
+    !canOccupy(
+      dungeon,
+      pose,
+      options.tileSize,
+      options.radius,
+      options.isBlockedCell,
+      options.colliders,
+      verticalRange,
+    )
+  ) {
+    return null;
+  }
+  return {
+    x: pose.x,
+    y: restoredY,
+    z: pose.z,
+    yaw: Math.atan2(Math.sin(pose.yaw), Math.cos(pose.yaw)),
+    pitch: THREE.MathUtils.clamp(pose.pitch, -MAX_LOOK_PITCH, MAX_LOOK_PITCH),
+    distanceTravelled,
+  };
 }
 
 export interface ControllerUpdate {
@@ -314,21 +368,28 @@ export class FirstPersonController {
    * Place the player at a saved pose after setDungeon. Keeps dungeon collision
    * bindings; only body, look, and distance resume.
    */
-  restorePose(pose: ControllerPose): void {
-    if (!this.dungeon) return;
-    const pitch = THREE.MathUtils.clamp(pose.pitch, -MAX_LOOK_PITCH, MAX_LOOK_PITCH);
-    const y = Number.isFinite(pose.y) ? pose.y : this.eyeHeight;
-    this.position.set(pose.x, y, pose.z);
+  restorePose(pose: ControllerPose): boolean {
+    if (!this.dungeon) return false;
+    const restored = resolveRestorableControllerPose(this.dungeon, pose, {
+      tileSize: this.tileSize,
+      eyeHeight: this.eyeHeight,
+      radius: this.radius,
+      headClearance: this.verticalConfig.headClearance,
+      isBlockedCell: this.isBlockedCell,
+      colliders: this.solidColliders,
+    });
+    if (!restored) return false;
+    this.position.set(restored.x, restored.y, restored.z);
     this.velocity.set(0, 0);
     this.knockVel.set(0, 0);
     this.vaultedColliderIds.clear();
-    resetVerticalMotion(this.verticalState, y);
+    resetVerticalMotion(this.verticalState, restored.y);
     this.landingDip = 0;
-    this.distanceTravelled = Math.max(0, pose.distanceTravelled ?? 0);
-    this.lookYaw = pose.yaw;
-    this.lookPitch = pitch;
-    this.targetYaw = pose.yaw;
-    this.targetPitch = pitch;
+    this.distanceTravelled = restored.distanceTravelled;
+    this.lookYaw = restored.yaw;
+    this.lookPitch = restored.pitch;
+    this.targetYaw = restored.yaw;
+    this.targetPitch = restored.pitch;
     this.stridePhase = 0;
     this.strideDistance = 0;
     this.strafeLean = 0;
@@ -339,6 +400,7 @@ export class FirstPersonController {
     this.euler.set(this.lookPitch, this.lookYaw, 0, "YXZ");
     this.camera.quaternion.setFromEuler(this.euler);
     this.syncCameraPosition();
+    return true;
   }
 
   setBlockedCells(cells: readonly GridCell[]): void {

@@ -513,8 +513,12 @@ export class StaticDungeonScene {
       this.group.remove(root);
       resourceDisposer.dispose(root);
     }
-    for (const material of this.biomeWallDecalMaterials.values()) material.dispose();
-    for (const material of this.biomeFloorSpriteMaterials.values()) material.dispose();
+    for (const material of this.biomeWallDecalMaterials.values()) {
+      resourceDisposer.disposeOwnedMaterial(material);
+    }
+    for (const material of this.biomeFloorSpriteMaterials.values()) {
+      resourceDisposer.disposeOwnedMaterial(material);
+    }
     this.biomeWallDecalMaterials.clear();
     this.biomeFloorSpriteMaterials.clear();
     expired.doors.length = 0;
