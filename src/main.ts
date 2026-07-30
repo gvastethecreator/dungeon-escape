@@ -1424,15 +1424,8 @@ function startRendererWarmup(sequence: number, readyMessage: string): void {
     let warmupError: unknown = null;
     world.setPickupEffectsWarmupVisible(true);
     try {
-      // Firefox and safe mode skip explicit scene registration. The warmup draw
-      // still links only the live scene and stable post-FX materials.
-      if (!renderCaps.skipShaderPrecompile) {
-        // Three's async compiler polls WebGLProgram objects after returning.
-        // A replacement can dispose those programs, so replaceable world work
-        // must remain synchronous on the browser's single renderer thread.
-        renderer.compile(scene, camera);
-        povPost.compileScene(renderer, scene, camera);
-      }
+      // Draw only the live frame. Explicit scene precompile also registers
+      // offscreen variants whose program handles can outlive a replaced world.
       povPost.render(renderer, scene, camera);
     } catch (error) {
       warmupError = error;
@@ -1457,13 +1450,7 @@ function startRendererWarmup(sequence: number, readyMessage: string): void {
       return;
     }
 
-    elements.shell.dataset.renderPath = renderCaps.isFirefox
-      ? "firefox"
-      : renderCaps.isLowEnd
-        ? "low-end"
-        : renderCaps.skipShaderPrecompile
-          ? "safe"
-          : "default";
+    elements.shell.dataset.renderPath = renderCaps.telemetryPath;
     const readyMs = Math.round(performance.now() - startedAt);
     if (localDevTools) {
       setStatus(`${readyMessage} Renderer ready in ${readyMs}ms.`);
@@ -4210,7 +4197,7 @@ if (visualQaState) {
       document.fonts.ready.catch(() => undefined),
       preloadImage("/assets/ui/biome-screens/ancient-main.webp"),
       preloadImage(elements.endArt.src),
-      waitForRendererWarmup(renderCaps.skipShaderPrecompile ? 2_500 : 8_000),
+      waitForRendererWarmup(renderCaps.rendererReadyTimeoutMs),
     ]);
     await waitAnimationFrames(2);
     await dismissBootScreen();
