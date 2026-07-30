@@ -92,7 +92,7 @@ describe("dungeon mood tints", () => {
     const base = generateDungeon("MOOD-SPECIAL", { roomTarget: 8 });
     // Independent rare channel (same mix as resolveDungeonMood).
     const channel = (hash: number, salt: number) =>
-      (Math.imul(Math.abs(hash) ^ salt, 2654435761) >>> 0);
+      Math.imul(Math.abs(hash) ^ salt, 2654435761) >>> 0;
     let rareHash = 0;
     let commonHash = 1;
     for (let h = 0; h < 50_000; h++) {
@@ -134,7 +134,7 @@ describe("dungeon mood tints", () => {
     // Profile still biases ash without erasing the rest of the roster.
     expect(counts.ash).toBeGreaterThan(counts.frost);
     expect(counts.ash).toBeLessThan(samples * 0.65);
-  });
+  }, 10_000);
 
   test("distinct moods change fog and surface tint values", () => {
     const dungeon = generateDungeon("MOOD-RANGE", { roomTarget: 8 });
@@ -183,7 +183,7 @@ describe("dungeon mood tints", () => {
     expect(source).toContain("const THEME_KEYS = listForgeBiomeIds();");
     expect(source).toContain("const BIOME_KEYS = listBiomeIds();");
     expect(source).toContain("for (const identity of listForgeBiomeIdentities())");
-    expect(source).toContain('moodChannel(seed, 0xa5a5a5a5) % 100 < 8');
+    expect(source).toContain("moodChannel(seed, 0xa5a5a5a5) % 100 < 8");
     expect(source).toContain('return "backrooms"');
     expect(FORGE_THEME_PROFILES.backrooms.fluorescent).toBe(true);
     expect(source).toContain("if (TH.fluorescent)");

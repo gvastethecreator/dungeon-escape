@@ -226,7 +226,7 @@ describe("Play HUD structure (Ash Binding)", () => {
       'document.addEventListener("visibilitychange", clearTouchSessionWhenHidden);',
     );
     expect(source).toContain('if (document.visibilityState === "hidden") clearTouchSession();');
-    expect(source).toContain('window.addEventListener("pagehide", flushLocalRunSave);');
+    expect(source).toContain('window.addEventListener("pagehide", () => localRunSave.flush());');
   });
 
   test("pause menu puts resume first and keeps restart secondary", async () => {
@@ -257,7 +257,7 @@ describe("Play HUD structure (Ash Binding)", () => {
     expect(restartIndex).toBeGreaterThan(homeIndex);
     expect(modeIndex).toBeGreaterThan(-1);
 
-    expect(css).toContain(".app-shell[data-engine-mode=\"play\"] .options-session");
+    expect(css).toContain('.app-shell[data-engine-mode="play"] .options-session');
     expect(css).toMatch(
       /\.app-shell\[data-engine-mode="play"\] #options-resume\s*\{[^}]*order:\s*1;/s,
     );
@@ -286,7 +286,7 @@ describe("Play HUD structure (Ash Binding)", () => {
     expect(source).toContain("isPlayerFacingStatus");
     expect(source).toContain("COPY.pause.restarted");
     expect(source).toContain("COPY.pause.returnedHome");
-    expect(source).toContain("flushLocalRunSave()");
+    expect(source).toContain("localRunSave.flush()");
     expect(source).toContain("setWelcomeOpen(true)");
     expect(copySource).toContain('restartMap: "RESTART MAP"');
     expect(copySource).toContain('backToMain: "MAIN MENU"');
