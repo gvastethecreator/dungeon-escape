@@ -180,6 +180,47 @@ describe("Forge frame client", () => {
     expect(pendingPort.messages).toEqual([]);
   });
 
+  test("aborts load and active presentation waits without a late protocol post", async () => {
+    const clock = new FakeClock();
+    const port = new FakeForgeFramePort();
+    const client = new ForgeFrameClient(port, clock);
+    const loadAbort = new AbortController();
+    const pendingStart = client.startPresentation({
+      presentation: { animate: true },
+      completionTimeoutMs: 500,
+      signal: loadAbort.signal,
+    });
+    loadAbort.abort();
+    expect(await pendingStart).toEqual({ ok: false, reason: "aborted" });
+    expect(clock.pending.size).toBe(0);
+    port.emitLoad();
+    expect(port.messages).toEqual([{ type: "black-flag:forge-visibility", visible: false }]);
+
+    port.messages.length = 0;
+    const presentationAbort = new AbortController();
+    const started = await client.startPresentation({
+      presentation: { animate: true, seed: 19 },
+      completionTimeoutMs: 500,
+      signal: presentationAbort.signal,
+    });
+    if (!started.ok) throw new Error("presentation did not start");
+    presentationAbort.abort();
+    expect(await started.session.completion).toBe("cancelled");
+    expect(clock.pending.size).toBe(0);
+    expect(port.messages.slice(-2)).toEqual([
+      {
+        type: "black-flag:forge-presentation",
+        version: 1,
+        enabled: false,
+        animate: false,
+        seed: undefined,
+        themeKey: undefined,
+        dungeon: undefined,
+      },
+      { type: "black-flag:forge-visibility", visible: false },
+    ]);
+  });
+
   test("rejects hostile origin and stale source before intake or animation completion", async () => {
     const { client, clock, port } = await makeLoadedClient();
     const trusted: unknown[] = [];

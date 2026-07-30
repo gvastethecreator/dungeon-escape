@@ -11,20 +11,14 @@ import {
 } from "./domain/bridge";
 import { DUNGEON_PRESETS, type DungeonEditorParams, type DungeonPresetId } from "./editor/presets";
 import { generateCompletableDungeon } from "./dungeon/completeness";
-import { exportPlayDungeonToForgePresentation } from "./dungeon/exportPlayDungeonToForge";
 import { generateDungeonFloorSet, type DungeonFloorSet } from "./dungeon/generateDungeonFloors";
 import { setDungeonSpawn } from "./dungeon/generateDungeon";
 import { gridToWorld } from "./dungeon/gridCollision";
-import { hashSeed } from "./core/random";
 import { parseForgeDungeonMessage, type ForgeDungeonIntakeValue } from "./dungeon/forgeIntake";
 import type { DungeonData } from "./dungeon/types";
 import { DungeonEditorView } from "./editor/DungeonEditorView";
 import { type EngineMode, isEngineMode } from "./game/EngineMode";
-import {
-  createBrowserForgeFramePort,
-  ForgeFrameClient,
-  type ForgePresentationSession,
-} from "./forge/ForgeFrameClient";
+import { createBrowserForgeFramePort, ForgeFrameClient } from "./forge/ForgeFrameClient";
 import {
   difficultyLabel,
   formatRunClock,
@@ -71,6 +65,11 @@ import { shouldAdoptHydratedSeed } from "./game/hydratePolicy";
 import { nextProceduralSeed } from "./game/SeedFactory";
 import { FloorExploration } from "./game/FloorExploration";
 import { LocalRunSaveCoordinator } from "./game/LocalRunSaveCoordinator";
+import {
+  RunIntroDirector,
+  type RunIntroResult,
+  type RunIntroWarmup,
+} from "./game/RunIntroDirector";
 import {
   captureRunResume,
   planFloorTransition,
@@ -492,9 +491,6 @@ let editorSurface: "runtime" | "forge" = "forge";
 let forgeIntake: ForgeDungeonIntakeValue | null = null;
 let forgePreviewDungeon: DungeonData | null = null;
 let lastProceduralSeed = 0;
-/** Bumps to cancel an in-flight new-game map theater sequence. */
-let runIntroToken = 0;
-let runIntroActive = false;
 type EditorSurfaceState = "idle" | "loading" | "updating" | "ready" | "error";
 const editorSurfaceStatus: Record<
   "runtime" | "forge",
@@ -661,8 +657,7 @@ function persistCurrentRun(): boolean {
 const localRunSave = new LocalRunSaveCoordinator({
   isActive: () => runHasStarted,
   persist: persistCurrentRun,
-  onFailure: () =>
-    setStatus("Could not save this run locally. Continue may not be available."),
+  onFailure: () => setStatus("Could not save this run locally. Continue may not be available."),
 });
 
 function flushLocalRunSaveWhenHidden(): void {
@@ -832,7 +827,9 @@ function showBiomePicker(): void {
   syncWelcomeLeaderboardVisibility();
   // Warm the Forge iframe while the player picks a biome so New Game does not
   // stall on a cold WebGL load under the black curtain.
-  void forgeFrameClient.ensureLoaded({ timeoutMs: 8_000, presentation: true });
+  if (!launchConfig.skipRunIntro) {
+    void forgeFrameClient.ensureLoaded({ timeoutMs: 8_000, presentation: true });
+  }
   window.requestAnimationFrame(() => elements.biomePickerBack.focus());
 }
 
@@ -897,15 +894,13 @@ function renderBiomePicker(): void {
 function startNewGameWithBiome(biomeId: BiomeId): void {
   if (!playerProfile || !isBiomeUnlocked(playerProfile, biomeId)) return;
   forcedPlayMoodId = biomeId;
-  campaignClearRecordedForRun = false;
-  void audio.unlock();
   // Apply the campaign ramp for this biome (Ancient soft → Backrooms brutal).
   applyEditorParamsToForm(biomeCampaignParams(biomeId));
-  setRunSource("campaign", false);
   void startPlayWithSeed(launchConfig.visualQa.seed ?? makeSeed(), {
     refreshProcedural: true,
     runSource: "campaign",
-  }).then(() => {
+  }).then((result) => {
+    if (result.kind !== "entered-play") return;
     setStatus(
       `Level ${biomeDifficultyRank(biomeId) + 1} · ${getDungeonMood(biomeId).label} · ${biomeCampaignFloorCount(biomeId)} floor${biomeCampaignFloorCount(biomeId) === 1 ? "" : "s"}.`,
     );
@@ -960,7 +955,6 @@ function setMusicMutedPreference(muted: boolean, options: { playClick?: boolean 
 }
 
 function setRunIntroActive(active: boolean, statusText = ""): void {
-  runIntroActive = active;
   if (active) {
     elements.shell.dataset.runIntro = "true";
     elements.editorWorkspace.hidden = false;
@@ -976,8 +970,12 @@ function setRunIntroActive(active: boolean, statusText = ""): void {
   }
 }
 
+function isRunIntroActive(): boolean {
+  return elements.shell.dataset.runIntro === "true";
+}
+
 function setRunIntroStatus(statusText: string): void {
-  if (!runIntroActive) return;
+  if (!isRunIntroActive()) return;
   elements.runIntroStatus.hidden = false;
   elements.runIntroStatus.textContent = statusText;
 }
@@ -986,16 +984,27 @@ function setRunIntroStatus(statusText: string): void {
 const SCENE_FADE_OUT_MS = 260;
 const SCENE_FADE_IN_MS = 300;
 
-function waitMs(ms: number): Promise<void> {
+function waitMs(ms: number, signal?: AbortSignal): Promise<void> {
+  if (signal?.aborted) return Promise.resolve();
   return new Promise((resolve) => {
-    window.setTimeout(resolve, Math.max(0, ms));
+    let settled = false;
+    const done = (): void => {
+      if (settled) return;
+      settled = true;
+      signal?.removeEventListener("abort", done);
+      window.clearTimeout(timer);
+      resolve();
+    };
+    const timer = window.setTimeout(done, Math.max(0, ms));
+    signal?.addEventListener("abort", done, { once: true });
   });
 }
 
 async function setSceneFadeOpaque(
   opaque: boolean,
-  options: { instant?: boolean; durationMs?: number } = {},
+  options: { instant?: boolean; durationMs?: number; signal?: AbortSignal } = {},
 ): Promise<void> {
+  if (options.signal?.aborted) return;
   const fade = elements.sceneFade;
   const instant = Boolean(options.instant) || REDUCED_MOTION_QUERY.matches;
   const durationMs = options.durationMs ?? (opaque ? SCENE_FADE_OUT_MS : SCENE_FADE_IN_MS);
@@ -1027,36 +1036,12 @@ async function setSceneFadeOpaque(
     fade.style.transitionDuration = `${durationMs}ms`;
     fade.classList.remove("is-opaque");
   }
-  await waitMs(durationMs);
+  await waitMs(durationMs, options.signal);
+  if (options.signal?.aborted) return;
   if (!opaque) {
     fade.hidden = true;
     fade.setAttribute("aria-hidden", "true");
     fade.style.transitionDuration = "";
-  }
-}
-
-/**
- * Build the playable world while the map theater is on screen so the black
- * gap between map and first-person is only a short crossfade, not a long hang.
- */
-async function buildPlayWorldForIntro(
-  seed: string,
-  token: number,
-): Promise<{ ok: true } | { ok: false; message: string }> {
-  // One frame so the map can paint before the main-thread build.
-  await waitAnimationFrames(1);
-  if (token !== runIntroToken) return { ok: false, message: "cancelled" };
-  try {
-    buildDungeon(seed);
-    if (token !== runIntroToken) return { ok: false, message: "cancelled" };
-    await waitForRendererWarmup(10_000);
-    if (token !== runIntroToken) return { ok: false, message: "cancelled" };
-    return { ok: true };
-  } catch (error) {
-    return {
-      ok: false,
-      message: error instanceof Error ? error.message : "Could not generate the dungeon.",
-    };
   }
 }
 
@@ -1065,119 +1050,127 @@ function resolveIntroThemeKey(): string {
   return launchConfig.mood || "ancient";
 }
 
+const runIntroDirector = new RunIntroDirector({
+  prepare(request) {
+    campaignClearRecordedForRun = false;
+    elements.shell.dataset.runIntroInputGate = "true";
+    void audio.unlock();
+    if (request.runSource) setRunSource(request.runSource, false);
+    elements.seed.value = request.seed;
+    setWelcomeOpen(false);
+    setMusicBed(null);
+    controller.setEnabled(false);
+    closeEndOverlay();
+    setOptionsOpen(false);
+  },
+  refreshProcedural() {
+    forgeFrameClient.setProceduralSeed(makeProceduralSeed());
+  },
+  fade(target, options, signal) {
+    return setSceneFadeOpaque(target === "opaque", { ...options, signal });
+  },
+  enterTheater() {
+    if (engineMode === "play") {
+      setEngineMode("editor", { hydrate: false, persist: false });
+    }
+    setRunIntroActive(true, COPY.status.forgingMap);
+    setEditorSurface("forge");
+    setMapToolsOpen(false);
+    playCue("forge");
+  },
+  setTheaterStatus() {
+    setRunIntroStatus(COPY.status.enteringDungeon);
+  },
+  leaveTheater() {
+    setRunIntroActive(false);
+    forgeFrameClient.setVisible(false);
+  },
+  waitFrames(count, signal) {
+    return waitAnimationFrames(count, signal);
+  },
+  waitDelay(durationMs, signal) {
+    return waitMs(durationMs, signal);
+  },
+  async buildWorld(seed, signal) {
+    if (signal.aborted) return { ok: false, message: "cancelled" };
+    try {
+      buildDungeon(seed);
+      if (signal.aborted) return { ok: false, message: "cancelled" };
+      if (!dungeon) return { ok: false, message: "Could not generate the dungeon." };
+      return { ok: true, dungeon };
+    } catch (error) {
+      return {
+        ok: false,
+        message: error instanceof Error ? error.message : "Could not generate the dungeon.",
+      };
+    }
+  },
+  async waitForWorldReady(timeoutMs, signal): Promise<RunIntroWarmup> {
+    await waitForRendererWarmup(timeoutMs, signal);
+    return renderWarmupReady ? "ready" : "degraded";
+  },
+  startPresentation(presentation, options) {
+    return forgeFrameClient.startPresentation({
+      presentation,
+      loadTimeoutMs: options.loadTimeoutMs,
+      completionTimeoutMs: options.completionTimeoutMs,
+      signal: options.signal,
+    });
+  },
+  activatePlayMode() {
+    setEngineMode("play", { hydrate: false, deferController: true });
+  },
+  async restorePlayInputAndFocus(signal) {
+    setStatus(COPY.status.enterPlay);
+    // rAF callbacks run before style/layout. Wait until the intro visibility
+    // rule has been painted away before releasing input to the Play canvas.
+    for (let frame = 0; frame < 8 && !signal.aborted; frame += 1) {
+      await waitAnimationFrames(1, signal);
+      if (getComputedStyle(elements.scene).visibility === "visible") break;
+    }
+    if (signal.aborted) return;
+    delete elements.shell.dataset.runIntroInputGate;
+    controller.setEnabled(canEnablePlayController());
+    for (let attempt = 0; attempt < 4 && !signal.aborted; attempt += 1) {
+      elements.scene.focus({ preventScroll: true });
+      if (document.activeElement === elements.scene) return;
+      await waitAnimationFrames(1, signal);
+    }
+  },
+  recoverToWelcome(message) {
+    delete elements.shell.dataset.runIntroInputGate;
+    setRunIntroActive(false);
+    forgeFrameClient.setVisible(false);
+    setWelcomeOpen(true);
+    if (message) setStatus(message);
+  },
+  resetIntro(destination) {
+    controller.setEnabled(false);
+    if (destination !== "superseded") delete elements.shell.dataset.runIntroInputGate;
+    setRunIntroActive(false);
+    forgeFrameClient.setVisible(false);
+    void setSceneFadeOpaque(false, { instant: true });
+    if (destination === "cancelled") setWelcomeOpen(true);
+  },
+});
+
 /**
  * Campaign New Game / Hall seed: build the real play map, show it isometrically
  * in Forge (same topology), then fade into first-person Play.
  */
-async function startPlayWithSeed(
+function startPlayWithSeed(
   seed: string,
   options: { refreshProcedural?: boolean; runSource?: RunSource } = {},
-): Promise<void> {
-  const token = ++runIntroToken;
-  campaignClearRecordedForRun = false;
-  forgeFrameClient.cancelPresentation();
-  void audio.unlock();
-  if (options.runSource) setRunSource(options.runSource, false);
+): Promise<RunIntroResult> {
   const normalizedSeed = seed.trim() || COPY.hud.seedDefault;
-  elements.seed.value = normalizedSeed;
-  const skipIntro = launchConfig.skipRunIntro;
-  const animateMap = !skipIntro && !REDUCED_MOTION_QUERY.matches;
-  const introThemeKey = resolveIntroThemeKey();
-
-  setWelcomeOpen(false);
-  setMusicBed(null);
-  controller.setEnabled(false);
-  closeEndOverlay();
-  setOptionsOpen(false);
-
-  if (skipIntro) {
-    if (options.refreshProcedural) {
-      forgeFrameClient.setProceduralSeed(makeProceduralSeed());
-    }
-    buildDungeon(normalizedSeed);
-    setEngineMode("play", { hydrate: false });
-    setStatus(COPY.status.enterPlay);
-    return;
-  }
-
-  // Full black first — no menu flash, no chrome, no status labels on screen.
-  await setSceneFadeOpaque(true, { instant: true });
-  if (token !== runIntroToken) return;
-
-  // Map theater uses the editor workspace; stay out of Play until the fade.
-  if (engineMode === "play") {
-    setEngineMode("editor", { hydrate: false, persist: false });
-  }
-  setRunIntroActive(true, COPY.status.forgingMap);
-  setEditorSurface("forge");
-  setMapToolsOpen(false);
-  playCue("forge");
-
-  await waitAnimationFrames(1);
-  if (token !== runIntroToken) return;
-
-  // Build the exact dungeon the player will explore first.
-  const world = await buildPlayWorldForIntro(normalizedSeed, token);
-  if (token !== runIntroToken) return;
-  if (!world.ok) {
-    setRunIntroActive(false);
-    await setSceneFadeOpaque(false, { durationMs: SCENE_FADE_IN_MS });
-    setWelcomeOpen(true);
-    if (world.message !== "cancelled") setStatus(world.message);
-    return;
-  }
-  if (!dungeon) {
-    setRunIntroActive(false);
-    await setSceneFadeOpaque(false, { durationMs: SCENE_FADE_IN_MS });
-    setWelcomeOpen(true);
-    setStatus("Could not generate the dungeon.");
-    return;
-  }
-
-  const presentationDungeon = exportPlayDungeonToForgePresentation(dungeon, introThemeKey);
-  const presentation = await forgeFrameClient.startPresentation({
-    presentation: {
-      animate: animateMap,
-      seed: hashSeed(normalizedSeed) % 999_999 || 1,
-      themeKey: introThemeKey,
-      dungeon: presentationDungeon,
-    },
-    loadTimeoutMs: 6_000,
-    completionTimeoutMs: animateMap ? 10_000 : 800,
+  return runIntroDirector.start({
+    seed: normalizedSeed,
+    runSource: options.runSource,
+    themeKey: resolveIntroThemeKey(),
+    refreshProcedural: options.refreshProcedural,
+    skip: launchConfig.skipRunIntro,
+    reducedMotion: REDUCED_MOTION_QUERY.matches,
   });
-  if (token !== runIntroToken) return;
-
-  let presentationSession: ForgePresentationSession | null = null;
-  let mapShown = false;
-  if (presentation.ok) {
-    presentationSession = presentation.session;
-    await waitAnimationFrames(2);
-    if (token !== runIntroToken) return;
-    await setSceneFadeOpaque(false, { durationMs: SCENE_FADE_IN_MS });
-    mapShown = true;
-    await presentationSession.completion;
-  } else {
-    // No Forge iframe: still hold a beat so the handoff does not snap.
-    await setSceneFadeOpaque(false, { durationMs: SCENE_FADE_IN_MS });
-    await waitMs(animateMap ? 900 : 320);
-  }
-  if (token !== runIntroToken) return;
-
-  setRunIntroStatus(COPY.status.enteringDungeon);
-  await setSceneFadeOpaque(true, { durationMs: SCENE_FADE_OUT_MS });
-  if (token !== runIntroToken) return;
-
-  presentationSession?.stop();
-  setRunIntroActive(false);
-  setEngineMode("play", { hydrate: false });
-  if (!renderWarmupReady) await waitForRendererWarmup(4_000);
-  if (token !== runIntroToken) return;
-
-  setStatus(COPY.status.enterPlay);
-  await setSceneFadeOpaque(false, { durationMs: SCENE_FADE_IN_MS });
-  controller.setEnabled(canEnablePlayController());
-  elements.scene.focus({ preventScroll: true });
-  void mapShown;
 }
 
 let currentSelectedPortraitIndex: number | null = null;
@@ -1392,7 +1385,12 @@ function prepareLeaderboardSubmission(
 }
 
 function canEnablePlayController(): boolean {
-  return renderWarmupReady && engineMode === "play" && playRuntime.state().runMode === "playing";
+  return (
+    elements.shell.dataset.runIntroInputGate !== "true" &&
+    renderWarmupReady &&
+    engineMode === "play" &&
+    playRuntime.state().runMode === "playing"
+  );
 }
 
 function beginRendererWarmup(): number {
@@ -1645,6 +1643,7 @@ function restartCurrentMap(): void {
 
 /** Leave play and open the welcome screen without wiping the continue save. */
 function returnToMainScreen(): void {
+  runIntroDirector.cancel();
   void audio.unlock();
   clearTouchSession();
   resumeTouchControls = false;
@@ -2706,9 +2705,9 @@ function setEditorSurface(nextSurface: "runtime" | "forge"): void {
     button.setAttribute("aria-selected", String(active));
   });
   if (nextSurface === "forge" && engineMode !== "play") {
-    void forgeFrameClient.ensureLoaded({ presentation: runIntroActive, timeoutMs: 8_000 });
+    void forgeFrameClient.ensureLoaded({ presentation: isRunIntroActive(), timeoutMs: 8_000 });
   }
-  const visible = nextSurface === "forge" && (engineMode === "editor" || runIntroActive);
+  const visible = nextSurface === "forge" && (engineMode === "editor" || isRunIntroActive());
   forgeFrameClient.setVisible(visible);
   if (engineMode === "editor") setMapToolsOpen(nextSurface === "runtime");
   if (nextSurface === "runtime") window.requestAnimationFrame(() => editorView.redraw());
@@ -2795,7 +2794,7 @@ function selectEditorSpawn(cell: { x: number; y: number }): void {
 
 function setEngineMode(
   nextMode: EngineMode,
-  options: { hydrate?: boolean; persist?: boolean } = {},
+  options: { hydrate?: boolean; persist?: boolean; deferController?: boolean } = {},
 ): void {
   const initialized = Boolean(elements.shell.dataset.engineMode);
   if (engineMode === nextMode && initialized) return;
@@ -2842,7 +2841,7 @@ function setEngineMode(
     button.setAttribute("aria-pressed", String(active));
   });
   controller.releasePointerLock();
-  controller.setEnabled(canEnablePlayController());
+  if (!options.deferController) controller.setEnabled(canEnablePlayController());
   elements.editorWorkspace.hidden = !external;
   elements.debugPanel.hidden = nextMode !== "debug";
   // Creation/Debug: Map Tools only when local developer chrome is on.
@@ -4045,6 +4044,7 @@ window.addEventListener("beforeunload", () => {
   cancelAnimationFrame(animationFrameId);
   localRunSave.flush();
   localRunSave.dispose();
+  runIntroDirector.dispose();
   forgeFrameClient.dispose();
   longTaskObserver?.disconnect();
   minimapResizeObserver.disconnect();
@@ -4064,15 +4064,26 @@ function setBootProgress(progress: number, message: string): void {
   elements.bootStatus.textContent = message;
 }
 
-function waitAnimationFrames(count: number): Promise<void> {
+function waitAnimationFrames(count: number, signal?: AbortSignal): Promise<void> {
+  if (signal?.aborted) return Promise.resolve();
   return new Promise((resolve) => {
+    let settled = false;
     let left = Math.max(1, count);
+    let frameId = 0;
+    const done = (): void => {
+      if (settled) return;
+      settled = true;
+      signal?.removeEventListener("abort", done);
+      if (frameId) window.cancelAnimationFrame(frameId);
+      resolve();
+    };
     const step = (): void => {
       left -= 1;
-      if (left <= 0) resolve();
-      else window.requestAnimationFrame(step);
+      if (left <= 0) done();
+      else frameId = window.requestAnimationFrame(step);
     };
-    window.requestAnimationFrame(step);
+    signal?.addEventListener("abort", done, { once: true });
+    frameId = window.requestAnimationFrame(step);
   });
 }
 
@@ -4087,11 +4098,11 @@ function preloadImage(src: string): Promise<void> {
   });
 }
 
-async function waitForRendererWarmup(timeoutMs = 6_000): Promise<void> {
-  if (renderWarmupReady) return;
+async function waitForRendererWarmup(timeoutMs = 6_000, signal?: AbortSignal): Promise<void> {
+  if (renderWarmupReady || signal?.aborted) return;
   const started = performance.now();
-  while (!renderWarmupReady && performance.now() - started < timeoutMs) {
-    await waitAnimationFrames(1);
+  while (!renderWarmupReady && !signal?.aborted && performance.now() - started < timeoutMs) {
+    await waitAnimationFrames(1, signal);
   }
 }
 
