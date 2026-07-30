@@ -32,9 +32,20 @@ of Escapes stays hidden until this profile has reached its first win or loss end
 
 **Custom run**:
 Custom Run, Forge apply, or Map Tools generation. Fully playable. **Never ranks** — victory shows a practice score only.
+Procedural custom runs can Continue because their seed and parameters reproduce the map. Imported Forge maps
+are session-only until the save format can carry their validated topology.
 
 **Server runs** (optional):
 Remote run list and sync when `?authority=` points at a compatible HTTP service, and only when Map tools are enabled. Code may still say authority for the client module; UI says Server.
+
+**Hall application**:
+The transport-neutral owner of Hall of Escapes request rules, validation, repository calls, and public outcomes. Node and Worker code only adapt their native request and response types.
+
+**Authority write queue**:
+The owner of ordered remote run mutations, revisions, coalescing, timeouts, authority replacement, draining, and reconciliation. The domain bridge keeps local simulation and hydration decisions.
+
+**Launch configuration**:
+The immutable, validated browser-query snapshot created once during boot. Runtime URL changes preserve unrelated query state without changing that snapshot.
 
 **Forge message**:
 A versioned browser message that carries a Forge payload from Dungeon Creation into the game host.
@@ -51,6 +62,21 @@ The deterministic transformation from generation parameters and random state int
 
 **Play runtime**:
 The owner of Play order and live run transitions across the world, run session, and quest state.
+
+**Floor exploration**:
+The owner of active and per-floor visited cells, map visibility, floor switching, restoration, and defensive save snapshots.
+
+**Run resume activation plan**:
+The pure projection that maps persisted run state into generation, session, runtime, player, and exploration inputs. Save parsing and effects remain outside it.
+
+**Local run save coordinator**:
+The owner of delayed local-save scheduling, explicit flush, disposal, and failure-notification latching. It does not own the save schema or UI copy.
+
+**Forge frame client**:
+The browser boundary for the Forge iframe source, trusted messages, versioned presentation commands, waits, cancellation, and cleanup.
+
+**Run intro transaction**:
+The serial, cancellable transition from New Game or Hall selection through Forge presentation, world preparation, Play activation, and final input focus.
 
 **Run session**:
 The live run state for health, rewards, outcome, and elapsed time.
