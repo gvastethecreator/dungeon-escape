@@ -7,7 +7,7 @@ import {
   type ForgePresentationInput,
 } from "./ForgeFrameProtocol";
 
-export type ForgeLoadResult = "loaded" | "timeout" | "disposed";
+export type ForgeLoadResult = "loaded" | "timeout" | "aborted" | "disposed";
 export type ForgeAnimationResult =
   | "completed"
   | "timeout"
@@ -43,7 +43,10 @@ export interface ForgePresentationSession {
 
 export type ForgePresentationStartResult =
   | { readonly ok: true; readonly session: ForgePresentationSession }
-  | { readonly ok: false; readonly reason: "load-timeout" | "post-failed" | "disposed" };
+  | {
+      readonly ok: false;
+      readonly reason: "load-timeout" | "post-failed" | "aborted" | "disposed";
+    };
 
 interface LoadWaiter {
   readonly timer: unknown;
@@ -76,6 +79,7 @@ export class ForgeFrameClient {
   readonly #unsubscribeMessage: () => void;
   #state: "unmounted" | "loading" | "loaded" | "disposed" = "unmounted";
   #desiredVisibility = false;
+  #postedVisibility: boolean | null = null;
   #pendingProceduralSeed: number | null = null;
   #activePresentation: ActivePresentation | null = null;
 
@@ -87,9 +91,14 @@ export class ForgeFrameClient {
   }
 
   ensureLoaded(
-    options: { readonly presentation?: boolean; readonly timeoutMs?: number } = {},
+    options: {
+      readonly presentation?: boolean;
+      readonly timeoutMs?: number;
+      readonly signal?: AbortSignal;
+    } = {},
   ): Promise<ForgeLoadResult> {
     if (this.#state === "disposed") return Promise.resolve("disposed");
+    if (options.signal?.aborted) return Promise.resolve("aborted");
     if (this.#state === "loaded") return Promise.resolve("loaded");
 
     const timeoutMs = normalizeTimeout(options.timeoutMs ?? 8_000);
@@ -103,12 +112,15 @@ export class ForgeFrameClient {
           if (settled) return;
           settled = true;
           this.#clock.clearTimeout(timer);
+          options.signal?.removeEventListener("abort", abort);
           this.#loadWaiters.delete(waiter);
           resolve(loadResult);
         },
       };
+      const abort = (): void => waiter.settle("aborted");
       settleWaiter = waiter.settle;
       this.#loadWaiters.add(waiter);
+      options.signal?.addEventListener("abort", abort, { once: true });
     });
 
     if (this.#state === "unmounted") {
@@ -121,7 +133,7 @@ export class ForgeFrameClient {
   setVisible(visible: boolean): void {
     if (this.#state === "disposed") return;
     this.#desiredVisibility = visible;
-    if (this.#state === "loaded") this.#port.post(forgeVisibilityMessage(visible));
+    this.#flushVisibility();
   }
 
   setProceduralSeed(seed: number): void {
@@ -134,18 +146,23 @@ export class ForgeFrameClient {
     readonly presentation: ForgePresentationInput;
     readonly loadTimeoutMs?: number;
     readonly completionTimeoutMs: number;
+    readonly signal?: AbortSignal;
   }): Promise<ForgePresentationStartResult> {
     const loadResult = await this.ensureLoaded({
       presentation: true,
       timeoutMs: options.loadTimeoutMs,
+      signal: options.signal,
     });
     if (loadResult === "disposed") return { ok: false, reason: "disposed" };
+    if (loadResult === "aborted") return { ok: false, reason: "aborted" };
     if (loadResult === "timeout") return { ok: false, reason: "load-timeout" };
+    if (options.signal?.aborted) return { ok: false, reason: "aborted" };
 
     this.#activePresentation?.supersede();
     this.setVisible(true);
 
     let settleCompletion: (result: ForgeAnimationResult) => void = () => undefined;
+    let detachAbort = (): void => undefined;
     let stopped = false;
     const completion = new Promise<ForgeAnimationResult>((resolve) => {
       let settled = false;
@@ -157,6 +174,7 @@ export class ForgeFrameClient {
         if (settled) return;
         settled = true;
         this.#clock.clearTimeout(timer);
+        detachAbort();
         resolve(result);
       };
     });
@@ -183,6 +201,14 @@ export class ForgeFrameClient {
       },
     };
     this.#activePresentation = active;
+    if (options.signal) {
+      const abort = (): void => session.stop();
+      options.signal.addEventListener("abort", abort, { once: true });
+      detachAbort = () => options.signal?.removeEventListener("abort", abort);
+      if (options.signal.aborted) abort();
+    }
+
+    if (options.signal?.aborted) return { ok: false, reason: "aborted" };
 
     if (!this.#port.post(forgePresentationMessage(true, options.presentation))) {
       active.supersede();
@@ -228,7 +254,8 @@ export class ForgeFrameClient {
   #handleLoad(): void {
     if (this.#state === "disposed") return;
     this.#state = "loaded";
-    this.#port.post(forgeVisibilityMessage(this.#desiredVisibility));
+    this.#postedVisibility = null;
+    this.#flushVisibility();
     this.#flushProceduralSeed();
     for (const waiter of this.#loadWaiters) waiter.settle("loaded");
     for (const listener of this.#loadListeners) listener();
@@ -249,6 +276,12 @@ export class ForgeFrameClient {
     if (this.#state !== "loaded" || this.#pendingProceduralSeed === null) return;
     if (!this.#port.post(forgeProceduralSeedMessage(this.#pendingProceduralSeed))) return;
     this.#pendingProceduralSeed = null;
+  }
+
+  #flushVisibility(): void {
+    if (this.#state !== "loaded" || this.#postedVisibility === this.#desiredVisibility) return;
+    if (!this.#port.post(forgeVisibilityMessage(this.#desiredVisibility))) return;
+    this.#postedVisibility = this.#desiredVisibility;
   }
 
   #postPresentationEnd(): void {
