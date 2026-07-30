@@ -277,6 +277,14 @@ describe("StaticDungeonScene", () => {
       expect(ambientMaterial.fog).toBe(true);
       expect(ambientMaterial.toneMapped).toBe(true);
       expect(classic.ambientBeams[0]!.userData.screenSpace).toBe(false);
+      expect(classic.ambientBeams[0]!.userData.profile).toBe("retro-faceted");
+      expect(classic.ambientBeams[0]!.geometry.userData.triangles).toBe(64);
+      expect(ambientMaterial.fragmentShader).toContain("#include <tonemapping_fragment>");
+      expect(ambientMaterial.fragmentShader).toContain("#include <colorspace_fragment>");
+      expect(classic.portalBeam?.userData.profile).toBe("signal-smooth");
+      expect(classic.stoneBeams.every((beam) => beam.userData.profile === "signal-smooth")).toBe(
+        true,
+      );
       expect(classic.solidCells.size).toBe(22);
       expect(classic.solidColliders).toHaveLength(22);
       expect(group.getObjectByName("Escape portal gate")).toBeDefined();

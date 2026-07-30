@@ -1,0 +1,104 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "⚡ Dev",
+      "type": "shell",
+      "command": "bun run dev",
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "📦 Build",
+      "type": "shell",
+      "command": "bun run build",
+      "group": "build",
+      "problemMatcher": []
+    },
+    {
+      "label": "💻 Build Code",
+      "type": "shell",
+      "command": "bun run build:code",
+      "problemMatcher": []
+    },
+    {
+      "label": "👁️ Preview",
+      "type": "shell",
+      "command": "bun run preview",
+      "problemMatcher": []
+    },
+    {
+      "label": "🧪 Test",
+      "type": "shell",
+      "command": "bun run test",
+      "group": {
+        "kind": "test",
+        "isDefault": true
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "🏷️ Typecheck",
+      "type": "shell",
+      "command": "bun run typecheck:all",
+      "problemMatcher": []
+    },
+    {
+      "label": "🧹 Lint",
+      "type": "shell",
+      "command": "bun run lint",
+      "problemMatcher": []
+    },
+    {
+      "label": "🎨 Format",
+      "type": "shell",
+      "command": "bun run fmt",
+      "problemMatcher": []
+    },
+    {
+      "label": "🗄️ DB Local",
+      "type": "shell",
+      "command": "bun run db:migrate:local",
+      "problemMatcher": []
+    },
+    {
+      "label": "🌐 DB Remote",
+      "type": "shell",
+      "command": "bun run db:migrate:remote",
+      "problemMatcher": []
+    },
+    {
+      "label": "☁️ CF Dev",
+      "type": "shell",
+      "command": "bun run cloudflare:dev",
+      "problemMatcher": []
+    },
+    {
+      "label": "🚀 Deploy",
+      "type": "shell",
+      "command": "bun run cloudflare:deploy",
+      "problemMatcher": []
+    },
+    {
+      "label": "👾 Audit Atlases",
+      "type": "shell",
+      "command": "bun run audit:enemy-atlases",
+      "problemMatcher": []
+    },
+    {
+      "label": "🖼️ Gen Textures",
+      "type": "shell",
+      "command": "bun run generate:biome-textures",
+      "problemMatcher": []
+    },
+    {
+      "label": "🥩 Bake PBR",
+      "type": "shell",
+      "command": "bun run bake:biome-pbr",
+      "problemMatcher": []
+    }
+  ]
+}
