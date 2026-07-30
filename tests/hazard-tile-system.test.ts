@@ -209,6 +209,14 @@ describe("biome hazard tiles", () => {
     const textures = createForgedIronTextureSet(8);
     expect(new Set(Object.values(textures)).size).toBe(4);
     Object.values(textures).forEach((texture) => expect(texture).toBeInstanceOf(THREE.DataTexture));
+    if (
+      !(textures.albedo instanceof THREE.DataTexture) ||
+      !(textures.roughness instanceof THREE.DataTexture) ||
+      !(textures.normal instanceof THREE.DataTexture) ||
+      !(textures.ao instanceof THREE.DataTexture)
+    ) {
+      throw new Error("Expected deterministic DataTexture fallbacks during SSR");
+    }
     expect(textures.albedo.colorSpace).toBe(THREE.SRGBColorSpace);
     expect(textures.roughness.colorSpace).toBe(THREE.NoColorSpace);
     expect(textures.normal.colorSpace).toBe(THREE.NoColorSpace);
