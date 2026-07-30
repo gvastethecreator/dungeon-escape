@@ -17,7 +17,8 @@ describe("new-game map theater intro", () => {
     expect(source).toContain("buildPlayWorldForIntro");
     expect(source).toContain('setEditorSurface("forge")');
     expect(source).toContain("exportPlayDungeonToForgePresentation");
-    expect(source).toContain("postForgePresentation");
+    expect(source).toContain("forgeFrameClient.startPresentation");
+    expect(source).toContain("presentationSession?.stop()");
     expect(source).toContain("dungeon: presentationDungeon");
     expect(source).toContain("generateCompletableDungeon");
     expect(forge).toContain("black-flag:forge-presentation");
@@ -47,12 +48,14 @@ describe("new-game map theater intro", () => {
     const introActiveAt = source.indexOf("setRunIntroActive(true", blackFirstAt);
     const buildAt = source.indexOf("buildPlayWorldForIntro(normalizedSeed, token)", introActiveAt);
     const presentAt = source.indexOf("exportPlayDungeonToForgePresentation", buildAt);
+    const startPresentationAt = source.indexOf("forgeFrameClient.startPresentation", presentAt);
     const revealAt = source.indexOf("setSceneFadeOpaque(false", presentAt);
     expect(blackFirstAt).toBeGreaterThan(-1);
     expect(introActiveAt).toBeGreaterThan(blackFirstAt);
     expect(buildAt).toBeGreaterThan(introActiveAt);
     expect(presentAt).toBeGreaterThan(buildAt);
-    expect(revealAt).toBeGreaterThan(presentAt);
+    expect(startPresentationAt).toBeGreaterThan(presentAt);
+    expect(revealAt).toBeGreaterThan(startPresentationAt);
   });
 
   test("copy exposes forging and entering status lines", async () => {
