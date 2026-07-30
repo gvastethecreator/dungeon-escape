@@ -6,81 +6,12 @@ import type {
   PlayerBiomeStars,
   ValidLeaderboardSubmission,
 } from "../../src/leaderboard/contract.ts";
+import {
+  hallPersistence,
+  type HallBiomeStarRow,
+  type HallEntryRow,
+} from "../../src/leaderboard/hallPersistence.ts";
 import type { LeaderboardRepository } from "../../src/leaderboard/repository.ts";
-
-interface LeaderboardRow {
-  run_id: string;
-  player_name: string;
-  score: number;
-  score_version: number;
-  duration_ms: number;
-  distance_m: number;
-  stones_found: number;
-  biome: string;
-  seed: string;
-  difficulty: ValidLeaderboardSubmission["difficulty"];
-  difficulty_value: number;
-  room_count: number;
-  portrait_index: number | null;
-  completed_at: string;
-  rank: number;
-}
-
-const SELECT_FIELDS = `
-  run_id,
-  player_name,
-  score,
-  score_version,
-  duration_ms,
-  distance_m,
-  stones_found,
-  biome,
-  seed,
-  difficulty,
-  difficulty_value,
-  room_count,
-  portrait_index,
-  completed_at
-`;
-
-const QUALIFIED_SELECT_FIELDS = `
-  entry.run_id,
-  entry.player_name,
-  entry.score,
-  entry.score_version,
-  entry.duration_ms,
-  entry.distance_m,
-  entry.stones_found,
-  entry.biome,
-  entry.seed,
-  entry.difficulty,
-  entry.difficulty_value,
-  entry.room_count,
-  entry.portrait_index,
-  entry.completed_at
-`;
-
-function toEntry(row: LeaderboardRow): LeaderboardEntry {
-  return {
-    runId: row.run_id,
-    playerName: row.player_name,
-    score: row.score,
-    scoreVersion: row.score_version as 1,
-    durationMs: row.duration_ms,
-    distanceM: row.distance_m,
-    stonesFound: row.stones_found as 4,
-    biome: row.biome,
-    seed: row.seed,
-    difficulty: row.difficulty,
-    difficultyValue: row.difficulty_value,
-    roomCount: row.room_count,
-    ...(row.portrait_index !== null && row.portrait_index !== undefined
-      ? { portraitIndex: row.portrait_index }
-      : {}),
-    completedAt: row.completed_at,
-    rank: row.rank,
-  };
-}
 
 export interface SqliteLeaderboardOptions {
   databasePath?: string;
@@ -156,88 +87,27 @@ export class SqliteLeaderboardRepository implements LeaderboardRepository {
 
   async list(limit: number): Promise<LeaderboardEntry[]> {
     const rows = this.database
-      .prepare(
-        `SELECT
-           ${SELECT_FIELDS},
-           ROW_NUMBER() OVER (
-             ORDER BY score DESC, duration_ms ASC, completed_at ASC, run_id ASC
-           ) AS rank
-         FROM leaderboard_entries
-         ORDER BY score DESC, duration_ms ASC, completed_at ASC, run_id ASC
-         LIMIT ?`,
-      )
-      .all(limit) as LeaderboardRow[];
-    return rows.map(toEntry);
+      .prepare(hallPersistence.statements.list)
+      .all(limit) as HallEntryRow[];
+    return hallPersistence.list(rows);
   }
 
   async listBiomeStars(): Promise<PlayerBiomeStars> {
     const rows = this.database
-      .prepare(
-        `SELECT player_name AS playerName, biome, COUNT(*) AS stars
-         FROM leaderboard_entries
-         GROUP BY player_name, biome`,
-      )
-      .all() as Array<{ playerName: string; biome: string; stars: number }>;
-    const map: PlayerBiomeStars = {};
-    for (const row of rows) {
-      const player = map[row.playerName] ?? (map[row.playerName] = {});
-      player[row.biome] = Number(row.stars) || 0;
-    }
-    return map;
+      .prepare(hallPersistence.statements.listBiomeStars)
+      .all() as HallBiomeStarRow[];
+    return hallPersistence.listBiomeStars(rows);
   }
 
   async create(submission: ValidLeaderboardSubmission): Promise<LeaderboardEntry> {
     this.database
-      .prepare(
-        `INSERT OR IGNORE INTO leaderboard_entries (
-           run_id, player_name, score, score_version, duration_ms, distance_m,
-           stones_found, biome, seed, difficulty, difficulty_value, room_count, portrait_index, storage_source
-         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      )
-      .run(
-        submission.runId,
-        submission.playerName,
-        submission.score,
-        submission.scoreVersion,
-        submission.durationMs,
-        submission.distanceM,
-        submission.stonesFound,
-        submission.biome,
-        submission.seed,
-        submission.difficulty,
-        submission.difficultyValue,
-        submission.roomCount,
-        submission.portraitIndex ?? null,
-        this.storageSource,
-      );
+      .prepare(hallPersistence.statements.create)
+      .run(...hallPersistence.createBindings(submission, this.storageSource));
 
     const row = this.database
-      .prepare(
-        `SELECT
-           ${QUALIFIED_SELECT_FIELDS},
-           (
-             SELECT COUNT(*) + 1
-             FROM leaderboard_entries ranked
-             WHERE ranked.score > entry.score
-                OR (ranked.score = entry.score AND ranked.duration_ms < entry.duration_ms)
-                OR (
-                  ranked.score = entry.score
-                  AND ranked.duration_ms = entry.duration_ms
-                  AND ranked.completed_at < entry.completed_at
-                )
-                OR (
-                  ranked.score = entry.score
-                  AND ranked.duration_ms = entry.duration_ms
-                  AND ranked.completed_at = entry.completed_at
-                  AND ranked.run_id < entry.run_id
-                )
-           ) AS rank
-         FROM leaderboard_entries entry
-         WHERE entry.run_id = ?`,
-      )
-      .get(submission.runId) as LeaderboardRow | null;
-    if (!row) throw new Error("Leaderboard entry was not stored.");
-    return toEntry(row);
+      .prepare(hallPersistence.statements.createdEntry)
+      .get(submission.runId) as HallEntryRow | null;
+    return hallPersistence.create(row);
   }
 
   close(): void {
