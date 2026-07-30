@@ -98,6 +98,7 @@ import {
   type BiomeSpritePropDefinition,
 } from "./BiomeSpriteDecorKit";
 import { createDungeonStaircase, DUNGEON_STAIR_STEP_COUNT } from "./StaircaseKit";
+import { ThreeResourceDisposer } from "./ThreeResourceDisposer";
 
 export interface StaticDungeonSceneStats {
   floorTiles: number;
@@ -494,7 +495,7 @@ export class StaticDungeonScene {
   clear(): void {
     const expired = this.handles;
     const separatelyDisposed = new Set<THREE.Object3D>();
-    const disposalLedger = createDisposalLedger();
+    const resourceDisposer = new ThreeResourceDisposer();
     if (expired.liquidKit) {
       this.group.remove(expired.liquidKit.root);
       disposeLiquidSectionKit(expired.liquidKit);
@@ -510,7 +511,7 @@ export class StaticDungeonScene {
     for (const root of this.buildRoots.splice(0)) {
       if (separatelyDisposed.has(root)) continue;
       this.group.remove(root);
-      disposeObject(root, disposalLedger);
+      resourceDisposer.dispose(root);
     }
     for (const material of this.biomeWallDecalMaterials.values()) material.dispose();
     for (const material of this.biomeFloorSpriteMaterials.values()) material.dispose();
@@ -2318,10 +2319,10 @@ export class StaticDungeonScene {
     halos: THREE.Object3D[],
   ): null {
     light?.removeFromParent();
-    const disposalLedger = createDisposalLedger();
+    const resourceDisposer = new ThreeResourceDisposer();
     for (const halo of halos) {
       halo.removeFromParent();
-      disposeObject(halo, disposalLedger);
+      resourceDisposer.dispose(halo);
     }
     halos.length = 0;
     root.updateMatrixWorld(true);
@@ -3838,39 +3839,6 @@ function collectBoundaryWalls(dungeon: DungeonData): GridCell[] {
     }
   }
   return walls;
-}
-
-interface DisposalLedger {
-  geometries: Set<THREE.BufferGeometry>;
-  materials: Set<THREE.Material>;
-}
-
-function createDisposalLedger(): DisposalLedger {
-  return {
-    geometries: new Set<THREE.BufferGeometry>(),
-    materials: new Set<THREE.Material>(),
-  };
-}
-
-function disposeObject(object: THREE.Object3D, disposalLedger: DisposalLedger): void {
-  object.traverse((child) => {
-    const mesh = child as THREE.Mesh;
-    if (mesh.geometry && !disposalLedger.geometries.has(mesh.geometry)) {
-      disposalLedger.geometries.add(mesh.geometry);
-      mesh.geometry.dispose();
-    }
-    const materials = Array.isArray(mesh.material)
-      ? mesh.material
-      : mesh.material
-        ? [mesh.material]
-        : [];
-    for (const material of materials) {
-      if (material.userData.sharedDungeonMaterial || disposalLedger.materials.has(material))
-        continue;
-      disposalLedger.materials.add(material);
-      material.dispose();
-    }
-  });
 }
 
 function roomDistance(dungeon: DungeonData, room: DungeonRoom): number {
