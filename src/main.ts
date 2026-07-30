@@ -65,6 +65,7 @@ import { PlayRuntime } from "./game/PlayRuntime";
 import { shouldAdoptHydratedSeed } from "./game/hydratePolicy";
 import { nextProceduralSeed } from "./game/SeedFactory";
 import { FloorExploration } from "./game/FloorExploration";
+import { LocalRunSaveCoordinator } from "./game/LocalRunSaveCoordinator";
 import {
   captureRunResume,
   planFloorTransition,
@@ -456,7 +457,6 @@ let optionsOpen = false;
 let welcomeOpen = true;
 const LAST_LEADERBOARD_NAME_KEY = "dungeon-escape:leaderboard-name";
 const MUSIC_MUTED_KEY = "dungeon-escape:music-muted";
-const LOCAL_RUN_SAVE_DELAY_MS = 1_000;
 let playerProfile: PlayerProfile | null = readPlayerProfile();
 let profileAvatarDraft = playerProfile?.avatarIndex ?? 0;
 let campaignClearRecordedForRun = false;
@@ -473,8 +473,6 @@ let forcedPlayMoodId: DungeonMoodId | null = null;
 let playerBiomeStars: PlayerBiomeStars = emptyPlayerBiomeStars();
 let welcomeArtSequence = 0;
 let continueDomainState: DungeonDomainState | null = null;
-let localSaveTimer: ReturnType<typeof setTimeout> | null = null;
-let localSaveFailureNotified = false;
 let runHasStarted = false;
 let renderWarmupReady = false;
 let renderWarmupSequence = 0;
@@ -643,42 +641,26 @@ function setRunSource(next: RunSource, hasForge = Boolean(dungeon?.forge)): void
   elements.shell.dataset.runSource = runSource;
 }
 
-function persistCurrentRun(): void {
-  if (!dungeon) return;
-  const saved = writeLocalRunSave(
+function persistCurrentRun(): boolean {
+  if (!dungeon) return false;
+  return writeLocalRunSave(
     currentDomainSave(),
     localStorage,
     Date.now(),
     captureLocalRunResume(),
     runSource,
   );
-  if (saved) {
-    localSaveFailureNotified = false;
-    return;
-  }
-  if (localSaveFailureNotified) return;
-  localSaveFailureNotified = true;
-  setStatus("Could not save this run locally. Continue may not be available.");
 }
 
-function scheduleLocalRunSave(delay = LOCAL_RUN_SAVE_DELAY_MS): void {
-  if (!runHasStarted || localSaveTimer !== null) return;
-  localSaveTimer = setTimeout(() => {
-    localSaveTimer = null;
-    persistCurrentRun();
-  }, delay);
-}
-
-function flushLocalRunSave(): void {
-  if (localSaveTimer !== null) {
-    clearTimeout(localSaveTimer);
-    localSaveTimer = null;
-  }
-  if (runHasStarted) persistCurrentRun();
-}
+const localRunSave = new LocalRunSaveCoordinator({
+  isActive: () => runHasStarted,
+  persist: persistCurrentRun,
+  onFailure: () =>
+    setStatus("Could not save this run locally. Continue may not be available."),
+});
 
 function flushLocalRunSaveWhenHidden(): void {
-  if (document.visibilityState === "hidden") flushLocalRunSave();
+  if (document.visibilityState === "hidden") localRunSave.flush();
 }
 
 function setContinueCandidate(state: DungeonDomainState | null, status: string): void {
@@ -1731,7 +1713,7 @@ function returnToMainScreen(): void {
   resumeTouchControls = false;
   closeEndOverlay();
   setOptionsOpen(false);
-  flushLocalRunSave();
+  localRunSave.flush();
   const save = readLocalRunSave();
   if (canContinueLocalRun(save)) {
     setContinueCandidate(save.state, `Continue ready · ${save.state.seed}`);
@@ -2702,7 +2684,7 @@ function activateDungeon(
   if (persistBuild) {
     runHasStarted = true;
     domainBridge.syncSession(playRuntime.snapshot());
-    scheduleLocalRunSave(0);
+    localRunSave.schedule(0);
   }
   return getRuntimeState();
 }
@@ -3485,7 +3467,7 @@ elements.welcomeContinue.addEventListener("click", () => {
       setWelcomeTransitionBusy(false);
       setWelcomeOpen(false);
       setEngineMode("play", { hydrate: false });
-      scheduleLocalRunSave(0);
+      localRunSave.schedule(0);
       setStatus(`Continued run · seed ${state.seed}. Click the scene to look.`);
     } catch (error) {
       console.warn("Could not restore saved dungeon", error);
@@ -3942,7 +3924,7 @@ function frame(now: number): void {
       }
       if (effects.sessionChanged) {
         domainBridge.syncSession(playRuntime.snapshot());
-        scheduleLocalRunSave();
+        localRunSave.schedule();
       }
       if (effects.status) setStatus(effects.status);
       if (effects.playPickup && effects.pickup) {
@@ -4102,7 +4084,7 @@ function frame(now: number): void {
   if (result.changedCell) {
     updateReadout();
     drawMap();
-    scheduleLocalRunSave();
+    localRunSave.schedule();
   } else if (now - lastMapDraw > 220) {
     drawMap();
     lastMapDraw = now;
@@ -4145,14 +4127,15 @@ function frame(now: number): void {
 }
 
 window.addEventListener("pagehide", clearTouchSession);
-window.addEventListener("pagehide", flushLocalRunSave);
+window.addEventListener("pagehide", () => localRunSave.flush());
 document.addEventListener("visibilitychange", clearTouchSessionWhenHidden);
 document.addEventListener("visibilitychange", flushLocalRunSaveWhenHidden);
 window.addEventListener("beforeunload", () => {
   if (appDisposed) return;
   appDisposed = true;
   cancelAnimationFrame(animationFrameId);
-  flushLocalRunSave();
+  localRunSave.flush();
+  localRunSave.dispose();
   longTaskObserver?.disconnect();
   minimapResizeObserver.disconnect();
   minimapLayout.dispose();
