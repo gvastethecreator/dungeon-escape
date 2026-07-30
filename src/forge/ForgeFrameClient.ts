@@ -1,0 +1,305 @@
+import {
+  forgePresentationMessage,
+  forgeProceduralSeedMessage,
+  forgeVisibilityMessage,
+  isForgeAnimationCompleteMessage,
+  type ForgeHostMessage,
+  type ForgePresentationInput,
+} from "./ForgeFrameProtocol";
+
+export type ForgeLoadResult = "loaded" | "timeout" | "disposed";
+export type ForgeAnimationResult =
+  | "completed"
+  | "timeout"
+  | "cancelled"
+  | "superseded"
+  | "disposed";
+
+export interface ForgeFrameClock {
+  setTimeout(callback: () => void, delayMs: number): unknown;
+  clearTimeout(handle: unknown): void;
+}
+
+export interface ForgeFrameMessageEvent {
+  readonly origin: string;
+  readonly source: unknown;
+  readonly data: unknown;
+}
+
+export interface ForgeFramePort {
+  readonly baseSource: string;
+  readonly hostOrigin: string;
+  mount(source: string): void;
+  currentSource(): unknown;
+  post(message: ForgeHostMessage): boolean;
+  onLoad(listener: () => void): () => void;
+  onMessage(listener: (event: ForgeFrameMessageEvent) => void): () => void;
+}
+
+export interface ForgePresentationSession {
+  readonly completion: Promise<ForgeAnimationResult>;
+  stop(): void;
+}
+
+export type ForgePresentationStartResult =
+  | { readonly ok: true; readonly session: ForgePresentationSession }
+  | { readonly ok: false; readonly reason: "load-timeout" | "post-failed" | "disposed" };
+
+interface LoadWaiter {
+  readonly timer: unknown;
+  readonly settle: (result: ForgeLoadResult) => void;
+}
+
+interface ActivePresentation {
+  readonly session: ForgePresentationSession;
+  readonly settle: (result: ForgeAnimationResult) => void;
+  supersede(): void;
+}
+
+const SYSTEM_CLOCK: ForgeFrameClock = {
+  setTimeout(callback, delayMs) {
+    return globalThis.setTimeout(callback, delayMs);
+  },
+  clearTimeout(handle) {
+    globalThis.clearTimeout(handle as ReturnType<typeof setTimeout>);
+  },
+};
+
+/** Owns the Forge iframe transport, trust boundary, queues, and presentation lifecycle. */
+export class ForgeFrameClient {
+  readonly #port: ForgeFramePort;
+  readonly #clock: ForgeFrameClock;
+  readonly #loadWaiters = new Set<LoadWaiter>();
+  readonly #trustedMessageListeners = new Set<(data: unknown) => void>();
+  readonly #loadListeners = new Set<() => void>();
+  readonly #unsubscribeLoad: () => void;
+  readonly #unsubscribeMessage: () => void;
+  #state: "unmounted" | "loading" | "loaded" | "disposed" = "unmounted";
+  #desiredVisibility = false;
+  #pendingProceduralSeed: number | null = null;
+  #activePresentation: ActivePresentation | null = null;
+
+  constructor(port: ForgeFramePort, clock: ForgeFrameClock = SYSTEM_CLOCK) {
+    this.#port = port;
+    this.#clock = clock;
+    this.#unsubscribeLoad = port.onLoad(() => this.#handleLoad());
+    this.#unsubscribeMessage = port.onMessage((event) => this.#handleMessage(event));
+  }
+
+  ensureLoaded(
+    options: { readonly presentation?: boolean; readonly timeoutMs?: number } = {},
+  ): Promise<ForgeLoadResult> {
+    if (this.#state === "disposed") return Promise.resolve("disposed");
+    if (this.#state === "loaded") return Promise.resolve("loaded");
+
+    const timeoutMs = normalizeTimeout(options.timeoutMs ?? 8_000);
+    let settleWaiter: (result: ForgeLoadResult) => void = () => undefined;
+    const result = new Promise<ForgeLoadResult>((resolve) => {
+      let settled = false;
+      const timer = this.#clock.setTimeout(() => settleWaiter("timeout"), timeoutMs);
+      const waiter: LoadWaiter = {
+        timer,
+        settle: (loadResult) => {
+          if (settled) return;
+          settled = true;
+          this.#clock.clearTimeout(timer);
+          this.#loadWaiters.delete(waiter);
+          resolve(loadResult);
+        },
+      };
+      settleWaiter = waiter.settle;
+      this.#loadWaiters.add(waiter);
+    });
+
+    if (this.#state === "unmounted") {
+      this.#state = "loading";
+      this.#port.mount(this.#sourceFor(Boolean(options.presentation)));
+    }
+    return result;
+  }
+
+  setVisible(visible: boolean): void {
+    if (this.#state === "disposed") return;
+    this.#desiredVisibility = visible;
+    if (this.#state === "loaded") this.#port.post(forgeVisibilityMessage(visible));
+  }
+
+  setProceduralSeed(seed: number): void {
+    if (this.#state === "disposed") return;
+    this.#pendingProceduralSeed = seed;
+    this.#flushProceduralSeed();
+  }
+
+  async startPresentation(options: {
+    readonly presentation: ForgePresentationInput;
+    readonly loadTimeoutMs?: number;
+    readonly completionTimeoutMs: number;
+  }): Promise<ForgePresentationStartResult> {
+    const loadResult = await this.ensureLoaded({
+      presentation: true,
+      timeoutMs: options.loadTimeoutMs,
+    });
+    if (loadResult === "disposed") return { ok: false, reason: "disposed" };
+    if (loadResult === "timeout") return { ok: false, reason: "load-timeout" };
+
+    this.#activePresentation?.supersede();
+    this.setVisible(true);
+
+    let settleCompletion: (result: ForgeAnimationResult) => void = () => undefined;
+    let stopped = false;
+    const completion = new Promise<ForgeAnimationResult>((resolve) => {
+      let settled = false;
+      const timer = this.#clock.setTimeout(
+        () => settleCompletion("timeout"),
+        normalizeTimeout(options.completionTimeoutMs, 200),
+      );
+      settleCompletion = (result) => {
+        if (settled) return;
+        settled = true;
+        this.#clock.clearTimeout(timer);
+        resolve(result);
+      };
+    });
+
+    const session: ForgePresentationSession = {
+      completion,
+      stop: () => {
+        if (stopped) return;
+        stopped = true;
+        if (this.#activePresentation?.session !== session) return;
+        settleCompletion("cancelled");
+        this.#activePresentation = null;
+        this.#postPresentationEnd();
+      },
+    };
+    const active: ActivePresentation = {
+      session,
+      settle: settleCompletion,
+      supersede: () => {
+        if (stopped) return;
+        stopped = true;
+        settleCompletion("superseded");
+        if (this.#activePresentation === active) this.#activePresentation = null;
+      },
+    };
+    this.#activePresentation = active;
+
+    if (!this.#port.post(forgePresentationMessage(true, options.presentation))) {
+      active.supersede();
+      this.#postPresentationEnd();
+      return { ok: false, reason: "post-failed" };
+    }
+    return { ok: true, session };
+  }
+
+  cancelPresentation(): void {
+    const active = this.#activePresentation;
+    if (!active) return;
+    active.settle("cancelled");
+    this.#activePresentation = null;
+    this.#postPresentationEnd();
+  }
+
+  onTrustedMessage(listener: (data: unknown) => void): () => void {
+    if (this.#state === "disposed") return () => undefined;
+    this.#trustedMessageListeners.add(listener);
+    return () => this.#trustedMessageListeners.delete(listener);
+  }
+
+  onLoaded(listener: () => void): () => void {
+    if (this.#state === "disposed") return () => undefined;
+    this.#loadListeners.add(listener);
+    return () => this.#loadListeners.delete(listener);
+  }
+
+  dispose(): void {
+    if (this.#state === "disposed") return;
+    this.#state = "disposed";
+    this.#unsubscribeLoad();
+    this.#unsubscribeMessage();
+    for (const waiter of this.#loadWaiters) waiter.settle("disposed");
+    this.#activePresentation?.settle("disposed");
+    this.#activePresentation = null;
+    this.#trustedMessageListeners.clear();
+    this.#loadListeners.clear();
+    this.#pendingProceduralSeed = null;
+  }
+
+  #handleLoad(): void {
+    if (this.#state === "disposed") return;
+    this.#state = "loaded";
+    this.#port.post(forgeVisibilityMessage(this.#desiredVisibility));
+    this.#flushProceduralSeed();
+    for (const waiter of this.#loadWaiters) waiter.settle("loaded");
+    for (const listener of this.#loadListeners) listener();
+  }
+
+  #handleMessage(event: ForgeFrameMessageEvent): void {
+    if (this.#state === "disposed" || event.origin !== this.#port.hostOrigin) return;
+    const source = this.#port.currentSource();
+    if (source === null || source === undefined || event.source !== source) return;
+    if (isForgeAnimationCompleteMessage(event.data)) {
+      this.#activePresentation?.settle("completed");
+      return;
+    }
+    for (const listener of this.#trustedMessageListeners) listener(event.data);
+  }
+
+  #flushProceduralSeed(): void {
+    if (this.#state !== "loaded" || this.#pendingProceduralSeed === null) return;
+    if (!this.#port.post(forgeProceduralSeedMessage(this.#pendingProceduralSeed))) return;
+    this.#pendingProceduralSeed = null;
+  }
+
+  #postPresentationEnd(): void {
+    if (this.#state !== "loaded") return;
+    this.#port.post(forgePresentationMessage(false, { animate: false }));
+    this.setVisible(false);
+  }
+
+  #sourceFor(presentation: boolean): string {
+    if (!presentation) return this.#port.baseSource;
+    const url = new URL(this.#port.baseSource, this.#port.hostOrigin);
+    url.searchParams.set("presentation", "1");
+    return `${url.pathname}${url.search}${url.hash}`;
+  }
+}
+
+export function createBrowserForgeFramePort(options: {
+  readonly frame: HTMLIFrameElement;
+  readonly browserWindow?: Window;
+  readonly hostOrigin?: string;
+}): ForgeFramePort {
+  const browserWindow = options.browserWindow ?? window;
+  const hostOrigin = options.hostOrigin ?? browserWindow.location.origin;
+  return {
+    baseSource: options.frame.dataset.src ?? "/forge.html",
+    hostOrigin,
+    mount(source) {
+      options.frame.src = source;
+    },
+    currentSource() {
+      return options.frame.contentWindow;
+    },
+    post(message) {
+      const target = options.frame.contentWindow;
+      if (!target) return false;
+      target.postMessage(message, hostOrigin);
+      return true;
+    },
+    onLoad(listener) {
+      options.frame.addEventListener("load", listener);
+      return () => options.frame.removeEventListener("load", listener);
+    },
+    onMessage(listener) {
+      const handleMessage = (event: MessageEvent): void => listener(event);
+      browserWindow.addEventListener("message", handleMessage);
+      return () => browserWindow.removeEventListener("message", handleMessage);
+    },
+  };
+}
+
+function normalizeTimeout(value: number, minimum = 0): number {
+  if (!Number.isFinite(value)) return minimum;
+  return Math.max(minimum, Math.floor(value));
+}

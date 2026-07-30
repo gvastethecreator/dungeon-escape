@@ -374,8 +374,9 @@ describe("Forge message intake", () => {
     expect(applySource).toContain("forgePreviewDungeon ?? forgeIntake.dungeon");
     expect(applySource).toContain("const { params } = forgeIntake");
     expect(applySource).not.toContain("prepareDungeonForge");
-    expect(mainSource).toContain("event.origin !== location.origin");
-    expect(mainSource).toContain("event.source !== elements.forgeFrame.contentWindow");
+    expect(mainSource).toContain("forgeFrameClient.onTrustedMessage");
+    expect(mainSource).not.toContain('window.addEventListener("message"');
+    expect(mainSource).not.toContain("elements.forgeFrame.contentWindow");
     expect(mainSource).toContain("imported.forge?.themeKey ?? params.profile");
   });
 });
