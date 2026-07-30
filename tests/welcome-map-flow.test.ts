@@ -21,6 +21,16 @@ describe("welcome and map flow", () => {
     expect(host).not.toContain('id="pointer-lock"');
   });
 
+  test("first-run profile starts a new game flow instead of stopping at save", async () => {
+    const host = await Bun.file(new URL("../index.html", import.meta.url)).text();
+    const source = await Bun.file(new URL("../src/main.ts", import.meta.url)).text();
+    expect(host).toContain('id="welcome-profile-submit"');
+    expect(host).toContain("START NEW GAME");
+    expect(host).not.toContain("SAVE PLAYER");
+    expect(source).toContain('required ? "START NEW GAME" : "SAVE CHANGES"');
+    expect(source).toMatch(/welcomeProfileForm[\s\S]*startingNewGame[\s\S]*showBiomePicker\(\)/);
+  });
+
   test("boot screen covers the shell until main dismisses it", async () => {
     const host = await Bun.file(new URL("../index.html", import.meta.url)).text();
     const css = await Bun.file(new URL("../src/styles.css", import.meta.url)).text();
@@ -38,7 +48,10 @@ describe("welcome and map flow", () => {
     const main = await Bun.file(new URL("../src/main.ts", import.meta.url)).text();
     const qaBranchAt = main.lastIndexOf("if (visualQaState)");
     const normalBranchAt = main.indexOf("} else {", qaBranchAt);
-    const bootEndAt = main.indexOf("animationFrameId = requestAnimationFrame(frame)", normalBranchAt);
+    const bootEndAt = main.indexOf(
+      "animationFrameId = requestAnimationFrame(frame)",
+      normalBranchAt,
+    );
     const normalBoot = main.slice(normalBranchAt, bootEndAt);
 
     expect(qaBranchAt).toBeGreaterThan(-1);
@@ -80,6 +93,7 @@ describe("welcome and map flow", () => {
     expect(css).toContain(".welcome-screen::before");
     expect(css).toContain(".welcome-menu");
     expect(css).toContain(".welcome-menu__item--primary");
+    expect(css).toContain("justify-items: center");
     expect(css).toContain(".biome-picker-option__icon");
     expect(css).toContain("--biome-hover");
     expect(await art.exists()).toBe(true);

@@ -1,11 +1,6 @@
 import * as THREE from "three";
 
-import {
-  GameAudio,
-  musicTrackForBiome,
-  type AudioCue,
-  type MusicTrack,
-} from "./audio/GameAudio";
+import { GameAudio, musicTrackForBiome, type AudioCue, type MusicTrack } from "./audio/GameAudio";
 import { footstepSurfaceAt } from "./audio/FootstepSurface";
 import { createAuthorityClient } from "./authority/client";
 import {
@@ -21,10 +16,7 @@ import {
 import { DUNGEON_PRESETS, type DungeonEditorParams, type DungeonPresetId } from "./editor/presets";
 import { generateCompletableDungeon } from "./dungeon/completeness";
 import { exportPlayDungeonToForgePresentation } from "./dungeon/exportPlayDungeonToForge";
-import {
-  generateDungeonFloorSet,
-  type DungeonFloorSet,
-} from "./dungeon/generateDungeonFloors";
+import { generateDungeonFloorSet, type DungeonFloorSet } from "./dungeon/generateDungeonFloors";
 import { setDungeonSpawn } from "./dungeon/generateDungeon";
 import { gridToWorld } from "./dungeon/gridCollision";
 import { hashSeed } from "./core/random";
@@ -58,10 +50,7 @@ import {
 } from "./systems/HazardFeel";
 import { FrameGapProfiler, type FrameGapSnapshot } from "./systems/FrameGapProfiler";
 import type { BiomeEventSnapshot } from "./systems/BiomeEventDirector";
-import {
-  detectRenderCapabilities,
-  raceWithTimeout,
-} from "./systems/RenderCapabilities";
+import { detectRenderCapabilities, raceWithTimeout } from "./systems/RenderCapabilities";
 import { collectVisibleRenderInventory } from "./systems/RenderInventory";
 import { resolveRenderPixelRatio } from "./systems/RenderScale";
 import { readVisualQaSeed, readVisualQaState } from "./systems/VisualQaState";
@@ -96,6 +85,7 @@ import {
   completeCampaignBiome,
   createPlayerProfile,
   isBiomeUnlocked,
+  markPlayerRunCompleted,
   readPlayerProfile,
   updatePlayerIdentity,
   writePlayerProfile,
@@ -142,6 +132,7 @@ const elements = {
   shell: requireElement<HTMLElement>(".app-shell"),
   scene: requireElement<HTMLCanvasElement>("#scene"),
   welcomeScreen: requireElement<HTMLElement>("#welcome-screen"),
+  welcomeContent: requireElement<HTMLElement>("#welcome-content"),
   welcomeArt: requireElement<HTMLImageElement>(".welcome-art"),
   welcomeParticles: requireElement<HTMLCanvasElement>("#welcome-particles"),
   welcomeHome: requireElement<HTMLElement>("#welcome-home"),
@@ -155,6 +146,7 @@ const elements = {
   welcomeProfileAvatarImage: requireElement<HTMLImageElement>("#welcome-profile-avatar-image"),
   welcomeProfileName: requireElement<HTMLInputElement>("#welcome-profile-name"),
   welcomeProfileStatus: requireElement<HTMLElement>("#welcome-profile-status"),
+  welcomeProfileSubmit: requireElement<HTMLButtonElement>("#welcome-profile-submit"),
   welcomeNew: requireElement<HTMLButtonElement>("#welcome-new"),
   welcomeContinue: requireElement<HTMLButtonElement>("#welcome-continue"),
   welcomeCustom: requireElement<HTMLButtonElement>("#welcome-custom"),
@@ -162,6 +154,7 @@ const elements = {
   welcomeBiomePicker: requireElement<HTMLElement>("#welcome-biome-picker"),
   biomePickerGrid: requireElement<HTMLElement>("#biome-picker-grid"),
   biomePickerBack: requireElement<HTMLButtonElement>("#biome-picker-back"),
+  welcomeLeaderboard: requireElement<HTMLElement>("#welcome-leaderboard"),
   leaderboardList: requireElement<HTMLOListElement>("#leaderboard-list"),
   leaderboardStatus: requireElement<HTMLElement>("#leaderboard-status"),
   generationForm: requireElement<HTMLFormElement>("#generation-form"),
@@ -583,7 +576,12 @@ function setStatus(message: string, options: { forceDev?: boolean } = {}): void 
   elements.status.textContent = message;
 }
 
-function setToggleValue(button: HTMLButtonElement, on: boolean, onLabel: string, offLabel: string): void {
+function setToggleValue(
+  button: HTMLButtonElement,
+  on: boolean,
+  onLabel: string,
+  offLabel: string,
+): void {
   const value = button.querySelector<HTMLElement>("[data-toggle-value]");
   const label = on ? onLabel : offLabel;
   if (value) value.textContent = label;
@@ -764,8 +762,7 @@ function persistPlayerIdentity(nameInput: unknown, avatarIndex: number): boolean
     ? updatePlayerIdentity(playerProfile, nameInput, avatarIndex)
     : createPlayerProfile(nameInput, avatarIndex);
   if (!nextProfile) {
-    elements.welcomeProfileStatus.textContent =
-      "Use 1–20 letters, numbers, spaces, or . _ ' -";
+    elements.welcomeProfileStatus.textContent = "Use 1–20 letters, numbers, spaces, or . _ ' -";
     return false;
   }
   if (!writePlayerProfile(nextProfile)) {
@@ -786,15 +783,31 @@ function persistPlayerIdentity(nameInput: unknown, avatarIndex: number): boolean
   return true;
 }
 
+function syncWelcomeLeaderboardVisibility(): boolean {
+  const visible = Boolean(playerProfile?.hasCompletedRun && !elements.welcomeHome.hidden);
+  elements.welcomeLeaderboard.hidden = !visible;
+  elements.welcomeContent.classList.toggle("is-ranked", visible);
+  return visible;
+}
+
+function recordPlayerRunCompleted(): void {
+  if (!playerProfile || playerProfile.hasCompletedRun) return;
+  const completedProfile = markPlayerRunCompleted(playerProfile);
+  playerProfile = completedProfile;
+  writePlayerProfile(completedProfile);
+}
+
 function showPlayerProfileEditor(required = playerProfile === null): void {
   const legacyName = storedLeaderboardName() ?? "";
   const draftName = playerProfile?.name ?? legacyName;
   profileAvatarDraft =
-    playerProfile?.avatarIndex ?? (draftName ? portraitIndexForName(draftName) : profileAvatarDraft);
+    playerProfile?.avatarIndex ??
+    (draftName ? portraitIndexForName(draftName) : profileAvatarDraft);
   elements.welcomeHome.hidden = true;
   elements.welcomeBiomePicker.hidden = true;
   elements.welcomeProfile.hidden = false;
   elements.welcomeProfileBack.hidden = required;
+  elements.welcomeProfileSubmit.textContent = required ? "START NEW GAME" : "SAVE CHANGES";
   elements.welcomeProfileName.value = draftName;
   elements.welcomeProfileStatus.textContent = required
     ? "Your player and unlocked levels are saved in this browser."
@@ -802,6 +815,7 @@ function showPlayerProfileEditor(required = playerProfile === null): void {
   const portrait = portraitForIndex(profileAvatarDraft);
   elements.welcomeProfileAvatarImage.src = portrait.src;
   elements.welcomeProfileAvatar.title = `Change avatar · ${portrait.title}`;
+  syncWelcomeLeaderboardVisibility();
   window.requestAnimationFrame(() => elements.welcomeProfileName.focus());
 }
 
@@ -838,6 +852,7 @@ function showWelcomeHome(): void {
   elements.welcomeHome.hidden = false;
   elements.welcomeProfile.hidden = true;
   elements.welcomeBiomePicker.hidden = true;
+  if (syncWelcomeLeaderboardVisibility()) void refreshLeaderboard();
 }
 
 function storedLeaderboardName(): string | null {
@@ -877,6 +892,7 @@ function showBiomePicker(): void {
   elements.welcomeHome.hidden = true;
   elements.welcomeProfile.hidden = true;
   elements.welcomeBiomePicker.hidden = false;
+  syncWelcomeLeaderboardVisibility();
   // Warm the Forge iframe while the player picks a biome so New Game does not
   // stall on a cold WebGL load under the black curtain.
   void ensureForgeFrameLoaded(8_000, { presentation: true });
@@ -2401,9 +2417,7 @@ function updateObjective(): void {
 function updateReadout(): void {
   if (!dungeon) return;
   const player = controller.getState();
-  const floorLabel = dungeon.floor
-    ? `floor ${dungeon.floor.number}/${dungeon.floor.count} / `
-    : "";
+  const floorLabel = dungeon.floor ? `floor ${dungeon.floor.number}/${dungeon.floor.count} / ` : "";
   elements.runStats.textContent = `${floorLabel}${dungeon.stats.roomCount} rooms / ${dungeon.stats.loopCount} loops / ${world.stats.enemies} presence`;
   elements.position.textContent = player.cell
     ? `CELL ${formatCell(player.cell)} / ${player.distanceTravelled.toFixed(0)} m`
@@ -2529,6 +2543,7 @@ function showEndOverlay(mode: "dead" | "won"): void {
     elements.endOverlay.hidden = true;
     return;
   }
+  if (!readVisualQaState(window.location.search)) recordPlayerRunCompleted();
   const activeMood = dungeon ? resolveActiveMood(dungeon) : null;
   const endingBiomeId = activeMood?.id ?? "ancient";
   elements.endArt.src = biomeScreenArtSrc(endingBiomeId, "ending");
@@ -3301,11 +3316,7 @@ elements.endLeaderboardForm.addEventListener("submit", (event) => {
       }
       elements.leaderboardName.value = entry.playerName;
       if (playerProfile) {
-        const nextProfile = updatePlayerIdentity(
-          playerProfile,
-          entry.playerName,
-          portraitIndex,
-        );
+        const nextProfile = updatePlayerIdentity(playerProfile, entry.playerName, portraitIndex);
         if (nextProfile && writePlayerProfile(nextProfile)) {
           playerProfile = nextProfile;
           syncPlayerProfileUi();
@@ -3505,13 +3516,19 @@ elements.welcomeProfileAvatar.addEventListener("click", () => {
 });
 elements.welcomeProfileForm.addEventListener("submit", (event) => {
   event.preventDefault();
+  const startingNewGame = playerProfile === null;
   if (!persistPlayerIdentity(elements.welcomeProfileName.value, profileAvatarDraft)) {
     elements.welcomeProfileName.focus();
     return;
   }
-  elements.welcomeProfileStatus.textContent = "Player saved.";
-  showWelcomeHome();
-  window.requestAnimationFrame(() => elements.welcomeNew.focus());
+  if (startingNewGame) {
+    void audio.unlock();
+    showBiomePicker();
+  } else {
+    elements.welcomeProfileStatus.textContent = "Player saved.";
+    showWelcomeHome();
+    window.requestAnimationFrame(() => elements.welcomeProfileEdit.focus());
+  }
 });
 elements.biomePickerBack.addEventListener("click", () => {
   showWelcomeHome();
@@ -4200,8 +4217,7 @@ function frame(now: number): void {
     elements.debugEnemies.textContent = `${world.stats.enemies}/${world.stats.enemies + world.stats.reserveEnemies}`;
     elements.debugMode.textContent =
       frameMs <= 18 ? "FRAME OK" : frameMs <= 28 ? "FRAME WARN" : "FRAME HOT";
-    elements.debugPanel.dataset.frameState =
-      frameMs <= 18 ? "ok" : frameMs <= 28 ? "warn" : "hot";
+    elements.debugPanel.dataset.frameState = frameMs <= 18 ? "ok" : frameMs <= 28 ? "warn" : "hot";
     lastDebugDraw = now;
   }
   if (renderWarmupReady) {
@@ -4304,7 +4320,6 @@ setEditorSurface("runtime");
 setEngineMode("editor", { hydrate: false, persist: false });
 // Keep welcome closed only while its font and cover art settle.
 setWelcomeOpen(false);
-void refreshLeaderboard();
 const localContinue = readLocalRunSave();
 if (canContinueLocalRun(localContinue)) {
   // Continue builds only after the player asks for it; parsing the validated

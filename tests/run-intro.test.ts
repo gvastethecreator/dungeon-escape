@@ -13,7 +13,7 @@ describe("new-game map theater intro", () => {
     const forge = await Bun.file(new URL("../src/forge/main.js", import.meta.url)).text();
     expect(source).toContain("async function startPlayWithSeed");
     expect(source).toContain("setRunIntroActive(true");
-    expect(source).toContain('setSceneFadeOpaque(true, { instant: true })');
+    expect(source).toContain("setSceneFadeOpaque(true, { instant: true })");
     expect(source).toContain("buildPlayWorldForIntro");
     expect(source).toContain('setEditorSurface("forge")');
     expect(source).toContain("exportPlayDungeonToForgePresentation");
@@ -28,17 +28,22 @@ describe("new-game map theater intro", () => {
     expect(forge).toContain("editorDungeonBeforePresentation");
     expect(forge).toContain("restoreEditorDungeonAfterPresentation");
 
-    const presentationHandlerAt = forge.indexOf('event.data?.type === "black-flag:forge-presentation"');
+    const presentationHandlerAt = forge.indexOf(
+      'event.data?.type === "black-flag:forge-presentation"',
+    );
     const preserveEditorAt = forge.indexOf(
       "if (!editorDungeonBeforePresentation && D) editorDungeonBeforePresentation = D",
       presentationHandlerAt,
     );
-    const inspectHostDungeonAt = forge.indexOf("const hostDungeon = event.data.dungeon", presentationHandlerAt);
+    const inspectHostDungeonAt = forge.indexOf(
+      "const hostDungeon = event.data.dungeon",
+      presentationHandlerAt,
+    );
     expect(presentationHandlerAt).toBeGreaterThan(-1);
     expect(preserveEditorAt).toBeGreaterThan(presentationHandlerAt);
     expect(inspectHostDungeonAt).toBeGreaterThan(preserveEditorAt);
 
-    const blackFirstAt = source.indexOf('setSceneFadeOpaque(true, { instant: true })');
+    const blackFirstAt = source.indexOf("setSceneFadeOpaque(true, { instant: true })");
     const introActiveAt = source.indexOf("setRunIntroActive(true", blackFirstAt);
     const buildAt = source.indexOf("buildPlayWorldForIntro(normalizedSeed, token)", introActiveAt);
     const presentAt = source.indexOf("exportPlayDungeonToForgePresentation", buildAt);
@@ -62,13 +67,11 @@ describe("new-game map theater intro", () => {
     expect(editorCss).toContain('.app-shell[data-run-intro="true"] .editor-workspace');
     expect(editorCss).toContain('.app-shell[data-run-intro="true"] .editor-toolbar');
     expect(editorCss).toContain("display: none !important");
-    expect(editorCss).toContain(
-      '.app-shell[data-run-intro="true"] #editor-forge-surface',
-    );
+    expect(editorCss).toContain('.app-shell[data-run-intro="true"] #editor-forge-surface');
     expect(shellCss).toContain(".scene-fade");
     expect(shellCss).toContain(".scene-fade.is-opaque");
-    expect(shellCss).toContain(
-      '.app-shell[data-run-intro="true"] > *:not(#editor-workspace):not(#scene-fade):not(#run-intro-status)',
+    expect(shellCss).toMatch(
+      /\.app-shell\[data-run-intro="true"\]\s*>\s*\*:not\(#editor-workspace\):not\(#scene-fade\):not\(#run-intro-status\)/,
     );
   });
 });

@@ -1,14 +1,20 @@
 import { describe, expect, test } from "bun:test";
 
 describe("persistent leaderboard UI", () => {
-  test("welcome exposes a live local ranking without blocking run actions", async () => {
+  test("welcome reveals the local ranking only after the player's first finished game", async () => {
     const host = await Bun.file(new URL("../index.html", import.meta.url)).text();
+    const source = await Bun.file(new URL("../src/main.ts", import.meta.url)).text();
+    expect(host).toContain('id="welcome-leaderboard"');
+    expect(host).toMatch(/id="welcome-leaderboard"[\s\S]*?hidden/);
     expect(host).toContain('id="leaderboard-list"');
     expect(host).toContain('id="leaderboard-status"');
     expect(host).toContain('aria-labelledby="leaderboard-title"');
     expect(host).toContain('id="welcome-new"');
     expect(host).toContain('id="welcome-continue"');
     expect(host).toContain('id="welcome-custom"');
+    expect(source).toContain("playerProfile?.hasCompletedRun");
+    expect(source).toContain("syncWelcomeLeaderboardVisibility()");
+    expect(source).not.toContain("void refreshLeaderboard();\nconst localContinue");
   });
 
   test("victory captures a bounded name and presents the trusted score", async () => {
@@ -83,6 +89,7 @@ describe("persistent leaderboard UI", () => {
   test("responsive styles stack the ranking and name form", async () => {
     const css = await Bun.file(new URL("../src/styles.css", import.meta.url)).text();
     expect(css).toContain(".welcome-leaderboard");
+    expect(css).toContain(".welcome-content.is-ranked");
     expect(css).toContain(".leaderboard-list");
     expect(css).toContain(".leaderboard-body");
     expect(css).toContain(".leaderboard-meta");
