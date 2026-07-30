@@ -13,6 +13,8 @@ export type ForgeProceduralSeedMessage = {
 export type ForgePresentationMessage = {
   readonly type: "black-flag:forge-presentation";
   readonly version: 1;
+  /** Additive v1 correlation. Older hosts may omit it. */
+  readonly presentationId?: number;
   readonly enabled: boolean;
   readonly animate: boolean;
   readonly seed?: number;
@@ -28,6 +30,8 @@ export type ForgeHostMessage =
 export type ForgeAnimationCompleteMessage = {
   readonly type: "black-flag:forge-anim-complete";
   readonly version: 1;
+  /** Echoed when the initiating host supplied correlation. */
+  readonly presentationId?: number;
 };
 
 export type ForgeDungeonMessage = {
@@ -56,10 +60,12 @@ export function forgeProceduralSeedMessage(seed: number): ForgeProceduralSeedMes
 export function forgePresentationMessage(
   enabled: boolean,
   input: ForgePresentationInput,
+  presentationId?: number,
 ): ForgePresentationMessage {
   return {
     type: "black-flag:forge-presentation",
     version: 1,
+    presentationId,
     enabled,
     animate: input.animate,
     seed: input.seed,
@@ -74,7 +80,12 @@ export function isForgeAnimationCompleteMessage(
   if (typeof value !== "object" || value === null) return false;
   try {
     const candidate = value as Record<string, unknown>;
-    return candidate.type === "black-flag:forge-anim-complete" && candidate.version === 1;
+    return (
+      candidate.type === "black-flag:forge-anim-complete" &&
+      candidate.version === 1 &&
+      (candidate.presentationId === undefined ||
+        (Number.isSafeInteger(candidate.presentationId) && Number(candidate.presentationId) > 0))
+    );
   } catch {
     return false;
   }

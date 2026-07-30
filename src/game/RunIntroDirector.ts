@@ -26,6 +26,7 @@ export interface RunIntroRequest {
 }
 
 export type RunIntroCancellationReason = "cancelled" | "superseded" | "disposed";
+export type RunIntroResetDestination = RunIntroCancellationReason | "failed";
 export type RunIntroPath = "skip" | "forge" | "forge-fallback";
 export type RunIntroWarmup = "ready" | "degraded";
 
@@ -86,7 +87,7 @@ export interface RunIntroPort {
   restorePlayInputAndFocus(signal: AbortSignal): Promise<void>;
   recoverToWelcome(message?: string): void;
   /** Synchronous, idempotent reset used before a replacement can start. */
-  resetIntro(destination: RunIntroCancellationReason): void;
+  resetIntro(destination: RunIntroResetDestination): void;
 }
 
 interface RunOperation {
@@ -113,13 +114,7 @@ export class RunIntroDirector {
 
   async start(request: RunIntroRequest): Promise<RunIntroResult> {
     const id = ++this.#requestId;
-    const previous = this.#active;
-    if (previous) {
-      this.#abort(previous, "superseded");
-      await previous.done;
-    }
     if (this.#disposed) return cancelledResult(request.seed, "disposed");
-    if (id !== this.#requestId) return cancelledResult(request.seed, "superseded");
 
     let resolveDone = (): void => undefined;
     const done = new Promise<void>((resolve) => {
@@ -135,13 +130,26 @@ export class RunIntroDirector {
       session: null,
       reset: false,
     };
+    const previous = this.#active;
     this.#active = operation;
+    if (previous) this.#abort(previous, "superseded");
 
     try {
+      if (previous) await previous.done;
+      if (operation.controller.signal.aborted) return this.#cancelled(operation);
+      if (this.#disposed) {
+        this.#abort(operation, "disposed");
+        return this.#cancelled(operation);
+      }
+      if (id !== this.#requestId) {
+        this.#abort(operation, "superseded");
+        return this.#cancelled(operation);
+      }
       return await this.#run(operation);
     } catch (error) {
       if (operation.controller.signal.aborted) return this.#cancelled(operation);
       this.#stopSession(operation);
+      this.#safeReset(operation, "failed");
       this.#safeLeaveTheater();
       const message = error instanceof Error ? error.message : "Could not start the dungeon.";
       this.#safeRecover(message);
@@ -340,12 +348,16 @@ export class RunIntroDirector {
     }
     operation.controller.abort();
     this.#stopSession(operation);
+    this.#safeReset(operation, reason);
+  }
+
+  #safeReset(operation: RunOperation, destination: RunIntroResetDestination): void {
     if (operation.reset) return;
     operation.reset = true;
     try {
-      this.#port.resetIntro(reason);
+      this.#port.resetIntro(destination);
     } catch {
-      // Cancellation cleanup is best-effort and must not block a replacement.
+      // Cleanup is best-effort and must not block recovery or a replacement.
     }
   }
 

@@ -118,6 +118,36 @@ describe("floor exploration", () => {
     expect(exploration.snapshot().visitedCells).toEqual(["5,2"]);
   });
 
+  test("drops invalid saved cells when their floor becomes active", () => {
+    const exploration = new FloorExploration({ revealRadius: 0 });
+    expect(
+      exploration.restore(
+        makeFloor(0),
+        {
+          activeFloor: 0,
+          visitedCells: ["1,2"],
+          visitedFloors: { "0": ["1,2"], "1": ["0,0", "4,2"] },
+        },
+        { x: 1, y: 2 },
+      ),
+    ).toEqual({ ok: true });
+
+    exploration.switchFloor(makeFloor(1), { x: 5, y: 2 });
+    expect(exploration.snapshot().visitedCells).toEqual(["4,2"]);
+
+    exploration.restore(
+      makeFloor(0),
+      {
+        activeFloor: 0,
+        visitedCells: ["1,2"],
+        visitedFloors: { "0": ["1,2"], "1": ["0,0"] },
+      },
+      { x: 1, y: 2 },
+    );
+    exploration.switchFloor(makeFloor(1), { x: 5, y: 2 });
+    expect(exploration.snapshot().visitedCells).toEqual(["5,2"]);
+  });
+
   test("rejects malformed restores atomically", () => {
     const exploration = new FloorExploration({ revealRadius: 0 });
     const floor = makeFloor(0);
@@ -138,6 +168,24 @@ describe("floor exploration", () => {
         activeFloor: 0,
         visitedCells: [],
         visitedFloors: { "0": ["not-a-cell"] },
+      }),
+    ).toEqual({ ok: false, reason: "invalid-cell" });
+    expect(exploration.snapshot()).toEqual(before);
+
+    expect(
+      exploration.restore(floor, {
+        activeFloor: 0,
+        visitedCells: ["999999,999999"],
+        visitedFloors: {},
+      }),
+    ).toEqual({ ok: false, reason: "invalid-cell" });
+    expect(exploration.snapshot()).toEqual(before);
+
+    expect(
+      exploration.restore(floor, {
+        activeFloor: 0,
+        visitedCells: ["0,0"],
+        visitedFloors: {},
       }),
     ).toEqual({ ok: false, reason: "invalid-cell" });
     expect(exploration.snapshot()).toEqual(before);
