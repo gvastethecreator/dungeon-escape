@@ -1,6 +1,6 @@
 # Annihilation pulse relic
 
-The annihilation pulse relic is a power pickup placed in a route chest. After collection it creates a 26-second field around the player.
+The annihilation pulse relic is a power pickup placed in a route chest. After collection it creates a 13-second field around the player.
 
 ## Gameplay contract
 

@@ -5,7 +5,9 @@ export type PickupBurstKind =
   | "resolve"
   | "time-freeze"
   | "luminous-ward"
-  | "annihilation-pulse";
+  | "annihilation-pulse"
+  | "map"
+  | "mobility";
 
 interface PickupBurstSlot {
   root: THREE.Group;
@@ -22,6 +24,8 @@ const BURST_COLORS: Readonly<Record<PickupBurstKind, number>> = {
   "time-freeze": 0x72e7ef,
   "luminous-ward": 0xb9e879,
   "annihilation-pulse": 0xff5d86,
+  map: 0xd5bd7a,
+  mobility: 0x72d45f,
 };
 
 function createSlot(index: number): PickupBurstSlot {
@@ -102,7 +106,11 @@ export class PickupBurstPool {
     slot.sparks.material.size =
       kind === "resolve"
         ? 0.075
-        : kind === "time-freeze" || kind === "luminous-ward" || kind === "annihilation-pulse"
+        : kind === "time-freeze" ||
+            kind === "luminous-ward" ||
+            kind === "annihilation-pulse" ||
+            kind === "map" ||
+            kind === "mobility"
           ? 0.09
           : 0.06;
     slot.sparks.material.opacity = 0.88;

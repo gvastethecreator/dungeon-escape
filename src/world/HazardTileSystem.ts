@@ -22,6 +22,13 @@ export interface HazardSurfaceEffect {
   traction: number;
 }
 
+export interface HazardTraversalState {
+  /** Feet have cleared the floor trigger while jumping. */
+  airborne?: boolean;
+  /** Active mobility pickup suppresses all floor-trap contact and residue. */
+  immune?: boolean;
+}
+
 const HAZARDS_BY_MOOD: Readonly<Record<DungeonMoodId, readonly HazardTileKind[]>> = {
   ancient: ["spikes", "toxin"],
   molten: ["fire", "spikes"],
@@ -1066,17 +1073,24 @@ export class HazardTileSystem {
     this.spikeInstances.instanceMatrix.needsUpdate = true;
   }
 
-  sample(delta: number, player: THREE.Vector3): HazardSurfaceEffect {
+  sample(
+    delta: number,
+    player: THREE.Vector3,
+    traversal: HazardTraversalState = {},
+  ): HazardSurfaceEffect {
     this.fireCooldown = Math.max(0, this.fireCooldown - delta);
     this.spikeCooldown = Math.max(0, this.spikeCooldown - delta);
     this.toxinTickCooldown = Math.max(0, this.toxinTickCooldown - delta);
     this.toxinRemaining = Math.max(0, this.toxinRemaining - delta);
+    if (traversal.immune) this.toxinRemaining = 0;
     let damage = 0;
     let active: HazardVisual | null = null;
-    for (const visual of this.visuals) {
-      if (Math.hypot(player.x - visual.position.x, player.z - visual.position.z) > 0.82) continue;
-      active = visual;
-      break;
+    if (!traversal.airborne && !traversal.immune) {
+      for (const visual of this.visuals) {
+        if (Math.hypot(player.x - visual.position.x, player.z - visual.position.z) > 0.82) continue;
+        active = visual;
+        break;
+      }
     }
     if (active?.placement.kind === "fire" && this.fireCooldown === 0) {
       damage += 5;

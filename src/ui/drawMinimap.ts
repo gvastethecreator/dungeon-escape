@@ -23,6 +23,9 @@ export const MINIMAP_COLORS = {
   timeFreeze: "#72e7ef",
   luminousWard: "#b9e879",
   annihilationPulse: "#ff5d86",
+  map: "#d5bd7a",
+  mobility: "#72d45f",
+  stairs: "#d7d2c4",
   relic: "#8a4fb0",
   door: "#3a3d3a",
   player: "#f0ebe0",
@@ -193,7 +196,8 @@ export function drawMinimap(
   }
 
   // Exit: only when its cell is known (or full-map mode with no fog).
-  if (isExplored(dungeon.exit.x, dungeon.exit.y)) {
+  const finalFloor = !dungeon.floor || dungeon.floor.index === dungeon.floor.count - 1;
+  if (finalFloor && isExplored(dungeon.exit.x, dungeon.exit.y)) {
     const exitSize = Math.max(3, cellSize * 1.85);
     context.fillStyle = COLORS.exit;
     context.fillRect(
@@ -348,6 +352,39 @@ function drawFeatures(
     context.lineTo(cx + r * 0.52, cy);
     context.lineTo(cx, cy + r * 0.52);
     context.lineTo(cx - r * 0.52, cy);
+    context.closePath();
+    context.fill();
+  }
+
+  for (const [cell, color, shape] of [
+    [features.map, COLORS.map, "square"],
+    [features.mobility, COLORS.mobility, "circle"],
+  ] as const) {
+    if (!cell || !isExplored(cell.x, cell.y)) continue;
+    const [cx, cy] = cellCenter(cell);
+    const radius = Math.max(1.8, cellSize * 0.5);
+    context.fillStyle = color;
+    context.beginPath();
+    if (shape === "circle") context.arc(cx, cy, radius, 0, Math.PI * 2);
+    else context.rect(cx - radius, cy - radius * 0.72, radius * 2, radius * 1.44);
+    context.fill();
+  }
+
+  context.fillStyle = COLORS.stairs;
+  for (const stair of features.stairs ?? []) {
+    if (!isExplored(stair.cell.x, stair.cell.y)) continue;
+    const [cx, cy] = cellCenter(stair.cell);
+    const radius = Math.max(2.2, cellSize * 0.66);
+    context.beginPath();
+    if (stair.direction === "up") {
+      context.moveTo(cx, cy - radius);
+      context.lineTo(cx + radius, cy + radius * 0.72);
+      context.lineTo(cx - radius, cy + radius * 0.72);
+    } else {
+      context.moveTo(cx, cy + radius);
+      context.lineTo(cx + radius, cy - radius * 0.72);
+      context.lineTo(cx - radius, cy - radius * 0.72);
+    }
     context.closePath();
     context.fill();
   }

@@ -1,5 +1,9 @@
 /** English UI copy for dungeon runtime and editor shell. */
 
+import { ANNIHILATION_PULSE_DURATION_SECONDS } from "../game/AnnihilationPulse";
+import { LUMINOUS_WARD_DURATION_SECONDS } from "../game/LuminousWard";
+import { TIME_FREEZE_DURATION_SECONDS } from "../game/TimeFreeze";
+
 export const COPY = {
   objective: {
     label: "OBJECTIVE",
@@ -22,6 +26,8 @@ export const COPY = {
     timeFreeze: "TIME FROZEN",
     luminousWard: "WARD STONE",
     annihilationPulse: "PULSE RELIC",
+    map: "DUNGEON MAPPED",
+    mobility: "WAYFINDER DRAUGHT",
   },
   interaction: {
     openChest: "OPEN CHEST",
@@ -44,14 +50,18 @@ export const COPY = {
     portalSealed: "The portal is sealed. Four magic stones are required.",
     portalOpen: "The portal spins open. Enter its center.",
     stoneFound: (name: string, found: number, total: number) => `${name} bound · ${found}/${total}`,
-    timeFreeze: "Time frozen for 20 seconds.",
-    luminousWard: "Ward active for 30 seconds.",
-    annihilationPulse: "Annihilation pulse active for 26 seconds.",
+    timeFreeze: `Time frozen for ${TIME_FREEZE_DURATION_SECONDS} seconds.`,
+    luminousWard: `Ward active for ${LUMINOUS_WARD_DURATION_SECONDS} seconds.`,
+    annihilationPulse: `Annihilation pulse active for ${ANNIHILATION_PULSE_DURATION_SECONDS} seconds.`,
+    map: "Dungeon map found. Every room and route is now visible.",
+    mobility: "Speed and stamina boosted. Floor traps cannot harm you for 14 seconds.",
     won: "You escaped the dungeon",
     dead: "Keep distance. Shadows strike on contact.",
     hydrate: (seed: string) => `Loaded from server · seed ${seed}`,
     generation: (profile: string, mood: string) =>
       `Profile ${profile} · mood ${mood}. Collect four stones. Avoid the presence.`,
+    /** Player-facing line after a map loads (no tech profile / renderer timing). */
+    generationPlayer: (mood: string) => `${mood}. Find the four stones. Avoid the presence.`,
     forgeLoaded: "Dungeon creation loaded",
     pushOk: "Map params sent to the server (best effort).",
     pushOffline: "Server offline · local only.",
@@ -73,6 +83,8 @@ export const COPY = {
     retry: "Try again",
     newDungeon: "New dungeon",
     next: "Another run",
+    /** Disabled Next run CTA (final biome, death, or not yet unlocked). */
+    nextRun: "Next run",
     /** Victory CTA after Hall save when a harder biome remains. */
     nextBiome: (label: string) => `Next: ${label}`,
     /** Victory note after Hall save on the final campaign biome. */
@@ -100,19 +112,21 @@ export const COPY = {
     mapShrink: "SHRINK",
     enter: "ENTER",
     escapeKey: "ESC",
-    mute: "AUDIO OFF",
-    audioOn: "AUDIO ON",
-    musicOff: "MUSIC OFF",
-    musicOn: "MUSIC ON",
-    crtOn: "CRT ON",
-    crtOff: "CRT OFF",
+    mute: "OFF",
+    audioOn: "ON",
+    musicOff: "OFF",
+    musicOn: "ON",
+    crtOn: "ON",
+    crtOff: "OFF",
     mapTools: "MAP TOOLS",
     seedDefault: "CAMPAIGN-17",
     resume: "RESUME",
     restartMap: "RESTART MAP",
-    backToMain: "BACK TO MAIN SCREEN",
+    backToMain: "MAIN MENU",
   },
   pause: {
+    title: "Paused",
+    settings: "SETTINGS",
     restarted: "Map restarted. Click the scene to explore.",
     returnedHome: "Returned to the main screen.",
   },

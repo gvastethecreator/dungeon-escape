@@ -34,6 +34,43 @@ describe("welcome and map flow", () => {
     expect(main).toContain("setBootProgress");
   });
 
+  test("normal first-run boot reaches the profile before building or warming a play world", async () => {
+    const main = await Bun.file(new URL("../src/main.ts", import.meta.url)).text();
+    const qaBranchAt = main.lastIndexOf("if (visualQaState)");
+    const normalBranchAt = main.indexOf("} else {", qaBranchAt);
+    const bootEndAt = main.indexOf("animationFrameId = requestAnimationFrame(frame)", normalBranchAt);
+    const normalBoot = main.slice(normalBranchAt, bootEndAt);
+
+    expect(qaBranchAt).toBeGreaterThan(-1);
+    expect(normalBranchAt).toBeGreaterThan(qaBranchAt);
+    expect(bootEndAt).toBeGreaterThan(normalBranchAt);
+    expect(normalBoot).not.toContain("buildDungeon(");
+    expect(normalBoot).not.toContain("waitForRendererWarmup");
+    expect(normalBoot).toContain("setWelcomeOpen(true)");
+    expect(main).toContain('setEditorSurface("runtime")');
+  });
+
+  test("deferred Continue and Custom Run paint a busy state before their blocking build", async () => {
+    const main = await Bun.file(new URL("../src/main.ts", import.meta.url)).text();
+    const continueAt = main.indexOf('elements.welcomeContinue.addEventListener("click"');
+    const customAt = main.indexOf('elements.welcomeCustom.addEventListener("click"');
+    const optionsAt = main.indexOf('elements.optionsResume.addEventListener("click"');
+    const continueHandler = main.slice(continueAt, customAt);
+    const customHandler = main.slice(customAt, optionsAt);
+
+    expect(main).toContain("function setWelcomeTransitionBusy");
+    expect(main).toContain('elements.welcomeScreen.setAttribute("aria-busy", "true")');
+    expect(main).toContain('elements.welcomeScreen.removeAttribute("aria-busy")');
+    expect(continueAt).toBeGreaterThan(-1);
+    expect(customAt).toBeGreaterThan(continueAt);
+    expect(optionsAt).toBeGreaterThan(customAt);
+    expect(continueHandler).toContain('setWelcomeTransitionBusy(true, "Restoring saved dungeon…")');
+    expect(continueHandler).toContain("await waitAnimationFrames(2)");
+    expect(continueHandler).toContain("await waitForRendererWarmup(10_000)");
+    expect(customHandler).toContain('setWelcomeTransitionBusy(true, "Creating custom dungeon…")');
+    expect(customHandler).toContain("await waitAnimationFrames(2)");
+  });
+
   test("uses a full-frame biome cover without baking menu copy into the image", async () => {
     const css = await Bun.file(new URL("../src/styles.css", import.meta.url)).text();
     const art = Bun.file(

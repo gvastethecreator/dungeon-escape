@@ -26,8 +26,20 @@ export type AudioCue =
 
 export type AudioGroup = "sfx" | "ui" | "ambience" | "threat" | "music";
 
-/** Looping scene beds. Null stops the current track after a short fade. */
-export type MusicTrack = "menu" | "win" | "lose";
+/** Looping scene beds. Each campaign biome owns an original exploration cue. */
+export type BiomeMusicTrack =
+  | "biome-ancient"
+  | "biome-molten"
+  | "biome-frost"
+  | "biome-grim"
+  | "biome-verdant"
+  | "biome-ash"
+  | "biome-iron"
+  | "biome-obsidian"
+  | "biome-sunken"
+  | "biome-fungal"
+  | "biome-backrooms";
+export type MusicTrack = "menu" | "win" | "lose" | BiomeMusicTrack;
 
 export interface AudioPosition {
   x: number;
@@ -89,7 +101,14 @@ export interface DungeonAudioFrame {
 }
 
 export interface CollectedPickupAudio {
-  kind: "stone" | "resolve" | "time-freeze" | "luminous-ward" | "annihilation-pulse";
+  kind:
+    | "stone"
+    | "resolve"
+    | "time-freeze"
+    | "luminous-ward"
+    | "annihilation-pulse"
+    | "map"
+    | "mobility";
   position: AudioPosition;
 }
 
@@ -266,6 +285,17 @@ const AUDIO_ASSETS: Record<string, AssetDefinition> = {
   "music-menu": { file: "music-menu.opus", group: "music", gain: 0.55 },
   "music-win": { file: "music-win.opus", group: "music", gain: 0.52 },
   "music-lose": { file: "music-lose.opus", group: "music", gain: 0.5 },
+  "music-biome-ancient": { file: "music-biome-ancient.ogg", group: "music", gain: 0.34 },
+  "music-biome-molten": { file: "music-biome-molten.ogg", group: "music", gain: 0.32 },
+  "music-biome-frost": { file: "music-biome-frost.ogg", group: "music", gain: 0.35 },
+  "music-biome-grim": { file: "music-biome-grim.ogg", group: "music", gain: 0.34 },
+  "music-biome-verdant": { file: "music-biome-verdant.ogg", group: "music", gain: 0.34 },
+  "music-biome-ash": { file: "music-biome-ash.ogg", group: "music", gain: 0.34 },
+  "music-biome-iron": { file: "music-biome-iron.ogg", group: "music", gain: 0.32 },
+  "music-biome-obsidian": { file: "music-biome-obsidian.ogg", group: "music", gain: 0.34 },
+  "music-biome-sunken": { file: "music-biome-sunken.ogg", group: "music", gain: 0.35 },
+  "music-biome-fungal": { file: "music-biome-fungal.ogg", group: "music", gain: 0.35 },
+  "music-biome-backrooms": { file: "music-biome-backrooms.ogg", group: "music", gain: 0.33 },
 };
 
 type AudioAssetId = string;
@@ -274,7 +304,24 @@ const MUSIC_ASSETS: Readonly<Record<MusicTrack, AudioAssetId>> = {
   menu: "music-menu",
   win: "music-win",
   lose: "music-lose",
+  "biome-ancient": "music-biome-ancient",
+  "biome-molten": "music-biome-molten",
+  "biome-frost": "music-biome-frost",
+  "biome-grim": "music-biome-grim",
+  "biome-verdant": "music-biome-verdant",
+  "biome-ash": "music-biome-ash",
+  "biome-iron": "music-biome-iron",
+  "biome-obsidian": "music-biome-obsidian",
+  "biome-sunken": "music-biome-sunken",
+  "biome-fungal": "music-biome-fungal",
+  "biome-backrooms": "music-biome-backrooms",
 };
+
+export function musicTrackForBiome(moodId: string): BiomeMusicTrack {
+  const normalized = moodId.trim().toLowerCase();
+  const track = `biome-${normalized}` as BiomeMusicTrack;
+  return track in MUSIC_ASSETS ? track : "biome-ancient";
+}
 
 function buildCreatureTakeTable(
   role: "voice" | "attack",
@@ -323,6 +370,8 @@ const PICKUP_ASSETS: Readonly<Record<CollectedPickupAudio["kind"], AudioAssetId>
   "time-freeze": "pickup-time-freeze",
   "luminous-ward": "pickup-ward",
   "annihilation-pulse": "pickup-ward",
+  map: "pickup-stone",
+  mobility: "pickup-resolve",
 };
 
 const CUE_ASSETS: Readonly<Record<Exclude<AudioCue, "step" | "pickup">, AudioAssetId>> = {

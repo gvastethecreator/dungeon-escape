@@ -1,5 +1,5 @@
 /** Duration of the luminous ward pickup in gameplay seconds. */
-export const LUMINOUS_WARD_DURATION_SECONDS = 30;
+export const LUMINOUS_WARD_DURATION_SECONDS = 15;
 
 /** Enemies keep this horizontal distance while the ward is active. */
 export const LUMINOUS_WARD_REPEL_RADIUS = 8.25;

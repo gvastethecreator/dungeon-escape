@@ -4,6 +4,11 @@
  * The blocks retain their relative source order for visual parity.
  */
 
+/* Public builds: Debug is local-only. Creation + Play remain for Custom Run. */
+.app-shell[data-local-dev-tools="false"] .mode-switcher [data-engine-mode="debug"] {
+  display: none !important;
+}
+
 .editor-readout strong,
 .forge-play-btn__label {
   font-family: var(--font-gothic);
@@ -293,12 +298,20 @@
 .debug-panel {
   position: absolute;
   z-index: 15;
-  bottom: var(--safe-b);
-  left: var(--safe-l);
-  width: 264px;
-  padding: 10px;
+  right: auto;
+  bottom: max(18px, var(--safe-b));
+  left: max(18px, var(--safe-l));
+  display: grid;
+  grid-template-columns: 112px minmax(0, 1fr);
+  align-items: stretch;
+  width: min(840px, calc(100vw - 438px));
+  min-width: 560px;
+  padding: 6px;
   border: var(--edge);
-  background: rgb(7 8 9 / 92%);
+  background: rgb(7 8 9 / 95%);
+  box-shadow:
+    0 0 0 1px rgb(0 0 0 / 74%),
+    5px 5px 0 rgb(0 0 0 / 44%);
 }
 
 .debug-panel[hidden] {
@@ -306,8 +319,11 @@
 }
 
 .debug-panel header {
-  display: flex;
-  justify-content: space-between;
+  display: grid;
+  align-content: center;
+  gap: 5px;
+  padding: 0 10px 0 6px;
+  border-right: var(--rule);
   color: var(--bone);
   font-family: var(--font-pixel);
   font-size: 12px;
@@ -318,18 +334,29 @@
 
 .debug-panel header span {
   color: #9aa79f;
+  font-size: 9px;
+  letter-spacing: 0.08em;
+}
+
+.debug-panel[data-frame-state="warn"] header span {
+  color: #d6b878;
+}
+
+.debug-panel[data-frame-state="hot"] header span {
+  color: #dd8069;
 }
 
 .debug-panel dl {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 5px;
-  margin: 8px 0 0;
+  grid-template-columns: repeat(10, minmax(48px, 1fr));
+  gap: 3px;
+  margin: 0;
 }
 
 .debug-panel dl div {
-  padding: 6px;
-  border: var(--edge);
+  min-width: 0;
+  padding: 5px 6px;
+  border-left: var(--rule);
 }
 
 .debug-panel dt {
@@ -342,8 +369,11 @@
   margin: 2px 0 0;
   color: var(--bone);
   font-family: var(--font-pixel);
-  font-size: 13px;
+  overflow: hidden;
+  font-size: 12px;
   font-variant-numeric: tabular-nums;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* Mode shells */
@@ -352,7 +382,8 @@
 .app-shell[data-engine-mode="editor"] .touch-controls,
 .app-shell[data-engine-mode="debug"] .play-hud,
 .app-shell[data-engine-mode="debug"] .reticle,
-.app-shell[data-engine-mode="debug"] .touch-controls {
+.app-shell[data-engine-mode="debug"] .touch-controls,
+.app-shell[data-engine-mode="debug"] #forge-apply {
   display: none;
 }
 
@@ -438,7 +469,7 @@
    Runtime controls open as an adjacent drawer; Forge keeps its own local tools. */
 .app-shell[data-engine-mode="editor"],
 .app-shell[data-engine-mode="debug"] {
-  --editor-deck-height: 72px;
+  --editor-deck-height: 68px;
   --editor-deck-gap: 10px;
 }
 
@@ -456,8 +487,7 @@
   position: relative;
   display: grid;
   grid-template-columns:
-    minmax(150px, 0.72fr) minmax(270px, 1.1fr) minmax(178px, 0.7fr)
-    minmax(148px, 0.58fr) minmax(190px, 1fr);
+    172px minmax(300px, 390px) 258px 146px minmax(160px, 1fr);
   align-items: center;
   gap: 8px;
   width: 100%;
@@ -503,8 +533,11 @@
 .app-shell[data-engine-mode="editor"] .options-fx,
 .app-shell[data-engine-mode="debug"] .options-fx {
   position: relative;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 3px;
   height: 44px;
-  padding: 3px;
+  padding: 2px;
   border: var(--edge);
 }
 
@@ -520,12 +553,37 @@
 
 .app-shell[data-engine-mode="editor"] .options-fx button,
 .app-shell[data-engine-mode="debug"] .options-fx button {
+  display: grid;
+  grid-template-columns: 1fr;
+  justify-items: center;
+  gap: 1px;
   min-height: 32px;
-  padding: 0 5px;
-  font-size: 10px;
+  padding: 3px 2px 2px;
+  border: 0;
+  border-right: var(--rule);
+  font-size: 9px;
   transition:
     background-color 150ms ease-out,
     color 150ms ease-out;
+}
+
+.app-shell[data-engine-mode="editor"] .options-fx button:last-child,
+.app-shell[data-engine-mode="debug"] .options-fx button:last-child {
+  border-right: 0;
+}
+
+.app-shell[data-engine-mode="editor"] .options-toggle__label,
+.app-shell[data-engine-mode="debug"] .options-toggle__label {
+  font-size: 8px;
+  letter-spacing: 0.08em;
+}
+
+.app-shell[data-engine-mode="editor"] .options-toggle__value,
+.app-shell[data-engine-mode="debug"] .options-toggle__value {
+  min-width: 0;
+  padding: 1px 5px;
+  border: 0;
+  font-size: 9px;
 }
 
 .app-shell[data-engine-mode="editor"] .record-panel,
@@ -548,7 +606,7 @@
   position: absolute;
   top: calc(100% + var(--editor-deck-gap));
   right: 0;
-  width: 368px;
+  width: 400px;
   max-height: calc(100dvh - var(--editor-deck-height) - 34px);
   overflow: auto;
   padding: 8px;
@@ -560,6 +618,11 @@
   scrollbar-gutter: stable;
   scrollbar-width: thin;
   z-index: 5;
+}
+
+.app-shell[data-engine-mode="editor"] .record-panel[open] .editor-fieldset__body.is-dual,
+.app-shell[data-engine-mode="debug"] .record-panel[open] .editor-fieldset__body.is-dual {
+  grid-template-columns: 1fr;
 }
 
 .app-shell[data-engine-mode="editor"] .record-panel[open] > summary,
@@ -649,6 +712,7 @@
   pointer-events: auto !important;
 }
 
+/* Intro: isometric Forge theater of the real play topology. */
 .app-shell[data-run-intro="true"] #editor-runtime-surface {
   display: none !important;
 }
@@ -672,7 +736,7 @@
 @media (min-width: 1181px) {
   .app-shell[data-engine-mode="editor"]:has(.record-panel[open]) .editor-workspace,
   .app-shell[data-engine-mode="debug"]:has(.record-panel[open]) .editor-workspace {
-    right: 390px;
+    right: 422px;
   }
 }
 
@@ -753,9 +817,9 @@
   right: 18px;
   bottom: 18px;
   top: auto;
-  min-width: 188px;
-  min-height: 92px;
-  padding: 16px 32px 18px;
+  min-width: 148px;
+  min-height: 62px;
+  padding: 10px 24px 12px;
   border: var(--edge-strong);
   box-shadow:
     0 0 0 2px rgb(0 0 0 / 70%),
@@ -769,7 +833,7 @@
 }
 
 .forge-play-btn__label {
-  font-size: 48px;
+  font-size: 34px;
 }
 
 #forge-apply.forge-play-btn:hover:not(:disabled) {
@@ -845,7 +909,7 @@
 @media (max-width: 760px), (pointer: coarse) {
   .app-shell[data-engine-mode="editor"],
   .app-shell[data-engine-mode="debug"] {
-    --editor-deck-height: 186px;
+    --editor-deck-height: 174px;
     --editor-deck-gap: 8px;
   }
 
@@ -933,6 +997,23 @@
     right: 8px;
     bottom: 8px;
     left: 8px;
+  }
+
+  .debug-panel {
+    right: 8px;
+    bottom: 8px;
+    left: 8px;
+    grid-template-columns: 88px minmax(0, 1fr);
+    width: auto;
+    min-width: 0;
+  }
+
+  .debug-panel dl {
+    grid-template-columns: repeat(5, minmax(42px, 1fr));
+  }
+
+  .debug-panel dl div {
+    padding: 4px;
   }
 
   .editor-toolbar {

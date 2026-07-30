@@ -13,11 +13,13 @@ import type { DungeonData, GridCell } from "../dungeon/types";
 import { LookInputFilter } from "./LookInputFilter";
 import {
   createStaminaState,
+  DEFAULT_STAMINA_CONFIG,
   resetStamina,
   STAMINA_MAX,
   stepStamina,
   type StaminaState,
 } from "./Stamina";
+import { MOBILITY_BOOST_SPEED_MULTIPLIER } from "../game/MobilityBoost";
 import {
   createVerticalMotionState,
   resetVerticalMotion,
@@ -53,6 +55,12 @@ const KEY_ACTIONS: Readonly<Record<string, PlayerAction>> = {
   KeyE: "interact",
 };
 const MAX_LOOK_PITCH = 1.18;
+const MOBILITY_STAMINA_CONFIG = Object.freeze({
+  ...DEFAULT_STAMINA_CONFIG,
+  drainPerSecond: 0,
+  regenEarlyPerSecond: 5,
+  regenExhaustedPerSecond: 5,
+});
 /** Peak camera bank while fully strafing (radians). Soft enough to stay readable. */
 export const STRAFE_LEAN_MAX = 0.052;
 /** How quickly lean eases toward the current strafe (higher = snappier). */
@@ -151,6 +159,7 @@ export class FirstPersonController {
   private criticalMovementDrift = 0;
   private surfaceSpeedScale = 1;
   private surfaceTraction = 1;
+  private mobilityBoostActive = false;
   private readonly lookResponse: number;
   private readonly verticalConfig: VerticalMotionConfig;
   private readonly verticalState: VerticalMotionState;
@@ -277,6 +286,7 @@ export class FirstPersonController {
     this.knockVel.set(0, 0);
     this.surfaceSpeedScale = 1;
     this.surfaceTraction = 1;
+    this.mobilityBoostActive = false;
     this.vaultedColliderIds.clear();
     resetVerticalMotion(this.verticalState, this.eyeHeight);
     resetStamina(this.staminaState, STAMINA_MAX);
@@ -395,6 +405,10 @@ export class FirstPersonController {
     this.surfaceTraction = THREE.MathUtils.clamp(traction, 0.12, 1.2);
   }
 
+  setMobilityBoost(active: boolean): void {
+    this.mobilityBoostActive = active;
+  }
+
   requestPointerLock(): void {
     if (!this.domElement.requestPointerLock || !this.enabled) return;
     const result = this.domElement.requestPointerLock();
@@ -485,6 +499,7 @@ export class FirstPersonController {
       delta,
       movementAllowed && this.isActionActive("sprint"),
       hasIntent && movementAllowed,
+      this.mobilityBoostActive ? MOBILITY_STAMINA_CONFIG : DEFAULT_STAMINA_CONFIG,
     );
     const verticalEvents = stepVerticalMotion(
       this.verticalState,
@@ -526,6 +541,7 @@ export class FirstPersonController {
       hasIntent && movementAllowed
         ? this.moveSpeed *
           this.surfaceSpeedScale *
+          (this.mobilityBoostActive ? MOBILITY_BOOST_SPEED_MULTIPLIER : 1) *
           (stamina.sprinting ? this.sprintMultiplier : 1)
         : 0;
     const response =

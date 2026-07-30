@@ -455,7 +455,9 @@ describe("image-sculpted magic family v2", () => {
     const materials = createDungeonMaterials({ compact: true });
     const boss = createForgeProp({ kind: "bossCrystal", x: 0, y: 0 }, materials)!;
     const shrine = createForgeProp({ kind: "shrineCrystal", x: 0, y: 0 }, materials)!;
-    const bossCore = boss.getObjectByName("Boss crystal tall asymmetric blood core") as THREE.Mesh;
+    const bossCore = boss.getObjectByName(
+      "Boss crystal single irregular large-plane blood mass",
+    ) as THREE.Mesh;
     const shrineLeft = shrine.getObjectByName(
       "Shrine crystal left forked gold prong",
     ) as THREE.Mesh;
@@ -466,10 +468,10 @@ describe("image-sculpted magic family v2", () => {
     expect(boss.userData.reference).toContain("model-references-v2/magic/boss-crystal");
     expect(shrine.userData.reference).toContain("model-references-v2/magic/shrine-crystal");
     expect(bossCore).toBeDefined();
-    expect(boss.getObjectByName("Boss crystal left faceted shoulder lobe")).toBeDefined();
-    expect(boss.getObjectByName("Boss crystal right faceted shoulder lobe")).toBeDefined();
-    expect(boss.getObjectByName("Boss crystal raised front blood chip")).toBeDefined();
-    expect(boss.getObjectByName("Boss crystal visible inner depth core")).toBeDefined();
+    expect(boss.getObjectByName("Boss crystal compact inner ember")).toBeDefined();
+    expect(boss.getObjectByName("Boss crystal complete closed restraint ring")).toBeDefined();
+    expect(boss.getObjectByName("Boss crystal ten visible ring bolts")).toBeDefined();
+    expect(boss.getObjectByName("Boss crystal complete lower cage collar")).toBeDefined();
     expect(boss.getObjectByName("Boss crystal front crown rune")).toBeDefined();
     expect(shrine.getObjectByName("Shrine crystal joined faceted gold body")).toBeDefined();
     expect(shrineLeft).toBeDefined();
@@ -477,30 +479,38 @@ describe("image-sculpted magic family v2", () => {
     expect(shrine.getObjectByName("Shrine crystal left low gold satellite")).toBeDefined();
     expect(shrine.getObjectByName("Shrine crystal right low gold satellite")).toBeDefined();
     expect(shrine.getObjectByName("Shrine crystal carved front diamond rune")).toBeDefined();
-    expect((bossCore.material as THREE.MeshStandardMaterial).color.r).toBeGreaterThan(
-      (bossCore.material as THREE.MeshStandardMaterial).color.g * 2,
-    );
+    const bossFaceColors = bossCore.geometry.getAttribute("color");
+    expect(bossFaceColors).toBeDefined();
+    expect(bossFaceColors.getX(0)).toBeGreaterThan(bossFaceColors.getY(0) * 2);
+    expect(bossCore.geometry.userData.crystalFacePalette).toHaveLength(5);
     expect(bossCore.material).toBeInstanceOf(THREE.MeshPhysicalMaterial);
     const bossCrystalMaterial = bossCore.material as THREE.MeshPhysicalMaterial;
-    expect(bossCrystalMaterial.transmission).toBe(0.22);
-    expect(bossCrystalMaterial.thickness).toBe(0.72);
-    expect(bossCrystalMaterial.clearcoat).toBe(0.34);
+    expect(bossCrystalMaterial.transmission).toBe(0.16);
+    expect(bossCrystalMaterial.thickness).toBe(0.9);
+    expect(bossCrystalMaterial.clearcoat).toBe(0.22);
     expect(boss.userData.sculptRuntime.opticalDepth).toEqual({
-      transmission: 0.22,
-      thickness: 0.72,
-      innerGlowOpacity: 0.34,
+      transmission: 0.16,
+      thickness: 0.9,
+      innerGlowOpacity: 0.46,
     });
     expect((shrineLeft.material as THREE.MeshStandardMaterial).color.r).toBeGreaterThan(
       (shrineLeft.material as THREE.MeshStandardMaterial).color.b * 2,
     );
-    for (const name of [
-      "Boss crystal tall asymmetric blood core",
-      "Boss crystal left faceted shoulder lobe",
-      "Boss crystal right faceted shoulder lobe",
-      "Boss crystal raised front blood chip",
-    ]) {
-      expectUsefulUv(boss.getObjectByName(name) as THREE.Mesh);
+    const bossUv = bossCore.geometry.getAttribute("uv");
+    let bossMinU = Number.POSITIVE_INFINITY;
+    let bossMaxU = Number.NEGATIVE_INFINITY;
+    let bossMinV = Number.POSITIVE_INFINITY;
+    let bossMaxV = Number.NEGATIVE_INFINITY;
+    for (let index = 0; index < bossUv.count; index += 1) {
+      bossMinU = Math.min(bossMinU, bossUv.getX(index));
+      bossMaxU = Math.max(bossMaxU, bossUv.getX(index));
+      bossMinV = Math.min(bossMinV, bossUv.getY(index));
+      bossMaxV = Math.max(bossMaxV, bossUv.getY(index));
     }
+    expect(bossMaxU - bossMinU).toBeGreaterThan(0.2);
+    expect(bossMaxV - bossMinV).toBeGreaterThan(0.2);
+    expect(bossMinU).toBeGreaterThanOrEqual(0);
+    expect(bossMaxU).toBeLessThan(2);
     for (const name of [
       "Shrine crystal joined faceted gold body",
       "Shrine crystal left forked gold prong",
@@ -510,31 +520,31 @@ describe("image-sculpted magic family v2", () => {
     ]) {
       expectUsefulUv(shrine.getObjectByName(name) as THREE.Mesh);
     }
-    expect(countNamed(boss, "Boss crystal heavy radial iron brace")).toBe(4);
+    expect(countNamed(boss, "Boss crystal complete heavy cage post")).toBe(5);
     expect(
       (boss.getObjectByName("Boss crystal broad iron support feet") as THREE.InstancedMesh).count,
-    ).toBe(4);
+    ).toBe(5);
     expect(
       (boss.getObjectByName("Boss crystal restraint rivets") as THREE.InstancedMesh).count,
-    ).toBe(4);
+    ).toBe(5);
     expect(
-      (boss.getObjectByName("Boss crystal four thick upper clamp jaws") as THREE.InstancedMesh)
+      (boss.getObjectByName("Boss crystal five thick upper clamp jaws") as THREE.InstancedMesh)
         .count,
-    ).toBe(4);
+    ).toBe(5);
     const bossMiddlePlinth = boss.getObjectByName(
       "Boss crystal broken middle plinth",
     ) as THREE.Mesh;
     const bossMiddleMaterial = bossMiddlePlinth.material as THREE.MeshStandardMaterial;
-    expect(bossMiddleMaterial.color.getHex()).toBe(0x7c747b);
-    expect(bossMiddleMaterial.emissiveIntensity).toBe(0.085);
+    expect(bossMiddleMaterial.color.getHex()).toBe(0x9a9996);
+    expect(bossMiddleMaterial.emissiveIntensity).toBe(0.028);
     const bossSeat = boss.getObjectByName("Boss crystal recessed iron seat") as THREE.Mesh;
     const bossSeatMaterial = bossSeat.material as THREE.MeshStandardMaterial;
     expect(bossSeatMaterial.metalness).toBeGreaterThan(0.65);
-    expect(bossSeatMaterial.emissiveIntensity).toBe(0.115);
+    expect(bossSeatMaterial.emissiveIntensity).toBe(0.035);
     expect(boss.userData.sculptRuntime.localIndirectFill).toEqual({
-      loadBearingStone: 0.095,
-      dressedStone: 0.085,
-      blackenedIron: 0.115,
+      loadBearingStone: 0.035,
+      dressedStone: 0.028,
+      blackenedIron: 0.035,
     });
     expect(countNamed(shrine, "Shrine crystal inclined ceremonial brace")).toBe(4);
     expect(

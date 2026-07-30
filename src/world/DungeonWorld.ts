@@ -42,6 +42,10 @@ import {
 import type { DungeonMood } from "../systems/DungeonMood";
 import { getDungeonMood } from "../systems/DungeonMood";
 import {
+  sampleBiomeEvent,
+  type BiomeEventSnapshot,
+} from "../systems/BiomeEventDirector";
+import {
   DEFAULT_DIFFICULTY,
   ENEMY_ACTIVATION_SPREAD,
   ENEMY_HARD_CAP,
@@ -88,11 +92,17 @@ import {
 } from "../game/LuminousWard";
 import { LuminousWardVfx } from "./LuminousWardVfx";
 import {
+  activateMobilityBoost,
+  isMobilityBoostActive,
+  tickMobilityBoost,
+} from "../game/MobilityBoost";
+import {
   canCollectPickup,
   canInteractWithChest,
   StaticDungeonScene,
   type StaticDungeonSceneHandles,
   type StaticDungeonSceneStats,
+  type StaticPickupKind,
 } from "./StaticDungeonScene";
 
 export { knockbackAwayFrom } from "./knockback";
@@ -144,7 +154,7 @@ interface DoorActor {
 }
 
 interface PickupActor {
-  kind: "stone" | "resolve" | "time-freeze" | "luminous-ward" | "annihilation-pulse";
+  kind: StaticPickupKind;
   stoneId?: StoneId;
   object: THREE.Object3D;
   collected: boolean;
@@ -189,6 +199,13 @@ interface ChestActor {
   openness: number;
 }
 
+interface StairActor {
+  root: THREE.Group;
+  direction: "up" | "down";
+  targetFloor: number;
+  cell: GridCell;
+}
+
 interface FireEffect {
   root: THREE.Group;
   flame: THREE.Mesh;
@@ -216,7 +233,7 @@ export interface WorldUpdate {
   collectedStoneIds: readonly StoneId[];
   /** Position is kept for the presentation layer that plays the collection source. */
   collectedPickup: {
-    kind: "stone" | "resolve" | "time-freeze" | "luminous-ward" | "annihilation-pulse";
+    kind: StaticPickupKind;
     position: { x: number; y: number; z: number };
   } | null;
   /** Remaining gameplay seconds in the active time-freeze field. */
@@ -225,6 +242,10 @@ export interface WorldUpdate {
   luminousWardRemaining: number;
   /** Remaining gameplay seconds in the active annihilation pulse field. */
   annihilationPulseRemaining: number;
+  /** True after the map pickup reveals fog-of-war for this floor. */
+  mapRevealed: boolean;
+  /** Active speed/stamina/trap-immunity window. */
+  mobilityBoostRemaining: number;
   /** Pulse ring event; hits are already removed from the enemy seats. */
   annihilationPulse: {
     position: { x: number; y: number; z: number };
@@ -245,7 +266,13 @@ export interface WorldUpdate {
     position: { x: number; y: number; z: number };
   } | null;
   chestSound: { position: { x: number; y: number; z: number } } | null;
-  interactionPrompt: "open-chest" | null;
+  interactionPrompt: "open-chest" | "use-stairs" | null;
+  floorTransition: {
+    direction: "up" | "down";
+    targetFloor: number;
+  } | null;
+  /** Deterministic biome pressure window derived from the run clock. */
+  biomeEvent: BiomeEventSnapshot;
   /** Unit XZ push away from the attacker(s); null when no hit this frame. */
   knockback: { x: number; z: number } | null;
   reachedLockedExit: boolean;
@@ -349,8 +376,12 @@ export class DungeonWorld {
   private enemyAnimationElapsed = 0;
   private difficultyElapsed = 0;
   private difficultySecond = -1;
+  private biomeEventCycle = -1;
   private timeFreezeSeconds = 0;
   private luminousWardSeconds = 0;
+  private mobilityBoostSeconds = 0;
+  private mapRevealed = false;
+  private playerAirborne = false;
   private readonly annihilationPulseClock = createAnnihilationPulseClock();
   private difficultyRoomCount = 1;
   private enemyActivationRandom = createSeededRandom("difficulty-activation");
@@ -413,6 +444,10 @@ export class DungeonWorld {
 
   private get chests(): ChestActor[] {
     return this.staticHandles.chests;
+  }
+
+  private get staircases(): StairActor[] {
+    return this.staticHandles.staircases;
   }
 
   private get fireEffects(): FireEffect[] {
@@ -479,6 +514,10 @@ export class DungeonWorld {
     return this.staticHandles.stoneBeams;
   }
 
+  private get ambientBeams(): THREE.Mesh[] {
+    return this.staticHandles.ambientBeams;
+  }
+
   private get liquidKit(): StaticDungeonSceneHandles["liquidKit"] {
     return this.staticHandles.liquidKit;
   }
@@ -506,8 +545,12 @@ export class DungeonWorld {
     this.enemyAnimationElapsed = 0;
     this.difficultyElapsed = 0;
     this.difficultySecond = -1;
+    this.biomeEventCycle = -1;
     this.timeFreezeSeconds = 0;
     this.luminousWardSeconds = 0;
+    this.mobilityBoostSeconds = 0;
+    this.mapRevealed = false;
+    this.playerAirborne = false;
     this.annihilationPulseClock.remaining = 0;
     this.annihilationPulseClock.timeSincePulse = 0;
     this.enemySimulationElapsed = 0;
@@ -529,6 +572,12 @@ export class DungeonWorld {
   setEnemyDensity(value: number): void {
     this.difficulty = THREE.MathUtils.clamp(value, 0, 1);
     this.refreshDifficultyState();
+  }
+
+  setPlayerTraversalState(state: { jumpHeight: number }): void {
+    // Ignore the first few centimeters so ordinary stair/ground jitter cannot
+    // bypass a trap; a real jump clears the floor trigger.
+    this.playerAirborne = Number.isFinite(state.jumpHeight) && state.jumpHeight > 0.16;
   }
 
   getDifficultyState(): Readonly<DifficultySnapshot> {
@@ -678,6 +727,7 @@ export class DungeonWorld {
     this.lockedExitCooldown = Math.max(0, this.lockedExitCooldown - delta);
     this.timeFreezeSeconds = tickTimeFreeze(this.timeFreezeSeconds, delta);
     this.luminousWardSeconds = tickLuminousWard(this.luminousWardSeconds, delta);
+    this.mobilityBoostSeconds = tickMobilityBoost(this.mobilityBoostSeconds, delta);
     const pulseCount = tickAnnihilationPulse(this.annihilationPulseClock, delta);
     const enemiesFrozen = isTimeFreezeActive(this.timeFreezeSeconds);
     const luminousWardActive = isLuminousWardActive(this.luminousWardSeconds);
@@ -695,6 +745,14 @@ export class DungeonWorld {
     let doorSound: WorldUpdate["doorSound"] = null;
     let chestSound: WorldUpdate["chestSound"] = null;
     let interactionPrompt: WorldUpdate["interactionPrompt"] = null;
+    let floorTransition: WorldUpdate["floorTransition"] = null;
+    const biomeEvent = sampleBiomeEvent(
+      this.activeMood.id,
+      this.difficultyElapsed,
+      this.dungeon?.seedHash ?? 0,
+      this.biomeEventCycle,
+    );
+    if (biomeEvent.started) this.biomeEventCycle = biomeEvent.cycle;
 
     // Combat + locomotion (sim) separate from instanced matrix writes (view).
     const sim = enemiesFrozen
@@ -721,14 +779,30 @@ export class DungeonWorld {
             ? ANNIHILATION_PULSE_REPEL_SPEED_MULTIPLIER
             : 1,
           moodId: this.activeMood.id,
-          difficulty: this.difficulty,
+          difficulty: THREE.MathUtils.clamp(
+            this.difficulty * biomeEvent.enemyPressureScale,
+            0,
+            1,
+          ),
         });
-    const surfaceEffect = this.hazardTiles?.sample(delta, player) ?? {
+    const sampledSurfaceEffect = this.hazardTiles?.sample(delta, player, {
+      airborne: this.playerAirborne,
+      immune: isMobilityBoostActive(this.mobilityBoostSeconds),
+    }) ?? {
       kind: null,
       label: "",
       damage: 0,
       movementScale: 1,
       traction: 1,
+    };
+    const surfaceEffect: HazardSurfaceEffect = {
+      ...sampledSurfaceEffect,
+      damage: sampledSurfaceEffect.damage * biomeEvent.hazardDamageScale,
+      movementScale: THREE.MathUtils.clamp(
+        sampledSurfaceEffect.movementScale * biomeEvent.movementScale,
+        0.55,
+        1.2,
+      ),
     };
     const damage = sim.damage + surfaceEffect.damage;
     const nearestThreat = sim.nearestThreat;
@@ -892,6 +966,29 @@ export class DungeonWorld {
       }
     }
 
+    if (!nearestChest) {
+      let nearestStair: StairActor | null = null;
+      let nearestStairDistance = Number.POSITIVE_INFINITY;
+      for (const stair of this.staircases) {
+        const distance = horizontalDistance(stair.root.position, player);
+        const interactionRadius =
+          (stair.root.userData.interactionRadius as number | undefined) ?? 1.72;
+        if (distance > interactionRadius || distance >= nearestStairDistance) continue;
+        nearestStair = stair;
+        nearestStairDistance = distance;
+      }
+      if (nearestStair) {
+        interactionPrompt = "use-stairs";
+        if (interactPressed) {
+          floorTransition = {
+            direction: nearestStair.direction,
+            targetFloor: nearestStair.targetFloor,
+          };
+          interactionPrompt = null;
+        }
+      }
+    }
+
     for (const pickup of this.pickups) {
       if (pickup.collected) {
         pickup.collectTime += delta;
@@ -986,9 +1083,13 @@ export class DungeonWorld {
       } else if (pickup.kind === "annihilation-pulse") {
         if (pickup.annihilationPulseSignal) pickup.annihilationPulseSignal.light.intensity = 0;
         activateAnnihilationPulse(this.annihilationPulseClock);
-      } else {
+      } else if (pickup.kind === "luminous-ward") {
         if (pickup.luminousWardSignal) pickup.luminousWardSignal.light.intensity = 0;
         this.luminousWardSeconds = activateLuminousWard();
+      } else if (pickup.kind === "map") {
+        this.mapRevealed = true;
+      } else if (pickup.kind === "mobility") {
+        this.mobilityBoostSeconds = activateMobilityBoost(this.mobilityBoostSeconds);
       }
     }
 
@@ -1002,9 +1103,12 @@ export class DungeonWorld {
       updateMagicPortal(this.portalRoot, this.elapsed);
     }
 
-    const reachedLockedExit = atExit && !this.portalOpen && this.lockedExitCooldown === 0;
+    const finalFloor =
+      !this.dungeon?.floor || this.dungeon.floor.index === this.dungeon.floor.count - 1;
+    const reachedLockedExit =
+      finalFloor && atExit && !this.portalOpen && this.lockedExitCooldown === 0;
     const reachedOpenExit =
-      this.portalOpen && isInsideMagicPortal(player, this.exitPosition, atExit);
+      finalFloor && this.portalOpen && isInsideMagicPortal(player, this.exitPosition, atExit);
     if (reachedLockedExit) this.lockedExitCooldown = 1.5;
     let knockback: WorldUpdate["knockback"] = null;
     if (knockHits > 0) {
@@ -1019,6 +1123,8 @@ export class DungeonWorld {
       timeFreezeRemaining: this.timeFreezeSeconds,
       luminousWardRemaining: this.luminousWardSeconds,
       annihilationPulseRemaining: this.annihilationPulseClock.remaining,
+      mapRevealed: this.mapRevealed,
+      mobilityBoostRemaining: this.mobilityBoostSeconds,
       annihilationPulse,
       stonesFound: this.collectedStones.size,
       stonesTotal: STONE_ORDER.length,
@@ -1030,6 +1136,8 @@ export class DungeonWorld {
       doorSound,
       chestSound,
       interactionPrompt,
+      floorTransition,
+      biomeEvent,
       knockback,
       reachedLockedExit,
       reachedOpenExit,
@@ -1213,6 +1321,7 @@ export class DungeonWorld {
     // Portal / stone beams share the same soft grit clock.
     if (this.portalBeam) tickVolumetricBeamTime(this.portalBeam, this.elapsed);
     for (const beam of this.stoneBeams) tickVolumetricBeamTime(beam, this.elapsed);
+    for (const beam of this.ambientBeams) tickVolumetricBeamTime(beam, this.elapsed);
     if (this.liquidKit) tickLiquidSections(this.liquidKit.surfaces, this.elapsed);
   }
 
@@ -1253,6 +1362,14 @@ export class DungeonWorld {
     return this.annihilationPulseClock.remaining;
   }
 
+  get isMapRevealed(): boolean {
+    return this.mapRevealed;
+  }
+
+  get mobilityBoostRemaining(): number {
+    return this.mobilityBoostSeconds;
+  }
+
   restoreSession(foundStoneIds: readonly StoneId[]): void {
     const restored = new Set(foundStoneIds.filter((id) => STONE_ORDER.includes(id)));
     this.collectedStones.clear();
@@ -1270,7 +1387,9 @@ export class DungeonWorld {
       if (pickup.stoneSignal)
         pickup.stoneSignal.light.intensity = collected ? 0 : pickup.stoneSignal.baseLightIntensity;
     }
-    this.setPortalOpen(restored.size === STONE_ORDER.length);
+    const finalFloor =
+      !this.dungeon?.floor || this.dungeon.floor.index === this.dungeon.floor.count - 1;
+    this.setPortalOpen(finalFloor && restored.size === STONE_ORDER.length);
   }
 
   /**
@@ -1283,6 +1402,8 @@ export class DungeonWorld {
       timeFreezeRemaining?: number;
       luminousWardRemaining?: number;
       annihilationPulseRemaining?: number;
+      mapRevealed?: boolean;
+      mobilityBoostRemaining?: number;
     },
     player: { x: number; z: number },
   ): void {
@@ -1291,6 +1412,8 @@ export class DungeonWorld {
     this.timeFreezeSeconds = Math.max(0, progress.timeFreezeRemaining ?? 0);
     this.luminousWardSeconds = Math.max(0, progress.luminousWardRemaining ?? 0);
     this.annihilationPulseClock.remaining = Math.max(0, progress.annihilationPulseRemaining ?? 0);
+    this.mapRevealed = progress.mapRevealed === true;
+    this.mobilityBoostSeconds = Math.max(0, progress.mobilityBoostRemaining ?? 0);
     this.annihilationPulseClock.timeSincePulse = 0;
     this.refreshDifficultyState();
     this.activateEnemiesToTarget(player, "resume");
@@ -1343,6 +1466,10 @@ export class DungeonWorld {
     const annihilationPulse = this.pickups.find(
       (pickup) => pickup.kind === "annihilation-pulse" && !pickup.collected,
     );
+    const map = this.pickups.find((pickup) => pickup.kind === "map" && !pickup.collected);
+    const mobility = this.pickups.find(
+      (pickup) => pickup.kind === "mobility" && !pickup.collected,
+    );
     return {
       doors,
       fires,
@@ -1352,6 +1479,12 @@ export class DungeonWorld {
       timeFreeze: timeFreeze ? toCell(timeFreeze.object.position) : undefined,
       luminousWard: luminousWard ? toCell(luminousWard.object.position) : undefined,
       annihilationPulse: annihilationPulse ? toCell(annihilationPulse.object.position) : undefined,
+      map: map ? toCell(map.object.position) : undefined,
+      mobility: mobility ? toCell(mobility.object.position) : undefined,
+      stairs: this.staircases.map((stair) => ({
+        cell: { ...stair.cell },
+        direction: stair.direction,
+      })),
       spawn: dungeon ? { x: dungeon.spawn.x, y: dungeon.spawn.y } : { x: 0, y: 0 },
     };
   }
@@ -1747,6 +1880,9 @@ export class DungeonWorld {
     this.difficultySecond = -1;
     this.timeFreezeSeconds = 0;
     this.luminousWardSeconds = 0;
+    this.mobilityBoostSeconds = 0;
+    this.mapRevealed = false;
+    this.playerAirborne = false;
     this.annihilationPulseClock.remaining = 0;
     this.annihilationPulseClock.timeSincePulse = 0;
     this.difficultyRoomCount = 1;

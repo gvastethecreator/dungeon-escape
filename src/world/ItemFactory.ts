@@ -1263,6 +1263,133 @@ export function createAnnihilationPulseRelic(materials: DungeonMaterials): THREE
   return root;
 }
 
+/** Folded parchment map: its open silhouette remains legible from the chest. */
+export function createDungeonMapPickup(materials: DungeonMaterials): THREE.Group {
+  const root = new THREE.Group();
+  root.name = "Folded dungeon map pickup";
+  const parchment = materials.bone.clone();
+  parchment.color.setHex(0xc8b783);
+  parchment.roughness = 0.92;
+  parchment.metalness = 0;
+  parchment.side = THREE.DoubleSide;
+  const ink = new THREE.MeshBasicMaterial({
+    color: 0x30291f,
+    side: THREE.DoubleSide,
+    toneMapped: true,
+  });
+  const wood = materials.wood.clone();
+  wood.color.setHex(0x4a2d1d);
+  wood.roughness = 0.86;
+
+  const sheet = mesh(
+    new THREE.PlaneGeometry(0.9, 0.62, 3, 2),
+    parchment,
+    "Dungeon map parchment",
+  );
+  sheet.rotation.x = -Math.PI / 2;
+  sheet.rotation.z = -0.12;
+  sheet.position.y = 0.52;
+
+  const routePoints = [
+    new THREE.Vector3(-0.27, 0.532, -0.13),
+    new THREE.Vector3(-0.08, 0.532, -0.02),
+    new THREE.Vector3(0.04, 0.532, -0.12),
+    new THREE.Vector3(0.26, 0.532, 0.12),
+  ];
+  const route = new THREE.Line(
+    new THREE.BufferGeometry().setFromPoints(routePoints),
+    new THREE.LineBasicMaterial({ color: 0x5c1f18, toneMapped: true }),
+  );
+  route.name = "Dungeon map marked route";
+  const routeMark = mesh(
+    new THREE.RingGeometry(0.055, 0.078, 8),
+    ink,
+    "Dungeon map destination mark",
+  );
+  routeMark.rotation.x = -Math.PI / 2;
+  routeMark.position.set(0.27, 0.534, 0.12);
+  for (const z of [-0.31, 0.31]) {
+    const rod = mesh(
+      new THREE.CylinderGeometry(0.035, 0.035, 1.02, 8),
+      wood,
+      "Dungeon map scroll rod",
+    );
+    rod.rotation.z = Math.PI / 2;
+    rod.position.set(0, 0.52, z);
+    root.add(rod);
+  }
+  root.add(sheet, route, routeMark);
+  root.userData.pickupKind = "map";
+  return root;
+}
+
+/** Green wayfinder draught: restores sprint while granting a short speed window. */
+export function createMobilityDraught(materials: DungeonMaterials): THREE.Group {
+  const root = new THREE.Group();
+  root.name = "Wayfinder mobility draught pickup";
+  const glass = new THREE.MeshPhysicalMaterial({
+    color: 0x9fb9a5,
+    transparent: true,
+    opacity: 0.42,
+    roughness: 0.16,
+    metalness: 0,
+    clearcoat: 0.7,
+    clearcoatRoughness: 0.12,
+    side: THREE.DoubleSide,
+  });
+  const tonic = new THREE.MeshStandardMaterial({
+    color: 0x4f9d4b,
+    emissive: 0x1b4c26,
+    emissiveIntensity: 0.72,
+    roughness: 0.32,
+  });
+  const brass = materials.brass.clone();
+  brass.color.setHex(0xa79b64);
+  const leather = materials.wood.clone();
+  leather.color.setHex(0x3b2318);
+
+  const bottle = mesh(
+    new THREE.CylinderGeometry(0.2, 0.27, 0.58, 10),
+    glass,
+    "Mobility draught faceted bottle",
+  );
+  bottle.position.y = 0.46;
+  const liquid = mesh(
+    new THREE.CylinderGeometry(0.17, 0.23, 0.39, 10),
+    tonic,
+    "Mobility draught green tonic",
+  );
+  liquid.position.y = 0.39;
+  const neck = mesh(
+    new THREE.CylinderGeometry(0.105, 0.13, 0.2, 9),
+    glass,
+    "Mobility draught neck",
+  );
+  neck.position.y = 0.82;
+  const stopper = mesh(
+    new THREE.CylinderGeometry(0.12, 0.105, 0.13, 8),
+    leather,
+    "Mobility draught stopper",
+  );
+  stopper.position.y = 0.94;
+  for (const direction of [-1, 1]) {
+    const wing = mesh(
+      transformedGeometry(
+        new THREE.BoxGeometry(0.31, 0.055, 0.13),
+        [direction * 0.25, 0.69, 0],
+        [0, 0, direction * -0.28],
+        [1, 1, 1],
+      ),
+      brass,
+      "Mobility draught wing",
+    );
+    root.add(wing);
+  }
+  root.add(bottle, liquid, neck, stopper);
+  root.userData.pickupKind = "mobility";
+  return root;
+}
+
 /**
  * Locks the pickup into its fade-capable shader variant before renderer warmup.
  * Runtime opacity changes can then reuse the compiled program.

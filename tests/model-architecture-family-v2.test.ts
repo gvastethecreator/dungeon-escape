@@ -157,19 +157,25 @@ describe("image-sculpted architecture family v2", () => {
     expect(graveRivets.count).toBe(3);
     expect(graveCross.position.z).toBeGreaterThan(0.12);
     expect(graveCross.userData.surfaceClearance).toBeLessThan(0.01);
-    expect(countNamed(grave, "Grave rear recessed groove")).toBe(2);
-    expect(grave.getObjectByName("Grave stepped upper plinth")).toBeDefined();
-    expect(grave.getObjectByName("Grave narrow slab footing")).toBeDefined();
+    const rearChannels = grave.getObjectByName("Grave rear paired carved channels");
+    expect(rearChannels?.children).toHaveLength(2);
+    expect(countNamed(grave, "Grave rear pointed carved channel")).toBe(2);
+    expect(grave.getObjectByName("Damaged thick gothic grave slab")).toBeDefined();
+    expect(grave.getObjectByName("Grave one-piece broken thick base")).toBeDefined();
     expect(grave.getObjectByName("Grave gothic inset edge frame")).toBeDefined();
     expect(grave.getObjectByName("Grave recessed central cross carving")).toBeDefined();
     expect(grave.userData.sculptRuntime.topology).toContain("two-sided carved relief");
     expect(grave.userData.sculptRuntime.localContrast).toEqual({
-      slabValueLift: 0.065,
-      edgeValueLift: 0.035,
-      slabIndirectFill: 0.05,
+      slabValueLift: 0.026,
+      edgeValueLift: 0.02,
+      slabIndirectFill: 0.026,
     });
-    expect(grave.userData.detailInventory).toContain("curved gothic ogive stone slab");
-    expect(grave.userData.detailInventory).toContain("three-step grounded plinth");
+    expect(grave.userData.detailInventory).toContain(
+      "damaged low-poly gothic slab with large contour chips",
+    );
+    expect(grave.userData.detailInventory).toContain(
+      "one thick broken and chamfered stone base",
+    );
     expect(boundsSize(grave).y).toBeGreaterThan(1.8);
     expect(boundsSize(grave).z).toBeGreaterThanOrEqual(0.5);
   });
