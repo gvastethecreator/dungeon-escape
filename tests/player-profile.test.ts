@@ -10,6 +10,7 @@ import {
   updatePlayerIdentity,
   writePlayerProfile,
 } from "../src/game/PlayerProfile";
+import { randomPortraitIndex } from "../src/leaderboard/portraits";
 
 function memoryStorage(): Pick<Storage, "getItem" | "setItem" | "removeItem"> {
   const values = new Map<string, string>();
@@ -21,6 +22,13 @@ function memoryStorage(): Pick<Storage, "getItem" | "setItem" | "removeItem"> {
 }
 
 describe("persistent player profile and ordered campaign", () => {
+  test("selects a bounded random avatar for a fresh profile draft", () => {
+    expect(randomPortraitIndex(() => 0)).toBe(0);
+    expect(randomPortraitIndex(() => 0.5)).toBe(36);
+    expect(randomPortraitIndex(() => 0.999999)).toBe(71);
+    expect(randomPortraitIndex(() => Number.NaN)).toBe(0);
+  });
+
   test("starts at Ancient and unlocks exactly one next biome per clear", () => {
     const profile = createPlayerProfile("Cristian", 4, 100);
     expect(profile).not.toBeNull();

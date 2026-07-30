@@ -17,6 +17,63 @@ export interface DungeonFloorSet {
   signature: string;
 }
 
+type DungeonGenerator = (seed?: string, options?: DungeonOptions) => DungeonData;
+
+/** Lazily materialized campaign floors; only the active floor pays generation cost. */
+export class DungeonFloorCampaign {
+  readonly rootSeed: string;
+  readonly count: number;
+  private readonly cache = new Map<number, DungeonData>();
+
+  constructor(
+    seed = "BLACK-FLAG",
+    private readonly options: DungeonOptions = {},
+    requestedFloorCount = 1,
+    private readonly generator: DungeonGenerator = generateCompletableDungeon,
+    initialFloor?: DungeonData,
+  ) {
+    this.rootSeed = seed.trim() || "BLACK-FLAG";
+    this.count = clampFloorCount(requestedFloorCount);
+    if (initialFloor)
+      this.cache.set(0, withFloorMetadata(initialFloor, this.rootSeed, 0, this.count));
+  }
+
+  floor(index: number): DungeonData | null {
+    const safeIndex = Math.trunc(index);
+    if (safeIndex < 0 || safeIndex >= this.count) return null;
+    const cached = this.cache.get(safeIndex);
+    if (cached) return cached;
+    const floorSeed = safeIndex === 0 ? this.rootSeed : `${this.rootSeed}:F${safeIndex + 1}`;
+    const floor = withFloorMetadata(
+      this.generator(floorSeed, this.options),
+      this.rootSeed,
+      safeIndex,
+      this.count,
+    );
+    this.cache.set(safeIndex, floor);
+    return floor;
+  }
+
+  get cachedFloorCount(): number {
+    return this.cache.size;
+  }
+}
+
+export function createDungeonFloorCampaign(
+  seed = "BLACK-FLAG",
+  options: DungeonOptions = {},
+  requestedFloorCount = 1,
+  initialFloor?: DungeonData,
+): DungeonFloorCampaign {
+  return new DungeonFloorCampaign(
+    seed,
+    options,
+    requestedFloorCount,
+    generateCompletableDungeon,
+    initialFloor,
+  );
+}
+
 function clampFloorCount(value: number): number {
   if (!Number.isFinite(value)) return 1;
   return Math.min(MAX_DUNGEON_FLOORS, Math.max(1, Math.floor(value)));
@@ -113,17 +170,9 @@ export function generateDungeonFloorSet(
   options: DungeonOptions = {},
   requestedFloorCount = 1,
 ): DungeonFloorSet {
-  const rootSeed = seed.trim() || "BLACK-FLAG";
-  const count = clampFloorCount(requestedFloorCount);
-  const floors = Array.from({ length: count }, (_, index) => {
-    const floorSeed = index === 0 ? rootSeed : `${rootSeed}:F${index + 1}`;
-    return withFloorMetadata(
-      generateCompletableDungeon(floorSeed, options),
-      rootSeed,
-      index,
-      count,
-    );
-  });
+  const campaign = createDungeonFloorCampaign(seed, options, requestedFloorCount);
+  const rootSeed = campaign.rootSeed;
+  const floors = Array.from({ length: campaign.count }, (_, index) => campaign.floor(index)!);
   return {
     rootSeed,
     floors,
