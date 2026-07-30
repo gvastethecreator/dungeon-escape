@@ -1,5 +1,5 @@
 /** Runtime rules for the annihilation pulse pickup. */
-export const ANNIHILATION_PULSE_DURATION_SECONDS = 26;
+export const ANNIHILATION_PULSE_DURATION_SECONDS = 13;
 export const ANNIHILATION_PULSE_INTERVAL_SECONDS = 2.8;
 /** Maximum horizontal reach of one expanding kill ring. */
 export const ANNIHILATION_PULSE_RADIUS = 7.2;

@@ -196,8 +196,8 @@ describe("professional world kit", () => {
     expect(lectern.userData.detailInventory).toContain("Angled lectern desk");
     const grave = createForgeProp({ kind: "grave", x: 0, y: 0 }, materials);
     const pillar = createForgeProp({ kind: "pillar", x: 0, y: 0 }, materials);
-    expect(grave?.getObjectByName("Beveled arched grave slab")).toBeDefined();
-    expect(grave?.getObjectByName("Grave grounded stone plinth")).toBeDefined();
+    expect(grave?.getObjectByName("Damaged thick gothic grave slab")).toBeDefined();
+    expect(grave?.getObjectByName("Grave one-piece broken thick base")).toBeDefined();
     expect(pillar?.getObjectByName("Pillar continuous octagonal frieze band")).toBeDefined();
     expect(pillar?.getObjectByName("Pillar recessed vertical flute")).toBeDefined();
   });

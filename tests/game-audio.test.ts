@@ -4,8 +4,10 @@ import {
   CREATURE_VOICES,
   GameAudio,
   creatureToneForMood,
+  musicTrackForBiome,
   type AudioCue,
 } from "../src/audio/GameAudio";
+import { listBiomeIds } from "../src/systems/BiomeIdentity";
 import { ENEMY_ROSTER } from "../src/world/EnemySpriteAtlas";
 import { creatureVoiceForEnemy } from "../src/world/DungeonWorld";
 
@@ -55,6 +57,8 @@ describe("GameAudio dungeon soundscape", () => {
     expect(audio.currentMusic).toBe("menu");
     audio.setMusicTrack("win");
     audio.setMusicTrack("lose");
+    audio.setMusicTrack("biome-fungal");
+    expect(audio.currentMusic).toBe("biome-fungal");
     audio.setMusicTrack(null);
     expect(audio.currentMusic).toBe(null);
     expect(audio.isMusicMuted).toBe(false);
@@ -91,6 +95,7 @@ describe("GameAudio dungeon soundscape", () => {
     expect(source).toContain("music-menu.opus");
     expect(source).toContain("music-win.opus");
     expect(source).toContain("music-lose.opus");
+    expect(source).toContain("music-biome-backrooms.ogg");
     expect(source).toContain("ui-click.opus");
     expect(source).toContain("ui-tick.opus");
     expect(source).toContain("ui-hover.opus");
@@ -106,6 +111,18 @@ describe("GameAudio dungeon soundscape", () => {
     expect(source).toContain("buildEnemyThreatAssets");
     expect(source).toContain("enemy-${kind}-v${take}.opus");
     expect(source).toContain("enemy-${kind}-attack-${tone}.opus");
+  });
+
+  test("every biome owns a valid original exploration track", async () => {
+    for (const biome of listBiomeIds()) {
+      expect(musicTrackForBiome(biome)).toBe(`biome-${biome}`);
+      const asset = Bun.file(
+        new URL(`../public/assets/audio/dungeon/music-biome-${biome}.ogg`, import.meta.url),
+      );
+      expect(await asset.exists()).toBe(true);
+      expect(asset.size).toBeGreaterThan(150_000);
+    }
+    expect(musicTrackForBiome("unknown")).toBe("biome-ancient");
   });
 
   test("mood maps to creature tone families", () => {
@@ -159,6 +176,7 @@ describe("GameAudio dungeon soundscape", () => {
     expect(main).toContain('setMusicBed("menu")');
     expect(main).toContain('setMusicBed("win")');
     expect(main).toContain('setMusicBed("lose")');
+    expect(main).toContain("musicTrackForBiome");
     expect(main).toContain("audio.setMusicTrack");
     expect(main).toContain("setMusicMutedPreference");
     expect(main).toContain("welcomeMusicToggle");
@@ -169,7 +187,7 @@ describe("GameAudio dungeon soundscape", () => {
     const host = await Bun.file(new URL("../index.html", import.meta.url)).text();
     expect(host).toContain('id="music-toggle"');
     expect(host).toContain('id="welcome-music-toggle"');
-    expect(host).toContain("MUSIC ON");
+    expect(host).toContain("data-toggle-value>ON");
   });
 
   test("play loop wires threat and tick into the frame", async () => {

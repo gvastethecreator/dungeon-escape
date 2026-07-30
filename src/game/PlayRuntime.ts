@@ -45,6 +45,8 @@ export interface PlayRuntimeProgress {
     timeFreezeRemaining?: number;
     luminousWardRemaining?: number;
     annihilationPulseRemaining?: number;
+    mapRevealed?: boolean;
+    mobilityBoostRemaining?: number;
   };
   player: { x: number; z: number };
 }

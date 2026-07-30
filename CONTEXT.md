@@ -7,6 +7,9 @@ Dungeon Escape is a first-person run through a generated dungeon. Creation, Play
 **Dungeon**:
 A connected set of rooms, corridors, features, entry, objectives, and exit used by Creation and Play.
 
+**Dungeon floor set**:
+A deterministic campaign-level collection of one to four sibling dungeons. `DungeonWorld` owns only the active floor; reciprocal stair anchors switch the active dungeon.
+
 **Creation**:
 The shell mode for building and previewing a map (`engineMode: "editor"` in code). UI label is Creation, not Authority.
 
@@ -21,6 +24,9 @@ The docked panel with generation controls, presets, camera, and optional server-
 
 **Campaign run**:
 New Game (biome pick) or Hall seed replay. Eligible for the Hall of Escapes on a four-stone escape.
+
+**Player profile**:
+Validated browser-local identity and campaign progress: name, avatar, highest unlocked biome rank, and per-biome clears. It is separate from the active run save.
 
 **Custom run**:
 Custom Run, Forge apply, or Map Tools generation. Fully playable. **Never ranks** — victory shows a practice score only.
@@ -55,3 +61,9 @@ The fixed scene, collision, occupied seats, and cleanup produced from one dungeo
 
 **Enemy biome mods**:
 Live combat stats and pursuit behavior resolved from the base enemy archetype, active biome profile, and run difficulty (`applyBiomeEnemyMods`). Presentation size stays on the base archetype.
+
+**Biome event**:
+A deterministic, time-bounded modifier for one biome that changes pressure, movement, or floor-hazard damage and exposes one HUD/visual state.
+
+**Utility pickup**:
+The map or mobility item. Map reveals the active floor; mobility boosts speed and stamina while granting floor-trap immunity. Both persist in the active run.

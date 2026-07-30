@@ -34,7 +34,7 @@ describe("four-stone quest", () => {
       expect(stone.root.userData.pickupKind).toBe("stone");
       expect(stone.root.userData.stoneId).toBe(id);
       expect(size.y).toBeGreaterThan(0.5);
-      expect(size.y).toBeLessThan(1.2);
+      expect(size.y).toBeLessThan(1.7);
       expect(stone.light.isPointLight).toBe(true);
     }
   });

@@ -4,7 +4,13 @@ import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 import { createSeededRandom } from "../core/random";
 import { FLOOR, WALL } from "../dungeon/generateDungeon";
 import { gridToWorld, worldToGrid, type WorldCollider } from "../dungeon/gridCollision";
-import type { DungeonData, DungeonRoom, ForgePropMetadata, GridCell } from "../dungeon/types";
+import type {
+  DungeonData,
+  DungeonDoorway,
+  DungeonRoom,
+  ForgePropMetadata,
+  GridCell,
+} from "../dungeon/types";
 import { AssetLibrary, type WallSpriteTextures } from "./AssetLibrary";
 import { createVolumetricBeam } from "./VolumetricBeam";
 import { createFloorCampfire } from "./FloorCampfireFactory";
@@ -30,7 +36,9 @@ import { batchForgeChestForRuntime } from "./RuntimeModelBatching";
 import {
   createResolveFlask,
   createAnnihilationPulseRelic,
+  createDungeonMapPickup,
   createLuminousWardStone,
+  createMobilityDraught,
   createTimeFreezeRelic,
   ANNIHILATION_PULSE_PICKUP_GLOW_OPACITY,
   ANNIHILATION_PULSE_PICKUP_LIGHT_INTENSITY,
@@ -68,6 +76,7 @@ import { createMagicStone } from "./MagicStoneKit";
 import { createBiomeMagicPortal, magicPortalApproachYaw } from "./MagicPortalKit";
 import {
   hasValidMagicStonePlacementContract,
+  hasValidPortalPlacementContract,
   magicStoneClearanceCells,
   selectMagicStonePlacements,
   type MagicStonePlacement,
@@ -88,6 +97,7 @@ import {
   type BiomeSpritePlacement,
   type BiomeSpritePropDefinition,
 } from "./BiomeSpriteDecorKit";
+import { createDungeonStaircase, DUNGEON_STAIR_STEP_COUNT } from "./StaircaseKit";
 
 export interface StaticDungeonSceneStats {
   floorTiles: number;
@@ -103,6 +113,27 @@ export interface StaticDungeonSceneStats {
   props: number;
 }
 
+/** Coplanar tile faces meet edge-to-edge; overlap causes z-fighting grid seams. */
+export const DUNGEON_SURFACE_TILE_SCALE = 1;
+
+export function dungeonFloorUvOffset(cell: GridCell): readonly [number, number] {
+  // BoxGeometry's top-face V axis runs against world +Z.
+  return [cell.x, -cell.y] as const;
+}
+
+export function dungeonCeilingUvOffset(cell: GridCell): readonly [number, number] {
+  return [cell.x, cell.y] as const;
+}
+
+export function dungeonWallUvOffset(
+  cell: GridCell,
+  intoDx: number,
+  intoDy: number,
+): readonly [number, number] {
+  // Plane local +X flips on south/east-facing rotations.
+  return [intoDy !== 0 ? cell.x * intoDy : cell.y * -intoDx, 0] as const;
+}
+
 export interface StaticDoorActor {
   root: THREE.Group;
   left: THREE.Group;
@@ -111,8 +142,17 @@ export interface StaticDoorActor {
   targetOpen: boolean;
 }
 
+export type StaticPickupKind =
+  | "stone"
+  | "resolve"
+  | "time-freeze"
+  | "luminous-ward"
+  | "annihilation-pulse"
+  | "map"
+  | "mobility";
+
 export interface StaticPickupActor {
-  kind: "stone" | "resolve" | "time-freeze" | "luminous-ward" | "annihilation-pulse";
+  kind: StaticPickupKind;
   stoneId?: StoneId;
   object: THREE.Object3D;
   collected: boolean;
@@ -156,6 +196,13 @@ export interface StaticChestActor {
   openness: number;
 }
 
+export interface StaticStairActor {
+  root: THREE.Group;
+  direction: "up" | "down";
+  targetFloor: number;
+  cell: GridCell;
+}
+
 export interface StaticFireEffect {
   root: THREE.Group;
   flame: THREE.Mesh;
@@ -187,6 +234,7 @@ export interface StaticDungeonSceneHandles {
   doors: StaticDoorActor[];
   pickups: StaticPickupActor[];
   chests: StaticChestActor[];
+  staircases: StaticStairActor[];
   fireEffects: StaticFireEffect[];
   solidCells: Map<string, GridCell>;
   objectOccupiedCells: Set<string>;
@@ -200,6 +248,7 @@ export interface StaticDungeonSceneHandles {
   portalBeam: THREE.Mesh | null;
   portalLight: THREE.PointLight | null;
   stoneBeams: THREE.Mesh[];
+  ambientBeams: THREE.Mesh[];
   liquidKit: LiquidSectionKit | null;
   hazardTiles: HazardTileSystem | null;
   stonePlacements: MagicStonePlacement[];
@@ -220,6 +269,7 @@ function createHandles(): StaticDungeonSceneHandles {
     doors: [],
     pickups: [],
     chests: [],
+    staircases: [],
     fireEffects: [],
     solidCells: new Map(),
     objectOccupiedCells: new Set(),
@@ -233,6 +283,7 @@ function createHandles(): StaticDungeonSceneHandles {
     portalBeam: null,
     portalLight: null,
     stoneBeams: [],
+    ambientBeams: [],
     liquidKit: null,
     hazardTiles: null,
     stonePlacements: [],
@@ -362,13 +413,25 @@ export class StaticDungeonScene {
       mood.surfaceTint,
       0.9 + mood.surfaceStrength * 0.25,
     );
-    const stonePlacements = selectMagicStonePlacements(dungeon);
-    if (!hasValidMagicStonePlacementContract(dungeon, stonePlacements)) {
+    if (!hasValidPortalPlacementContract(dungeon)) {
+      throw new Error("Dungeon cannot start Play without a reachable exit portal seat.");
+    }
+    const allStonePlacements = selectMagicStonePlacements(dungeon);
+    if (!hasValidMagicStonePlacementContract(dungeon, allStonePlacements)) {
       throw new Error("Dungeon cannot start Play without four distinct reachable magic stones.");
     }
+    const stonePlacements =
+      dungeon.floor && dungeon.floor.count > 1
+        ? allStonePlacements.filter(
+            (_, stoneIndex) => stoneIndex % dungeon.floor!.count === dungeon.floor!.index,
+          )
+        : allStonePlacements;
     this.handles.stonePlacements.push(...stonePlacements);
     for (const cell of magicStoneClearanceCells(dungeon, stonePlacements)) {
       this.objectiveClearanceCells.add(`${cell.x},${cell.y}`);
+    }
+    for (const stair of dungeon.floor?.stairs ?? []) {
+      this.objectiveClearanceCells.add(`${stair.cell.x},${stair.cell.y}`);
     }
     const floorCells: GridCell[] = [];
     for (let y = 0; y < dungeon.height; y += 1) {
@@ -406,8 +469,20 @@ export class StaticDungeonScene {
     }
     this.addLightProps(dungeon);
     this.addAtmosphereProps(dungeon);
+    this.addAmbientGodrays(dungeon, mood);
     this.addMarkers(dungeon, mood);
+    this.addStaircases(dungeon);
     this.addStaticObjectives(dungeon, stonePlacements);
+    const stonePickups = this.pickups.filter((pickup) => pickup.kind === "stone");
+    if (stonePickups.length !== stonePlacements.length) {
+      throw new Error(
+        `Dungeon completeness failed: expected ${stonePlacements.length} stone pickups, built ${stonePickups.length}.`,
+      );
+    }
+    const finalFloor = !dungeon.floor || dungeon.floor.index === dungeon.floor.count - 1;
+    if (finalFloor && !this.portalRoot) {
+      throw new Error("Dungeon completeness failed: exit portal mesh was not created.");
+    }
     this.applyMoodToPracticalLights(mood);
     this.stats.floorTiles = floorCells.length;
     this.stats.wallTiles = wallCells.length;
@@ -444,6 +519,7 @@ export class StaticDungeonScene {
     expired.doors.length = 0;
     expired.pickups.length = 0;
     expired.chests.length = 0;
+    expired.staircases.length = 0;
     expired.fireEffects.length = 0;
     expired.solidCells.clear();
     expired.objectOccupiedCells.clear();
@@ -457,6 +533,7 @@ export class StaticDungeonScene {
     expired.portalBeam = null;
     expired.portalLight = null;
     expired.stoneBeams.length = 0;
+    expired.ambientBeams.length = 0;
     expired.stonePlacements.length = 0;
     this.staticContactShadowPlacements.length = 0;
     this.dynamicFireLightCount = 0;
@@ -587,6 +664,10 @@ export class StaticDungeonScene {
     return this.handles.stoneBeams;
   }
 
+  private get ambientBeams(): THREE.Mesh[] {
+    return this.handles.ambientBeams;
+  }
+
   private get liquidKit(): LiquidSectionKit | null {
     return this.handles.liquidKit;
   }
@@ -608,9 +689,8 @@ export class StaticDungeonScene {
     floorCells: readonly GridCell[],
     wallCells: readonly GridCell[],
   ): void {
-    // Tiny geometric overlap only — UV stays 0..1 per tile so offsets of +1 meet cleanly.
-    const floorFootprint = this.tileSize * 1.004;
-    const wallFaceWidth = this.tileSize * 1.02;
+    const floorFootprint = this.tileSize * DUNGEON_SURFACE_TILE_SCALE;
+    const wallFaceWidth = this.tileSize * DUNGEON_SURFACE_TILE_SCALE;
     const floorTemplate = createFloorTileGeometry(floorFootprint);
     // Plane faces +Z; rotate to face down (-Y) so players look at the textured underside.
     const ceilingTemplate = new THREE.PlaneGeometry(floorFootprint, floorFootprint);
@@ -625,11 +705,12 @@ export class StaticDungeonScene {
       const floorGeometry = floorTemplate.clone();
       const ceilingGeometry = ceilingTemplate.clone();
       cells.forEach((cell, instance) => {
-        // Continuous UV field: neighbor cells continue the pattern (seamless wrap).
-        floorOffsets[instance * 2] = cell.x;
-        floorOffsets[instance * 2 + 1] = cell.y;
-        ceilingOffsets[instance * 2] = cell.x;
-        ceilingOffsets[instance * 2 + 1] = cell.y;
+        const floorUv = dungeonFloorUvOffset(cell);
+        const ceilingUv = dungeonCeilingUvOffset(cell);
+        floorOffsets[instance * 2] = floorUv[0];
+        floorOffsets[instance * 2 + 1] = floorUv[1];
+        ceilingOffsets[instance * 2] = ceilingUv[0];
+        ceilingOffsets[instance * 2 + 1] = ceilingUv[1];
       });
       setTileUvOffsets(floorGeometry, floorOffsets);
       setTileUvOffsets(ceilingGeometry, ceilingOffsets);
@@ -675,10 +756,9 @@ export class StaticDungeonScene {
       const wallOffsets = new Float32Array(themeFaces.length * 2);
       const wallGeometry = wallFaceTemplate.clone();
       themeFaces.forEach((face, instance) => {
-        // U runs along the wall; N/S faces use cell.x, E/W faces use cell.y.
-        const alongU = face.intoDy !== 0 ? face.cell.x : face.cell.y;
-        wallOffsets[instance * 2] = alongU;
-        wallOffsets[instance * 2 + 1] = 0;
+        const uv = dungeonWallUvOffset(face.cell, face.intoDx, face.intoDy);
+        wallOffsets[instance * 2] = uv[0];
+        wallOffsets[instance * 2 + 1] = uv[1];
       });
       setTileUvOffsets(wallGeometry, wallOffsets);
 
@@ -897,17 +977,14 @@ export class StaticDungeonScene {
       return;
     }
     const random = createSeededRandom(`${dungeon.seed}:room-dressing`);
-    const roomAt = (cell: GridCell): DungeonRoom | undefined =>
-      dungeon.rooms.find(
-        (room) =>
-          cell.x >= room.x &&
-          cell.x < room.x + room.width &&
-          cell.y >= room.y &&
-          cell.y < room.y + room.height,
-      );
     const occupiedDoorCells = new Set<string>();
     let heroReliquaryPlaced = false;
-    let doorsPlaced = 0;
+    const doorwaysByRoom = new Map<number, DungeonDoorway[]>();
+    for (const doorway of dungeon.topology?.doorways ?? []) {
+      const roomDoorways = doorwaysByRoom.get(doorway.roomId) ?? [];
+      roomDoorways.push(doorway);
+      doorwaysByRoom.set(doorway.roomId, roomDoorways);
+    }
     const classicPropPlacements = new Map<
       string,
       {
@@ -920,32 +997,11 @@ export class StaticDungeonScene {
 
     for (const room of dungeon.rooms) {
       const theme = roomTheme(dungeon, room);
-      const candidates: Array<{ cell: GridCell; outDx: number; outDy: number }> = [];
-      for (let x = room.x; x < room.x + room.width; x += 1) {
-        for (const y of [room.y, room.y + room.height - 1]) {
-          if (dungeon.grid[y]?.[x] !== FLOOR) continue;
-          const outDy = y === room.y ? -1 : 1;
-          const outside = { x, y: y + outDy };
-          if (dungeon.grid[outside.y]?.[outside.x] === FLOOR && roomAt(outside)?.id !== room.id) {
-            candidates.push({ cell: { x, y }, outDx: 0, outDy });
-          }
-        }
-      }
-      for (let y = room.y; y < room.y + room.height; y += 1) {
-        for (const x of [room.x, room.x + room.width - 1]) {
-          if (dungeon.grid[y]?.[x] !== FLOOR) continue;
-          const outDx = x === room.x ? -1 : 1;
-          const outside = { x: x + outDx, y };
-          if (dungeon.grid[outside.y]?.[outside.x] === FLOOR && roomAt(outside)?.id !== room.id) {
-            candidates.push({ cell: { x, y }, outDx, outDy: 0 });
-          }
-        }
-      }
+      const candidates = doorwaysByRoom.get(room.id) ?? [];
       const doorway =
         candidates[Math.abs(room.id * 7 + dungeon.seedHash) % Math.max(candidates.length, 1)];
       if (
         doorway &&
-        doorsPlaced < 7 &&
         !occupiedDoorCells.has(`${doorway.cell.x},${doorway.cell.y}`) &&
         room.role !== "entrance"
       ) {
@@ -958,9 +1014,11 @@ export class StaticDungeonScene {
           this.wallHeight,
           this.createDoorAppearance(),
         );
+        door.userData.roomId = room.id;
+        door.userData.edgeIndex = doorway.edgeIndex;
+        door.userData.connectedRoomId = doorway.connectedRoomId;
         this.registerDoor(door, placement, placement.rotation);
         occupiedDoorCells.add(`${doorway.cell.x},${doorway.cell.y}`);
-        doorsPlaced += 1;
         this.stats.props += 1;
       }
 
@@ -1590,12 +1648,20 @@ export class StaticDungeonScene {
           ? createLuminousWardStone(this.materials)
           : rewardKind === "annihilation-pulse"
             ? createAnnihilationPulseRelic(this.materials)
-            : createResolveFlask(this.materials);
+            : rewardKind === "map"
+              ? createDungeonMapPickup(this.materials)
+              : rewardKind === "mobility"
+                ? createMobilityDraught(this.materials)
+                : createResolveFlask(this.materials);
     preparePickupOpacity(item);
     item.name = `${rewardKind} reward from chest`;
     const rewardScale =
       rewardKind === "resolve"
         ? 0.64
+        : rewardKind === "map"
+          ? 0.62
+          : rewardKind === "mobility"
+            ? 0.58
         : rewardKind === "time-freeze" || rewardKind === "annihilation-pulse"
           ? 0.54
           : 0.52;
@@ -2275,6 +2341,46 @@ export class StaticDungeonScene {
     this.scatterWallDecor(dungeon, random);
     this.scatterBiomeSpriteProps(dungeon);
     this.scatterRoomAtmosphereProps(dungeon, random);
+  }
+
+  /** Sparse ceiling shafts: one quiet light cue per large dungeon wing. */
+  private addAmbientGodrays(dungeon: DungeonData, mood: DungeonMood): void {
+    if (this.decorDensity < 0.18) return;
+    const random = createSeededRandom(`${dungeon.seed}:ambient-godrays`);
+    const candidates = dungeon.rooms
+      .filter(
+        (room) =>
+          room.role === "room" &&
+          room.width >= 5 &&
+          room.height >= 5 &&
+          Math.hypot(room.center.x - dungeon.spawn.x, room.center.y - dungeon.spawn.y) >= 5,
+      )
+      .map((room) => ({ room, tie: random.next() }))
+      .sort((left, right) => left.tie - right.tie);
+    const count = Math.min(candidates.length, this.decorDensity >= 0.72 ? 3 : 2);
+    const color = new THREE.Color(mood.keyColor)
+      .lerp(new THREE.Color(mood.mistColor), 0.42)
+      .getHex();
+    for (let index = 0; index < count; index += 1) {
+      const room = candidates[index]!.room;
+      const center = gridToWorld(dungeon, room.center, this.tileSize);
+      const beam = createVolumetricBeam(
+        color,
+        this.wallHeight - 0.18,
+        Math.min(0.92, Math.max(0.58, Math.min(room.width, room.height) * 0.12)),
+        0.065 + index * 0.012,
+      );
+      beam.name = `Ambient godray ${index + 1}`;
+      beam.position.set(
+        center.x + (random.next() - 0.5) * this.tileSize * 0.7,
+        this.wallHeight - 0.06,
+        center.z + (random.next() - 0.5) * this.tileSize * 0.7,
+      );
+      beam.rotation.y = random.next() * Math.PI;
+      this.ambientBeams.push(beam);
+      this.add(beam);
+      this.stats.beams += 1;
+    }
   }
 
   /** Tint all authored light emitters once at build time; this adds no frame work or lights. */
@@ -3069,6 +3175,14 @@ export class StaticDungeonScene {
     const entranceRing = new THREE.Mesh(new THREE.RingGeometry(0.46, 0.66, 8), this.materials.iron);
     entranceRing.rotation.x = -Math.PI / 2;
     entranceRing.position.set(entrance.x, 0.02, entrance.z);
+    const entranceLight = new THREE.PointLight(0x777b7c, 7, 9, 2.4);
+    entranceLight.position.set(entrance.x, 1.7, entrance.z);
+
+    const finalFloor = !dungeon.floor || dungeon.floor.index === dungeon.floor.count - 1;
+    if (!finalFloor) {
+      this.add(entranceRing, entranceLight);
+      return;
+    }
 
     // Complete biome portal: full arch aperture, distinct frame/signature/seal,
     // profile-driven vortex and isolated materials for every dungeon mood.
@@ -3085,10 +3199,28 @@ export class StaticDungeonScene {
     const exitLight = new THREE.PointLight(magicPortal.profile.lightColor, 3, 12, 2.2);
     exitLight.position.set(exit.x, 2.4, exit.z);
     this.portalLight = exitLight;
-    const entranceLight = new THREE.PointLight(0x777b7c, 7, 9, 2.4);
-    entranceLight.position.set(entrance.x, 1.7, entrance.z);
     this.add(entranceRing, portal, exitBeam, exitLight, entranceLight);
     this.stats.beams += 1;
+  }
+
+  private addStaircases(dungeon: DungeonData): void {
+    for (const stair of dungeon.floor?.stairs ?? []) {
+      const position = gridToWorld(dungeon, stair.cell, this.tileSize);
+      const root = createDungeonStaircase(stair.direction, this.materials, this.tileSize);
+      root.position.set(position.x, 0, position.z);
+      root.rotation.y = stair.yaw;
+      root.userData.stairId = stair.id;
+      root.userData.targetFloor = stair.targetFloor;
+      this.add(root);
+      this.handles.staircases.push({
+        root,
+        direction: stair.direction,
+        targetFloor: stair.targetFloor,
+        cell: { ...stair.cell },
+      });
+      this.objectiveClearanceCells.add(`${stair.cell.x},${stair.cell.y}`);
+      this.stats.props += DUNGEON_STAIR_STEP_COUNT;
+    }
   }
 
   private addStaticObjectives(
@@ -3147,7 +3279,7 @@ export class StaticDungeonScene {
     // depth so pressure relief is not stacked in one wing of the map.
     const usedPowerRooms = new Set<DungeonRoom>();
     const placePowerChest = (
-      rewardKind: Extract<ChestRewardKind, "time-freeze" | "luminous-ward" | "annihilation-pulse">,
+      rewardKind: Exclude<ChestRewardKind, "resolve">,
       depthFraction: number,
       salt: number,
     ): void => {
@@ -3205,6 +3337,8 @@ export class StaticDungeonScene {
     for (const fraction of [0.28, 0.72] as const) {
       placePowerChest("time-freeze", fraction, 43);
     }
+    placePowerChest("map", 0.18, 37);
+    placePowerChest("mobility", 0.54, 53);
     for (const fraction of [0.42, 0.88] as const) {
       placePowerChest("luminous-ward", fraction, 61);
     }
@@ -3744,19 +3878,35 @@ function roomDistance(dungeon: DungeonData, room: DungeonRoom): number {
 }
 
 export const CHEST_INTERACTION_DISTANCE = 1.9;
+/** Default pickup grab radius (health flasks, power rewards). */
 export const PICKUP_COLLECTION_DISTANCE = 1.18;
-export type ChestRewardKind = "resolve" | "time-freeze" | "luminous-ward" | "annihilation-pulse";
+/** Magic stones get a wider grab so dense props near the seat cannot softlock a run. */
+export const STONE_COLLECTION_DISTANCE = 1.55;
+export type ChestRewardKind =
+  | "resolve"
+  | "time-freeze"
+  | "luminous-ward"
+  | "annihilation-pulse"
+  | "map"
+  | "mobility";
 
 export function canInteractWithChest(distance: number, opened: boolean): boolean {
   return !opened && Number.isFinite(distance) && distance <= CHEST_INTERACTION_DISTANCE;
 }
 
 export function chestRewardAutoActivates(kind: ChestRewardKind): boolean {
-  return kind === "time-freeze" || kind === "luminous-ward" || kind === "annihilation-pulse";
+  return kind !== "resolve";
 }
 
-export function canCollectPickup(distance: number, autoCollect = false): boolean {
-  return autoCollect || (Number.isFinite(distance) && distance <= PICKUP_COLLECTION_DISTANCE);
+export function canCollectPickup(
+  distance: number,
+  autoCollect = false,
+  kind: StaticPickupKind | "other" = "other",
+): boolean {
+  if (autoCollect) return true;
+  if (!Number.isFinite(distance)) return false;
+  const limit = kind === "stone" ? STONE_COLLECTION_DISTANCE : PICKUP_COLLECTION_DISTANCE;
+  return distance <= limit;
 }
 
 function deterministicLosAge(phase: number): number {

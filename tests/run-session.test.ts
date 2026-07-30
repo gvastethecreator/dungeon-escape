@@ -183,6 +183,37 @@ describe("RunSession applyWorldUpdate", () => {
     expect(fx.flash).toBe("event");
   });
 
+  test("reveals the map and activates mobility as persistent utility pickups", () => {
+    const session = createRunSession(64);
+    const quest = new QuestState();
+    quest.start(0);
+
+    const map = applyWorldUpdate(
+      session,
+      quest,
+      emptyUpdate({ collectedPickupKind: "map" }),
+    );
+    expect(map).toMatchObject({
+      status: COPY.status.map,
+      pickup: { label: COPY.pickup.map, mapReveal: true },
+      playPickup: true,
+      sessionChanged: true,
+    });
+
+    const mobility = applyWorldUpdate(
+      session,
+      quest,
+      emptyUpdate({ collectedPickupKind: "mobility" }),
+    );
+    expect(mobility).toMatchObject({
+      status: COPY.status.mobility,
+      pickup: { label: COPY.pickup.mobility, mobilityBoost: true },
+      playPickup: true,
+      sessionChanged: true,
+    });
+    expect(session.resolve).toBe(64);
+  });
+
   test("keeps a quest-sealed exit active", () => {
     const session = createRunSession();
     const quest = new QuestState();

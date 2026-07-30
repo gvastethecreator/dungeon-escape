@@ -70,6 +70,20 @@
           <div class="welcome-card">
             <div id="welcome-home" class="welcome-home">
               <h1 id="welcome-title" class="welcome-title">Dungeon Escape</h1>
+              <button id="welcome-profile-edit" type="button" class="welcome-player">
+                <img
+                  id="welcome-player-avatar"
+                  src="/assets/ui/portraits/candlebat.png"
+                  alt=""
+                  width="42"
+                  height="42"
+                />
+                <span>
+                  <small>PLAYER</small>
+                  <strong id="welcome-player-name">Wanderer</strong>
+                </span>
+                <span class="welcome-player__edit">CHANGE</span>
+              </button>
               <nav class="welcome-menu" aria-label="Main menu">
                 <button
                   id="welcome-new"
@@ -97,6 +111,57 @@
               <p id="welcome-status" class="welcome-status" role="status" aria-live="polite">
                 Checking saved run…
               </p>
+            </div>
+            <div
+              id="welcome-profile"
+              class="welcome-profile"
+              hidden
+              aria-labelledby="welcome-profile-title"
+            >
+              <header class="welcome-profile__header">
+                <button id="welcome-profile-back" type="button" class="welcome-biome-picker__back">
+                  BACK
+                </button>
+                <div>
+                  <small>PLAYER PROFILE</small>
+                  <h2 id="welcome-profile-title">Choose your name</h2>
+                </div>
+              </header>
+              <form id="welcome-profile-form" class="welcome-profile__form" novalidate>
+                <button
+                  id="welcome-profile-avatar"
+                  type="button"
+                  class="welcome-profile__avatar"
+                  aria-label="Change avatar"
+                  title="Change avatar"
+                >
+                  <img
+                    id="welcome-profile-avatar-image"
+                    src="/assets/ui/portraits/candlebat.png"
+                    alt=""
+                    width="96"
+                    height="96"
+                  />
+                  <span>CHANGE AVATAR</span>
+                </button>
+                <label class="welcome-profile__name">
+                  <span>NAME</span>
+                  <input
+                    id="welcome-profile-name"
+                    name="player-name"
+                    type="text"
+                    autocomplete="nickname"
+                    minlength="1"
+                    maxlength="20"
+                    placeholder="Wanderer"
+                    required
+                  />
+                </label>
+                <p id="welcome-profile-status" class="welcome-profile__status" role="status"></p>
+                <button type="submit" class="welcome-menu__item welcome-menu__item--primary">
+                  SAVE PLAYER
+                </button>
+              </form>
             </div>
             <div
               id="welcome-biome-picker"
@@ -224,6 +289,16 @@
             <span class="annihilation-pulse-status__label">PULSE ACTIVE</span>
             <time id="annihilation-pulse-value" datetime="PT0S">26.0s</time>
           </div>
+          <div
+            id="biome-event-status"
+            class="biome-event-status"
+            role="status"
+            aria-live="polite"
+            hidden
+          >
+            <span id="biome-event-label" class="biome-event-status__label">DUSTFALL</span>
+            <time id="biome-event-value" datetime="PT0S">9.0s</time>
+          </div>
           <time id="run-timer" class="run-timer" datetime="PT0S" aria-label="Run time 00:00"
             >00:00</time
           >
@@ -320,10 +395,14 @@
               <small>DUNGEON ESCAPE</small>
               <strong id="options-title">Paused</strong>
             </div>
-            <button id="options-resume" type="button">RESUME <kbd>ESC</kbd></button>
           </header>
 
-          <!-- DOM order keeps the Creation/Debug deck grid stable. Play pause reorders via CSS. -->
+          <!-- Primary play action: full-width resume (hidden in Creation/Debug). -->
+          <button id="options-resume" class="options-primary" type="button">
+            RESUME <kbd>ESC</kbd>
+          </button>
+
+          <!-- Engine modes: Creation/Debug for tools; hidden in public play pause. -->
           <nav class="mode-switcher" aria-label="Mode: Creation, Debug, or Play">
             <button
               type="button"
@@ -336,6 +415,7 @@
             <button
               type="button"
               data-engine-mode="debug"
+              data-local-dev-only="true"
               title="Debug · graph and telemetry · key 2"
             >
               DEBUG
@@ -343,46 +423,49 @@
             <button type="button" data-engine-mode="play" title="Play · key 3">PLAY</button>
           </nav>
 
-          <!-- Play pause only: restart / leave run. Hidden in Creation/Debug deck. -->
-          <nav class="options-session" aria-label="Run actions">
-            <button id="options-restart" type="button" title="Restart this map · key R">
-              RESTART MAP <kbd>R</kbd>
-            </button>
-            <button id="options-home" type="button" title="Return to the main menu">
-              BACK TO MAIN SCREEN
-            </button>
-          </nav>
-
           <fieldset class="options-fx">
-            <legend>SOUND &amp; DISPLAY</legend>
+            <legend>SETTINGS</legend>
             <button
               id="audio-toggle"
-              class="is-active"
+              class="options-toggle is-active"
               type="button"
               aria-pressed="false"
               title="Mute all audio"
             >
-              AUDIO ON
+              <span class="options-toggle__label">Audio</span>
+              <span class="options-toggle__value" data-toggle-value>ON</span>
             </button>
             <button
               id="music-toggle"
-              class="is-active"
+              class="options-toggle is-active"
               type="button"
               aria-pressed="false"
               title="Mute music beds"
             >
-              MUSIC ON
+              <span class="options-toggle__label">Music</span>
+              <span class="options-toggle__value" data-toggle-value>ON</span>
             </button>
             <button
               id="crt-toggle"
-              class="is-active"
+              class="options-toggle is-active"
               type="button"
               aria-pressed="true"
               title="Toggle CRT"
             >
-              CRT ON
+              <span class="options-toggle__label">CRT</span>
+              <span class="options-toggle__value" data-toggle-value>ON</span>
             </button>
           </fieldset>
+
+          <!-- Play pause only: leave run, then restart (secondary / destructive). -->
+          <nav class="options-session" aria-label="Run actions">
+            <button id="options-home" type="button" title="Return to the main menu">
+              MAIN MENU
+            </button>
+            <button id="options-restart" type="button" title="Restart this map · key R">
+              RESTART MAP <kbd>R</kbd>
+            </button>
+          </nav>
 
           <!-- Map Tools + Server Runs: shown only in local dev (see LocalDevTools). -->
           <details class="record-panel" data-local-dev-only="true">
@@ -748,6 +831,22 @@
             <dt>LIGHTS</dt>
             <dd id="debug-lights">—</dd>
           </div>
+          <div>
+            <dt>FLOOR</dt>
+            <dd id="debug-floor">—</dd>
+          </div>
+          <div>
+            <dt>ROOMS</dt>
+            <dd id="debug-rooms">—</dd>
+          </div>
+          <div>
+            <dt>DOORS</dt>
+            <dd id="debug-doors">—</dd>
+          </div>
+          <div>
+            <dt>THREATS</dt>
+            <dd id="debug-enemies">—</dd>
+          </div>
         </dl>
       </aside>
 
@@ -873,7 +972,7 @@
             <p id="leaderboard-submit-status" role="status" aria-live="polite"></p>
           </form>
           <div class="end-actions">
-            <button id="end-next-biome" type="button" hidden>Next biome</button>
+            <button id="end-next-biome" type="button" disabled>Next run</button>
             <button id="retry" type="button">Try again</button>
             <button id="new-dungeon" type="button">New dungeon</button>
           </div>

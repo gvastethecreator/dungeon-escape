@@ -39,6 +39,7 @@ import { enemyAnimationsForMood } from "../world/EnemySpriteAtlas";
 import { createMagicStone } from "../world/MagicStoneKit";
 import { auditAndRepairForgeSurface } from "./SurfaceGeometryAudit";
 import { resolveForgeRenderQuality } from "./ForgeRenderQuality";
+import { resolveForgeRoomPresentationRect } from "./ForgePresentationGeometry";
 import { resolveEditorLightingProfile } from "../editor/EditorLightingProfiles";
 import { nextProceduralSeed } from "../game/SeedFactory";
 import {
@@ -1391,6 +1392,7 @@ function writeInstances(mesh, t) {
 
 /* -------- scene state -------- */
 let D = null;
+let editorDungeonBeforePresentation = null;
 let group = null;
 let meshes = {};
 let overlay = null;
@@ -2465,18 +2467,24 @@ function updateRects(t) {
     pos = rects.geometry.attributes.position.array;
   const k = easeOutCubic(Math.min(1, Math.max(0, t / 0.95)));
   D.rooms.forEach((r, i) => {
-    const cx = r.sx0 + (r.cx - r.sx0) * k,
-      cy = r.sy0 + (r.cy - r.sy0) * k;
-    const x0 = u.wx(cx - r.w / 2),
-      x1 = u.wx(cx + r.w / 2),
-      z0 = u.wz(cy - r.h / 2),
-      z1 = u.wz(cy + r.h / 2),
+    const room = resolveForgeRoomPresentationRect(r);
+    const cx = room.sx0 + (room.cx - room.sx0) * k,
+      cy = room.sy0 + (room.cy - room.sy0) * k;
+    const x0 = u.wx(cx - room.w / 2),
+      x1 = u.wx(cx + room.w / 2),
+      z0 = u.wz(cy - room.h / 2),
+      z1 = u.wz(cy + room.h / 2),
       y = 0.35;
     pos.set(
       [x0, y, z0, x1, y, z0, x1, y, z0, x1, y, z1, x1, y, z1, x0, y, z1, x0, y, z1, x0, y, z0],
       i * 24,
     );
   });
+  if (presentationMode) {
+    document.documentElement.dataset.forgeRoomGeometry = pos.every(Number.isFinite)
+      ? "finite"
+      : "invalid";
+  }
   rects.geometry.attributes.position.needsUpdate = true;
 }
 
@@ -2725,6 +2733,19 @@ function setPresentationMode(enabled) {
   if (D) fitCameraToDungeon(D.W, D.H);
 }
 
+function restoreEditorDungeonAfterPresentation() {
+  const editorDungeon = editorDungeonBeforePresentation;
+  editorDungeonBeforePresentation = null;
+  if (!editorDungeon) return;
+  buildScene(editorDungeon);
+  applyObjectVis();
+  animating = false;
+  animT = Infinity;
+  settleAll();
+  setOverlayStatic();
+  setStageDone();
+}
+
 function finishAnim() {
   animating = false;
   animT = Infinity;
@@ -2907,11 +2928,15 @@ addEventListener("message", (event) => {
     // Enable presentation before forge() so fitCameraToDungeon centers the map.
     setPresentationMode(enabled);
     if (!enabled) {
+      restoreEditorDungeonAfterPresentation();
       // Leave the editor free to pick themes again after the map theater.
       if (themeSel !== "random" && !THEME_KEYS.includes(themeSel)) setThemeSel("random");
       return;
     }
     hostPaused = false;
+    // Preserve Creation for every presentation route, including a legacy host
+    // that only supplies seed/theme and asks Forge to generate the theater map.
+    if (!editorDungeonBeforePresentation && D) editorDungeonBeforePresentation = D;
     // Host may ship the real play layout (isometric of that topology). Prefer it
     // over re-rolling a cosmetic Creation seed.
     const hostDungeon = event.data.dungeon;

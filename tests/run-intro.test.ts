@@ -23,6 +23,20 @@ describe("new-game map theater intro", () => {
     expect(forge).toContain("black-flag:forge-presentation");
     expect(forge).toContain("hostDungeon");
     expect(forge).toContain("buildScene(hostDungeon)");
+    expect(forge).toContain("resolveForgeRoomPresentationRect");
+    expect(forge).toContain("dataset.forgeRoomGeometry");
+    expect(forge).toContain("editorDungeonBeforePresentation");
+    expect(forge).toContain("restoreEditorDungeonAfterPresentation");
+
+    const presentationHandlerAt = forge.indexOf('event.data?.type === "black-flag:forge-presentation"');
+    const preserveEditorAt = forge.indexOf(
+      "if (!editorDungeonBeforePresentation && D) editorDungeonBeforePresentation = D",
+      presentationHandlerAt,
+    );
+    const inspectHostDungeonAt = forge.indexOf("const hostDungeon = event.data.dungeon", presentationHandlerAt);
+    expect(presentationHandlerAt).toBeGreaterThan(-1);
+    expect(preserveEditorAt).toBeGreaterThan(presentationHandlerAt);
+    expect(inspectHostDungeonAt).toBeGreaterThan(preserveEditorAt);
 
     const blackFirstAt = source.indexOf('setSceneFadeOpaque(true, { instant: true })');
     const introActiveAt = source.indexOf("setRunIntroActive(true", blackFirstAt);
