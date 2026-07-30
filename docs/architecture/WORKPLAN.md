@@ -7,6 +7,9 @@ Status: implemented and locally verified on 2026-07-27.
 The 2026-07-30 dependency/performance follow-up in the source review proposes A7-A9. Those items are
 not accepted and are intentionally not implementation tasks yet.
 
+The separate 2026-07-30 deep-module batch is complete: ten accepted maintenance seams were implemented
+and verified without accepting A7-A9. See the [completion report](architecture-review-2026-07-30.md).
+
 ## Frontier
 
 | ID  | Module               | Status   | Depends on          | Acceptance proof                                                                                       |
@@ -51,3 +54,25 @@ not accepted and are intentionally not implementation tasks yet.
 | A7  | Runtime-only public asset boundary      | awaiting acceptance | 200.50 MiB of non-runtime enemy inputs under `public/`       |
 | A8  | Lazy Play/Creation experience lifecycle | awaiting acceptance | welcome eagerly preloads about 391 kB gzip and creates WebGL |
 | A9  | Static scene plan then Three commit     | awaiting acceptance | 3,973-line synchronous build transaction                     |
+
+## Completed deep-module batch — 2026-07-30
+
+| ID | Owner | Result |
+| --- | --- | --- |
+| ARCH-01 | Three resource disposal | World and static-scene cleanup share exactly-once ownership policy |
+| ARCH-02 | Hall persistence | SQLite and D1 share one row, rank, binding, and star-folding contract |
+| ARCH-03 | Hall application | Node and Worker transports share request and error policy |
+| ARCH-04 | Authority write queue | Remote mutation ordering and reconciliation left the mixed domain bridge |
+| ARCH-05 | Launch configuration | Browser query semantics are parsed once and URL writes preserve unrelated state |
+| ARCH-06 | Floor exploration | Per-floor fog-of-war state has one pure lifecycle owner |
+| ARCH-07 | Run resume mapping | Capture and activation share one defensive projection seam |
+| ARCH-08 | Local save coordinator | Save timing, flush, disposal, and failure latching have one owner |
+| ARCH-09 | Forge frame client | Iframe trust, protocol, presentation waits, and cleanup have one boundary |
+| ARCH-10 | Run intro director | Run entry is one serial, cancellable transaction with explicit outcomes |
+
+Final proof: 760 tests / 153,878 assertions, all three TypeScript configs, lint, fresh code-verification,
+complete production artifacts, and Chrome coverage for normal, reduced-motion, skipped, replacement-race,
+and production paths. Adversarial hardening is in `f845974`, `93401bc`, `1d784a4`, and `5ca80ce`.
+Imported Forge maps now fail closed as session-only under
+[ADR 0005](../adr/0005-forge-imports-are-session-only.md). A7-A9 remain deferred and require explicit owner
+acceptance.
