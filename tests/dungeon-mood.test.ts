@@ -194,13 +194,13 @@ describe("dungeon mood tints", () => {
     const root = join(import.meta.dir, "../public/assets/textures/biomes");
     for (const id of listDungeonMoodIds()) {
       for (const surface of ["floor", "wall", "ceiling"] as const) {
-        expect(existsSync(join(root, id, `${surface}.png`))).toBe(true);
-        expect(biomeTextureUrl(id, surface)).toBe(`/assets/textures/biomes/${id}/${surface}.png`);
+        expect(existsSync(join(root, id, `${surface}.webp`))).toBe(true);
+        expect(biomeTextureUrl(id, surface)).toBe(`/assets/textures/biomes/${id}/${surface}.webp`);
         // DepthAnything V2 baked PBR companions
         for (const kind of ["normal", "rough", "depth"] as const) {
-          expect(existsSync(join(root, id, `${surface}-${kind}.png`))).toBe(true);
+          expect(existsSync(join(root, id, `${surface}-${kind}.webp`))).toBe(true);
           expect(biomeTextureUrl(id, surface, kind)).toBe(
-            `/assets/textures/biomes/${id}/${surface}-${kind}.png`,
+            `/assets/textures/biomes/${id}/${surface}-${kind}.webp`,
           );
         }
       }
@@ -211,10 +211,10 @@ describe("dungeon mood tints", () => {
     const textureRoot = join(import.meta.dir, "../public/assets/textures/biomes");
     const spriteRoot = join(import.meta.dir, "../public/assets/sprites/biomes");
     for (const id of listDungeonMoodIds()) {
-      expect(existsSync(join(textureRoot, id, "door.png"))).toBe(true);
-      expect(existsSync(join(spriteRoot, `${id}-wall-decor.png`))).toBe(true);
-      expect(biomeDoorTextureUrl(id)).toBe(`/assets/textures/biomes/${id}/door.png`);
-      expect(biomeWallDecorTextureUrl(id)).toBe(`/assets/sprites/biomes/${id}-wall-decor.png`);
+      expect(existsSync(join(textureRoot, id, "door.webp"))).toBe(true);
+      expect(existsSync(join(spriteRoot, `${id}-wall-decor.webp`))).toBe(true);
+      expect(biomeDoorTextureUrl(id)).toBe(`/assets/textures/biomes/${id}/door.webp`);
+      expect(biomeWallDecorTextureUrl(id)).toBe(`/assets/sprites/biomes/${id}-wall-decor.webp`);
     }
     expect(existsSync(join(import.meta.dir, "../assets-source/imagegen/biome-doors-v1.png"))).toBe(
       true,

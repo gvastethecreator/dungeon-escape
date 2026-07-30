@@ -14,6 +14,14 @@ from PIL import Image, ImageFilter
 PROJECT = Path(__file__).resolve().parents[1]
 SOURCE = PROJECT / "assets-source" / "imagegen" / "material-textures-v2"
 OUTPUT = PROJECT / "public" / "assets" / "textures" / "model-materials-v2"
+MANIFEST_OUT = (
+    PROJECT
+    / "assets-source"
+    / "runtime-metadata"
+    / "textures"
+    / "model-materials-v2"
+    / "manifest.json"
+)
 # The ImageGen masters stay at source resolution. Low-poly props use repeated
 # surface detail, so 512 px runtime plates retain the visible grain while
 # cutting the shipped PBR payload and cold decode cost by roughly three quarters.
@@ -238,7 +246,8 @@ def build_maps(material_id: str, config: MaterialConfig) -> dict[str, object]:
 def main() -> None:
     OUTPUT.mkdir(parents=True, exist_ok=True)
     records = [build_maps(material_id, config) for material_id, config in MATERIALS.items()]
-    (OUTPUT / "manifest.json").write_text(
+    MANIFEST_OUT.parent.mkdir(parents=True, exist_ok=True)
+    MANIFEST_OUT.write_text(
         json.dumps({"schemaVersion": 1, "mapSize": MAP_SIZE, "materials": records}, indent=2)
         + "\n",
         encoding="utf-8",

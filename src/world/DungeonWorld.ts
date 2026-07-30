@@ -41,10 +41,7 @@ import {
 } from "./EnemyBillboardMaterial";
 import type { DungeonMood } from "../systems/DungeonMood";
 import { getDungeonMood } from "../systems/DungeonMood";
-import {
-  sampleBiomeEvent,
-  type BiomeEventSnapshot,
-} from "../systems/BiomeEventDirector";
+import { sampleBiomeEvent, type BiomeEventSnapshot } from "../systems/BiomeEventDirector";
 import {
   DEFAULT_DIFFICULTY,
   ENEMY_ACTIVATION_SPREAD,
@@ -669,10 +666,14 @@ export class DungeonWorld {
       });
       // Prefer seats whose tier matches the newest unlocked band so each 25s /
       // stone find rotates into the new type group instead of only old rats.
-      const newest = candidates.filter((index) => this.enemyReserve[index]!.tier === unlockedMaxTier);
+      const newest = candidates.filter(
+        (index) => this.enemyReserve[index]!.tier === unlockedMaxTier,
+      );
       const preferred =
         newest.length > 0
-          ? newest.filter((index) => spreadCandidates.includes(index) || spreadCandidates.length === 0)
+          ? newest.filter(
+              (index) => spreadCandidates.includes(index) || spreadCandidates.length === 0,
+            )
           : [];
       const pool =
         preferred.length > 0
@@ -766,11 +767,7 @@ export class DungeonWorld {
             ? ANNIHILATION_PULSE_REPEL_SPEED_MULTIPLIER
             : 1,
           moodId: this.activeMood.id,
-          difficulty: THREE.MathUtils.clamp(
-            this.difficulty * biomeEvent.enemyPressureScale,
-            0,
-            1,
-          ),
+          difficulty: THREE.MathUtils.clamp(this.difficulty * biomeEvent.enemyPressureScale, 0, 1),
         });
     const sampledSurfaceEffect = this.hazardTiles?.sample(delta, player, {
       airborne: this.playerAirborne,
@@ -1454,9 +1451,7 @@ export class DungeonWorld {
       (pickup) => pickup.kind === "annihilation-pulse" && !pickup.collected,
     );
     const map = this.pickups.find((pickup) => pickup.kind === "map" && !pickup.collected);
-    const mobility = this.pickups.find(
-      (pickup) => pickup.kind === "mobility" && !pickup.collected,
-    );
+    const mobility = this.pickups.find((pickup) => pickup.kind === "mobility" && !pickup.collected);
     return {
       doors,
       fires,
@@ -1598,7 +1593,7 @@ export class DungeonWorld {
     if (this.stoneTextures.size > 0) return;
     const loader = new THREE.TextureLoader();
     for (const id of magicStoneIds()) {
-      const texture = loader.load(`/assets/textures/stones/${id}-albedo.jpg`);
+      const texture = loader.load(`/assets/textures/stones/${id}-albedo.webp`);
       texture.colorSpace = THREE.SRGBColorSpace;
       // Pixel-art grimdark: hard texels, no bilinear mush.
       texture.magFilter = THREE.NearestFilter;

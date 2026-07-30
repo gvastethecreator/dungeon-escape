@@ -24,7 +24,7 @@ describe("flat wall sprite material contract", () => {
       for (const kind of ["depth", "normal", "rough"]) {
         const file = Bun.file(
           new URL(
-            `../public/assets/sprites/biomes/${mood}-wall-decor-${kind}.png`,
+            `../public/assets/sprites/biomes/${mood}-wall-decor-${kind}.webp`,
             import.meta.url,
           ),
         );
@@ -34,7 +34,7 @@ describe("flat wall sprite material contract", () => {
     }
     for (const kind of ["depth", "normal", "rough"]) {
       const file = Bun.file(
-        new URL(`../public/assets/sprites/iron-ash-wall-art-${kind}.png`, import.meta.url),
+        new URL(`../public/assets/sprites/iron-ash-wall-art-${kind}.webp`, import.meta.url),
       );
       expect(await file.exists()).toBe(true);
       expect(file.size).toBeGreaterThan(4_000);

@@ -294,7 +294,15 @@ def main() -> int:
         )
         for source in inputs
     ]
-    manifest = args.out_dir / "manifest.json"
+    manifest = (
+        ROOT
+        / "assets-source"
+        / "runtime-metadata"
+        / "sprites"
+        / "biome-props"
+        / "manifest.json"
+    )
+    manifest.parent.mkdir(parents=True, exist_ok=True)
     manifest.write_text(json.dumps({"model": MODEL_ID, "sheets": reports}, indent=2) + "\n", encoding="utf-8")
     print(f"wrote {manifest} ({len(reports)} sheet(s))")
     return 0

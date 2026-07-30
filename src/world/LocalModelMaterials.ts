@@ -128,7 +128,7 @@ export function getReadableRootMaterial(materials: DungeonMaterials): THREE.Mesh
 }
 
 function curedMeatTexture(kind: "albedo" | "normal" | "roughness" | "ao"): THREE.Texture {
-  const path = `/assets/textures/model-materials-v2/cured-meat/cured-meat_${kind}.png`;
+  const path = `/assets/textures/model-materials-v2/cured-meat/cured-meat_${kind}.webp`;
   const texture =
     typeof document === "undefined"
       ? new THREE.Texture()

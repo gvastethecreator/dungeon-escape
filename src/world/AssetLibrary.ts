@@ -108,8 +108,8 @@ function biomePath(
   surface: "floor" | "wall" | "ceiling",
   kind: "albedo" | "normal" | "rough" | "depth" = "albedo",
 ): string {
-  if (kind === "albedo") return `/assets/textures/biomes/${mood}/${surface}.png`;
-  return `/assets/textures/biomes/${mood}/${surface}-${kind}.png`;
+  if (kind === "albedo") return `/assets/textures/biomes/${mood}/${surface}.webp`;
+  return `/assets/textures/biomes/${mood}/${surface}-${kind}.webp`;
 }
 
 const BIOME_ALBEDO_TARGETS: Record<DungeonMoodId, Record<"floor" | "wall" | "ceiling", number>> = {
@@ -193,18 +193,18 @@ function loadBiomeLayer(
 
 export class AssetLibrary {
   readonly wall = pixelTexture("/assets/textures/iron-ash-wall-v2.webp");
-  readonly wallCrypt = pixelTexture("/assets/textures/generated/iron-ash-wall-crypt-v1.png");
-  readonly wallShrine = pixelTexture("/assets/textures/generated/iron-ash-wall-shrine-v1.png");
-  readonly wallTreasure = pixelTexture("/assets/textures/generated/iron-ash-wall-treasure-v1.png");
-  readonly wallBoss = pixelTexture("/assets/textures/generated/iron-ash-wall-boss-v1.png");
+  readonly wallCrypt = pixelTexture("/assets/textures/generated/iron-ash-wall-crypt-v1.webp");
+  readonly wallShrine = pixelTexture("/assets/textures/generated/iron-ash-wall-shrine-v1.webp");
+  readonly wallTreasure = pixelTexture("/assets/textures/generated/iron-ash-wall-treasure-v1.webp");
+  readonly wallBoss = pixelTexture("/assets/textures/generated/iron-ash-wall-boss-v1.webp");
   readonly floor = pixelTexture("/assets/textures/iron-ash-floor-v2.webp");
-  readonly floorCrypt = pixelTexture("/assets/textures/generated/iron-ash-floor-crypt-v1.png");
-  readonly floorShrine = pixelTexture("/assets/textures/generated/iron-ash-floor-shrine-v1.png");
+  readonly floorCrypt = pixelTexture("/assets/textures/generated/iron-ash-floor-crypt-v1.webp");
+  readonly floorShrine = pixelTexture("/assets/textures/generated/iron-ash-floor-shrine-v1.webp");
   readonly floorTreasure = pixelTexture(
-    "/assets/textures/generated/iron-ash-floor-treasure-v1.png",
+    "/assets/textures/generated/iron-ash-floor-treasure-v1.webp",
   );
-  readonly floorBoss = pixelTexture("/assets/textures/generated/iron-ash-floor-boss-v1.png");
-  readonly ceiling = pixelTexture("/assets/textures/iron-ash-ceiling.png");
+  readonly floorBoss = pixelTexture("/assets/textures/generated/iron-ash-floor-boss-v1.webp");
+  readonly ceiling = pixelTexture("/assets/textures/iron-ash-ceiling.webp");
   /** Lazy biome packs — only the active mood loads PBR stacks (big boot win). */
   private readonly biomeSurfaces = new Map<DungeonMoodId, BiomeSurfaceTextures>();
   private readonly biomeDoors = new Map<DungeonMoodId, BiomeDoorTextures>();
@@ -260,9 +260,9 @@ export class AssetLibrary {
     const base = `/assets/textures/biomes/${mood}/door`;
     const surface = {
       albedo: pixelTexture(biomeDoorTextureUrl(mood), true, "none"),
-      normal: dataTexture(`${base}-normal.png`),
-      roughness: dataTexture(`${base}-roughness.png`),
-      metalness: dataTexture(`${base}-metalness.png`),
+      normal: dataTexture(`${base}-normal.webp`),
+      roughness: dataTexture(`${base}-roughness.webp`),
+      metalness: dataTexture(`${base}-metalness.webp`),
     } satisfies BiomeDoorTextures;
     for (const texture of Object.values(surface)) {
       texture.wrapS = texture.wrapT = THREE.ClampToEdgeWrapping;
@@ -290,17 +290,17 @@ export class AssetLibrary {
   biomeWallDecorPbr(mood: DungeonMoodId, index: number): WallSpriteTextures {
     const frame = Math.abs(index) % 4;
     const crop = {
-      x: frame * 256,
+      x: frame * 128,
       y: 0,
-      w: 256,
-      h: 256,
+      w: 128,
+      h: 128,
     };
-    const base = biomeWallDecorTextureUrl(mood).replace(/\.png$/, "");
+    const base = biomeWallDecorTextureUrl(mood).replace(/\.webp$/, "");
     return {
-      albedo: this.atlasFrame(`${base}.png`, [1024, 256], crop),
-      normal: this.atlasFrame(`${base}-normal.png`, [1024, 256], crop, false),
-      rough: this.atlasFrame(`${base}-rough.png`, [1024, 256], crop, false),
-      depth: this.atlasFrame(`${base}-depth.png`, [1024, 256], crop, false),
+      albedo: this.atlasFrame(`${base}.webp`, [512, 128], crop),
+      normal: this.atlasFrame(`${base}-normal.webp`, [512, 128], crop, false),
+      rough: this.atlasFrame(`${base}-rough.webp`, [512, 128], crop, false),
+      depth: this.atlasFrame(`${base}-depth.webp`, [512, 128], crop, false),
     };
   }
 
@@ -339,7 +339,7 @@ export class AssetLibrary {
   }
 
   item(frame: AtlasFrame): THREE.Texture {
-    return this.atlasFrame("/assets/sprites/iron-ash-items.png", [1774, 887], frame);
+    return this.atlasFrame("/assets/sprites/iron-ash-items.webp", [887, 443], frame);
   }
 
   wallArt(index: number): THREE.Texture {
@@ -347,20 +347,20 @@ export class AssetLibrary {
   }
 
   wallArtPbr(index: number): WallSpriteTextures {
-    const x = (index % 2) * 512;
-    const y = Math.floor(index / 2) * 512;
+    const x = (index % 2) * 256;
+    const y = Math.floor(index / 2) * 256;
     const crop = {
       x,
       y,
-      w: 512,
-      h: 512,
+      w: 256,
+      h: 256,
     };
     const base = "/assets/sprites/iron-ash-wall-art";
     return {
-      albedo: this.atlasFrame(`${base}.webp`, [1024, 1024], crop),
-      normal: this.atlasFrame(`${base}-normal.png`, [1024, 1024], crop, false),
-      rough: this.atlasFrame(`${base}-rough.png`, [1024, 1024], crop, false),
-      depth: this.atlasFrame(`${base}-depth.png`, [1024, 1024], crop, false),
+      albedo: this.atlasFrame(`${base}.webp`, [512, 512], crop),
+      normal: this.atlasFrame(`${base}-normal.webp`, [512, 512], crop, false),
+      rough: this.atlasFrame(`${base}-rough.webp`, [512, 512], crop, false),
+      depth: this.atlasFrame(`${base}-depth.webp`, [512, 512], crop, false),
     };
   }
 
@@ -397,10 +397,10 @@ export class AssetLibrary {
 export const ENEMY_FRAMES = ENEMY_ANIMATIONS;
 
 export const ITEM_FRAMES = {
-  skullSeal: { x: 0, y: 0, w: 443, h: 887 },
-  resolveFlask: { x: 443, y: 0, w: 444, h: 887 },
-  ironKey: { x: 887, y: 0, w: 443, h: 887 },
-  reliquary: { x: 1330, y: 0, w: 444, h: 887 },
+  skullSeal: { x: 0, y: 0, w: 222, h: 443 },
+  resolveFlask: { x: 222, y: 0, w: 222, h: 443 },
+  ironKey: { x: 444, y: 0, w: 221, h: 443 },
+  reliquary: { x: 665, y: 0, w: 222, h: 443 },
 } as const;
 
 /** Public URL for biome surface maps (editor / docs). */
@@ -413,9 +413,9 @@ export function biomeTextureUrl(
 }
 
 export function biomeDoorTextureUrl(mood: DungeonMoodId): string {
-  return `/assets/textures/biomes/${mood}/door.png`;
+  return `/assets/textures/biomes/${mood}/door.webp`;
 }
 
 export function biomeWallDecorTextureUrl(mood: DungeonMoodId): string {
-  return `/assets/sprites/biomes/${mood}-wall-decor.png`;
+  return `/assets/sprites/biomes/${mood}-wall-decor.webp`;
 }

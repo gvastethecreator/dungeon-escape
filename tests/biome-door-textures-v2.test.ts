@@ -34,17 +34,20 @@ interface DoorTextureManifest {
   doors: DoorTextureRecord[];
 }
 
+interface RuntimeOptimizationEntry {
+  source: string;
+  target: string;
+  sourceDimensions: [number, number];
+  targetDimensions: [number, number];
+  sourceSha256: string;
+  targetSha256: string;
+}
+
 const projectPath = (...parts: string[]) => resolve(import.meta.dir, "..", ...parts);
 const digest = (path: string) =>
   createHash("sha256")
     .update(readFileSync(projectPath(path)))
     .digest("hex");
-
-function pngSize(path: string): [number, number] {
-  const header = readFileSync(projectPath(path)).subarray(0, 24);
-  expect(header.subarray(1, 4).toString()).toBe("PNG");
-  return [header.readUInt32BE(16), header.readUInt32BE(20)];
-}
 
 describe("biome door texture v2 contract", () => {
   const manifest = JSON.parse(
@@ -53,6 +56,11 @@ describe("biome door texture v2 contract", () => {
       "utf8",
     ),
   ) as DoorTextureManifest;
+  const runtimeImages = (
+    JSON.parse(
+      readFileSync(projectPath("assets-source", "runtime-optimization-manifest.json"), "utf8"),
+    ) as { images: RuntimeOptimizationEntry[] }
+  ).images;
 
   test("covers every biome with a centered full double-leaf plate", () => {
     expect(manifest.doors.map(({ id }) => id)).toEqual([...listBiomeIds()]);
@@ -99,12 +107,18 @@ describe("biome door texture v2 contract", () => {
     );
   });
 
-  test("tracks source and generated map hashes at the runtime paths", () => {
+  test("tracks source maps and their verified half-size runtime outputs", () => {
     for (const door of manifest.doors) {
       expect(digest(door.source)).toBe(door.sourceSha256);
       for (const kind of ["albedo", "normal", "roughness", "metalness"] as const) {
-        expect(pngSize(door.maps[kind])).toEqual([512, 512]);
-        expect(digest(door.maps[kind])).toBe(door.outputSha256[kind]);
+        const optimized = runtimeImages.find((entry) => entry.source === door.maps[kind]);
+        expect(optimized).toBeDefined();
+        if (!optimized) throw new Error(`Missing optimized door map: ${door.maps[kind]}`);
+        expect(optimized.sourceDimensions).toEqual([512, 512]);
+        expect(optimized.targetDimensions).toEqual([256, 256]);
+        expect(optimized.sourceSha256).toBe(door.outputSha256[kind]);
+        expect(optimized.target.endsWith(".webp")).toBe(true);
+        expect(digest(optimized.target)).toBe(optimized.targetSha256);
       }
       expect(new Set(Object.values(door.outputSha256)).size).toBe(4);
     }

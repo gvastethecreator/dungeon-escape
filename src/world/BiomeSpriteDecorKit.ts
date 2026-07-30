@@ -475,8 +475,8 @@ export const BIOME_SPRITE_PROPS: Record<
   ],
 };
 
-export const BIOME_SPRITE_ATLAS_SIZE = [1536, 1024] as const;
-export const BIOME_SPRITE_CELL_SIZE = 512;
+export const BIOME_SPRITE_ATLAS_SIZE = [768, 512] as const;
+export const BIOME_SPRITE_CELL_SIZE = 256;
 export const BIOME_FLOOR_PROP_FADE_NEAR = 0.9;
 export const BIOME_FLOOR_PROP_FADE_FAR = 2.35;
 /** Keep a corner card inside the 90-degree open sector with a small margin. */
@@ -541,5 +541,5 @@ export function biomeSpriteFloorDistanceFade(distance: number): number {
 }
 
 export function biomeSpritePropTextureUrl(mood: DungeonMoodId): string {
-  return `/assets/sprites/biome-props/${mood}-props.png`;
+  return `/assets/sprites/biome-props/${mood}-props.webp`;
 }

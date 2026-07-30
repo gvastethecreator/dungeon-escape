@@ -586,9 +586,9 @@ const BIOME_TEX = Object.fromEntries(
   BIOME_KEYS.map((id) => [
     id,
     {
-      floor: loadDungeonSurfaceTex(`/assets/textures/biomes/${id}/floor.png`),
-      wall: loadDungeonSurfaceTex(`/assets/textures/biomes/${id}/wall.png`),
-      ceiling: loadDungeonSurfaceTex(`/assets/textures/biomes/${id}/ceiling.png`),
+      floor: loadDungeonSurfaceTex(`/assets/textures/biomes/${id}/floor.webp`),
+      wall: loadDungeonSurfaceTex(`/assets/textures/biomes/${id}/wall.webp`),
+      ceiling: loadDungeonSurfaceTex(`/assets/textures/biomes/${id}/ceiling.webp`),
     },
   ]),
 );
@@ -604,27 +604,27 @@ const TEX = {
   cloth: makeClothTex(),
   moss: makeMossTex(),
   trim: loadDungeonRoleTex(
-    "/assets/concepts/dungeon-clutter-kit-v1-pbr/black-iron/black-iron_albedo.png",
+    "/assets/concepts/dungeon-clutter-kit-v1-pbr/black-iron/black-iron_albedo.webp",
     { repeatX: 1.5 },
   ),
   trimNormal: loadDungeonRoleTex(
-    "/assets/concepts/dungeon-clutter-kit-v1-pbr/black-iron/black-iron_normal.png",
+    "/assets/concepts/dungeon-clutter-kit-v1-pbr/black-iron/black-iron_normal.webp",
     { color: false, repeatX: 1.5 },
   ),
   trimRoughness: loadDungeonRoleTex(
-    "/assets/concepts/dungeon-clutter-kit-v1-pbr/black-iron/black-iron_roughness.png",
+    "/assets/concepts/dungeon-clutter-kit-v1-pbr/black-iron/black-iron_roughness.webp",
     { color: false, repeatX: 1.5 },
   ),
-  ice: loadDungeonRoleTex("/assets/textures/generated/iron-ash-prop-ice-v1.png", {
+  ice: loadDungeonRoleTex("/assets/textures/generated/iron-ash-prop-ice-v1.webp", {
     repeatX: 1.4,
     nearest: true,
   }),
   bark: loadDungeonRoleTex(
-    "/assets/concepts/dungeon-clutter-kit-v1-pbr/aged-oak/aged-oak_albedo.png",
+    "/assets/concepts/dungeon-clutter-kit-v1-pbr/aged-oak/aged-oak_albedo.webp",
     { repeatX: 2, repeatY: 3 },
   ),
   barkNormal: loadDungeonRoleTex(
-    "/assets/concepts/dungeon-clutter-kit-v1-pbr/aged-oak/aged-oak_normal.png",
+    "/assets/concepts/dungeon-clutter-kit-v1-pbr/aged-oak/aged-oak_normal.webp",
     { color: false, repeatX: 2, repeatY: 3 },
   ),
 };
@@ -2930,8 +2930,7 @@ addEventListener("message", (event) => {
   }
   if (event.data?.type === "black-flag:forge-presentation") {
     const rawPresentationId = event.data.presentationId;
-    const presentationId =
-      rawPresentationId === undefined ? 0 : Number(rawPresentationId);
+    const presentationId = rawPresentationId === undefined ? 0 : Number(rawPresentationId);
     if (!Number.isSafeInteger(presentationId) || presentationId < 0) return;
     const enabled = Boolean(event.data.enabled);
     if (!enabled && presentationId !== activePresentationId) return;
@@ -2953,7 +2952,10 @@ addEventListener("message", (event) => {
     // over re-rolling a cosmetic Creation seed.
     const hostDungeon = event.data.dungeon;
     if (hostDungeon && typeof hostDungeon === "object" && hostDungeon.grid && hostDungeon.W) {
-      if (!forceThemeKey(event.data.themeKey || hostDungeon.params?.themeKey) && event.data.themeKey) {
+      if (
+        !forceThemeKey(event.data.themeKey || hostDungeon.params?.themeKey) &&
+        event.data.themeKey
+      ) {
         console.warn(`Forge presentation theme unsupported: ${event.data.themeKey}`);
       }
       const shouldAnimate = event.data.animate !== false;

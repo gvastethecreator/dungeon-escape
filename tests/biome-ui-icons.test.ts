@@ -10,16 +10,20 @@ const iconRoot = join(import.meta.dir, "../public/assets/ui/biome-icons");
 describe("biome picker icons", () => {
   test("ships a transparent icon for every biome identity", () => {
     for (const id of listBiomeIds()) {
-      expect(existsSync(join(iconRoot, `${id}.png`))).toBe(true);
-      expect(biomeIconSrc(id)).toBe(`/assets/ui/biome-icons/${id}.png`);
+      expect(existsSync(join(iconRoot, `${id}.webp`))).toBe(true);
+      expect(biomeIconSrc(id)).toBe(`/assets/ui/biome-icons/${id}.webp`);
       expect(biomeHoverColor(id).startsWith("#")).toBe(true);
     }
   });
 
   test("ships black and transparent spritesheets", () => {
-    expect(existsSync(join(iconRoot, "biome-icons-sheet-black.png"))).toBe(true);
-    expect(existsSync(join(iconRoot, "biome-icons-sheet.png"))).toBe(true);
-    expect(existsSync(join(iconRoot, "manifest.json"))).toBe(true);
+    expect(existsSync(join(iconRoot, "biome-icons-sheet-black.webp"))).toBe(true);
+    expect(existsSync(join(iconRoot, "biome-icons-sheet.webp"))).toBe(true);
+    expect(
+      existsSync(
+        join(import.meta.dir, "../assets-source/runtime-metadata/ui/biome-icons/manifest.json"),
+      ),
+    ).toBe(true);
   });
 
   test("picker render wires icon and hover color", async () => {

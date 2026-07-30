@@ -51,7 +51,9 @@ describe("texture seam treatment", () => {
 
   test("registerTextureSource records edge-blend treatment", () => {
     const texture = new THREE.Texture();
-    registerTextureSource(texture, "/assets/textures/biomes/ash/floor.png", { seam: "edge-blend" });
+    registerTextureSource(texture, "/assets/textures/biomes/ash/floor.webp", {
+      seam: "edge-blend",
+    });
     expect(texture.userData.seamTreatment).toBe("edge-blend-wrap");
   });
 

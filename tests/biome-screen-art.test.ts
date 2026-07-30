@@ -22,8 +22,8 @@ describe("biome screen art", () => {
       expect(spec.endingSrc).toBe(`/assets/ui/biome-screens/${biomeId}-ending.webp`);
       expect(await main.exists()).toBe(true);
       expect(await ending.exists()).toBe(true);
-      expect(main.size).toBeGreaterThan(50_000);
-      expect(ending.size).toBeGreaterThan(50_000);
+      expect(main.size).toBeGreaterThan(35_000);
+      expect(ending.size).toBeGreaterThan(35_000);
     }
   });
 
