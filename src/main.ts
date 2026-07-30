@@ -57,7 +57,7 @@ import {
   PovFeelState,
   samplePovShake,
 } from "./systems/povFeel";
-import { collectExploredAround, drawMinimap, MINIMAP_REVEAL_RADIUS } from "./ui/drawMinimap";
+import { drawMinimap } from "./ui/drawMinimap";
 import { COPY, formatTime, type StoneId } from "./ui/copy";
 import { BiomeScreenParticles } from "./ui/BiomeScreenParticles";
 import { createMinimapLayoutScheduler } from "./ui/minimapLayout";
@@ -68,6 +68,7 @@ import {
 } from "./game/PlayRuntime";
 import { shouldAdoptHydratedSeed } from "./game/hydratePolicy";
 import { nextProceduralSeed } from "./game/SeedFactory";
+import { FloorExploration } from "./game/FloorExploration";
 import {
   canContinueDomainRun,
   canContinueLocalRun,
@@ -318,12 +319,8 @@ const domainBridge: DomainBridge = createDomainBridge({
   initialSeed: urlSeed,
   authority: authorityBaseUrl ? authority : null,
 });
-const visitedCells = new Set<string>();
-const visitedCellsByFloor = new Map<number, Set<string>>();
-let lastExploreCellKey = "";
-let mapRevealed = false;
+const floorExploration = new FloorExploration();
 let campaignFloorSet: DungeonFloorSet | null = null;
-let activeCampaignFloorIndex = 0;
 let floorTransitionPending = false;
 
 function applyLocalDevToolsChrome(): void {
@@ -605,13 +602,8 @@ function captureLocalRunResume(): LocalRunResumeState | undefined {
   const player = controller.getState();
   const difficulty = world.getDifficultyState();
   const questSnap = playRuntime.snapshot();
-  if (dungeon.floor) {
-    visitedCellsByFloor.set(dungeon.floor.index, new Set(visitedCells));
-  }
-  const visitedFloors: Record<string, string[]> = {};
-  for (const [floorIndex, cells] of visitedCellsByFloor) {
-    visitedFloors[String(floorIndex)] = [...cells];
-  }
+  floorExploration.setMapRevealed(world.isMapRevealed);
+  const exploration = floorExploration.snapshot();
   return {
     runSeconds: questSnap.runSeconds,
     difficultyElapsed: difficulty.elapsedSeconds,
@@ -623,16 +615,16 @@ function captureLocalRunResume(): LocalRunResumeState | undefined {
       pitch: player.lookPitch,
       distanceTravelled: player.distanceTravelled,
     },
-    visitedCells: [...visitedCells],
+    visitedCells: exploration.visitedCells,
     timeFreezeRemaining: world.timeFreezeRemaining,
     luminousWardRemaining: world.luminousWardRemaining,
     annihilationPulseRemaining: world.annihilationPulseRemaining,
-    mapRevealed: world.isMapRevealed,
+    mapRevealed: exploration.mapRevealed,
     mobilityBoostRemaining: world.mobilityBoostRemaining,
-    activeFloor: dungeon.floor?.index,
+    activeFloor: exploration.activeFloor,
     campaignRootSeed: dungeon.floor?.rootSeed,
     campaignBiomeId: resolveActiveMood(dungeon).id,
-    visitedFloors,
+    visitedFloors: exploration.visitedFloors,
     perStoneSeconds: questSnap.perStoneSeconds,
   };
 }
@@ -669,22 +661,17 @@ function runtimeProgressFromResume(
   };
 }
 
-function applyLocalRunResume(resume: LocalRunResumeState | undefined): void {
+function applyLocalRunResume(
+  resume: LocalRunResumeState | undefined,
+  switchEntry?: { x: number; y: number },
+): void {
   if (!resume || !dungeon) return;
-  visitedCellsByFloor.clear();
-  for (const [floor, cells] of Object.entries(resume.visitedFloors ?? {})) {
-    const floorIndex = Number(floor);
-    if (Number.isInteger(floorIndex)) visitedCellsByFloor.set(floorIndex, new Set(cells));
+  if (switchEntry) {
+    floorExploration.switchFloor(dungeon, switchEntry);
+  } else {
+    const restored = floorExploration.restore(dungeon, resume, dungeon.spawn);
+    if (!restored.ok) floorExploration.start(dungeon, dungeon.spawn);
   }
-  activeCampaignFloorIndex = dungeon.floor?.index ?? resume.activeFloor ?? 0;
-  visitedCells.clear();
-  const activeVisited =
-    visitedCellsByFloor.get(activeCampaignFloorIndex) ?? new Set(resume.visitedCells);
-  for (const key of activeVisited) visitedCells.add(key);
-  if (visitedCells.size === 0) {
-    revealMinimapCell(dungeon.spawn);
-  }
-  mapRevealed = resume.mapRevealed === true;
   controller.restorePose(resume.player);
   lastRunTimerSecond = -1;
 }
@@ -2418,22 +2405,14 @@ function updateReadout(): void {
     : "CELL —";
 }
 
-/** Reveal floor around a cell for minimap fog-of-war (saved with the run). */
-function revealMinimapCell(cell: { x: number; y: number }): void {
-  if (!dungeon) {
-    visitedCells.add(`${cell.x},${cell.y}`);
-    return;
-  }
-  collectExploredAround(dungeon, cell, MINIMAP_REVEAL_RADIUS, visitedCells);
-}
-
 function drawMap(): void {
   if (!dungeon) return;
   const player = controller.getState();
+  const exploration = floorExploration.activeView();
   drawMinimap(elements.minimap, dungeon, player.cell, {
     features: world.getMinimapFeatures(),
     viewport: minimapViewport,
-    explored: mapRevealed ? undefined : visitedCells,
+    explored: exploration.explored,
     playerYaw: player.lookYaw,
   });
 }
@@ -2606,10 +2585,11 @@ function flushDomainExplore(allowDuringRunTransition = false): void {
   if ((!allowDuringRunTransition && runTransitionPending) || !dungeon) return;
   const extra = pendingExploreExtra;
   pendingExploreExtra = {};
+  const exploredCount = floorExploration.activeView().exploredCount;
   domainBridge.syncExplore({
     room: pendingExploreRoom,
-    exploredCells: visitedCells.size,
-    mapped: Math.max(1, Math.min(dungeon.stats.floorCount, visitedCells.size)),
+    exploredCells: exploredCount,
+    mapped: Math.max(1, Math.min(dungeon.stats.floorCount, exploredCount)),
     topologySignature: dungeon.topologySignature,
     threat: extra.threat,
   });
@@ -2619,7 +2599,6 @@ function syncDomainExplore(extra: { threat?: number } = {}): void {
   if (!dungeon || runTransitionPending) return;
   const player = controller.getState();
   const cell = player.cell ?? dungeon.spawn;
-  revealMinimapCell(cell);
   const room = roomLabelForCell(dungeon.rooms, cell);
   pendingExploreRoom = room;
   pendingExploreExtra = { ...pendingExploreExtra, ...extra };
@@ -2657,6 +2636,7 @@ function activateDungeon(
     persistBuild?: boolean;
     persistedSession?: PersistedRunSession;
     resume?: LocalRunResumeState;
+    explorationEntry?: { x: number; y: number };
   } = {},
 ): DungeonRuntimeState {
   const persistBuild = options.persistBuild ?? true;
@@ -2675,7 +2655,6 @@ function activateDungeon(
   const warmupSequence = beginRendererWarmup();
 
   dungeon = nextDungeon;
-  activeCampaignFloorIndex = nextDungeon.floor?.index ?? 0;
   forgePreviewDungeon = nextDungeon.forge ? nextDungeon : null;
   // Forge maps never rank, even if the session started as campaign by mistake.
   setRunSource(runSource, Boolean(nextDungeon.forge));
@@ -2683,9 +2662,7 @@ function activateDungeon(
   lastMaterialCountAt = 0;
   elements.seed.value = nextDungeon.seed;
   launchHistory.replace({ seed: nextDungeon.seed });
-  visitedCells.clear();
-  mapRevealed = false;
-  collectExploredAround(nextDungeon, nextDungeon.spawn, MINIMAP_REVEAL_RADIUS, visitedCells);
+  if (!options.resume) floorExploration.start(nextDungeon, nextDungeon.spawn);
   const mood = applyDungeonMood(nextDungeon);
   applyAtmosphereFromParams();
   const state = playRuntime.load({
@@ -2713,7 +2690,7 @@ function activateDungeon(
   syncRunTimer();
   atmosphere.setDungeon(dungeon, mood);
   controller.setDungeon(dungeon);
-  applyLocalRunResume(options.resume);
+  applyLocalRunResume(options.resume, options.explorationEntry);
   if (options.resume) syncDomainExplore();
   controller.setBlockedCells([]);
   controller.setSolidColliders(world.getSolidColliders());
@@ -2806,11 +2783,11 @@ function buildDungeon(
       const rootSeed = options.resume?.campaignRootSeed?.trim() || normalizedSeed;
       const floorCount = biomeCampaignFloorCount(requestedCampaignMood);
       campaignFloorSet = generateDungeonFloorSet(rootSeed, generationOptions, floorCount);
-      activeCampaignFloorIndex = Math.min(
+      const activeFloorIndex = Math.min(
         floorCount - 1,
         Math.max(0, options.resume?.activeFloor ?? 0),
       );
-      generated = campaignFloorSet.floors[activeCampaignFloorIndex]!;
+      generated = campaignFloorSet.floors[activeFloorIndex]!;
     } else {
       generated = generateCompletableDungeon(normalizedSeed, generationOptions);
       if (runSource === "campaign" && !generated.forge) {
@@ -2821,17 +2798,15 @@ function buildDungeon(
         const moodId = resolveActiveMood(generated).id;
         const floorCount = biomeCampaignFloorCount(moodId);
         campaignFloorSet = generateDungeonFloorSet(rootSeed, generationOptions, floorCount);
-        activeCampaignFloorIndex = Math.min(
+        const activeFloorIndex = Math.min(
           floorCount - 1,
           Math.max(0, options.resume?.activeFloor ?? 0),
         );
-        generated = campaignFloorSet.floors[activeCampaignFloorIndex]!;
+        generated = campaignFloorSet.floors[activeFloorIndex]!;
       } else {
         campaignFloorSet = null;
-        activeCampaignFloorIndex = 0;
       }
     }
-    if (!options.resume) visitedCellsByFloor.clear();
     const mood = resolveActiveMood(generated);
     const statusMessage = localDevTools
       ? COPY.status.generation(params.profile, mood.label)
@@ -3817,19 +3792,10 @@ async function transitionCampaignFloor(
   controller.setEnabled(false);
   controller.releasePointerLock();
   const persistedSession = playRuntime.snapshot();
-  const targetVisited = new Set(resume.visitedFloors?.[String(targetFloor)] ?? []);
-  if (targetVisited.size === 0) {
-    collectExploredAround(targetDungeon, entryStair.cell, MINIMAP_REVEAL_RADIUS, targetVisited);
-  }
   const entry = gridToWorld(targetDungeon, entryStair.cell, TILE_SIZE);
   const transitionResume: LocalRunResumeState = {
     ...resume,
     activeFloor: targetFloor,
-    visitedCells: [...targetVisited],
-    visitedFloors: {
-      ...resume.visitedFloors,
-      [String(targetFloor)]: [...targetVisited],
-    },
     player: {
       ...resume.player,
       x: entry.x,
@@ -3847,7 +3813,7 @@ async function transitionCampaignFloor(
       targetDungeon,
       `Floor ${targetFloor + 1} of ${campaignFloorSet.floors.length}.`,
       params,
-      { persistedSession, resume: transitionResume },
+      { persistedSession, resume: transitionResume, explorationEntry: entryStair.cell },
     );
     showObjectiveBanner(
       playRuntime.state().quest.portalOpen && targetFloor === campaignFloorSet.floors.length - 1
@@ -3956,11 +3922,8 @@ function frame(now: number): void {
 
   // Domain explore: only on cell change, and coalesced (no network/health per step).
   if (dungeon && player.cell) {
-    const cellKey = `${player.cell.x},${player.cell.y}`;
-    if (cellKey !== lastExploreCellKey) {
-      lastExploreCellKey = cellKey;
-      syncDomainExplore();
-    }
+    const exploration = floorExploration.reveal(player.cell);
+    if (exploration.cellChanged) syncDomainExplore();
   }
 
   const simulationActive =
@@ -3992,7 +3955,7 @@ function frame(now: number): void {
       syncLuminousWardHud(worldUpdate.luminousWardRemaining);
       syncAnnihilationPulseHud(worldUpdate.annihilationPulseRemaining);
       syncBiomeEvent(worldUpdate.biomeEvent);
-      mapRevealed = worldUpdate.mapRevealed;
+      floorExploration.setMapRevealed(worldUpdate.mapRevealed);
       controller.setMobilityBoost(worldUpdate.mobilityBoostRemaining > 0);
       controller.setSurfaceMovement(
         worldUpdate.surfaceEffect.movementScale,

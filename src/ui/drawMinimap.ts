@@ -1,6 +1,9 @@
 import { FLOOR, WALL } from "../dungeon/generateDungeon";
 import type { DungeonData, GridCell } from "../dungeon/types";
+import { cellKey } from "../game/FloorExploration";
 import type { MinimapEnemy, MinimapFeatures, MinimapStone } from "./minimapFeatures";
+
+export { cellKey, collectExploredAround, MINIMAP_REVEAL_RADIUS } from "../game/FloorExploration";
 
 /**
  * Iron-ash minimap palette: soot field, bone floor, exit mark, player mark.
@@ -63,33 +66,6 @@ export interface DrawMinimapOptions {
    */
   playerYaw?: number;
 }
-
-export function cellKey(x: number, y: number): string {
-  return `${x},${y}`;
-}
-
-/**
- * Mark floor cells around a center for fog-of-war. Chebyshev radius keeps
- * corridors readable without dumping the whole map.
- */
-export function collectExploredAround(
-  dungeon: DungeonData,
-  center: GridCell,
-  radius: number,
-  into: Set<string> = new Set(),
-): Set<string> {
-  const r = Math.max(0, Math.floor(radius));
-  for (let y = center.y - r; y <= center.y + r; y += 1) {
-    for (let x = center.x - r; x <= center.x + r; x += 1) {
-      if (dungeon.grid[y]?.[x] !== FLOOR) continue;
-      into.add(cellKey(x, y));
-    }
-  }
-  return into;
-}
-
-/** Default vision radius used when the player steps onto a cell. */
-export const MINIMAP_REVEAL_RADIUS = 2;
 
 export function drawMinimap(
   canvas: HTMLCanvasElement,
