@@ -299,9 +299,35 @@ describe("integrated dungeon lighting", () => {
     expect(mat.blending).toBe(THREE.NormalBlending);
     expect(mat.fog).toBe(true);
     expect(mat.toneMapped).toBe(true);
+    expect(mat.side).toBe(THREE.BackSide);
+    expect(mat.forceSinglePass).toBe(true);
+    expect(mat.defines?.AMBIENT_RETRO_PROFILE).toBe(1);
+    expect(mat.fragmentShader).toContain("bayer4");
+    expect(mat.fragmentShader).toContain("quantize5Bit");
+    expect(mat.fragmentShader).toContain("vBeamUv");
+    expect(mat.fragmentShader).toContain("#include <tonemapping_fragment>");
+    expect(mat.fragmentShader).toContain("#include <colorspace_fragment>");
+    expect(mat.fragmentShader).not.toContain("gl_FragCoord");
+    expect(mat.fragmentShader.indexOf("#include <tonemapping_fragment>")).toBeLessThan(
+      mat.fragmentShader.indexOf("#include <colorspace_fragment>"),
+    );
+    expect(mat.fragmentShader.indexOf("#include <colorspace_fragment>")).toBeLessThan(
+      mat.fragmentShader.indexOf("#include <fog_fragment>"),
+    );
     expect(beam.userData.beamRole).toBe("ambient");
     expect(beam.userData.sourceRadius).toBeGreaterThan(0.04);
-    expect(beam.geometry.getAttribute("position").count).toBe(189);
+    expect(beam.userData.profile).toBe("retro-faceted");
+    expect(beam.geometry.userData.radialSegments).toBe(8);
+    expect(beam.geometry.userData.heightSegments).toBe(4);
+    expect(beam.geometry.userData.triangles).toBe(64);
+    expect(beam.geometry.index).toBeNull();
+    expect(beam.geometry.getAttribute("position").count).toBe(192);
+    const normals = beam.geometry.getAttribute("normal");
+    for (let index = 1; index < 6; index += 1) {
+      expect(normals.getX(index)).toBeCloseTo(normals.getX(0), 6);
+      expect(normals.getY(index)).toBeCloseTo(normals.getY(0), 6);
+      expect(normals.getZ(index)).toBeCloseTo(normals.getZ(0), 6);
+    }
   });
 
   test("wall torch keeps spherical halos and no forward light cone", () => {
