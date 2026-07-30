@@ -15,11 +15,32 @@ function json(value: unknown, status = 200, allow?: string): Response {
 async function readBody(request: Request, maxBytes = 12_000): Promise<HallBodyReadResult> {
   const declaredSize = Number.parseInt(request.headers.get("content-length") ?? "0", 10);
   if (declaredSize > maxBytes) return { ok: false, reason: "PAYLOAD_TOO_LARGE" };
-  const source = await request.text();
-  if (new TextEncoder().encode(source).byteLength > maxBytes) {
-    return { ok: false, reason: "PAYLOAD_TOO_LARGE" };
+  if (!request.body) return { ok: true, source: "" };
+
+  const reader = request.body.getReader();
+  const decoder = new TextDecoder();
+  let size = 0;
+  let source = "";
+  try {
+    while (true) {
+      const next = await reader.read();
+      if (next.done) break;
+      size += next.value.byteLength;
+      if (size > maxBytes) {
+        try {
+          await reader.cancel("Leaderboard request body exceeded its byte limit.");
+        } catch {
+          // A failed cancellation does not change the closed 413 outcome.
+        }
+        return { ok: false, reason: "PAYLOAD_TOO_LARGE" };
+      }
+      source += decoder.decode(next.value, { stream: true });
+    }
+    source += decoder.decode();
+    return { ok: true, source };
+  } finally {
+    reader.releaseLock();
   }
-  return { ok: true, source };
 }
 
 export interface LeaderboardApiOptions {

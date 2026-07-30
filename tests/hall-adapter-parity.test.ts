@@ -142,6 +142,30 @@ describe("Hall transport adapters", () => {
     expect(node.status).toBe(413);
   });
 
+  test("Worker stops consuming a streamed body as soon as the byte limit is crossed", async () => {
+    let pulls = 0;
+    let cancelled = false;
+    const body = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        pulls += 1;
+        controller.enqueue(new Uint8Array(8_192));
+        if (pulls === 32) controller.close();
+      },
+      cancel() {
+        cancelled = true;
+      },
+    });
+    const response = await handleLeaderboardApi(
+      new Request("https://example.test/api/leaderboard", { method: "POST", body }),
+      repository(),
+      { reportError: () => undefined },
+    );
+
+    expect(response.status).toBe(413);
+    expect(cancelled).toBe(true);
+    expect(pulls).toBeLessThan(32);
+  });
+
   test("both map repository failures to the same unavailable response", async () => {
     const store = repository({
       async list() {
