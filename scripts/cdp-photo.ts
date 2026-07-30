@@ -81,24 +81,50 @@ async function waitForDebugger(): Promise<string> {
   throw new Error("Chrome debugger did not come up.");
 }
 
-async function waitForGameReady(ws: WebSocket, timeoutMs = 25_000): Promise<void> {
+async function readReadyState(ws: WebSocket): Promise<{
+  diagnostics?: boolean;
+  bootHidden?: boolean;
+  rendererReady?: string;
+}> {
+  const state = (await send(ws, "Runtime.evaluate", {
+    expression: `(() => ({
+      diagnostics: Boolean(window.__THREE_GAME_DIAGNOSTICS__),
+      bootHidden: Boolean(document.querySelector('#boot-screen')?.hidden),
+      rendererReady: document.querySelector('.app-shell')?.dataset.rendererReady ?? '',
+    }))()`,
+    returnByValue: true,
+  })) as {
+    result?: { value?: { diagnostics?: boolean; bootHidden?: boolean; rendererReady?: string } };
+  };
+  return state.result?.value ?? {};
+}
+
+async function waitForAppReady(ws: WebSocket, timeoutMs = 25_000): Promise<void> {
   const deadline = Date.now() + timeoutMs;
+  let lastValue: unknown = null;
   while (Date.now() < deadline) {
-    const state = (await send(ws, "Runtime.evaluate", {
-      expression: `(() => ({
-        diagnostics: Boolean(window.__THREE_GAME_DIAGNOSTICS__),
-        bootHidden: Boolean(document.querySelector('#boot-screen')?.hidden),
-        rendererReady: document.querySelector('.app-shell')?.dataset.rendererReady ?? '',
-      }))()`,
-      returnByValue: true,
-    })) as {
-      result?: { value?: { diagnostics?: boolean; bootHidden?: boolean; rendererReady?: string } };
-    };
-    const value = state.result?.value;
-    if (value?.diagnostics && value.bootHidden && value.rendererReady === "true") return;
+    const value = await readReadyState(ws);
+    lastValue = value;
+    if (value.diagnostics && (value.bootHidden || value.rendererReady === "true")) return;
     await sleep(500);
   }
-  throw new Error("Dungeon page did not reach renderer-ready state.");
+  throw new Error(
+    `Dungeon page did not reach app-ready state: ${JSON.stringify({ lastValue, browserErrors, networkErrors })}`,
+  );
+}
+
+async function waitForGameReady(ws: WebSocket, timeoutMs = 25_000): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  let lastValue: unknown = null;
+  while (Date.now() < deadline) {
+    const value = await readReadyState(ws);
+    lastValue = value;
+    if (value.diagnostics && value.rendererReady === "true") return;
+    await sleep(500);
+  }
+  throw new Error(
+    `Dungeon page did not reach renderer-ready state: ${JSON.stringify({ lastValue, browserErrors, networkErrors })}`,
+  );
 }
 
 const chrome = Bun.spawn(
@@ -178,7 +204,7 @@ try {
     url: `${BASE}/?mode=play&seed=${encodeURIComponent(seed)}&skipRunIntro=1${moodQuery}${qaQuery}`,
   });
   await sleep(1000);
-  await waitForGameReady(ws);
+  await waitForAppReady(ws);
 
   const openedPicker = qaState
     ? null
@@ -207,6 +233,18 @@ try {
     })) as { result?: { value?: boolean } };
     if (!started.result?.value) throw new Error("Biome picker did not start a new game.");
     await sleep(2500);
+  }
+
+  await waitForGameReady(ws);
+
+  if (qaState) {
+    await send(ws, "Runtime.evaluate", {
+      expression: `(() => {
+        const boot = document.querySelector('#boot-screen');
+        document.body.classList.remove('is-booting');
+        if (boot instanceof HTMLElement) boot.hidden = true;
+      })()`,
+    });
   }
 
   if (CRT) {
