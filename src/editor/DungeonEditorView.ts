@@ -299,10 +299,10 @@ export class DungeonEditorView {
     if (this.sharedFeatureImagesLoad) return this.sharedFeatureImagesLoad;
 
     this.sharedFeatureImagesLoad = Promise.all([
-      loadImage("/assets/sprites/enemies-v8/iron-ash-enemies-v8.png").catch(() => null),
-      loadImage("/assets/sprites/iron-ash-items.png").catch(() => null),
+      loadImage("/assets/sprites/enemies-v8/iron-ash-enemies-v8.webp").catch(() => null),
+      loadImage("/assets/sprites/iron-ash-items.webp").catch(() => null),
       ...EDITOR_STONE_SHEET_IDS.map((id) =>
-        loadImage(`/assets/sprites/keyed/${id}-sheet.png`).catch(() => null),
+        loadImage(`/assets/sprites/keyed/${id}-sheet.webp`).catch(() => null),
       ),
     ]).then(([baseEnemies, items, ...stones]) => {
       if (baseEnemies) this.enemyImage = baseEnemies;
@@ -367,7 +367,10 @@ export class DungeonEditorView {
     const pad = 1;
     const minX = Math.max(0, Math.floor(-view.originX / view.scale) - pad);
     const minY = Math.max(0, Math.floor(-view.originY / view.scale) - pad);
-    const maxX = Math.min(projection.width - 1, Math.ceil((width - view.originX) / view.scale) + pad);
+    const maxX = Math.min(
+      projection.width - 1,
+      Math.ceil((width - view.originX) / view.scale) + pad,
+    );
     const maxY = Math.min(
       projection.height - 1,
       Math.ceil((height - view.originY) / view.scale) + pad,
@@ -586,12 +589,7 @@ export class DungeonEditorView {
     const drawGlow = (cell: GridCell, color: number, strength: number, size: number): void => {
       const x = mapX + (cell.x + 0.5) * view.scale;
       const y = mapY + (cell.y + 0.5) * view.scale;
-      if (
-        x + size < 0 ||
-        y + size < 0 ||
-        x - size > viewportWidth ||
-        y - size > viewportHeight
-      ) {
+      if (x + size < 0 || y + size < 0 || x - size > viewportWidth || y - size > viewportHeight) {
         return;
       }
       const gradient = context.createRadialGradient(x, y, 0, x, y, size);

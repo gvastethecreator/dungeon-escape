@@ -14,6 +14,7 @@ SOURCE_FALLBACK = ROOT / "assets-source" / "imagegen" / "portraits-v1"
 FRAME_SOURCE = ROOT / "assets-source" / "imagegen" / "portrait-frames-v1"
 OUT = ROOT / "public" / "assets" / "ui" / "portraits"
 FRAME_OUT = OUT / "frames"
+MANIFEST_OUT = ROOT / "assets-source" / "runtime-metadata" / "ui" / "portraits" / "manifest.json"
 SIZE = 128
 FRAME_SIZE = 144
 
@@ -249,7 +250,8 @@ def main() -> None:
         },
         "entries": entries,
     }
-    (OUT / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+    MANIFEST_OUT.parent.mkdir(parents=True, exist_ok=True)
+    MANIFEST_OUT.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
     print(f"wrote {len(entries)} portraits + {len(frame_entries)} frames")
 
 

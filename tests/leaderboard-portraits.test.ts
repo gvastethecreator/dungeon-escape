@@ -54,16 +54,16 @@ describe("leaderboard portraits", () => {
     expect(frameKindForRank(3)).toBe("bronze");
     expect(frameKindForRank(4)).toBe("wood");
     expect(frameKindForRank(12)).toBe("wood");
-    expect(frameForRank(1).src).toContain("frame-gold.png");
-    expect(frameForRank(8).src).toContain("frame-wood.png");
+    expect(frameForRank(1).src).toContain("frame-gold.webp");
+    expect(frameForRank(8).src).toContain("frame-wood.webp");
   });
 
   test("ships portrait and frame assets", () => {
     for (const entry of LEADERBOARD_PORTRAITS) {
-      expect(existsSync(join(portraitRoot, `${entry.slug}.png`))).toBe(true);
+      expect(existsSync(join(portraitRoot, `${entry.slug}.webp`))).toBe(true);
     }
     for (const kind of ["wood", "gold", "silver", "bronze"] as const) {
-      expect(existsSync(join(portraitRoot, "frames", `frame-${kind}.png`))).toBe(true);
+      expect(existsSync(join(portraitRoot, "frames", `frame-${kind}.webp`))).toBe(true);
     }
   });
 });

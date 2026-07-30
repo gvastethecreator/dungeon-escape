@@ -163,7 +163,14 @@ def main() -> int:
             }
         )
 
-    provenance_path = SPRITES / "wall-sprite-pbr-provenance.json"
+    provenance_path = (
+        ROOT
+        / "assets-source"
+        / "runtime-metadata"
+        / "sprites"
+        / "wall-sprite-pbr-provenance.json"
+    )
+    provenance_path.parent.mkdir(parents=True, exist_ok=True)
     provenance_path.write_text(json.dumps(provenance, indent=2) + "\n", encoding="utf-8")
     print(f"wrote {provenance_path.relative_to(ROOT)}")
     return 0

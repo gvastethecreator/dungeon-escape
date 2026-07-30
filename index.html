@@ -73,7 +73,7 @@
               <button id="welcome-profile-edit" type="button" class="welcome-player">
                 <img
                   id="welcome-player-avatar"
-                  src="/assets/ui/portraits/candlebat.png"
+                  src="/assets/ui/portraits/candlebat.webp"
                   alt=""
                   width="42"
                   height="42"
@@ -137,7 +137,7 @@
                 >
                   <img
                     id="welcome-profile-avatar-image"
-                    src="/assets/ui/portraits/candlebat.png"
+                    src="/assets/ui/portraits/candlebat.webp"
                     alt=""
                     width="96"
                     height="96"
@@ -204,7 +204,7 @@
             <header>
               <small>LOCAL RECORDS</small>
               <h2 id="leaderboard-title">Hall of Escapes</h2>
-              <p class="welcome-leaderboard__tag">Escapers earn a face from their name.</p>
+              <p class="welcome-leaderboard__tag">Escapers carry their saved face.</p>
             </header>
             <ol id="leaderboard-list" class="leaderboard-list" aria-live="polite"></ol>
             <p id="leaderboard-status" class="leaderboard-status" role="status">
@@ -453,6 +453,28 @@
             >
               <span class="options-toggle__label">Music</span>
               <span class="options-toggle__value" data-toggle-value>ON</span>
+            </button>
+            <div class="options-volume-grid">
+              <label class="options-volume" for="music-volume">
+                <span>Music volume</span>
+                <output id="music-volume-value" for="music-volume">100%</output>
+                <input id="music-volume" type="range" min="0" max="100" step="5" value="100" />
+              </label>
+              <label class="options-volume" for="effects-volume">
+                <span>Effects volume</span>
+                <output id="effects-volume-value" for="effects-volume">100%</output>
+                <input id="effects-volume" type="range" min="0" max="100" step="5" value="100" />
+              </label>
+            </div>
+            <button
+              id="texture-smoothing-toggle"
+              class="options-toggle"
+              type="button"
+              aria-pressed="false"
+              title="Use smooth texture filtering"
+            >
+              <span class="options-toggle__label">Texture smoothing</span>
+              <span class="options-toggle__value" data-toggle-value>OFF</span>
             </button>
             <button
               id="crt-toggle"
@@ -948,7 +970,7 @@
                 <img
                   id="leaderboard-portrait-preview"
                   class="leaderboard-portrait"
-                  src="/assets/ui/portraits/candlebat.png"
+                  src="/assets/ui/portraits/candlebat.webp"
                   alt=""
                   width="64"
                   height="64"
@@ -956,7 +978,7 @@
                 />
                 <img
                   class="leaderboard-frame"
-                  src="/assets/ui/portraits/frames/frame-wood.png"
+                  src="/assets/ui/portraits/frames/frame-wood.webp"
                   alt=""
                   width="72"
                   height="72"

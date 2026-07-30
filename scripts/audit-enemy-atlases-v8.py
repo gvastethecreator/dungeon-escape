@@ -17,15 +17,16 @@ from typing import Any
 from PIL import Image, ImageDraw, ImageFont
 
 ROOT = Path(__file__).resolve().parents[1]
-V8 = ROOT / "public" / "assets" / "sprites" / "enemies-v8"
-ASSIGNMENTS = V8 / "source-assignments.json"
-RAW_ROOT = V8 / "_src" / "strips-biome"
-ATLAS_ROOT = V8 / "biomes"
+V8_SOURCE = ROOT / "assets-source" / "enemies" / "v8"
+V8_RUNTIME = ROOT / "public" / "assets" / "sprites" / "enemies-v8"
+ASSIGNMENTS = V8_SOURCE / "source-assignments.json"
+RAW_ROOT = V8_SOURCE / "raw" / "strips-biome"
+ATLAS_ROOT = V8_RUNTIME / "biomes"
 QA_ROOT = ROOT / ".scratch" / "enemies-v8" / "qa" / "published"
-MANIFEST = V8 / "manifest.json"
-PROVENANCE = V8 / "source-provenance.json"
+MANIFEST = V8_SOURCE / "manifest.json"
+PROVENANCE = V8_SOURCE / "source-provenance.json"
 
-CELL = 320
+CELL = 160
 COLS = 4
 ROWS = 11
 SHEET_SIZE = (COLS * CELL, ROWS * CELL)
@@ -180,7 +181,7 @@ def main() -> int:
             issues.append(f"{kind}: destination mapping is not a source permutation")
 
     for mood in moods:
-        atlas_path = atlas_root / f"{mood}-enemies.png"
+        atlas_path = atlas_root / f"{mood}-enemies.webp"
         if not atlas_path.exists():
             issues.append(f"{mood}: missing atlas")
             continue
@@ -266,7 +267,7 @@ def main() -> int:
             "entries": source_entries,
         }
         PROVENANCE.write_text(json.dumps(provenance, indent=2) + "\n", encoding="utf-8")
-        base_atlas = V8 / "iron-ash-enemies-v8.png"
+        base_atlas = V8_RUNTIME / "iron-ash-enemies-v8.webp"
         manifest = {
             "version": 8,
             "kind": "dungeon-enemy-atlas-manifest",
@@ -277,7 +278,7 @@ def main() -> int:
             },
             "biome_atlases": {
                 mood: {
-                    "path": f"/assets/sprites/enemies-v8/biomes/{mood}-enemies.png",
+                    "path": f"/assets/sprites/enemies-v8/biomes/{mood}-enemies.webp",
                     "sha256": atlas_reports[mood]["sha256"],
                     "size_bytes": atlas_reports[mood]["size_bytes"],
                 }

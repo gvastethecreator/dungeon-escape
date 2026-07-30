@@ -86,17 +86,17 @@ describe("professional world kit", () => {
     expect(Object.keys(ENEMY_ANIMATIONS)).toEqual([...ENEMY_ROSTER]);
   });
 
-  test("enemy atlas uses four 320px frames for each measured silhouette", () => {
+  test("enemy atlas uses four optimized 160px frames for each measured silhouette", () => {
     for (const [row, kind] of ENEMY_ROSTER.entries()) {
       const animation = ENEMY_ANIMATIONS[kind];
-      expect(animation.src).toBe("/assets/sprites/enemies-v8/iron-ash-enemies-v8.png");
-      expect(animation.size).toEqual([1280, 3520]);
+      expect(animation.src).toBe("/assets/sprites/enemies-v8/iron-ash-enemies-v8.webp");
+      expect(animation.size).toEqual([640, 1760]);
       expect(animation.frames).toHaveLength(4);
       expect(animation.frames).toEqual([
-        { x: 0, y: row * 320, w: 320, h: 320 },
-        { x: 320, y: row * 320, w: 320, h: 320 },
-        { x: 640, y: row * 320, w: 320, h: 320 },
-        { x: 960, y: row * 320, w: 320, h: 320 },
+        { x: 0, y: row * 160, w: 160, h: 160 },
+        { x: 160, y: row * 160, w: 160, h: 160 },
+        { x: 320, y: row * 160, w: 160, h: 160 },
+        { x: 480, y: row * 160, w: 160, h: 160 },
       ]);
     }
   });

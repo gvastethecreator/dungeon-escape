@@ -1,0 +1,429 @@
+{
+  "version": 8,
+  "kind": "dungeon-enemy-atlas-manifest",
+  "base_atlas": {
+    "path": "/assets/sprites/enemies-v8/iron-ash-enemies-v8.webp",
+    "sha256": "afafaa8089fe3549d9e8e06d1b2fd4a02f407aa77d96e00b237bea15c62ae58b",
+    "size_bytes": 803480
+  },
+  "biome_atlases": {
+    "ancient": {
+      "path": "/assets/sprites/enemies-v8/biomes/ancient-enemies.webp",
+      "sha256": "ac3173cda287040f52ba085fcba2ce64cdd62c8aad71a6f45698d6d6a17050f6",
+      "size_bytes": 684386
+    },
+    "molten": {
+      "path": "/assets/sprites/enemies-v8/biomes/molten-enemies.webp",
+      "sha256": "068182e8cb5ef7cba311f684e82305a5138baf339609c44fde86001772c2bac9",
+      "size_bytes": 774748
+    },
+    "frost": {
+      "path": "/assets/sprites/enemies-v8/biomes/frost-enemies.webp",
+      "sha256": "dfd3ddd4d7f071572271f1c88e07046d559a3403ef1f762d605d73853356fe3c",
+      "size_bytes": 759802
+    },
+    "grim": {
+      "path": "/assets/sprites/enemies-v8/biomes/grim-enemies.webp",
+      "sha256": "70c83d017c3af80d5252671467304324566ba15c39279ce3ddd11aa99d7b2405",
+      "size_bytes": 729106
+    },
+    "verdant": {
+      "path": "/assets/sprites/enemies-v8/biomes/verdant-enemies.webp",
+      "sha256": "0e48d387ef88f152fbcbb6453a3a6e3d892708c994b4ac3b4a9c9cd8fc46eda2",
+      "size_bytes": 813740
+    },
+    "ash": {
+      "path": "/assets/sprites/enemies-v8/biomes/ash-enemies.webp",
+      "sha256": "61fdef6bb1fdb1398355a36cb2cc8d1c6d169402c24b49fd002bc8a245d14951",
+      "size_bytes": 695262
+    },
+    "iron": {
+      "path": "/assets/sprites/enemies-v8/biomes/iron-enemies.webp",
+      "sha256": "e65923fb56829d849506dd82417b83b7bf320ddf832ea10b004635b6f9ff68f7",
+      "size_bytes": 723582
+    },
+    "obsidian": {
+      "path": "/assets/sprites/enemies-v8/biomes/obsidian-enemies.webp",
+      "sha256": "18f4126cc0b8625c4cd68bc53a98b2d5f1aacf1631a92215aca5341de5a9a38c",
+      "size_bytes": 757154
+    },
+    "sunken": {
+      "path": "/assets/sprites/enemies-v8/biomes/sunken-enemies.webp",
+      "sha256": "f12072fd2e5983f380a4d75b7e2ca142b954d4f97a93e15f91dbf8eb01995211",
+      "size_bytes": 765048
+    },
+    "fungal": {
+      "path": "/assets/sprites/enemies-v8/biomes/fungal-enemies.webp",
+      "sha256": "5bc4fe0a113449b6223243a0a5d448787f85f3a708523cbf7486c6866322bd28",
+      "size_bytes": 910130
+    },
+    "backrooms": {
+      "path": "/assets/sprites/enemies-v8/biomes/backrooms-enemies.webp",
+      "sha256": "81b4a6e41518136d6d5d3a3371975939a12953b37d76d9514534c536bf4152b8",
+      "size_bytes": 542626
+    }
+  },
+  "frame_layout": {
+    "sheetWidth": 640,
+    "sheetHeight": 1760,
+    "cellWidth": 160,
+    "cellHeight": 160,
+    "rows": {
+      "carrion": [
+        {
+          "x": 0,
+          "y": 0,
+          "w": 160,
+          "h": 160
+        },
+        {
+          "x": 160,
+          "y": 0,
+          "w": 160,
+          "h": 160
+        },
+        {
+          "x": 320,
+          "y": 0,
+          "w": 160,
+          "h": 160
+        },
+        {
+          "x": 480,
+          "y": 0,
+          "w": 160,
+          "h": 160
+        }
+      ],
+      "goblin": [
+        {
+          "x": 0,
+          "y": 160,
+          "w": 160,
+          "h": 160
+        },
+        {
+          "x": 160,
+          "y": 160,
+          "w": 160,
+          "h": 160
+        },
+        {
+          "x": 320,
+          "y": 160,
+          "w": 160,
+          "h": 160
+        },
+        {
+          "x": 480,
+          "y": 160,
+          "w": 160,
+          "h": 160
+        }
+      ],
+      "ghost": [
+        {
+          "x": 0,
+          "y": 320,
+          "w": 160,
+          "h": 160
+        },
+        {
+          "x": 160,
+          "y": 320,
+          "w": 160,
+          "h": 160
+        },
+        {
+          "x": 320,
+          "y": 320,
+          "w": 160,
+          "h": 160
+        },
+        {
+          "x": 480,
+          "y": 320,
+          "w": 160,
+          "h": 160
+        }
+      ],
+      "ratling": [
+        {
+          "x": 0,
+          "y": 480,
+          "w": 160,
+          "h": 160
+        },
+        {
+          "x": 160,
+          "y": 480,
+          "w": 160,
+          "h": 160
+        },
+        {
+          "x": 320,
+          "y": 480,
+          "w": 160,
+          "h": 160
+        },
+        {
+          "x": 480,
+          "y": 480,
+          "w": 160,
+          "h": 160
+        }
+      ],
+      "husk": [
+        {
+          "x": 0,
+          "y": 640,
+          "w": 160,
+          "h": 160
+        },
+        {
+          "x": 160,
+          "y": 640,
+          "w": 160,
+          "h": 160
+        },
+        {
+          "x": 320,
+          "y": 640,
+          "w": 160,
+          "h": 160
+        },
+        {
+          "x": 480,
+          "y": 640,
+          "w": 160,
+          "h": 160
+        }
+      ],
+      "imp": [
+        {
+          "x": 0,
+          "y": 800,
+          "w": 160,
+          "h": 160
+        },
+        {
+          "x": 160,
+          "y": 800,
+          "w": 160,
+          "h": 160
+        },
+        {
+          "x": 320,
+          "y": 800,
+          "w": 160,
+          "h": 160
+        },
+        {
+          "x": 480,
+          "y": 800,
+          "w": 160,
+          "h": 160
+        }
+      ],
+      "zombie-orc": [
+        {
+          "x": 0,
+          "y": 960,
+          "w": 160,
+          "h": 160
+        },
+        {
+          "x": 160,
+          "y": 960,
+          "w": 160,
+          "h": 160
+        },
+        {
+          "x": 320,
+          "y": 960,
+          "w": 160,
+          "h": 160
+        },
+        {
+          "x": 480,
+          "y": 960,
+          "w": 160,
+          "h": 160
+        }
+      ],
+      "spider": [
+        {
+          "x": 0,
+          "y": 1120,
+          "w": 160,
+          "h": 160
+        },
+        {
+          "x": 160,
+          "y": 1120,
+          "w": 160,
+          "h": 160
+        },
+        {
+          "x": 320,
+          "y": 1120,
+          "w": 160,
+          "h": 160
+        },
+        {
+          "x": 480,
+          "y": 1120,
+          "w": 160,
+          "h": 160
+        }
+      ],
+      "bone-slime": [
+        {
+          "x": 0,
+          "y": 1280,
+          "w": 160,
+          "h": 160
+        },
+        {
+          "x": 160,
+          "y": 1280,
+          "w": 160,
+          "h": 160
+        },
+        {
+          "x": 320,
+          "y": 1280,
+          "w": 160,
+          "h": 160
+        },
+        {
+          "x": 480,
+          "y": 1280,
+          "w": 160,
+          "h": 160
+        }
+      ],
+      "white-eyed-shadow": [
+        {
+          "x": 0,
+          "y": 1440,
+          "w": 160,
+          "h": 160
+        },
+        {
+          "x": 160,
+          "y": 1440,
+          "w": 160,
+          "h": 160
+        },
+        {
+          "x": 320,
+          "y": 1440,
+          "w": 160,
+          "h": 160
+        },
+        {
+          "x": 480,
+          "y": 1440,
+          "w": 160,
+          "h": 160
+        }
+      ],
+      "carrion-stalker": [
+        {
+          "x": 0,
+          "y": 1600,
+          "w": 160,
+          "h": 160
+        },
+        {
+          "x": 160,
+          "y": 1600,
+          "w": 160,
+          "h": 160
+        },
+        {
+          "x": 320,
+          "y": 1600,
+          "w": 160,
+          "h": 160
+        },
+        {
+          "x": 480,
+          "y": 1600,
+          "w": 160,
+          "h": 160
+        }
+      ]
+    }
+  },
+  "animation": {
+    "rows": {
+      "carrion": {
+        "fps": 8,
+        "frames": 4,
+        "loop": true
+      },
+      "goblin": {
+        "fps": 8,
+        "frames": 4,
+        "loop": true
+      },
+      "ghost": {
+        "fps": 8,
+        "frames": 4,
+        "loop": true
+      },
+      "ratling": {
+        "fps": 8,
+        "frames": 4,
+        "loop": true
+      },
+      "husk": {
+        "fps": 8,
+        "frames": 4,
+        "loop": true
+      },
+      "imp": {
+        "fps": 8,
+        "frames": 4,
+        "loop": true
+      },
+      "zombie-orc": {
+        "fps": 8,
+        "frames": 4,
+        "loop": true
+      },
+      "spider": {
+        "fps": 8,
+        "frames": 4,
+        "loop": true
+      },
+      "bone-slime": {
+        "fps": 8,
+        "frames": 4,
+        "loop": true
+      },
+      "white-eyed-shadow": {
+        "fps": 8,
+        "frames": 4,
+        "loop": true
+      },
+      "carrion-stalker": {
+        "fps": 8,
+        "frames": 4,
+        "loop": true
+      }
+    }
+  },
+  "processing": {
+    "script": "scripts/pack-enemy-strips-v8.py",
+    "method": "hybrid",
+    "background_model": "ZhengPeng7/BiRefNet",
+    "cell_margin": 16
+  },
+  "source_assignments": "assets-source/enemies/v8/source-assignments.json",
+  "source_assignments_sha256": "2750e62ecfac8fc7a7eb7f92b0083859ac4d06971df9564d8d2aa38fbddfa4ae",
+  "source_provenance": "assets-source/enemies/v8/source-provenance.json",
+  "source_provenance_sha256": "d035f640bbe052c32d4da8728773ce41901e43c309ebe84be25a00a40416a810"
+}

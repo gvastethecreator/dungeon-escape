@@ -31,25 +31,39 @@ interface MaterialManifest {
   materials: MaterialRecord[];
 }
 
+interface RuntimeOptimizationEntry {
+  source: string;
+  target: string;
+  sourceDimensions: [number, number];
+  targetDimensions: [number, number];
+  sourceSha256: string;
+  targetSha256: string;
+}
+
 const projectPath = (...parts: string[]) => resolve(import.meta.dir, "..", ...parts);
 const sha256 = (path: string) =>
   createHash("sha256")
     .update(readFileSync(projectPath(path)))
     .digest("hex");
 
-function pngSize(path: string): [number, number] {
-  const header = readFileSync(projectPath(path)).subarray(0, 24);
-  expect(header.subarray(1, 4).toString()).toBe("PNG");
-  return [header.readUInt32BE(16), header.readUInt32BE(20)];
-}
-
 describe("model material texture v2 contract", () => {
   const manifest = JSON.parse(
     readFileSync(
-      projectPath("public", "assets", "textures", "model-materials-v2", "manifest.json"),
+      projectPath(
+        "assets-source",
+        "runtime-metadata",
+        "textures",
+        "model-materials-v2",
+        "manifest.json",
+      ),
       "utf8",
     ),
   ) as MaterialManifest;
+  const runtimeImages = (
+    JSON.parse(
+      readFileSync(projectPath("assets-source", "runtime-optimization-manifest.json"), "utf8"),
+    ) as { images: RuntimeOptimizationEntry[] }
+  ).images;
 
   test("covers every shared role with an intact authored interior and explicit wrap policy", () => {
     expect(manifest.materials.map(({ id }) => id)).toEqual([
@@ -95,13 +109,19 @@ describe("model material texture v2 contract", () => {
     expect(curedMeat.roughnessRange[1]).toBeLessThanOrEqual(0.82);
   });
 
-  test("tracks all source and bounded 512 px runtime PBR output hashes", () => {
+  test("tracks authored 512 px maps and their verified 256 px WebP runtime outputs", () => {
     expect(manifest.mapSize).toBe(512);
     for (const material of manifest.materials) {
       expect(sha256(material.source)).toBe(material.sourceSha256);
       for (const kind of ["albedo", "height", "normal", "roughness", "ao"] as const) {
-        expect(pngSize(material.maps[kind])).toEqual([manifest.mapSize, manifest.mapSize]);
-        expect(sha256(material.maps[kind])).toBe(material.outputSha256[kind]);
+        const optimized = runtimeImages.find((entry) => entry.source === material.maps[kind]);
+        expect(optimized).toBeDefined();
+        if (!optimized) throw new Error(`Missing optimized material map: ${material.maps[kind]}`);
+        expect(optimized.sourceDimensions).toEqual([manifest.mapSize, manifest.mapSize]);
+        expect(optimized.targetDimensions).toEqual([256, 256]);
+        expect(optimized.sourceSha256).toBe(material.outputSha256[kind]);
+        expect(optimized.target.endsWith(".webp")).toBe(true);
+        expect(sha256(optimized.target)).toBe(optimized.targetSha256);
       }
     }
   });
@@ -112,7 +132,7 @@ describe("model material texture v2 contract", () => {
     const roughness = createLuminousWardRuntimeTexture("roughness");
     const ao = createLuminousWardRuntimeTexture("ao");
 
-    expect(albedo.name).toContain("luminous-ward-gold_albedo.png");
+    expect(albedo.name).toContain("luminous-ward-gold_albedo.webp");
     expect(albedo.colorSpace).toBe(THREE.SRGBColorSpace);
     for (const dataMap of [normal, roughness, ao]) {
       expect(dataMap.colorSpace).toBe(THREE.NoColorSpace);
@@ -125,7 +145,7 @@ describe("model material texture v2 contract", () => {
 
     const material = createLuminousWardGoldMaterial({ compact: true });
     expect(material.userData.materialRole).toBe("luminous-ward-gold");
-    expect(material.map?.name).toContain("luminous-ward-gold_albedo.png");
+    expect(material.map?.name).toContain("luminous-ward-gold_albedo.webp");
     expect(material.normalMap).toBeNull();
     expect(material.roughnessMap).toBeNull();
     expect(material.aoMap).toBeNull();
@@ -146,7 +166,7 @@ describe("model material texture v2 contract", () => {
       materialLibrarySource.match(/registerTextureSource\([^\n]+\{ seam: "none" \}\)/g),
     ).toHaveLength(4);
     expect(materialLibrarySource).not.toContain(
-      "registerTextureSource(albedo, `${base}_albedo.png`, true)",
+      "registerTextureSource(albedo, `${base}_albedo.webp`, true)",
     );
   });
 

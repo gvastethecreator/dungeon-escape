@@ -35,19 +35,21 @@ describe("biome sprite decor atlas", () => {
             ["floor-decal", "floor-standing", "corner-standing"].includes(prop.placement),
           ),
       ).toBe(true);
-      expect(biomeSpritePropTextureUrl(mood)).toBe(`/assets/sprites/biome-props/${mood}-props.png`);
+      expect(biomeSpritePropTextureUrl(mood)).toBe(
+        `/assets/sprites/biome-props/${mood}-props.webp`,
+      );
     }
   });
 
-  test("maps six crops to the 3x2 512px atlas without overlap", () => {
+  test("maps six crops to the optimized 3x2 256px atlas without overlap", () => {
     const frames = [0, 1, 2, 3, 4, 5].map(biomeSpritePropFrame);
     expect(frames).toEqual([
-      { x: 0, y: 0, w: 512, h: 512 },
-      { x: 512, y: 0, w: 512, h: 512 },
-      { x: 1024, y: 0, w: 512, h: 512 },
-      { x: 0, y: 512, w: 512, h: 512 },
-      { x: 512, y: 512, w: 512, h: 512 },
-      { x: 1024, y: 512, w: 512, h: 512 },
+      { x: 0, y: 0, w: 256, h: 256 },
+      { x: 256, y: 0, w: 256, h: 256 },
+      { x: 512, y: 0, w: 256, h: 256 },
+      { x: 0, y: 256, w: 256, h: 256 },
+      { x: 256, y: 256, w: 256, h: 256 },
+      { x: 512, y: 256, w: 256, h: 256 },
     ]);
   });
 
@@ -142,7 +144,7 @@ describe("biome sprite decor atlas", () => {
   });
 
   test("ships every processed atlas and a complete alpha manifest", async () => {
-    const root = new URL("../public/assets/sprites/biome-props/", import.meta.url);
+    const root = new URL("../assets-source/runtime-metadata/sprites/biome-props/", import.meta.url);
     const manifest = (await Bun.file(new URL("manifest.json", root)).json()) as {
       sheets: Array<{
         biome: string;
@@ -155,7 +157,9 @@ describe("biome sprite decor atlas", () => {
     expect(manifest.sheets).toHaveLength(listDungeonMoodIds().length);
     expect(manifest.sheets.map((sheet) => sheet.biome)).toEqual([...listDungeonMoodIds()]);
     for (const sheet of manifest.sheets) {
-      const file = Bun.file(new URL(`${sheet.biome}-props.png`, root));
+      const file = Bun.file(
+        new URL(`../public/assets/sprites/biome-props/${sheet.biome}-props.webp`, import.meta.url),
+      );
       expect(await file.exists()).toBe(true);
       expect(file.size).toBeGreaterThan(4_000);
       expect(sheet.size).toEqual([1536, 1024]);
