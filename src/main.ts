@@ -61,14 +61,16 @@ import { drawMinimap } from "./ui/drawMinimap";
 import { COPY, formatTime, type StoneId } from "./ui/copy";
 import { BiomeScreenParticles } from "./ui/BiomeScreenParticles";
 import { createMinimapLayoutScheduler } from "./ui/minimapLayout";
-import {
-  PlayRuntime,
-  type PersistedRunSession,
-  type PlayRuntimeProgress,
-} from "./game/PlayRuntime";
+import { PlayRuntime } from "./game/PlayRuntime";
 import { shouldAdoptHydratedSeed } from "./game/hydratePolicy";
 import { nextProceduralSeed } from "./game/SeedFactory";
 import { FloorExploration } from "./game/FloorExploration";
+import {
+  captureRunResume,
+  planFloorTransition,
+  planRunResumeRestore,
+  type RunResumeActivationPlan,
+} from "./game/RunResumeMapping";
 import {
   canContinueDomainRun,
   canContinueLocalRun,
@@ -597,82 +599,42 @@ function currentDomainSave(): DungeonDomainState {
 }
 
 function captureLocalRunResume(): LocalRunResumeState | undefined {
-  const state = playRuntime.state();
-  if (!dungeon || state.runMode !== "playing") return undefined;
+  if (!dungeon) return undefined;
   const player = controller.getState();
   const difficulty = world.getDifficultyState();
-  const questSnap = playRuntime.snapshot();
+  const play = playRuntime.snapshot();
   floorExploration.setMapRevealed(world.isMapRevealed);
   const exploration = floorExploration.snapshot();
-  return {
-    runSeconds: questSnap.runSeconds,
-    difficultyElapsed: difficulty.elapsedSeconds,
-    player: {
-      x: player.position.x,
-      y: player.position.y,
-      z: player.position.z,
-      yaw: player.lookYaw,
-      pitch: player.lookPitch,
-      distanceTravelled: player.distanceTravelled,
+  return captureRunResume({
+    play,
+    player,
+    world: {
+      difficultyElapsed: difficulty.elapsedSeconds,
+      timeFreezeRemaining: world.timeFreezeRemaining,
+      luminousWardRemaining: world.luminousWardRemaining,
+      annihilationPulseRemaining: world.annihilationPulseRemaining,
+      mapRevealed: world.isMapRevealed,
+      mobilityBoostRemaining: world.mobilityBoostRemaining,
     },
-    visitedCells: exploration.visitedCells,
-    timeFreezeRemaining: world.timeFreezeRemaining,
-    luminousWardRemaining: world.luminousWardRemaining,
-    annihilationPulseRemaining: world.annihilationPulseRemaining,
-    mapRevealed: exploration.mapRevealed,
-    mobilityBoostRemaining: world.mobilityBoostRemaining,
-    activeFloor: exploration.activeFloor,
-    campaignRootSeed: dungeon.floor?.rootSeed,
-    campaignBiomeId: resolveActiveMood(dungeon).id,
-    visitedFloors: exploration.visitedFloors,
-    perStoneSeconds: questSnap.perStoneSeconds,
-  };
-}
-
-function domainToPersistedSession(
-  state: DungeonDomainState,
-  resume?: LocalRunResumeState,
-): PersistedRunSession {
-  return {
-    resolve: state.resolve,
-    foundStoneIds: [...state.foundStoneIds] as StoneId[],
-    portalOpen: state.portalOpen,
-    runMode: state.runMode,
-    exitReached: state.exitReached,
-    runSeconds: resume?.runSeconds ?? 0,
-    perStoneSeconds: resume?.perStoneSeconds,
-  };
-}
-
-function runtimeProgressFromResume(
-  resume: LocalRunResumeState | undefined,
-): PlayRuntimeProgress | undefined {
-  if (!resume) return undefined;
-  return {
-    progress: {
-      difficultyElapsed: resume.difficultyElapsed,
-      timeFreezeRemaining: resume.timeFreezeRemaining,
-      luminousWardRemaining: resume.luminousWardRemaining,
-      annihilationPulseRemaining: resume.annihilationPulseRemaining,
-      mapRevealed: resume.mapRevealed,
-      mobilityBoostRemaining: resume.mobilityBoostRemaining,
+    exploration,
+    campaign: {
+      rootSeed: dungeon.floor?.rootSeed,
+      biomeId: resolveActiveMood(dungeon).id,
     },
-    player: { x: resume.player.x, z: resume.player.z },
-  };
+  });
 }
 
-function applyLocalRunResume(
-  resume: LocalRunResumeState | undefined,
-  switchEntry?: { x: number; y: number },
-): void {
-  if (!resume || !dungeon) return;
-  if (switchEntry) {
-    floorExploration.switchFloor(dungeon, switchEntry);
-  } else {
-    const restored = floorExploration.restore(dungeon, resume, dungeon.spawn);
+function applyRunResumePlan(plan: RunResumeActivationPlan, allowStart = true): void {
+  if (!dungeon) return;
+  if (plan.exploration.kind === "switch-floor") {
+    floorExploration.switchFloor(dungeon, plan.exploration.entryCell);
+  } else if (plan.exploration.kind === "restore") {
+    const restored = floorExploration.restore(dungeon, plan.exploration.state, dungeon.spawn);
     if (!restored.ok) floorExploration.start(dungeon, dungeon.spawn);
+  } else if (allowStart) {
+    floorExploration.start(dungeon, dungeon.spawn);
   }
-  controller.restorePose(resume.player);
+  if (plan.playerPose) controller.restorePose(plan.playerPose);
   lastRunTimerSecond = -1;
 }
 
@@ -1679,13 +1641,10 @@ function syncQuestHud(): void {
   }
 }
 
-function applyPersistedRunSession(
-  persisted: PersistedRunSession,
-  resume?: LocalRunResumeState,
-): void {
-  const state = playRuntime.restore(persisted, runtimeProgressFromResume(resume));
-  applyLocalRunResume(resume);
-  if (resume) syncDomainExplore();
+function applyPersistedRunSession(plan: RunResumeActivationPlan): void {
+  const state = playRuntime.restore(plan.persistedSession, plan.runtimeProgress);
+  applyRunResumePlan(plan, false);
+  if (plan.playerPose) syncDomainExplore();
   lastTimeFreezeDisplay = "";
   lastLuminousWardDisplay = "";
   lastAnnihilationPulseDisplay = "";
@@ -2634,9 +2593,7 @@ function activateDungeon(
   params: DungeonEditorParams,
   options: {
     persistBuild?: boolean;
-    persistedSession?: PersistedRunSession;
-    resume?: LocalRunResumeState;
-    explorationEntry?: { x: number; y: number };
+    restore?: RunResumeActivationPlan;
   } = {},
 ): DungeonRuntimeState {
   const persistBuild = options.persistBuild ?? true;
@@ -2662,14 +2619,14 @@ function activateDungeon(
   lastMaterialCountAt = 0;
   elements.seed.value = nextDungeon.seed;
   launchHistory.replace({ seed: nextDungeon.seed });
-  if (!options.resume) floorExploration.start(nextDungeon, nextDungeon.spawn);
+  if (!options.restore) floorExploration.start(nextDungeon, nextDungeon.spawn);
   const mood = applyDungeonMood(nextDungeon);
   applyAtmosphereFromParams();
   const state = playRuntime.load({
     dungeon,
     mood,
-    persisted: options.persistedSession,
-    runtimeProgress: runtimeProgressFromResume(options.resume),
+    persisted: options.restore?.persistedSession,
+    runtimeProgress: options.restore?.runtimeProgress,
   });
   lastTimeFreezeDisplay = "";
   lastLuminousWardDisplay = "";
@@ -2690,8 +2647,8 @@ function activateDungeon(
   syncRunTimer();
   atmosphere.setDungeon(dungeon, mood);
   controller.setDungeon(dungeon);
-  applyLocalRunResume(options.resume, options.explorationEntry);
-  if (options.resume) syncDomainExplore();
+  if (options.restore) applyRunResumePlan(options.restore);
+  if (options.restore?.playerPose) syncDomainExplore();
   controller.setBlockedCells([]);
   controller.setSolidColliders(world.getSolidColliders());
   controller.setEnabled(canEnablePlayController());
@@ -2754,8 +2711,7 @@ function buildDungeon(
   seed = elements.seed.value,
   options: {
     persistBuild?: boolean;
-    persistedSession?: PersistedRunSession;
-    resume?: LocalRunResumeState;
+    restore?: RunResumeActivationPlan;
   } = {},
 ): DungeonRuntimeState {
   povPost.resetCrtHistory();
@@ -2774,24 +2730,24 @@ function buildDungeon(
     };
     const requestedCampaignMood =
       runSource === "campaign"
-        ? (parseDungeonMoodId(options.resume?.campaignBiomeId) ??
+        ? (parseDungeonMoodId(options.restore?.generation.campaignBiomeId) ??
           forcedPlayMoodId ??
           parseDungeonMoodId(launchConfig.mood))
         : null;
     let generated: DungeonData;
     if (runSource === "campaign" && requestedCampaignMood) {
-      const rootSeed = options.resume?.campaignRootSeed?.trim() || normalizedSeed;
+      const rootSeed = options.restore?.generation.seed ?? normalizedSeed;
       const floorCount = biomeCampaignFloorCount(requestedCampaignMood);
       campaignFloorSet = generateDungeonFloorSet(rootSeed, generationOptions, floorCount);
       const activeFloorIndex = Math.min(
         floorCount - 1,
-        Math.max(0, options.resume?.activeFloor ?? 0),
+        Math.max(0, options.restore?.generation.activeFloor ?? 0),
       );
       generated = campaignFloorSet.floors[activeFloorIndex]!;
     } else {
       generated = generateCompletableDungeon(normalizedSeed, generationOptions);
       if (runSource === "campaign" && !generated.forge) {
-        const rootSeed = options.resume?.campaignRootSeed?.trim() || normalizedSeed;
+        const rootSeed = options.restore?.generation.seed ?? normalizedSeed;
         if (rootSeed !== normalizedSeed) {
           generated = generateCompletableDungeon(rootSeed, generationOptions);
         }
@@ -2800,7 +2756,7 @@ function buildDungeon(
         campaignFloorSet = generateDungeonFloorSet(rootSeed, generationOptions, floorCount);
         const activeFloorIndex = Math.min(
           floorCount - 1,
-          Math.max(0, options.resume?.activeFloor ?? 0),
+          Math.max(0, options.restore?.generation.activeFloor ?? 0),
         );
         generated = campaignFloorSet.floors[activeFloorIndex]!;
       } else {
@@ -2947,13 +2903,14 @@ function setEngineMode(
       if (shouldAdoptHydratedSeed(Boolean(dungeon), hydrated.seed, localSeed)) {
         applyDungeonDomainToForm(hydrated.state);
         elements.seed.value = hydrated.seed;
+        const restore = planRunResumeRestore(hydrated.state);
         buildDungeon(hydrated.seed, {
           persistBuild: false,
-          persistedSession: domainToPersistedSession(hydrated.state),
+          restore,
         });
         setStatus(COPY.status.hydrate(hydrated.seed));
       } else if (dungeon && hydrated.seed === localSeed) {
-        applyPersistedRunSession(domainToPersistedSession(hydrated.state));
+        applyPersistedRunSession(planRunResumeRestore(hydrated.state));
         setStatus("Server session restored for this dungeon.");
       } else if (hydrated.seed && hydrated.seed !== localSeed && dungeon) {
         setStatus(`Server seed ${hydrated.seed} (local map kept). Use SYNC RUNS to adopt.`);
@@ -3450,7 +3407,7 @@ elements.runSelect.addEventListener("change", () => {
         elements.seed.value = hydrated.seed;
         buildDungeon(hydrated.seed, {
           persistBuild: false,
-          persistedSession: domainToPersistedSession(d),
+          restore: planRunResumeRestore(d),
         });
         setStatus(`Active run ${runId} · seed ${hydrated.seed}`);
       } else {
@@ -3514,15 +3471,14 @@ elements.welcomeContinue.addEventListener("click", () => {
     // Two frames guarantee the busy state is painted before generation blocks the main thread.
     await waitAnimationFrames(2);
     try {
-      forcedPlayMoodId = parseDungeonMoodId(save?.resume?.campaignBiomeId);
       setRunSource(runSourceFromLocalSave(save), false);
       applyDungeonDomainToForm(state);
-      const continueSeed = save?.resume?.campaignRootSeed ?? state.seed;
-      elements.seed.value = continueSeed;
-      buildDungeon(continueSeed, {
+      const restore = planRunResumeRestore(state, save?.resume);
+      forcedPlayMoodId = parseDungeonMoodId(restore.generation.campaignBiomeId);
+      elements.seed.value = restore.generation.seed;
+      buildDungeon(restore.generation.seed, {
         persistBuild: true,
-        persistedSession: domainToPersistedSession(state, save?.resume),
-        resume: save?.resume,
+        restore,
       });
       await waitForRendererWarmup(10_000);
       runHasStarted = true;
@@ -3791,20 +3747,18 @@ async function transitionCampaignFloor(
   floorTransitionPending = true;
   controller.setEnabled(false);
   controller.releasePointerLock();
-  const persistedSession = playRuntime.snapshot();
   const entry = gridToWorld(targetDungeon, entryStair.cell, TILE_SIZE);
-  const transitionResume: LocalRunResumeState = {
-    ...resume,
-    activeFloor: targetFloor,
-    player: {
-      ...resume.player,
-      x: entry.x,
-      y: 1.62,
-      z: entry.z,
+  const restore = planFloorTransition({
+    domain: currentDomainSave(),
+    resume,
+    destination: {
+      floorIndex: targetFloor,
+      entryCell: entryStair.cell,
+      position: { x: entry.x, y: 1.62, z: entry.z },
       yaw: entryStair.yaw + Math.PI,
       pitch: 0,
     },
-  };
+  });
 
   try {
     await setSceneFadeOpaque(true, { durationMs: 180 });
@@ -3813,7 +3767,7 @@ async function transitionCampaignFloor(
       targetDungeon,
       `Floor ${targetFloor + 1} of ${campaignFloorSet.floors.length}.`,
       params,
-      { persistedSession, resume: transitionResume, explorationEntry: entryStair.cell },
+      { restore },
     );
     showObjectiveBanner(
       playRuntime.state().quest.portalOpen && targetFloor === campaignFloorSet.floors.length - 1
