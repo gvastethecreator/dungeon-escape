@@ -174,6 +174,7 @@ export class LightingRig {
     player: THREE.Vector3,
     nearestThreat: number | null,
     viewForward?: THREE.Vector3,
+    explorationFogMultiplier = 1,
   ): void {
     this.target.copy(player);
     if (viewForward) {
@@ -185,7 +186,8 @@ export class LightingRig {
     // Threat closes the fog slightly and boosts the lantern — readable panic, not a full blackout.
     this.fog.density = THREE.MathUtils.damp(
       this.fog.density,
-      this.baseFogDensity + threat * 0.0035,
+      this.baseFogDensity * THREE.MathUtils.clamp(explorationFogMultiplier, 1, 2.2) +
+        threat * 0.0035,
       1.7,
       delta,
     );

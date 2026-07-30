@@ -31,9 +31,8 @@ describe("persistent leaderboard UI", () => {
     const source = await Bun.file(new URL("../src/main.ts", import.meta.url)).text();
     const copy = await Bun.file(new URL("../src/ui/copy.ts", import.meta.url)).text();
     expect(source).toContain("prepareLeaderboardSubmission(");
-    expect(source).toContain(
-      "submitLeaderboardEntry({ ...pendingLeaderboardSubmission, playerName, portraitIndex })",
-    );
+    expect(source).toContain("const { entry } = await submitLeaderboardEntry({");
+    expect(source).toContain("queueMicrotask(() => void submitPreparedLeaderboardEntry())");
     expect(source).toContain("void refreshLeaderboard();");
     expect(source).toContain('runSource: "campaign"');
     expect(source).toContain("isLeaderboardEligible(runSource)");
@@ -82,7 +81,7 @@ describe("persistent leaderboard UI", () => {
     expect(host).toContain('id="leaderboard-portrait-preview"');
     expect(host).toContain('role="button"');
     expect(host).toContain('title="Click to change portrait"');
-    expect(host).toContain("/assets/ui/portraits/frames/frame-wood.png");
+    expect(host).toContain("/assets/ui/portraits/frames/frame-wood.webp");
     expect(source).toContain("cycleLeaderboardPortrait()");
   });
 

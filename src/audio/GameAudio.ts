@@ -430,6 +430,8 @@ export class GameAudio {
   private musicTrack: MusicTrack | null = null;
   private muted = false;
   private musicMuted = false;
+  private musicVolume = 1;
+  private effectsVolume = 1;
   private paused = true;
   private disposed = false;
   private threatIntensity = 0;
@@ -458,6 +460,14 @@ export class GameAudio {
 
   get isMusicMuted(): boolean {
     return this.musicMuted;
+  }
+
+  get currentMusicVolume(): number {
+    return this.musicVolume;
+  }
+
+  get currentEffectsVolume(): number {
+    return this.effectsVolume;
   }
 
   get isReady(): boolean {
@@ -611,11 +621,18 @@ export class GameAudio {
   }
 
   setGroupVolume(group: AudioGroup, value: number): void {
-    const gain = this.groups.get(group);
-    const context = this.context;
-    if (!gain || !context) return;
     this.groupLevels[group] = clamp(value, 0, 1);
-    gain.gain.setTargetAtTime(this.groupLevels[group], context.currentTime, 0.04);
+    this.applyMix();
+  }
+
+  setMusicVolume(value: number): void {
+    this.musicVolume = clamp(value, 0, 1);
+    this.applyMix();
+  }
+
+  setEffectsVolume(value: number): void {
+    this.effectsVolume = clamp(value, 0, 1);
+    this.applyMix();
   }
 
   setPaused(paused: boolean): void {
@@ -715,7 +732,7 @@ export class GameAudio {
     for (const group of Object.keys(GROUP_LEVELS) as AudioGroup[]) {
       const gain = context.createGain();
       // UI and music remain live on paused screens (welcome / end).
-      gain.gain.value = group === "ui" || group === "music" ? this.groupLevels[group] : SILENT_GAIN;
+      gain.gain.value = group === "ui" || group === "music" ? this.outputLevel(group) : SILENT_GAIN;
       gain.connect(master);
       this.groups.set(group, gain);
     }
@@ -937,7 +954,12 @@ export class GameAudio {
     for (const [group, gain] of this.groups) {
       let active = group === "ui" || group === "music" || !this.paused;
       if (group === "music" && this.musicMuted) active = false;
-      gain.gain.setTargetAtTime(active ? this.groupLevels[group] : SILENT_GAIN, now, 0.12);
+      gain.gain.setTargetAtTime(active ? this.outputLevel(group) : SILENT_GAIN, now, 0.12);
     }
+  }
+
+  private outputLevel(group: AudioGroup): number {
+    const preference = group === "music" ? this.musicVolume : this.effectsVolume;
+    return this.groupLevels[group] * preference;
   }
 }

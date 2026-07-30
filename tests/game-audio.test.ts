@@ -62,6 +62,11 @@ describe("GameAudio dungeon soundscape", () => {
     audio.setMusicTrack(null);
     expect(audio.currentMusic).toBe(null);
     expect(audio.isMusicMuted).toBe(false);
+    audio.setMusicVolume(0.35);
+    audio.setEffectsVolume(0.8);
+    expect(audio.currentMusicVolume).toBe(0.35);
+    expect(audio.currentEffectsVolume).toBe(0.8);
+    audio.setGroupVolume("sfx", 0.5);
     expect(audio.toggleMusicMuted()).toBe(true);
     expect(audio.isMusicMuted).toBe(true);
     audio.setMusicMuted(false);
