@@ -26,7 +26,9 @@ The docked panel with generation controls, presets, camera, and optional server-
 New Game (biome pick) or Hall seed replay. Eligible for the Hall of Escapes on a four-stone escape.
 
 **Player profile**:
-Validated browser-local identity and campaign progress: name, avatar, highest unlocked biome rank, and per-biome clears. It is separate from the active run save.
+Validated browser-local identity and campaign progress: name, avatar, first-finished-game state,
+highest unlocked biome rank, and per-biome clears. It is separate from the active run save. The Hall
+of Escapes stays hidden until this profile has reached its first win or loss ending.
 
 **Custom run**:
 Custom Run, Forge apply, or Map Tools generation. Fully playable. **Never ranks** — victory shows a practice score only.

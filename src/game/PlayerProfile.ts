@@ -9,6 +9,8 @@ export interface PlayerProfile {
   version: typeof PLAYER_PROFILE_VERSION;
   name: string;
   avatarIndex: number;
+  /** The Hall stays out of the first-run flow until one game reaches an ending. */
+  hasCompletedRun: boolean;
   /** Highest campaign rank available to start; Ancient is rank zero. */
   highestUnlockedRank: number;
   clears: Partial<Record<BiomeId, number>>;
@@ -64,6 +66,7 @@ function parseProfile(value: unknown): PlayerProfile | null {
     !name ||
     !validAvatarIndex(raw.avatarIndex) ||
     !validRank(raw.highestUnlockedRank) ||
+    (raw.hasCompletedRun !== undefined && typeof raw.hasCompletedRun !== "boolean") ||
     !clears ||
     typeof raw.updatedAt !== "number" ||
     !Number.isFinite(raw.updatedAt) ||
@@ -71,10 +74,13 @@ function parseProfile(value: unknown): PlayerProfile | null {
   ) {
     return null;
   }
+  const hasCompletedRun =
+    raw.hasCompletedRun === true || raw.highestUnlockedRank > 0 || Object.keys(clears).length > 0;
   return {
     version: PLAYER_PROFILE_VERSION,
     name,
     avatarIndex: raw.avatarIndex,
+    hasCompletedRun,
     highestUnlockedRank: raw.highestUnlockedRank,
     clears,
     updatedAt: raw.updatedAt,
@@ -93,6 +99,7 @@ export function createPlayerProfile(
     version: PLAYER_PROFILE_VERSION,
     name,
     avatarIndex: resolvedAvatar,
+    hasCompletedRun: false,
     highestUnlockedRank: 0,
     clears: {},
     updatedAt,
@@ -115,6 +122,14 @@ export function isBiomeUnlocked(profile: PlayerProfile, biomeId: BiomeId): boole
   return rank >= 0 && rank <= profile.highestUnlockedRank;
 }
 
+export function markPlayerRunCompleted(
+  profile: PlayerProfile,
+  updatedAt = Date.now(),
+): PlayerProfile {
+  if (profile.hasCompletedRun) return profile;
+  return { ...profile, hasCompletedRun: true, updatedAt };
+}
+
 export function completeCampaignBiome(
   profile: PlayerProfile,
   biomeId: BiomeId,
@@ -129,6 +144,7 @@ export function completeCampaignBiome(
   };
   return {
     ...profile,
+    hasCompletedRun: true,
     highestUnlockedRank: Math.min(ids.length - 1, Math.max(profile.highestUnlockedRank, rank + 1)),
     clears,
     updatedAt,

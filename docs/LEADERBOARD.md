@@ -10,6 +10,9 @@
 - Map size must be 8–80 rooms (Ancient campaign builds 10 rooms; the previous 12-room floor rejected those wins).
 - **Custom runs** (Custom Run, Forge maps, Map Tools) stay playable and still show a local score on victory, but never open the Hall submit form. The API rejects `runSource: "custom"`.
 - Biome stars: each saved escape awards one star for that biome under the player name. `GET /api/leaderboard` returns `playerBiomeStars` aggregated from all rows (not only the ranked page).
+- First-run welcome does not request or show the Hall. After the player's first finished game, the
+  browser profile reveals it on the centered main menu; profile editing and level selection keep it
+  out of the active decision surface.
 
 ## Hall faces (portraits)
 

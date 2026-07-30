@@ -13,8 +13,11 @@ Campaign levels now grow from one to four floors, while ADR 0002 keeps `DungeonW
 - `generateDungeonFloorSet` derives deterministic sibling floors from one campaign root seed and adds reciprocal stair anchors.
 - Only one floor is loaded into `DungeonWorld` at a time. A stair transition snapshots the run, swaps the active dungeon, restores quest/vitals/timer, and places the player at the reciprocal stair.
 - The local run save stores active floor, root seed, biome, and explored cells per floor. Version 3 still reads v1/v2.
-- `PlayerProfile` is a separate validated local-storage record for name, avatar, ordered biome rank, and clears.
+- `PlayerProfile` is a separate validated local-storage record for name, avatar, first-finished-game
+  state, ordered biome rank, and clears. Older records infer that state from existing clears.
 - Campaign clear unlocks at most the next biome. Custom runs never mutate campaign progress.
+- First-run profile submit enters New Game level selection directly. The welcome Hall is loaded and
+  shown only after the profile reaches its first game ending.
 
 ## Consequences
 
