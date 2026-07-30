@@ -69,6 +69,7 @@ import { STONE_ORDER } from "../ui/copy";
 import type { MinimapCell, MinimapFeatures } from "../ui/minimapFeatures";
 import { tickEnemySim, type EnemySimBody } from "./EnemySim";
 import { WORLD_TILE_SIZE, WORLD_WALL_HEIGHT } from "./WorldMetrics";
+import { ThreeResourceDisposer } from "./ThreeResourceDisposer";
 import { tickLiquidSections } from "./LiquidSectionKit";
 import { clampBiomeSpriteYaw, biomeSpriteFloorDistanceFade } from "./BiomeSpriteDecorKit";
 import { activateTimeFreeze, isTimeFreezeActive, tickTimeFreeze } from "../game/TimeFreeze";
@@ -283,20 +284,6 @@ export interface WorldUpdate {
 /** Presence and attack SFX are keyed 1:1 with enemy kind. */
 export function creatureVoiceForEnemy(kind: EnemyKind): CreatureVoice {
   return kind;
-}
-
-function disposeObject(object: THREE.Object3D): void {
-  object.traverse((child) => {
-    const mesh = child as THREE.Mesh;
-    mesh.geometry?.dispose();
-    const materials = Array.isArray(mesh.material)
-      ? mesh.material
-      : mesh.material
-        ? [mesh.material]
-        : [];
-    for (const material of materials)
-      if (!material.userData.sharedDungeonMaterial) material.dispose();
-  });
 }
 
 function roomDistance(dungeon: DungeonData, room: DungeonRoom): number {
@@ -1917,10 +1904,11 @@ export class DungeonWorld {
     this.staticScene.clear();
     this.collectedStones.clear();
     this.portalOpen = false;
+    const resourceDisposer = new ThreeResourceDisposer();
     while (this.group.children.length > 0) {
       const child = this.group.children[0] as THREE.Object3D;
       this.group.remove(child);
-      disposeObject(child);
+      resourceDisposer.dispose(child);
     }
   }
 }
