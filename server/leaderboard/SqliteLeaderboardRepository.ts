@@ -31,6 +31,33 @@ interface SqliteDatabase {
   close(): void;
 }
 
+const CANONICAL_MIGRATION_PATH = "migrations/0004_canonical_leaderboard.sql";
+
+function hasCanonicalRoomFloor(database: SqliteDatabase): boolean {
+  const row = database
+    .prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = ?")
+    .get("leaderboard_entries") as { sql?: unknown } | null;
+  return (
+    typeof row?.sql === "string" &&
+    /room_count\s+INTEGER[^,]*BETWEEN\s+8\s+AND\s+80/i.test(row.sql)
+  );
+}
+
+function applyCanonicalMigration(database: SqliteDatabase, source: string): void {
+  database.exec("BEGIN IMMEDIATE;");
+  try {
+    database.exec(source);
+    database.exec("COMMIT;");
+  } catch (error) {
+    try {
+      database.exec("ROLLBACK;");
+    } catch {
+      // Keep the original migration failure when rollback cannot run.
+    }
+    throw error;
+  }
+}
+
 async function openDatabase(path: string): Promise<SqliteDatabase> {
   if (process.versions.bun) {
     const moduleName = "bun:sqlite";
@@ -72,17 +99,31 @@ export class SqliteLeaderboardRepository implements LeaderboardRepository {
     const database = await openDatabase(
       options.databasePath === ":memory:" ? ":memory:" : databasePath,
     );
-    const repository = new SqliteLeaderboardRepository(database, options.storageSource ?? "local");
-    database.exec("PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 5000;");
-    if (options.databasePath !== ":memory:") database.exec("PRAGMA journal_mode = WAL;");
-    const migrationPath = resolve(options.migrationPath ?? "migrations/0001_leaderboard.sql");
-    database.exec(readFileSync(migrationPath, "utf8"));
     try {
-      database.exec("ALTER TABLE leaderboard_entries ADD COLUMN portrait_index INTEGER;");
-    } catch {
-      // Column already exists.
+      database.exec("PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 5000;");
+      if (options.databasePath !== ":memory:") database.exec("PRAGMA journal_mode = WAL;");
+      const migrationPath = resolve(options.migrationPath ?? "migrations/0001_leaderboard.sql");
+      database.exec(readFileSync(migrationPath, "utf8"));
+      try {
+        database.exec("ALTER TABLE leaderboard_entries ADD COLUMN portrait_index INTEGER;");
+      } catch {
+        // Column already exists.
+      }
+      if (options.migrationPath === undefined && !hasCanonicalRoomFloor(database)) {
+        applyCanonicalMigration(
+          database,
+          readFileSync(resolve(CANONICAL_MIGRATION_PATH), "utf8"),
+        );
+      }
+      return new SqliteLeaderboardRepository(database, options.storageSource ?? "local");
+    } catch (error) {
+      try {
+        database.close();
+      } catch {
+        // Preserve the initialization error if close also fails.
+      }
+      throw error;
     }
-    return repository;
   }
 
   async list(limit: number): Promise<LeaderboardEntry[]> {
