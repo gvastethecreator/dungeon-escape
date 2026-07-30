@@ -44,7 +44,7 @@ composición estática y tenue.
 El héroe común está en
 `assets-source/imagegen/biome-screen-art-v1/references/runner-reference.png`.
 Cada enemigo usado en las imágenes es un recorte del primer frame del atlas
-final `public/assets/sprites/enemies-v8/biomes/<biome>-enemies.png`.
+final `public/assets/sprites/enemies-v8/biomes/<biome>-enemies.webp`.
 Los nombres y las combinaciones por pantalla están en
 `biome-screen-art-manifest.json` y en el README del set de fuente.
 
@@ -60,5 +60,5 @@ Los 22 WebP están en `public/assets/ui/biome-screens/` con el patrón:
 <biome>-ending.webp
 ```
 
-Los fondos mantienen 1672 × 941 px y se cargan con `preloadImage()` antes de
+Los fondos de runtime miden 836 × 470 px y se cargan con `preloadImage()` antes de
 cambiar la imagen visible.

@@ -10,6 +10,9 @@ A connected set of rooms, corridors, features, entry, objectives, and exit used 
 **Dungeon floor set**:
 A deterministic campaign-level collection of one to four sibling dungeons. `DungeonWorld` owns only the active floor; reciprocal stair anchors switch the active dungeon.
 
+**Dungeon floor campaign**:
+The deterministic, lazy cache that generates only the requested campaign floor. It preserves floor order and reciprocal stair anchors without building every sibling dungeon at run start.
+
 **Creation**:
 The shell mode for building and previewing a map (`engineMode: "editor"` in code). UI label is Creation, not Authority.
 
@@ -29,6 +32,9 @@ New Game (biome pick) or Hall seed replay. Eligible for the Hall of Escapes on a
 Validated browser-local identity and campaign progress: name, avatar, first-finished-game state,
 highest unlocked biome rank, and per-biome clears. It is separate from the active run save. The Hall
 of Escapes stays hidden until this profile has reached its first win or loss ending.
+
+**User settings**:
+Browser-local music volume, effects volume, and texture-smoothing preference. Texture smoothing is off by default; audio mute state remains separate.
 
 **Custom run**:
 Custom Run, Forge apply, or Map Tools generation. Fully playable. **Never ranks** — victory shows a practice score only.
@@ -65,6 +71,10 @@ The owner of Play order and live run transitions across the world, run session, 
 
 **Floor exploration**:
 The owner of active and per-floor visited cells, map visibility, floor switching, restoration, and defensive save snapshots.
+It also supplies the explored ratio that tightens first-person fog on unknown space and restores the normal biome fog after enough traversal or an active-floor map reveal.
+
+**Runtime asset boundary**:
+Only deployable assets live under `public/`. Source sheets, raw generations, provenance, and production manifests live under `assets-source/`. Runtime rasters are half-size WebP files tracked by one optimization manifest and checked before deployment.
 
 **Run resume activation plan**:
 The pure projection that maps persisted run state into generation, session, runtime, player, and exploration inputs. Save parsing and effects remain outside it.
