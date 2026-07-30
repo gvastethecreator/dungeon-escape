@@ -14,11 +14,9 @@ export interface RenderCapabilityProfile {
   readonly enableCrtByDefault: boolean;
   /** Cap passed to resolveRenderPixelRatio. */
   readonly pixelRatioCap: number;
-  /** Max wait for compileAsync chain before forcing ready. */
-  readonly compileTimeoutMs: number;
   /**
-   * Skip compileAsync and only draw warmup frames.
-   * Firefox parallel compile is weak; long compile freezes look like a dead tab.
+   * Skip explicit scene shader registration and only draw the warmup frame.
+   * Firefox shader registration can freeze the tab for too long.
    */
   readonly skipShaderPrecompile: boolean;
   /** Soften grain/CRT motion cost when frames already miss budget. */
@@ -34,20 +32,6 @@ export interface RenderCapabilityInput {
   search?: string;
   /** Parsed once by the browser host. Wins over `search` when supplied. */
   overrides?: LaunchRenderOverrides;
-}
-
-/** Serializes renderer work that cannot be cancelled by the browser once started. */
-export class SerialRenderWorkQueue {
-  #tail: Promise<void> = Promise.resolve();
-
-  run<T>(work: () => Promise<T>): Promise<T> {
-    const result = this.#tail.then(work, work);
-    this.#tail = result.then(
-      () => undefined,
-      () => undefined,
-    );
-    return result;
-  }
 }
 
 function readQueryFlag(search: string, key: string): boolean | null {
@@ -112,43 +96,7 @@ export function detectRenderCapabilities(
     preferDefaultGpu: treatAsConstrained && !highQuality,
     enableCrtByDefault: highQuality ? forceCrt !== false : enableCrtByDefault,
     pixelRatioCap: highQuality ? 1.25 : treatAsConstrained ? 1 : 1.25,
-    compileTimeoutMs: highQuality ? 8_000 : isFirefox ? 2_000 : isLowEnd ? 3_000 : 6_000,
     skipShaderPrecompile: highQuality ? false : isFirefox || safeMode,
     adaptiveCrtDisableMs: treatAsConstrained ? 28 : 36,
   };
-}
-
-export async function raceWithTimeout<T>(
-  work: Promise<T>,
-  timeoutMs: number,
-  label = "timeout",
-): Promise<{ ok: true; value: T } | { ok: false; reason: string }> {
-  if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) {
-    try {
-      return { ok: true, value: await work };
-    } catch (error) {
-      return {
-        ok: false,
-        reason: error instanceof Error ? error.message : String(error),
-      };
-    }
-  }
-
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  try {
-    const value = await Promise.race([
-      work,
-      new Promise<never>((_, reject) => {
-        timer = setTimeout(() => reject(new Error(label)), timeoutMs);
-      }),
-    ]);
-    return { ok: true, value };
-  } catch (error) {
-    return {
-      ok: false,
-      reason: error instanceof Error ? error.message : String(error),
-    };
-  } finally {
-    if (timer !== undefined) clearTimeout(timer);
-  }
 }

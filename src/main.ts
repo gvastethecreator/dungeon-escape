@@ -46,11 +46,7 @@ import {
 } from "./systems/HazardFeel";
 import { FrameGapProfiler, type FrameGapSnapshot } from "./systems/FrameGapProfiler";
 import type { BiomeEventSnapshot } from "./systems/BiomeEventDirector";
-import {
-  detectRenderCapabilities,
-  raceWithTimeout,
-  SerialRenderWorkQueue,
-} from "./systems/RenderCapabilities";
+import { detectRenderCapabilities } from "./systems/RenderCapabilities";
 import { collectVisibleRenderInventory } from "./systems/RenderInventory";
 import { resolveRenderPixelRatio } from "./systems/RenderScale";
 import {
@@ -492,7 +488,6 @@ let continueRecoveryOverride: {
 let runHasStarted = false;
 let renderWarmupReady = false;
 let renderWarmupSequence = 0;
-const rendererWarmupQueue = new SerialRenderWorkQueue();
 let lastDebugDraw = 0;
 let regenerateTimer = 0;
 let currentThreatDistance: number | null = null;
@@ -1415,8 +1410,8 @@ function beginRendererWarmup(): number {
   renderWarmupReady = false;
   elements.shell.dataset.rendererReady = "false";
   controller.setEnabled(false);
-  // A superseded compile cannot be cancelled, so its finalizer must not own
-  // the new scene's warmup sentinel. The replacement starts from a clean state.
+  // A queued frame may be superseded before it starts. The replacement owns a
+  // clean sentinel and the stale frame exits on its sequence guard.
   world.setPickupEffectsWarmupVisible(false);
   return renderWarmupSequence;
 }
@@ -1426,91 +1421,57 @@ function startRendererWarmup(sequence: number, readyMessage: string): void {
   window.requestAnimationFrame(() => {
     if (sequence !== renderWarmupSequence) return;
     const startedAt = performance.now();
-    let expired = false;
-    const isCurrent = (): boolean => sequence === renderWarmupSequence && !expired;
-    void (async () => {
-      const timeoutLabel = `renderer-warmup-timeout:${sequence}`;
-      const warmupWork = rendererWarmupQueue.run(async (): Promise<void> => {
-        if (!isCurrent()) return;
-        world.setPickupEffectsWarmupVisible(true);
-        try {
-          // Firefox: skip precompile — long shader work can freeze the tab.
-          if (!renderCaps.skipShaderPrecompile) {
-            // Scene materials can be disposed by a replacement build. Register
-            // them synchronously so Three never polls stale material handles.
-            renderer.compile(scene, camera);
-            povPost.compileScene(renderer, scene, camera);
-            await povPost.compileAsync(renderer);
-            if (!isCurrent()) return;
-          }
-          // One locked-control draw uploads pooled geometry and forces a first
-          // program link on the constrained path without blocking the UI thread
-          // on a full scene compile.
-          povPost.render(renderer, scene, camera);
-        } finally {
-          if (isCurrent()) world.setPickupEffectsWarmupVisible(false);
-        }
-      });
-      try {
-        const raced = await raceWithTimeout(warmupWork, renderCaps.compileTimeoutMs, timeoutLabel);
-        if (!raced.ok) {
-          expired = true;
-          if (sequence === renderWarmupSequence) {
-            world.setPickupEffectsWarmupVisible(false);
-            console.warn("Dungeon renderer warmup timed out or failed", raced.reason);
-            // A rejected compile has settled and can safely fall back to one
-            // draw. A timed-out compile is still running and must stay alone.
-            if (raced.reason !== timeoutLabel) {
-              try {
-                povPost.render(renderer, scene, camera);
-              } catch (drawError) {
-                console.warn("Warmup fallback draw failed", drawError);
-              }
-            }
-          }
-        }
-      } catch (error) {
-        expired = true;
-        throw error;
+    let warmupError: unknown = null;
+    world.setPickupEffectsWarmupVisible(true);
+    try {
+      // Firefox and safe mode skip explicit scene registration. The warmup draw
+      // still links only the live scene and stable post-FX materials.
+      if (!renderCaps.skipShaderPrecompile) {
+        // Three's async compiler polls WebGLProgram objects after returning.
+        // A replacement can dispose those programs, so replaceable world work
+        // must remain synchronous on the browser's single renderer thread.
+        renderer.compile(scene, camera);
+        povPost.compileScene(renderer, scene, camera);
       }
-    })()
-      .then(() => {
-        if (sequence !== renderWarmupSequence) return;
-        renderWarmupReady = true;
-        elements.shell.dataset.rendererReady = "true";
-        elements.shell.dataset.renderPath = renderCaps.isFirefox
-          ? "firefox"
-          : renderCaps.isLowEnd
-            ? "low-end"
-            : renderCaps.skipShaderPrecompile
-              ? "safe"
-              : "default";
-        controller.setEnabled(canEnablePlayController());
-        const readyMs = Math.round(performance.now() - startedAt);
-        if (localDevTools) {
-          setStatus(`${readyMessage} Renderer ready in ${readyMs}ms.`);
-        } else if (engineMode === "play") {
-          setStatus(COPY.status.enterPlay);
-        } else {
-          setStatus(readyMessage);
-        }
-      })
-      .catch((error: unknown) => {
-        if (sequence !== renderWarmupSequence) return;
-        // Never leave play locked if warmup throws — first frames compile lazily.
-        renderWarmupReady = true;
-        elements.shell.dataset.rendererReady = "error";
-        controller.setEnabled(canEnablePlayController());
-        const detail = error instanceof Error ? error.message : "unknown error";
-        console.error("Dungeon renderer warmup failed", error);
-        if (localDevTools) {
-          setStatus(`${readyMessage} Renderer warmup failed: ${detail}.`);
-        } else if (engineMode === "play") {
-          setStatus(COPY.status.enterPlay);
-        } else {
-          setStatus(readyMessage);
-        }
-      });
+      povPost.render(renderer, scene, camera);
+    } catch (error) {
+      warmupError = error;
+    } finally {
+      world.setPickupEffectsWarmupVisible(false);
+    }
+
+    if (sequence !== renderWarmupSequence) return;
+    renderWarmupReady = true;
+    elements.shell.dataset.rendererReady = warmupError === null ? "true" : "error";
+    controller.setEnabled(canEnablePlayController());
+    if (warmupError !== null) {
+      const detail = warmupError instanceof Error ? warmupError.message : "unknown error";
+      console.error("Dungeon renderer warmup failed", warmupError);
+      if (localDevTools) {
+        setStatus(`${readyMessage} Renderer warmup failed: ${detail}.`);
+      } else if (engineMode === "play") {
+        setStatus(COPY.status.enterPlay);
+      } else {
+        setStatus(readyMessage);
+      }
+      return;
+    }
+
+    elements.shell.dataset.renderPath = renderCaps.isFirefox
+      ? "firefox"
+      : renderCaps.isLowEnd
+        ? "low-end"
+        : renderCaps.skipShaderPrecompile
+          ? "safe"
+          : "default";
+    const readyMs = Math.round(performance.now() - startedAt);
+    if (localDevTools) {
+      setStatus(`${readyMessage} Renderer ready in ${readyMs}ms.`);
+    } else if (engineMode === "play") {
+      setStatus(COPY.status.enterPlay);
+    } else {
+      setStatus(readyMessage);
+    }
   });
 }
 
