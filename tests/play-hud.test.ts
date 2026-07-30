@@ -68,19 +68,21 @@ describe("Play HUD structure (Ash Binding)", () => {
     expect(COPY.pickup.small).toBe("BOUND");
     expect(COPY.pickup.flask).toBe("HEALTH RESTORED");
     expect(COPY.pickup.timeFreeze).toBe("TIME FROZEN");
-    expect(COPY.status.timeFreeze).toContain("20 seconds");
+    expect(COPY.status.timeFreeze).toContain("10 seconds");
     expect(COPY.pickup.luminousWard).toBe("WARD STONE");
-    expect(COPY.status.luminousWard).toContain("30 seconds");
+    expect(COPY.status.luminousWard).toContain("15 seconds");
     expect(COPY.pickup.annihilationPulse).toBe("PULSE RELIC");
-    expect(COPY.status.annihilationPulse).toContain("26 seconds");
+    expect(COPY.status.annihilationPulse).toContain("13 seconds");
     expect(COPY.end.loseTitle).toBe("You Died");
     expect(COPY.end.winTitle).toBe("You escaped the dungeon");
     expect(COPY.status.won).toBe("You escaped the dungeon");
     expect(COPY.end.winLead).toBe("All four stones are bound. The exit is open.");
     expect(COPY.end.retry).toBe("Try again");
     expect(COPY.end.newDungeon).toBe("New dungeon");
-    expect(COPY.hud.musicOn).toBe("MUSIC ON");
-    expect(COPY.hud.musicOff).toBe("MUSIC OFF");
+    expect(COPY.hud.musicOn).toBe("ON");
+    expect(COPY.hud.musicOff).toBe("OFF");
+    expect(COPY.hud.audioOn).toBe("ON");
+    expect(COPY.hud.crtOn).toBe("ON");
   });
 
   test("death offers the same layout and a new dungeon as separate actions", async () => {
@@ -227,7 +229,7 @@ describe("Play HUD structure (Ash Binding)", () => {
     expect(source).toContain('window.addEventListener("pagehide", flushLocalRunSave);');
   });
 
-  test("pause menu exposes restart map and back to main screen", async () => {
+  test("pause menu puts resume first and keeps restart secondary", async () => {
     const [host, source, css, editorCss, copySource] = await Promise.all([
       Bun.file(new URL("../index.html", import.meta.url)).text(),
       Bun.file(new URL("../src/main.ts", import.meta.url)).text(),
@@ -240,24 +242,38 @@ describe("Play HUD structure (Ash Binding)", () => {
     const sessionIndex = host.indexOf('class="options-session"');
     const modeIndex = host.indexOf('class="mode-switcher"');
     const fxIndex = host.indexOf('class="options-fx"');
+    const homeIndex = host.indexOf('id="options-home"');
+    const restartIndex = host.indexOf('id="options-restart"');
 
     expect(session).toContain('id="options-restart"');
     expect(session).toContain("RESTART MAP");
     expect(session).toContain('id="options-home"');
-    expect(session).toContain("BACK TO MAIN SCREEN");
+    expect(session).toContain("MAIN MENU");
     expect(resumeIndex).toBeGreaterThan(-1);
-    expect(sessionIndex).toBeGreaterThan(resumeIndex);
+    // DOM order for play: resume → settings → session exits (home, then restart).
+    expect(fxIndex).toBeGreaterThan(resumeIndex);
+    expect(sessionIndex).toBeGreaterThan(fxIndex);
+    expect(homeIndex).toBeGreaterThan(sessionIndex);
+    expect(restartIndex).toBeGreaterThan(homeIndex);
     expect(modeIndex).toBeGreaterThan(-1);
-    expect(sessionIndex).toBeGreaterThan(modeIndex);
-    expect(fxIndex).toBeGreaterThan(sessionIndex);
 
     expect(css).toContain(".app-shell[data-engine-mode=\"play\"] .options-session");
     expect(css).toMatch(
-      /\.app-shell\[data-engine-mode="play"\] \.options-session\s*\{[^}]*order:\s*1;/s,
+      /\.app-shell\[data-engine-mode="play"\] #options-resume\s*\{[^}]*order:\s*1;/s,
     );
     expect(css).toMatch(
-      /\.app-shell\[data-engine-mode="play"\] \.mode-switcher\s*\{[^}]*order:\s*3;/s,
+      /\.app-shell\[data-engine-mode="play"\] \.options-fx\s*\{[^}]*order:\s*2;/s,
     );
+    expect(css).toMatch(
+      /\.app-shell\[data-engine-mode="play"\] \.options-session\s*\{[^}]*order:\s*3;/s,
+    );
+    expect(css).toContain(
+      '.app-shell[data-local-dev-tools="false"][data-engine-mode="play"] .mode-switcher',
+    );
+    expect(css).toContain(
+      '.app-shell[data-local-dev-tools="false"][data-engine-mode="play"] .options-status',
+    );
+    expect(css).toContain(".options-toggle");
     expect(editorCss).toContain(".options-session");
     expect(editorCss).toMatch(
       /\.app-shell\[data-engine-mode="editor"\] \.options-session[\s\S]*display:\s*none !important;/s,
@@ -267,11 +283,13 @@ describe("Play HUD structure (Ash Binding)", () => {
     expect(source).toContain("function returnToMainScreen(): void");
     expect(source).toContain('elements.optionsRestart.addEventListener("click"');
     expect(source).toContain('elements.optionsHome.addEventListener("click"');
+    expect(source).toContain("isPlayerFacingStatus");
     expect(source).toContain("COPY.pause.restarted");
     expect(source).toContain("COPY.pause.returnedHome");
     expect(source).toContain("flushLocalRunSave()");
     expect(source).toContain("setWelcomeOpen(true)");
     expect(copySource).toContain('restartMap: "RESTART MAP"');
-    expect(copySource).toContain('backToMain: "BACK TO MAIN SCREEN"');
+    expect(copySource).toContain('backToMain: "MAIN MENU"');
+    expect(copySource).toContain("generationPlayer");
   });
 });

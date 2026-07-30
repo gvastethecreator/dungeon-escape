@@ -260,16 +260,18 @@ describe("StaticDungeonScene", () => {
       );
       expect(staticScene.stats).toMatchObject({
         floorTiles: 564,
-        wallTiles: 474,
+        wallTiles: 459,
         ceilingTiles: 564,
         hazardTiles: 4,
-        pickups: 10,
-        beams: 5,
+        pickups: 12,
+        beams: 7,
         lights: 12,
-        props: 186,
+        props: 188,
       });
-      expect(classic.solidCells.size).toBe(20);
-      expect(classic.solidColliders).toHaveLength(20);
+      expect(classic.ambientBeams).toHaveLength(2);
+      expect(group.getObjectByName("Ambient godray 1")).toBeDefined();
+      expect(classic.solidCells.size).toBe(22);
+      expect(classic.solidColliders).toHaveLength(22);
       expect(group.getObjectByName("Escape portal gate")).toBeDefined();
       expect(group.getObjectByName("Portal aperture trim")).toBeDefined();
       expect(group.getObjectByName(MAGIC_PORTAL_NAMES.vortex)).toBeDefined();
@@ -289,6 +291,7 @@ describe("StaticDungeonScene", () => {
       expect(classic.solidColliders).toHaveLength(0);
       expect(classic.hazardTiles).toBeNull();
       expect(classic.liquidKit).toBeNull();
+      expect(classic.ambientBeams).toHaveLength(0);
       expect(group.children).toEqual([sentinel]);
       staticScene.clear();
       expect(group.children).toEqual([sentinel]);
@@ -309,13 +312,13 @@ describe("StaticDungeonScene", () => {
         wallTiles: 239,
         ceilingTiles: 584,
         hazardTiles: 4,
-        pickups: 11,
-        beams: 5,
+        pickups: 13,
+        beams: 7,
         lights: 13,
-        props: 170,
+        props: 172,
       });
-      expect(backrooms.solidCells.size).toBe(40);
-      expect(backrooms.solidColliders).toHaveLength(40);
+      expect(backrooms.solidCells.size).toBe(42);
+      expect(backrooms.solidColliders).toHaveLength(42);
       expect(backrooms.stonePlacements.map((placement) => placement.stoneId)).toEqual([
         ...STONE_ORDER,
       ]);
@@ -383,17 +386,18 @@ describe("StaticDungeonScene", () => {
 
       expect(world.stats).toMatchObject({
         floorTiles: 564,
-        wallTiles: 474,
+        wallTiles: 459,
         ceilingTiles: 564,
         enemies: 8,
         hazardTiles: 4,
-        pickups: 10,
-        beams: 5,
+        pickups: 12,
+        beams: 7,
         lights: 14,
-        props: 186,
+        props: 188,
+        reserveEnemies: 18,
       });
-      expect(world.getSolidCells()).toHaveLength(20);
-      expect(world.getSolidColliders()).toHaveLength(20);
+      expect(world.getSolidCells()).toHaveLength(22);
+      expect(world.getSolidColliders()).toHaveLength(22);
     } finally {
       world.dispose();
       restoreDocument();

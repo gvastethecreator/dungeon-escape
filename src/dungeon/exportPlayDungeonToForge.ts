@@ -23,6 +23,8 @@ export interface ForgePresentationPayload {
     id: number;
     cx: number;
     cy: number;
+    sx0: number;
+    sy0: number;
     w: number;
     h: number;
     arch: "s" | "m" | "l";
@@ -127,31 +129,60 @@ export function exportPlayDungeonToForgePresentation(
   for (let index = 0; index < cellCount; index += 1) {
     if (grid[index] === FORGE_FLOOR && roomId[index] === -1) corridor[index] = 1;
   }
+  for (const opening of dungeon.topology?.doorways ?? []) {
+    const index = opening.outside.y * W + opening.outside.x;
+    if (index >= 0 && index < cellCount && corridor[index]) doorway[index] = 1;
+  }
 
-  const maxBfs = Math.max(0, dungeon.stats.exitDistance | 0);
+  const maxBfs = bfs.reduce((maximum, distance) => Math.max(maximum, distance), 0);
   const degree = new Map<number, number>();
+  const adjacency = new Map<number, number[]>(
+    dungeon.rooms.map((room) => [room.id, []] as const),
+  );
   for (const edge of dungeon.edges) {
     degree.set(edge.left, (degree.get(edge.left) ?? 0) + 1);
     degree.set(edge.right, (degree.get(edge.right) ?? 0) + 1);
+    adjacency.get(edge.left)?.push(edge.right);
+    adjacency.get(edge.right)?.push(edge.left);
   }
 
+  const roomDepth = new Map<number, number>([[dungeon.entranceRoomId, 0]]);
+  const roomQueue = [dungeon.entranceRoomId];
+  for (let head = 0; head < roomQueue.length; head += 1) {
+    const roomId = roomQueue[head]!;
+    const nextDepth = roomDepth.get(roomId)! + 1;
+    for (const neighborId of adjacency.get(roomId) ?? []) {
+      if (roomDepth.has(neighborId)) continue;
+      roomDepth.set(neighborId, nextDepth);
+      roomQueue.push(neighborId);
+    }
+  }
+  const maxDepth = Math.max(0, ...roomDepth.values());
+
+  const entranceRoom =
+    dungeon.rooms.find((room) => room.id === dungeon.entranceRoomId) ?? dungeon.rooms[0];
+  const revealOrigin = entranceRoom?.center ?? dungeon.spawn;
+  const revealSpread = 0.18;
+
   const rooms = dungeon.rooms.map((room) => {
-    const centerDist = dungeon.distances[room.center.y * W + room.center.x] ?? 0;
     const area = room.width * room.height;
     const arch: "s" | "m" | "l" = area <= 30 ? "s" : area <= 64 ? "m" : "l";
     const type =
       room.role === "entrance" ? ("entrance" as const) : room.role === "exit" ? ("boss" as const) : ("combat" as const);
+    const depth = roomDepth.get(room.id) ?? 0;
     return {
       id: room.id,
       cx: room.center.x,
       cy: room.center.y,
+      sx0: revealOrigin.x + (room.center.x - revealOrigin.x) * revealSpread,
+      sy0: revealOrigin.y + (room.center.y - revealOrigin.y) * revealSpread,
       w: room.width,
       h: room.height,
       arch,
       shape: "rect" as const,
       type,
-      depth: Math.max(0, centerDist),
-      difficulty: maxBfs > 0 ? Math.min(1, Math.max(0, centerDist / maxBfs)) : 0.5,
+      depth,
+      difficulty: maxDepth > 0 ? Math.min(1, Math.max(0, depth / maxDepth)) : 0.5,
       degree: degree.get(room.id) ?? 0,
     };
   });
@@ -166,6 +197,8 @@ export function exportPlayDungeonToForgePresentation(
       id,
       cx: 0,
       cy: 0,
+      sx0: 0,
+      sy0: 0,
       w: 1,
       h: 1,
       arch: "s" as const,
@@ -189,7 +222,7 @@ export function exportPlayDungeonToForgePresentation(
     doorway,
     bfs,
     maxBfs,
-    maxDepth: maxBfs,
+    maxDepth,
     rooms: denseRooms,
     edges: dungeon.edges.map((edge) => ({
       a: edge.left,

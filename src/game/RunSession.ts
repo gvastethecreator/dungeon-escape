@@ -11,6 +11,8 @@ export interface SessionWorldUpdate {
     | "time-freeze"
     | "luminous-ward"
     | "annihilation-pulse"
+    | "map"
+    | "mobility"
     | null;
   collectedStoneId: StoneId | null;
   /** All IDs collected in one world update. Older adapters may omit this. */
@@ -51,6 +53,8 @@ export interface RunSessionEffects {
     timeFreeze?: boolean;
     luminousWard?: boolean;
     annihilationPulse?: boolean;
+    mapReveal?: boolean;
+    mobilityBoost?: boolean;
   };
   endOverlay?: "dead" | "won";
   flash?: "event" | "damage";
@@ -174,6 +178,22 @@ export function applyWorldUpdate(
     effects.pickup = { label: COPY.pickup.annihilationPulse, annihilationPulse: true };
     effects.playPickup = true;
     effects.flash = "event";
+  }
+
+  if (update.collectedPickupKind === "map") {
+    effects.status = COPY.status.map;
+    effects.pickup = { label: COPY.pickup.map, mapReveal: true };
+    effects.playPickup = true;
+    effects.flash = "event";
+    effects.sessionChanged = true;
+  }
+
+  if (update.collectedPickupKind === "mobility") {
+    effects.status = COPY.status.mobility;
+    effects.pickup = { label: COPY.pickup.mobility, mobilityBoost: true };
+    effects.playPickup = true;
+    effects.flash = "event";
+    effects.sessionChanged = true;
   }
 
   if (update.resolveGain > 0) {

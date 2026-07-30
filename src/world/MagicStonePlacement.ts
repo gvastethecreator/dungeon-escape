@@ -11,6 +11,11 @@ export interface MagicStonePlacement {
   offsetZ: number;
 }
 
+/** Preferred Chebyshev gap between stones (cell centers must not share a 3×3). */
+const PREFERRED_STONE_SPACING = 2;
+/** Absolute minimum: distinct cells only (still playable, better than softlock). */
+const MINIMUM_STONE_SPACING = 1;
+
 function roomDistance(dungeon: DungeonData, room: DungeonRoom): number {
   return dungeon.distances[room.center.y * dungeon.width + room.center.x] ?? -1;
 }
@@ -47,16 +52,42 @@ function hasObjectiveClearance(dungeon: DungeonData, room: DungeonRoom, cell: Gr
   return true;
 }
 
-function selectStoneCell(dungeon: DungeonData, room: DungeonRoom, stoneIndex: number): GridCell {
+function selectStoneCell(
+  dungeon: DungeonData,
+  room: DungeonRoom,
+  stoneIndex: number,
+  used: ReadonlySet<string>,
+): GridCell | null {
   const candidates: GridCell[] = [];
   for (let y = room.y + 1; y < room.y + room.height - 1; y += 1) {
     for (let x = room.x + 1; x < room.x + room.width - 1; x += 1) {
       const cell = { x, y };
-      if (dungeon.grid[y]?.[x] !== FLOOR || isAuthoredCellOccupied(dungeon, cell)) continue;
+      if (
+        used.has(cellKey(cell)) ||
+        dungeon.grid[y]?.[x] !== FLOOR ||
+        isAuthoredCellOccupied(dungeon, cell) ||
+        !isReachableObjectiveCell(dungeon, cell)
+      )
+        continue;
       candidates.push(cell);
     }
   }
-  if (candidates.length === 0) return { ...room.center };
+  if (candidates.length === 0) {
+    for (let y = room.y; y < room.y + room.height; y += 1) {
+      for (let x = room.x; x < room.x + room.width; x += 1) {
+        const cell = { x, y };
+        if (
+          used.has(cellKey(cell)) ||
+          dungeon.grid[y]?.[x] !== FLOOR ||
+          isAuthoredCellOccupied(dungeon, cell) ||
+          !isReachableObjectiveCell(dungeon, cell)
+        )
+          continue;
+        candidates.push(cell);
+      }
+    }
+  }
+  if (candidates.length === 0) return null;
   const clearCandidates = candidates.filter((cell) => hasObjectiveClearance(dungeon, room, cell));
   const ranked = clearCandidates.length > 0 ? clearCandidates : candidates;
   ranked.sort((left, right) => {
@@ -66,7 +97,7 @@ function selectStoneCell(dungeon: DungeonData, room: DungeonRoom, stoneIndex: nu
     const rightRank = (right.x * 31 + right.y * 17 + room.id * 13 + stoneIndex * 47) % 997;
     return leftDistance - rightDistance || leftRank - rightRank;
   });
-  return ranked[0]!;
+  return ranked[0] ?? null;
 }
 
 function stoneOffset(roomId: number, stoneIndex: number): number {
@@ -83,6 +114,13 @@ function roomContains(room: DungeonRoom, cell: GridCell): boolean {
     cell.y >= room.y &&
     cell.x < room.x + room.width &&
     cell.y < room.y + room.height
+  );
+}
+
+function roomAt(dungeon: DungeonData, cell: GridCell): DungeonRoom | undefined {
+  return (
+    dungeon.rooms.find((room) => roomContains(room, cell) && room.role === "room") ??
+    dungeon.rooms.find((room) => roomContains(room, cell))
   );
 }
 
@@ -135,32 +173,58 @@ function isReachableObjectiveCell(dungeon: DungeonData, cell: GridCell): boolean
   return objectiveDistance(dungeon, cell) >= 0;
 }
 
+function chebyshev(left: GridCell, right: GridCell): number {
+  return Math.max(Math.abs(left.x - right.x), Math.abs(left.y - right.y));
+}
+
 function isSpacedFromPlacements(
   cell: GridCell,
   placements: readonly MagicStonePlacement[],
+  minDistance = PREFERRED_STONE_SPACING,
 ): boolean {
-  return placements.every(
-    (placement) =>
-      Math.max(Math.abs(placement.cell.x - cell.x), Math.abs(placement.cell.y - cell.y)) > 1,
-  );
+  return placements.every((placement) => chebyshev(placement.cell, cell) >= minDistance);
 }
 
+function makePlacement(
+  stoneId: StoneId,
+  stoneIndex: number,
+  room: DungeonRoom,
+  cell: GridCell,
+): MagicStonePlacement {
+  const offsetX = stoneOffset(room.id, stoneIndex);
+  return {
+    stoneId,
+    room,
+    cell: { ...cell },
+    offsetX,
+    offsetZ: -offsetX * 0.6,
+  };
+}
+
+/**
+ * Progressive search for one stone seat.
+ * Prefer spaced room interiors with clearance; never leave a stone unplaced while
+ * any free reachable floor remains (corridors and entrance/exit rooms included).
+ */
 function fallbackStonePlacement(
   dungeon: DungeonData,
   stoneId: StoneId,
   stoneIndex: number,
   placed: readonly MagicStonePlacement[],
+  minSpacing: number,
+  allowOccupiedAuthored: boolean,
 ): MagicStonePlacement | null {
   const traversalDistances = objectiveDistances(dungeon);
   const exitDistance = objectiveDistance(dungeon, dungeon.exit);
   const targetDistance = Math.max(1, exitDistance) * [0.28, 0.48, 0.68, 0.88][stoneIndex]!;
+  const used = new Set(placed.map((placement) => cellKey(placement.cell)));
   const rankedRooms = [...dungeon.rooms].sort((left, right) => {
     const leftRole = left.role === "room" ? 0 : 1;
     const rightRole = right.role === "room" ? 0 : 1;
     return leftRole - rightRole || roomDistance(dungeon, left) - roomDistance(dungeon, right);
   });
-  const used = new Set(placed.map((placement) => cellKey(placement.cell)));
-  const candidates: Array<{
+
+  type Candidate = {
     room: DungeonRoom;
     cell: GridCell;
     rolePenalty: number;
@@ -168,28 +232,42 @@ function fallbackStonePlacement(
     spacingPenalty: number;
     distanceError: number;
     tieBreak: number;
-  }> = [];
+  };
+  const candidates: Candidate[] = [];
+
+  const pushCell = (room: DungeonRoom, cell: GridCell): void => {
+    if (used.has(cellKey(cell)) || !isReachableObjectiveCell(dungeon, cell)) return;
+    if (!allowOccupiedAuthored && isAuthoredCellOccupied(dungeon, cell)) return;
+    if (!isSpacedFromPlacements(cell, placed, minSpacing)) return;
+    const distance = traversalDistances[cell.y * dungeon.width + cell.x] ?? -1;
+    candidates.push({
+      room,
+      cell,
+      rolePenalty: room.role === "room" ? 0 : 1,
+      clearancePenalty: hasObjectiveClearance(dungeon, room, cell) ? 0 : 1,
+      spacingPenalty: isSpacedFromPlacements(cell, placed, PREFERRED_STONE_SPACING) ? 0 : 1,
+      distanceError: Math.abs(distance - targetDistance),
+      tieBreak: (cell.x * 31 + cell.y * 17 + room.id * 13 + stoneIndex * 47) % 997,
+    });
+  };
 
   for (const room of rankedRooms) {
     for (let y = room.y; y < room.y + room.height; y += 1) {
       for (let x = room.x; x < room.x + room.width; x += 1) {
+        pushCell(room, { x, y });
+      }
+    }
+  }
+
+  // Global floor scan: pure corridor tiles are valid last seats (beats softlock).
+  if (candidates.length === 0) {
+    for (let y = 0; y < dungeon.height; y += 1) {
+      for (let x = 0; x < dungeon.width; x += 1) {
+        if (dungeon.grid[y]?.[x] !== FLOOR) continue;
         const cell = { x, y };
-        if (
-          used.has(cellKey(cell)) ||
-          !isReachableObjectiveCell(dungeon, cell) ||
-          isAuthoredCellOccupied(dungeon, cell)
-        )
-          continue;
-        const distance = traversalDistances[y * dungeon.width + x] ?? -1;
-        candidates.push({
-          room,
-          cell,
-          rolePenalty: room.role === "room" ? 0 : 1,
-          clearancePenalty: hasObjectiveClearance(dungeon, room, cell) ? 0 : 1,
-          spacingPenalty: isSpacedFromPlacements(cell, placed) ? 0 : 1,
-          distanceError: Math.abs(distance - targetDistance),
-          tieBreak: (x * 31 + y * 17 + room.id * 13 + stoneIndex * 47) % 997,
-        });
+        const room = roomAt(dungeon, cell) ?? rankedRooms[0];
+        if (!room) continue;
+        pushCell(room, cell);
       }
     }
   }
@@ -204,14 +282,52 @@ function fallbackStonePlacement(
   );
   const selected = candidates[0];
   if (!selected) return null;
-  const offsetX = stoneOffset(selected.room.id, stoneIndex);
-  return {
-    stoneId,
-    room: selected.room,
-    cell: selected.cell,
-    offsetX,
-    offsetZ: -offsetX * 0.6,
-  };
+  return makePlacement(stoneId, stoneIndex, selected.room, selected.cell);
+}
+
+function placeOneStone(
+  dungeon: DungeonData,
+  stoneId: StoneId,
+  stoneIndex: number,
+  placed: readonly MagicStonePlacement[],
+  preferred: MagicStonePlacement | undefined,
+): MagicStonePlacement {
+  const preferredRoom = preferred
+    ? dungeon.rooms.find(
+        (room) => room.id === preferred.room.id && roomContains(room, preferred.cell),
+      )
+    : undefined;
+  const preferredValid =
+    preferred &&
+    preferredRoom &&
+    isReachableObjectiveCell(dungeon, preferred.cell) &&
+    !isAuthoredCellOccupied(dungeon, preferred.cell) &&
+    isSpacedFromPlacements(preferred.cell, placed, PREFERRED_STONE_SPACING);
+  if (preferredValid && preferredRoom) {
+    return makePlacement(stoneId, stoneIndex, preferredRoom, preferred.cell);
+  }
+
+  const attempts: Array<{ spacing: number; allowOccupied: boolean }> = [
+    { spacing: PREFERRED_STONE_SPACING, allowOccupied: false },
+    { spacing: MINIMUM_STONE_SPACING, allowOccupied: false },
+    { spacing: PREFERRED_STONE_SPACING, allowOccupied: true },
+    { spacing: MINIMUM_STONE_SPACING, allowOccupied: true },
+  ];
+  for (const attempt of attempts) {
+    const seat = fallbackStonePlacement(
+      dungeon,
+      stoneId,
+      stoneIndex,
+      placed,
+      attempt.spacing,
+      attempt.allowOccupied,
+    );
+    if (seat) return seat;
+  }
+
+  throw new Error(
+    `Dungeon completeness failed: cannot place magic stone "${stoneId}" (${stoneIndex + 1}/${STONE_ORDER.length}) on a reachable floor cell.`,
+  );
 }
 
 /** Repairs missing, duplicate, blocked, or unreachable placements before Play starts. */
@@ -222,34 +338,16 @@ function finalizeMagicStonePlacements(
   const byId = new Map(candidates.map((placement) => [placement.stoneId, placement]));
   const placed: MagicStonePlacement[] = [];
   for (const [stoneIndex, stoneId] of STONE_ORDER.entries()) {
-    const candidate = byId.get(stoneId);
-    const candidateRoom = candidate
-      ? dungeon.rooms.find(
-          (room) => room.id === candidate.room.id && roomContains(room, candidate.cell),
-        )
-      : undefined;
-    const candidateValid =
-      candidate &&
-      candidateRoom &&
-      isReachableObjectiveCell(dungeon, candidate.cell) &&
-      !isAuthoredCellOccupied(dungeon, candidate.cell) &&
-      isSpacedFromPlacements(candidate.cell, placed);
-    if (candidateValid) {
-      placed.push({ ...candidate, room: candidateRoom });
-      continue;
-    }
-    const fallback = fallbackStonePlacement(dungeon, stoneId, stoneIndex, placed);
-    if (!fallback) {
-      // Small editor projections may intentionally omit playable traversal space.
-      // StaticDungeonScene validates this result before Play and rejects any map
-      // that cannot materialize all four distinct reachable objective stones.
-      return [...candidates];
-    }
-    placed.push(fallback);
+    placed.push(placeOneStone(dungeon, stoneId, stoneIndex, placed, byId.get(stoneId)));
   }
   return placed;
 }
 
+/**
+ * Play contract: four ordered stones on distinct reachable floor cells, never
+ * on spawn/exit. Spacing is preferred at placement time; adjacent seats still
+ * count so small maps never softlock.
+ */
 export function hasValidMagicStonePlacementContract(
   dungeon: DungeonData,
   placements: readonly MagicStonePlacement[],
@@ -258,17 +356,19 @@ export function hasValidMagicStonePlacementContract(
   if (placements.some((placement, index) => placement.stoneId !== STONE_ORDER[index])) return false;
   const cells = new Set<string>();
   for (const placement of placements) {
+    // Authored props may share a cell only as a last-resort seat; reachability
+    // and uniqueness are the hard completeness rules that prevent softlocks.
     if (!isReachableObjectiveCell(dungeon, placement.cell)) return false;
-    if (
-      !isSpacedFromPlacements(
-        placement.cell,
-        placements.filter((other) => other !== placement),
-      )
-    )
-      return false;
     cells.add(cellKey(placement.cell));
   }
   return cells.size === STONE_ORDER.length;
+}
+
+/** True when the exit portal seat is a reachable floor cell from spawn. */
+export function hasValidPortalPlacementContract(dungeon: DungeonData): boolean {
+  if (dungeon.grid[dungeon.exit.y]?.[dungeon.exit.x] !== FLOOR) return false;
+  if (dungeon.exit.x === dungeon.spawn.x && dungeon.exit.y === dungeon.spawn.y) return false;
+  return objectiveDistance(dungeon, dungeon.exit) >= 0;
 }
 
 /** Floor cells reserved around the four objective stones for access and clear staging. */
@@ -294,6 +394,7 @@ export function magicStoneClearanceCells(
 /**
  * Shared objective placement contract. Editor and runtime consume this exact
  * ordered result so the four map diamonds point to the rooms used in play.
+ * Always returns four distinct reachable seats or throws.
  */
 export function selectMagicStonePlacements(dungeon: DungeonData): MagicStonePlacement[] {
   if (dungeon.forge) {
@@ -318,48 +419,44 @@ export function selectMagicStonePlacements(dungeon: DungeonData): MagicStonePlac
     const placements = forgePlacements.flatMap((placement, index) => {
       const room = roomById.get(placement.roomId);
       if (!room) return [];
-      const offsetX = stoneOffset(room.id, index);
-      return [
-        {
-          stoneId: placement.stoneId,
-          room,
-          cell: { x: placement.x, y: placement.y },
-          offsetX,
-          offsetZ: -offsetX * 0.6,
-        },
-      ];
+      return [makePlacement(placement.stoneId, index, room, { x: placement.x, y: placement.y })];
     });
     return finalizeMagicStonePlacements(dungeon, placements);
   }
+
   const rankedRooms = dungeon.rooms
     .filter((room) => room.role === "room")
     .sort((left, right) => roomDistance(dungeon, left) - roomDistance(dungeon, right));
-  if (rankedRooms.length === 0) return finalizeMagicStonePlacements(dungeon, []);
+  // Prefer regular rooms; fall back to entrance/exit seats when the map is tiny.
+  const roomPool =
+    rankedRooms.length > 0
+      ? rankedRooms
+      : [...dungeon.rooms].sort(
+          (left, right) => roomDistance(dungeon, left) - roomDistance(dungeon, right),
+        );
+  if (roomPool.length === 0) return finalizeMagicStonePlacements(dungeon, []);
 
   const selected: DungeonRoom[] = [];
   const percentileIndices = [0.28, 0.48, 0.68, 0.88].map((percentile) =>
-    Math.min(rankedRooms.length - 1, Math.max(0, Math.floor(rankedRooms.length * percentile))),
+    Math.min(roomPool.length - 1, Math.max(0, Math.floor(roomPool.length * percentile))),
   );
   for (const index of percentileIndices) {
-    const room = rankedRooms[index];
+    const room = roomPool[index];
     if (room && !selected.includes(room)) selected.push(room);
   }
-  for (const room of rankedRooms) {
+  for (const room of roomPool) {
     if (!selected.includes(room)) selected.push(room);
     if (selected.length >= STONE_ORDER.length) break;
   }
 
-  const placements = STONE_ORDER.map((stoneId, index) => {
-    const room = selected[index] ?? rankedRooms[index % rankedRooms.length]!;
-    const cell = selectStoneCell(dungeon, room, index);
-    const offsetX = stoneOffset(room.id, index);
-    return {
-      stoneId,
-      room,
-      cell,
-      offsetX,
-      offsetZ: -offsetX * 0.6,
-    };
-  });
+  const used = new Set<string>();
+  const placements: MagicStonePlacement[] = [];
+  for (const [index, stoneId] of STONE_ORDER.entries()) {
+    const room = selected[index] ?? roomPool[index % roomPool.length]!;
+    const cell = selectStoneCell(dungeon, room, index, used);
+    if (!cell) continue;
+    used.add(cellKey(cell));
+    placements.push(makePlacement(stoneId, index, room, cell));
+  }
   return finalizeMagicStonePlacements(dungeon, placements);
 }

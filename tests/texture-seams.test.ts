@@ -4,12 +4,20 @@ import * as THREE from "three";
 import { FLOOR, generateDungeon, WALL } from "../src/dungeon/generateDungeon";
 import {
   edgeBlendSeamlessRgba,
+  DUNGEON_SURFACE_WORLD_UV_SCALE,
+  enableDungeonSurfaceShader,
   liftTextureLuminanceRgba,
   liftTextureRoughnessRgba,
   normalMapRgbaFromAlbedo,
   registerTextureSource,
   textureEdgeMismatchRgba,
 } from "../src/world/TextureTreatment";
+import {
+  DUNGEON_SURFACE_TILE_SCALE,
+  dungeonCeilingUvOffset,
+  dungeonFloorUvOffset,
+  dungeonWallUvOffset,
+} from "../src/world/StaticDungeonScene";
 
 describe("texture seam treatment", () => {
   test("edge-blend forces opposite borders toward the same colors", () => {
@@ -107,6 +115,39 @@ describe("texture seam treatment", () => {
     }
     // Real dungeons always have exposed masonry; faces >> room count.
     expect(faceCount).toBeGreaterThan(dungeon.rooms.length * 4);
+  });
+
+  test("surface shader varies continuously instead of tinting whole grid cells", () => {
+    const material = new THREE.MeshStandardMaterial();
+    enableDungeonSurfaceShader(material);
+    const shader = {
+      vertexShader:
+        "#include <common>\n#include <beginnormal_vertex>\n#include <begin_vertex>\n#include <uv_vertex>",
+      fragmentShader: "#include <common>\n#include <map_fragment>",
+      uniforms: {},
+    };
+    material.onBeforeCompile(
+      shader as unknown as THREE.WebGLProgramParametersWithUniforms,
+      {} as THREE.WebGLRenderer,
+    );
+
+    expect(shader.fragmentShader).toContain("bfFbm");
+    expect(shader.fragmentShader).not.toContain("bfCellId");
+    expect(shader.vertexShader).toContain(`* ${DUNGEON_SURFACE_WORLD_UV_SCALE.toFixed(2)}`);
+    expect(material.customProgramCacheKey()).toBe("dungeon-surface-v4");
+  });
+
+  test("coplanar dungeon faces meet without z-fighting overlap", () => {
+    expect(DUNGEON_SURFACE_TILE_SCALE).toBe(1);
+  });
+
+  test("floor, ceiling, and rotated wall offsets stay continuous in world space", () => {
+    expect(dungeonFloorUvOffset({ x: 4, y: 7 })).toEqual([4, -7]);
+    expect(dungeonCeilingUvOffset({ x: 4, y: 7 })).toEqual([4, 7]);
+    expect(dungeonWallUvOffset({ x: 4, y: 7 }, 0, 1)).toEqual([4, 0]);
+    expect(dungeonWallUvOffset({ x: 4, y: 7 }, 0, -1)).toEqual([-4, 0]);
+    expect(dungeonWallUvOffset({ x: 4, y: 7 }, 1, 0)).toEqual([-7, 0]);
+    expect(dungeonWallUvOffset({ x: 4, y: 7 }, -1, 0)).toEqual([7, 0]);
   });
 });
 

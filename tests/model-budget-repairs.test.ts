@@ -62,22 +62,22 @@ function expectValidTriangleUvs(root: THREE.Object3D, solidOnly = false): void {
 }
 
 describe("model budget repairs", () => {
-  test("portal batches the full gate into six material roles and a bounded render cost", () => {
+  test("portal batches the full gate into bounded material roles and render cost", () => {
     const materials = createDungeonMaterials({ compact: true });
     const portal = createBiomeMagicPortal("ancient", materials);
     const metrics = modelMetrics(portal.root);
     const visibleMetrics = modelMetrics(portal.root, false, true);
     const runtime = portal.root.userData.sculptRuntime;
 
-    expect(metrics).toEqual({ triangles: 3720, drawCalls: 11, materials: 6 });
+    expect(metrics).toEqual({ triangles: 3720, drawCalls: 12, materials: 7 });
     expect(metrics.triangles).toBeLessThanOrEqual(4_000);
-    expect(visibleMetrics).toEqual({ triangles: 2693, drawCalls: 6, materials: 4 });
+    expect(visibleMetrics).toEqual({ triangles: 2693, drawCalls: 7, materials: 5 });
     expect(visibleMetrics.triangles).toBeLessThanOrEqual(3_000);
     expect(visibleMetrics.drawCalls).toBeLessThanOrEqual(10);
-    expect(metrics.materials).toBeLessThanOrEqual(6);
-    expect(runtime.materialRoles).toHaveLength(6);
+    expect(metrics.materials).toBeLessThanOrEqual(7);
+    expect(runtime.materialRoles).toHaveLength(7);
     expect(runtime.runtimeBatching.maximumVisibleDrawCalls).toBeLessThanOrEqual(12);
-    expect(runtime.runtimeBatching.frame).toMatchObject({ drawCalls: 3, materialBatches: 3 });
+    expect(runtime.runtimeBatching.frame).toMatchObject({ drawCalls: 4, materialBatches: 4 });
     expect(runtime.runtimeBatching.seal).toMatchObject({ drawCalls: 1, materialBatches: 1 });
     expect(runtime.sockets.entry).toMatchObject({ type: "portal-entry" });
     expect(runtime.destructionGroups.frame).toEqual(["Faceted escape portal arch"]);
@@ -113,7 +113,7 @@ describe("model budget repairs", () => {
         pbrMaterials.add(object.material);
       }
     });
-    expect(pbrMaterials.size).toBe(3);
+    expect(pbrMaterials.size).toBe(4);
     for (const material of pbrMaterials) {
       expect(material.map, `${material.name} has albedo`).toBeDefined();
       expect(material.normalMap, `${material.name} has normal map`).toBeDefined();

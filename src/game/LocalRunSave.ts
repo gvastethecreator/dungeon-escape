@@ -3,7 +3,7 @@ import { isRunSource, type RunSource } from "./RunSource";
 import { STONE_ORDER, type StoneId } from "../ui/copy";
 
 export const LOCAL_RUN_SAVE_KEY = "blackflag.dungeon.run.v1";
-export const LOCAL_RUN_SAVE_VERSION = 2 as const;
+export const LOCAL_RUN_SAVE_VERSION = 3 as const;
 
 /** Player + clock fields that domain session sync does not carry. */
 export interface LocalRunResumeState {
@@ -25,12 +25,24 @@ export interface LocalRunResumeState {
   luminousWardRemaining: number;
   /** Active annihilation pulse time; omitted in saves written before the item existed. */
   annihilationPulseRemaining?: number;
+  /** Full-floor fog reveal from the map pickup. */
+  mapRevealed?: boolean;
+  /** Active speed/stamina/floor-trap immunity time. */
+  mobilityBoostRemaining?: number;
+  /** Active zero-based floor in a deterministic campaign floor set. */
+  activeFloor?: number;
+  /** Root seed used to regenerate every sibling floor. */
+  campaignRootSeed?: string;
+  /** Biome identity needed to regenerate the same campaign floor count. */
+  campaignBiomeId?: string;
+  /** Fog-of-war cells retained separately for each visited floor. */
+  visitedFloors?: Record<string, string[]>;
   /** Optional per-stone find offsets in run seconds. */
   perStoneSeconds?: Partial<Record<StoneId, number>>;
 }
 
 export interface LocalRunSave {
-  version: 1 | typeof LOCAL_RUN_SAVE_VERSION;
+  version: 1 | 2 | typeof LOCAL_RUN_SAVE_VERSION;
   savedAt: number;
   state: DungeonDomainState;
   /** Present on v2 saves; missing on older item-only continues. */
@@ -104,6 +116,38 @@ function isLocalRunResumeState(value: unknown): value is LocalRunResumeState {
     (!isFiniteNumber(value.annihilationPulseRemaining) || value.annihilationPulseRemaining < 0)
   )
     return false;
+  if (
+    value.activeFloor !== undefined &&
+    (!Number.isInteger(value.activeFloor) ||
+      (value.activeFloor as number) < 0 ||
+      (value.activeFloor as number) > 3)
+  )
+    return false;
+  if (
+    value.campaignRootSeed !== undefined &&
+    (typeof value.campaignRootSeed !== "string" || !value.campaignRootSeed.trim())
+  )
+    return false;
+  if (
+    value.campaignBiomeId !== undefined &&
+    (typeof value.campaignBiomeId !== "string" || !value.campaignBiomeId.trim())
+  )
+    return false;
+  if (value.visitedFloors !== undefined) {
+    if (!isRecord(value.visitedFloors)) return false;
+    for (const [floor, cells] of Object.entries(value.visitedFloors)) {
+      if (!/^[0-3]$/.test(floor) || !Array.isArray(cells)) return false;
+      if (!cells.every((cell) => typeof cell === "string" && /^-?\d+,-?\d+$/.test(cell))) {
+        return false;
+      }
+    }
+  }
+  if (value.mapRevealed !== undefined && typeof value.mapRevealed !== "boolean") return false;
+  if (
+    value.mobilityBoostRemaining !== undefined &&
+    (!isFiniteNumber(value.mobilityBoostRemaining) || value.mobilityBoostRemaining < 0)
+  )
+    return false;
   if (!Array.isArray(value.visitedCells)) return false;
   if (!value.visitedCells.every((cell) => typeof cell === "string" && /^-?\d+,-?\d+$/.test(cell))) {
     return false;
@@ -145,7 +189,8 @@ export function readLocalRunSave(storage: StoragePort = localStorage): LocalRunS
     const parsed = JSON.parse(raw) as unknown;
     if (!isRecord(parsed) || typeof parsed.savedAt !== "number") return null;
     if (!Number.isFinite(parsed.savedAt) || !isDungeonDomainState(parsed.state)) return null;
-    if (parsed.version !== 1 && parsed.version !== LOCAL_RUN_SAVE_VERSION) return null;
+    if (parsed.version !== 1 && parsed.version !== 2 && parsed.version !== LOCAL_RUN_SAVE_VERSION)
+      return null;
     const resume =
       parsed.resume === undefined
         ? undefined

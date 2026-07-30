@@ -158,6 +158,8 @@ describe("local dungeon continue save", () => {
     expect(pagehideStart).toBeGreaterThanOrEqual(0);
     expect(beforeUnloadStart).toBeGreaterThan(pagehideStart);
     expect(source.slice(pagehideStart, beforeUnloadStart)).not.toContain(".dispose()");
+    expect(source).toContain("if (appDisposed) return;");
+    expect(source).toContain("cancelAnimationFrame(animationFrameId);");
     expect([...source.matchAll(/renderer\.dispose\(\)/g)]).toHaveLength(1);
   });
 

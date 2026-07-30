@@ -1209,6 +1209,7 @@ export function createBiomeMagicPortal(
     topology: "closed frame solids around a clear animated aperture",
     materialRoles: [
       profile.material,
+      ...(reliefMaterial === frameMaterial ? [] : ["local-relief"]),
       "accent",
       profile.sealKind === "organic" ? "root" : "iron",
       "flat-magic",

@@ -1,7 +1,9 @@
 import { DEFAULT_DUNGEON_PARAMS, normalizeDungeonParams } from "../domain/core";
 import { createSeededRandom, hashSeed, type SeededRandom } from "../core/random";
+import { carveDungeonTopology } from "./DungeonTopology";
 import type {
   DungeonData,
+  DungeonDoorway,
   DungeonEdge,
   DungeonOptions,
   DungeonRoom,
@@ -179,7 +181,9 @@ function placeRooms(options: NormalizedDungeonOptions, random: SeededRandom): Ro
     rooms.push(room);
   }
 
-  if (rooms.length < 6)
+  // Entrance + exit roles leave N-2 combat rooms. Need at least 4 combat seats so
+  // the four magic stones can spread without collapsing onto one chamber.
+  if (rooms.length < 7)
     throw new Error(`Unable to place a playable room set; placed ${rooms.length}.`);
   return rooms;
 }
@@ -230,8 +234,6 @@ function connectRooms(
     .map<DungeonEdge>((candidate) => ({ ...candidate, kind: "loop" }));
   return [...treeEdges, ...loops];
 }
-
-type CorridorStyle = "elbow" | "rounded";
 
 function carveManhattanSegment(
   grid: Uint8Array[],
@@ -288,23 +290,6 @@ export function carveRoundedCorridor(
   }
   carveManhattanSegment(grid, previous, exit, radius);
   carveManhattanSegment(grid, exit, to, radius);
-}
-
-function carveCorridor(
-  grid: Uint8Array[],
-  from: GridCell,
-  to: GridCell,
-  radius: number,
-  horizontalFirst: boolean,
-  style: CorridorStyle,
-): void {
-  if (style === "rounded") {
-    carveRoundedCorridor(grid, from, to, radius, horizontalFirst);
-    return;
-  }
-  const corner = horizontalFirst ? { x: to.x, y: from.y } : { x: from.x, y: to.y };
-  carveLine(grid, from, corner, radius);
-  carveLine(grid, corner, to, radius);
 }
 
 function cellIndex(width: number, x: number, y: number): number {
@@ -401,38 +386,43 @@ function topologySignature(
   edges: readonly DungeonEdge[],
   entranceId: number,
   exitId: number,
+  doorways: readonly DungeonDoorway[] = [],
 ): string {
   const roomSignature = rooms
     .map((room) => `${room.id}@${room.x},${room.y},${room.width},${room.height}`)
     .join("|");
   const edgeSignature = edges.map((edge) => `${edge.left}-${edge.right}-${edge.kind}`).join("|");
-  return `${entranceId}>${exitId}:${roomSignature}:${edgeSignature}`;
+  const doorwaySignature = doorways
+    .map(
+      (doorway) =>
+        `${doorway.edgeIndex}:${doorway.roomId}@${doorway.cell.x},${doorway.cell.y},${doorway.outDx},${doorway.outDy}`,
+    )
+    .join("|");
+  return `${entranceId}>${exitId}:${roomSignature}:${edgeSignature}:${doorwaySignature}`;
 }
 
-export function generateDungeon(
-  seed = "BLACK-FLAG",
-  inputOptions: DungeonOptions = {},
+function generateDungeonAttempt(
+  normalizedSeed: string,
+  options: NormalizedDungeonOptions,
+  layoutSalt: number,
 ): DungeonData {
-  const options = normalizeOptions(inputOptions);
-  const normalizedSeed = seed.trim() || "BLACK-FLAG";
-  const random = createSeededRandom(normalizedSeed);
+  const random = createSeededRandom(
+    layoutSalt > 0 ? `${normalizedSeed}#layout${layoutSalt}` : normalizedSeed,
+  );
   const rooms = placeRooms(options, random);
   const edges = connectRooms(rooms, random, options.extraConnectionRate);
   const grid = createGrid(options.width, options.height);
   rooms.forEach((room) => carveRect(grid, room));
-  edges.forEach((edge) => {
-    const left = rooms[edge.left];
-    const right = rooms[edge.right];
-    if (left && right)
-      carveCorridor(
-        grid,
-        left.center,
-        right.center,
-        options.corridorRadius,
-        random.chance(0.5),
-        random.chance(0.34) ? "rounded" : "elbow",
-      );
-  });
+  const seedHash = hashSeed(normalizedSeed);
+  const topology = carveDungeonTopology(
+    grid,
+    options.width,
+    options.height,
+    rooms,
+    edges,
+    options.corridorRadius,
+    seedHash ^ layoutSalt,
+  );
 
   const entranceRoom = selectEntrance(rooms);
   const spawn = { ...entranceRoom.center };
@@ -444,7 +434,7 @@ export function generateDungeon(
 
   return {
     seed: normalizedSeed,
-    seedHash: hashSeed(normalizedSeed),
+    seedHash,
     options,
     grid,
     width: options.width,
@@ -459,7 +449,13 @@ export function generateDungeon(
     entranceRoomId: entranceRoom.id,
     exitRoomId: exitRoom.id,
     distances: initialFill.distances,
-    topologySignature: topologySignature(rooms, edges, entranceRoom.id, exitRoom.id),
+    topologySignature: topologySignature(
+      rooms,
+      edges,
+      entranceRoom.id,
+      exitRoom.id,
+      topology.doorways,
+    ),
     stats: {
       roomCount: rooms.length,
       floorCount,
@@ -468,7 +464,37 @@ export function generateDungeon(
       loopCount: edges.filter((edge) => edge.kind === "loop").length,
       exitDistance,
     },
+    topology,
   };
+}
+
+/**
+ * @param rngSalt — when > 0, layout RNG is re-derived so completeness retries
+ *   can reshape the map while keeping the public seed / seedHash stable.
+ */
+export function generateDungeon(
+  seed = "BLACK-FLAG",
+  inputOptions: DungeonOptions = {},
+  rngSalt = 0,
+): DungeonData {
+  const options = normalizeOptions(inputOptions);
+  const normalizedSeed = seed.trim() || "BLACK-FLAG";
+  const safeSalt = Number.isFinite(rngSalt) ? Math.max(0, Math.floor(rngSalt)) : 0;
+  const attemptsPerSalt = 8;
+  let lastError: unknown;
+  for (let attempt = 0; attempt < attemptsPerSalt; attempt += 1) {
+    try {
+      return generateDungeonAttempt(
+        normalizedSeed,
+        options,
+        safeSalt * attemptsPerSalt + attempt,
+      );
+    } catch (error) {
+      lastError = error;
+    }
+  }
+  const detail = lastError instanceof Error ? lastError.message : "unknown routing failure";
+  throw new Error(`Unable to generate a sealed dungeon for "${normalizedSeed}". ${detail}`);
 }
 
 export function isExitReachable(dungeon: DungeonData): boolean {
@@ -503,6 +529,7 @@ export function setDungeonSpawn(dungeon: DungeonData, spawn: GridCell): DungeonD
       dungeon.edges,
       entranceRoom.id,
       exitRoom.id,
+      dungeon.topology?.doorways,
     ),
     stats: { ...dungeon.stats, reachableFloorCount: fill.visited, exitDistance },
   };

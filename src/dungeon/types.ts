@@ -48,6 +48,46 @@ export interface DungeonEdge {
   kind: EdgeKind;
 }
 
+export type DungeonStairDirection = "up" | "down";
+
+export interface DungeonDoorway {
+  edgeIndex: number;
+  roomId: number;
+  connectedRoomId: number;
+  cell: GridCell;
+  outside: GridCell;
+  outDx: -1 | 0 | 1;
+  outDy: -1 | 0 | 1;
+}
+
+/**
+ * Structural masks owned by the play generator. Rendering may decorate this
+ * topology, but it must not guess room openings from the final floor bitmap.
+ */
+export interface DungeonTopologyMetadata {
+  roomIds: Int16Array;
+  corridors: Uint8Array;
+  doorways: DungeonDoorway[];
+}
+
+export interface DungeonStair {
+  id: string;
+  direction: DungeonStairDirection;
+  cell: GridCell;
+  targetFloor: number;
+  yaw: number;
+}
+
+export interface DungeonFloorMetadata {
+  /** Zero-based floor index used by runtime and saves. */
+  index: number;
+  /** One-based floor number used by player-facing UI. */
+  number: number;
+  count: number;
+  rootSeed: string;
+  stairs: DungeonStair[];
+}
+
 export interface DungeonStats {
   roomCount: number;
   floorCount: number;
@@ -73,6 +113,8 @@ export interface DungeonData {
   distances: Int32Array;
   topologySignature: string;
   stats: DungeonStats;
+  topology?: DungeonTopologyMetadata;
+  floor?: DungeonFloorMetadata;
   forge?: DungeonForgeMetadata;
 }
 

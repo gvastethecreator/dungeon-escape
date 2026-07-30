@@ -61,9 +61,8 @@ describe("chest potion flow", () => {
     expect(bounds.x).toBeGreaterThan(0.55);
     expect(bounds.y).toBeGreaterThan(0.75);
     expect(flask.getObjectByName("Resolve flask liquid")).toBeDefined();
-    expect(flask.getObjectByName("Flask front iron cage")).toBeDefined();
-    expect(flask.getObjectByName("Flask side iron cage")).toBeDefined();
-    expect(flask.getObjectByName("Raised resolve cross")).toBeDefined();
+    expect(flask.getObjectByName("Resolve flask eight-rib iron cage")).toBeDefined();
+    expect(flask.getObjectByName("Raised resolve quartered shield")).toBeDefined();
     expect(runtime.sockets.pickup.name).toBe("Resolve pickup anchor");
     expect(runtime.sockets.glow.name).toBe("Resolve glow anchor");
     expect(runtime.colliders[0]).toMatchObject({ type: "sphere", isTrigger: true });

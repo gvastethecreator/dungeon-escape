@@ -2,6 +2,9 @@ import * as THREE from "three";
 
 export type SeamMode = "none" | "mirror" | "edge-blend";
 
+/** One texture repeat spans about 1.6 world cells, avoiding a stamped tile grid. */
+export const DUNGEON_SURFACE_WORLD_UV_SCALE = 0.62;
+
 interface LinkedTextureState {
   linked: Set<THREE.Texture>;
   seamMode: SeamMode;
@@ -502,19 +505,19 @@ varying vec3 vBfWorldNormal;
         "#include <uv_vertex>",
         /* glsl */ `#include <uv_vertex>
 #ifdef USE_MAP
-	vMapUv += aTileUvOffset;
+	vMapUv = ( vMapUv + aTileUvOffset ) * ${DUNGEON_SURFACE_WORLD_UV_SCALE.toFixed(2)};
 #endif
 #ifdef USE_NORMALMAP
-	vNormalMapUv += aTileUvOffset;
+	vNormalMapUv = ( vNormalMapUv + aTileUvOffset ) * ${DUNGEON_SURFACE_WORLD_UV_SCALE.toFixed(2)};
 #endif
 #ifdef USE_ROUGHNESSMAP
-	vRoughnessMapUv += aTileUvOffset;
+	vRoughnessMapUv = ( vRoughnessMapUv + aTileUvOffset ) * ${DUNGEON_SURFACE_WORLD_UV_SCALE.toFixed(2)};
 #endif
 #ifdef USE_METALNESSMAP
-	vMetalnessMapUv += aTileUvOffset;
+	vMetalnessMapUv = ( vMetalnessMapUv + aTileUvOffset ) * ${DUNGEON_SURFACE_WORLD_UV_SCALE.toFixed(2)};
 #endif
 #ifdef USE_AOMAP
-	vAoMapUv += aTileUvOffset;
+	vAoMapUv = ( vAoMapUv + aTileUvOffset ) * ${DUNGEON_SURFACE_WORLD_UV_SCALE.toFixed(2)};
 #endif
 `,
       );
@@ -566,17 +569,12 @@ float bfFbm( vec2 p ) {
 	// Damp grime band where vertical masonry meets the floor.
 	float bfGrime = smoothstep( 1.1, 0.04, vBfWorldPos.y ) * ( 1.0 - bfAn.y );
 	bfVar *= 1.0 - bfGrime * 0.3;
-	#ifdef USE_MAP
-	// Per-cell tint breaks residual tile-band sameness (vMapUv holds the cell offset).
-	vec2 bfCellId = floor( vMapUv + 0.001 );
-	bfVar *= 0.94 + bfHash21( bfCellId ) * 0.12;
-	#endif
 	diffuseColor.rgb *= bfVar;
 }
 `,
       );
   };
-  material.customProgramCacheKey = () => "dungeon-surface-v2";
+  material.customProgramCacheKey = () => "dungeon-surface-v4";
   material.needsUpdate = true;
 }
 

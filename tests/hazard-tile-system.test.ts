@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import * as THREE from "three";
 
 import type { DungeonData, DungeonRoom } from "../src/dungeon/types";
+import { gridToWorld } from "../src/dungeon/gridCollision";
 import { getDungeonMood } from "../src/systems/DungeonMood";
 import {
   createForgedIronTextureSet,
@@ -78,6 +79,38 @@ describe("biome hazard tiles", () => {
     expect(new Set(first.map((tile) => `${tile.cell.x},${tile.cell.y}`)).size).toBe(first.length);
     expect(planHazardTiles(dungeon, "molten", excluded)).not.toContainEqual(first[0]);
     expect(first.every((tile) => tile.kind === "fire" || tile.kind === "spikes")).toBe(true);
+  });
+
+  test("lets a jump clear floor triggers and mobility immunity suppresses them", () => {
+    const dungeon = dungeonFixture();
+    const system = new HazardTileSystem(dungeon, getDungeonMood("molten"), 2, new Set());
+    try {
+      const placement = system.placements[0]!;
+      const position = gridToWorld(dungeon, placement.cell, 2);
+      const player = new THREE.Vector3(position.x, 1.62, position.z);
+
+      const airborne = system.sample(1 / 60, player, { airborne: true });
+      expect(airborne).toEqual({
+        kind: null,
+        label: "",
+        damage: 0,
+        movementScale: 1,
+        traction: 1,
+      });
+
+      const immune = system.sample(1 / 60, player, { immune: true });
+      expect(immune).toEqual({
+        kind: null,
+        label: "",
+        damage: 0,
+        movementScale: 1,
+        traction: 1,
+      });
+
+      expect(system.sample(1 / 60, player).kind).toBe(placement.kind);
+    } finally {
+      system.dispose();
+    }
   });
 
   test("uses the imagegen atlas, instanced forged spikes and status effects", async () => {

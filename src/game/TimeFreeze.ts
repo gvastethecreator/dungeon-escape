@@ -1,5 +1,5 @@
 /** Duration of the time-freeze pickup in gameplay seconds. */
-export const TIME_FREEZE_DURATION_SECONDS = 20;
+export const TIME_FREEZE_DURATION_SECONDS = 10;
 
 export function activateTimeFreeze(): number {
   return TIME_FREEZE_DURATION_SECONDS;

@@ -40,12 +40,17 @@ describe("persistent leaderboard UI", () => {
     const host = await Bun.file(new URL("../index.html", import.meta.url)).text();
     const source = await Bun.file(new URL("../src/main.ts", import.meta.url)).text();
     const copy = await Bun.file(new URL("../src/ui/copy.ts", import.meta.url)).text();
+    const css = await Bun.file(new URL("../src/styles.css", import.meta.url)).text();
     expect(host).toContain('id="end-next-biome"');
-    expect(host).toContain("hidden");
+    expect(host).toContain('id="end-next-biome" type="button" disabled');
     expect(source).toContain("revealEndNextBiomeAfterSave()");
+    expect(source).toContain("setEndNextBiomeDisabled(");
+    expect(source).toContain("setEndNextBiomeEnabled(");
     expect(source).toContain("nextBiomeId(");
     expect(source).toContain("startNewGameWithBiome(biomeId)");
     expect(source).toContain("hideEndNextBiome()");
+    expect(css).toContain("#end-next-biome:disabled");
+    expect(copy).toContain("nextRun:");
     expect(copy).toContain("nextBiome:");
     expect(copy).toContain("finalBiomeSaved:");
   });
@@ -61,9 +66,7 @@ describe("persistent leaderboard UI", () => {
     expect(source).toContain("portraitForIndex(");
     expect(source).toContain("formatTime(entry.durationMs / 1000)");
     expect(source).toContain('startPlayWithSeed(entry.seed, { runSource: "campaign" })');
-    expect(source).toContain(
-      'startPlayWithSeed(makeSeed(), { refreshProcedural: true, runSource: "campaign" })',
-    );
+    expect(source).toContain("startNewGameWithBiome(biomeId)");
   });
 
   test("victory form previews the portrait in an interactive wood frame", async () => {

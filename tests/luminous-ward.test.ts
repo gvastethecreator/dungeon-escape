@@ -13,11 +13,11 @@ import { createLuminousWardStone } from "../src/world/ItemFactory";
 import { LuminousWardVfx } from "../src/world/LuminousWardVfx";
 
 describe("luminous ward power", () => {
-  test("holds the safety field for thirty gameplay seconds", () => {
-    expect(LUMINOUS_WARD_DURATION_SECONDS).toBe(30);
+  test("holds the safety field for fifteen gameplay seconds", () => {
+    expect(LUMINOUS_WARD_DURATION_SECONDS).toBe(15);
     expect(LUMINOUS_WARD_REPEL_RADIUS).toBeGreaterThan(7);
-    expect(activateLuminousWard()).toBe(30);
-    expect(tickLuminousWard(activateLuminousWard(), 4.5)).toBeCloseTo(25.5, 6);
+    expect(activateLuminousWard()).toBe(15);
+    expect(tickLuminousWard(activateLuminousWard(), 4.5)).toBeCloseTo(10.5, 6);
     expect(tickLuminousWard(0.2, 1)).toBe(0);
     expect(isLuminousWardActive(0)).toBe(false);
     expect(isLuminousWardActive(0.001)).toBe(true);

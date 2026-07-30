@@ -17,10 +17,10 @@ import { TimeFreezeVfx } from "../src/world/TimeFreezeVfx";
 import { getDungeonMood } from "../src/systems/DungeonMood";
 
 describe("time-freeze power", () => {
-  test("holds enemies for exactly twenty gameplay seconds", () => {
-    expect(TIME_FREEZE_DURATION_SECONDS).toBe(20);
-    expect(activateTimeFreeze()).toBe(20);
-    expect(tickTimeFreeze(activateTimeFreeze(), 2.5)).toBeCloseTo(17.5, 6);
+  test("holds enemies for exactly ten gameplay seconds", () => {
+    expect(TIME_FREEZE_DURATION_SECONDS).toBe(10);
+    expect(activateTimeFreeze()).toBe(10);
+    expect(tickTimeFreeze(activateTimeFreeze(), 2.5)).toBeCloseTo(7.5, 6);
     expect(tickTimeFreeze(0.2, 1)).toBe(0);
     expect(isTimeFreezeActive(0)).toBe(false);
     expect(isTimeFreezeActive(0.001)).toBe(true);

@@ -20,6 +20,11 @@ export interface MinimapStone {
   id: StoneId;
 }
 
+export interface MinimapStair {
+  cell: MinimapCell;
+  direction: "up" | "down";
+}
+
 /**
  * Read-only snapshot of world entities the minimap should render.
  * Built by `DungeonWorld.getMinimapFeatures()` each frame.
@@ -41,6 +46,12 @@ export interface MinimapFeatures {
   luminousWard?: MinimapCell;
   /** Annihilation pulse relic that has not yet been picked up. */
   annihilationPulse?: MinimapCell;
+  /** Full-map scroll pickup. */
+  map?: MinimapCell;
+  /** Sprint/stamina/trap-immunity draught. */
+  mobility?: MinimapCell;
+  /** Connections to adjacent dungeon floors. */
+  stairs?: MinimapStair[];
   /** Special objective prop (reliquary altar / boss-shrine crystal), if any. */
   relic?: MinimapCell;
   /** Entrance / spawn marker (dungeon.spawn). */
