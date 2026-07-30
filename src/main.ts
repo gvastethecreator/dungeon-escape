@@ -11,7 +11,10 @@ import {
 } from "./domain/bridge";
 import { DUNGEON_PRESETS, type DungeonEditorParams, type DungeonPresetId } from "./editor/presets";
 import { generateCompletableDungeon } from "./dungeon/completeness";
-import { generateDungeonFloorSet, type DungeonFloorSet } from "./dungeon/generateDungeonFloors";
+import {
+  createDungeonFloorCampaign,
+  type DungeonFloorCampaign,
+} from "./dungeon/generateDungeonFloors";
 import { setDungeonSpawn } from "./dungeon/generateDungeon";
 import { gridToWorld } from "./dungeon/gridCollision";
 import { parseForgeDungeonMessage, type ForgeDungeonIntakeValue } from "./dungeon/forgeIntake";
@@ -35,6 +38,8 @@ import {
   type DungeonMoodId,
 } from "./systems/DungeonMood";
 import { LightingRig } from "./systems/LightingRig";
+import { resolveExplorationFogMultiplier } from "./systems/ExplorationFog";
+import { applyTextureSmoothing } from "./systems/TextureSmoothing";
 import { resolveDungeonExposure } from "./systems/LightTuning";
 import { PovPostFx } from "./systems/PovPostFx";
 import { computeCriticalHealthFeel } from "./systems/CriticalHealthFeel";
@@ -64,6 +69,7 @@ import { PlayRuntime } from "./game/PlayRuntime";
 import { shouldAdoptHydratedSeed } from "./game/hydratePolicy";
 import { nextProceduralSeed } from "./game/SeedFactory";
 import { FloorExploration } from "./game/FloorExploration";
+import { readUserSettings, writeUserSettings, type UserSettings } from "./game/UserSettings";
 import { LocalRunSaveCoordinator } from "./game/LocalRunSaveCoordinator";
 import {
   RunIntroDirector,
@@ -110,6 +116,7 @@ import {
   portraitForIndex,
   portraitForName,
   portraitIndexForName,
+  randomPortraitIndex,
 } from "./leaderboard/portraits";
 import {
   biomeCampaignFloorCount,
@@ -271,6 +278,11 @@ const elements = {
   modeButtons: [...document.querySelectorAll<HTMLButtonElement>("[data-engine-mode]")],
   audioToggle: requireElement<HTMLButtonElement>("#audio-toggle"),
   musicToggle: requireElement<HTMLButtonElement>("#music-toggle"),
+  musicVolume: requireElement<HTMLInputElement>("#music-volume"),
+  musicVolumeValue: requireElement<HTMLOutputElement>("#music-volume-value"),
+  effectsVolume: requireElement<HTMLInputElement>("#effects-volume"),
+  effectsVolumeValue: requireElement<HTMLOutputElement>("#effects-volume-value"),
+  textureSmoothingToggle: requireElement<HTMLButtonElement>("#texture-smoothing-toggle"),
   welcomeMusicToggle: requireElement<HTMLButtonElement>("#welcome-music-toggle"),
   bootScreen: requireElement<HTMLElement>("#boot-screen"),
   bootFill: requireElement<HTMLElement>("#boot-fill"),
@@ -331,7 +343,7 @@ const domainBridge: DomainBridge = createDomainBridge({
   authority: authorityBaseUrl ? authority : null,
 });
 const floorExploration = new FloorExploration();
-let campaignFloorSet: DungeonFloorSet | null = null;
+let campaignFloorSet: DungeonFloorCampaign | null = null;
 let floorTransitionPending = false;
 
 function applyLocalDevToolsChrome(): void {
@@ -397,6 +409,9 @@ const povPost = new PovPostFx();
 povPost.setCrtEnabled(renderCaps.enableCrtByDefault);
 const povFeel = new PovFeelState();
 const audio = new GameAudio();
+let userSettings: UserSettings = readUserSettings();
+audio.setMusicVolume(userSettings.musicVolume);
+audio.setEffectsVolume(userSettings.effectsVolume);
 const playerPosition = new THREE.Vector3();
 const audioForward = new THREE.Vector3();
 const lanternForward = new THREE.Vector3();
@@ -470,6 +485,7 @@ let profileAvatarDraft = playerProfile?.avatarIndex ?? 0;
 let campaignClearRecordedForRun = false;
 let leaderboardLoadSequence = 0;
 let pendingLeaderboardSubmission: Omit<LeaderboardSubmissionInput, "playerName"> | null = null;
+let leaderboardSubmissionPending = false;
 /**
  * Campaign (New Game / Hall seed / eligible continue) may rank.
  * Custom (Custom Run, Forge, Map Tools) never ranks.
@@ -744,7 +760,11 @@ function showPlayerProfileEditor(required = playerProfile === null): void {
   const draftName = playerProfile?.name ?? legacyName;
   profileAvatarDraft =
     playerProfile?.avatarIndex ??
-    (draftName ? portraitIndexForName(draftName) : profileAvatarDraft);
+    (required
+      ? randomPortraitIndex()
+      : draftName
+        ? portraitIndexForName(draftName)
+        : profileAvatarDraft);
   elements.welcomeHome.hidden = true;
   elements.welcomeBiomePicker.hidden = true;
   elements.welcomeProfile.hidden = false;
@@ -1202,6 +1222,7 @@ function updateLeaderboardPortraitPreview(rawName: string, forceReset = false): 
 }
 
 function cycleLeaderboardPortrait(): void {
+  if (elements.leaderboardPortraitPreviewFace.getAttribute("aria-disabled") === "true") return;
   const rawName = elements.leaderboardName.value || "Wanderer";
   const name = normalizePlayerName(rawName) ?? (rawName.trim() || "Wanderer");
   if (currentSelectedPortraitIndex === null) {
@@ -1393,6 +1414,16 @@ function prepareLeaderboardSubmission(
     playerProfile?.avatarIndex ??
     portraitIndexForName(elements.leaderboardName.value || "Wanderer");
   updateLeaderboardPortraitPreview(elements.leaderboardName.value || "Wanderer", true);
+  const hasSavedIdentity = playerProfile !== null;
+  elements.leaderboardName.disabled = hasSavedIdentity;
+  elements.leaderboardPortraitPreviewFace.setAttribute("aria-disabled", String(hasSavedIdentity));
+  elements.leaderboardPortraitPreviewFace.tabIndex = hasSavedIdentity ? -1 : 0;
+  if (hasSavedIdentity) {
+    elements.leaderboardSubmit.disabled = true;
+    elements.leaderboardSubmit.textContent = COPY.leaderboard.saving;
+    elements.leaderboardSubmitStatus.textContent = COPY.leaderboard.saving;
+    queueMicrotask(() => void submitPreparedLeaderboardEntry());
+  }
 }
 
 function canEnablePlayController(): boolean {
@@ -1961,7 +1992,9 @@ function resolveUiClickCue(target: Element): AudioCue {
     target.matches(
       "#music-toggle, #welcome-music-toggle, #audio-toggle, #crt-toggle, input[type='checkbox']",
     ) ||
-    target.closest("#music-toggle, #welcome-music-toggle, #audio-toggle, #crt-toggle")
+    target.closest(
+      "#music-toggle, #welcome-music-toggle, #audio-toggle, #crt-toggle, #texture-smoothing-toggle",
+    )
   ) {
     return "uiToggle";
   }
@@ -2359,6 +2392,7 @@ function closeEndOverlay(): void {
   elements.endLeaderboardNote.textContent = "";
   hideEndNextBiome();
   pendingLeaderboardSubmission = null;
+  leaderboardSubmissionPending = false;
   elements.shell.dataset.mode = "playing";
   controller.setEnabled(canEnablePlayController());
   if (!welcomeOpen) setActiveBiomeMusic();
@@ -2428,9 +2462,12 @@ function showEndOverlay(mode: "dead" | "won"): void {
     elements.retry.hidden = false;
     elements.newDungeon.textContent = COPY.end.newDungeon;
   }
-  window.requestAnimationFrame(() =>
-    (mode === "dead" ? elements.retry : elements.leaderboardName).focus(),
-  );
+  window.requestAnimationFrame(() => {
+    if (mode === "dead") elements.retry.focus();
+    else if (!playerProfile) elements.leaderboardName.focus();
+    else if (!elements.endNextBiome.disabled) elements.endNextBiome.focus();
+    else elements.newDungeon.focus();
+  });
 }
 
 let exploreFlushTimer: ReturnType<typeof setTimeout> | null = null;
@@ -2523,6 +2560,7 @@ function activateDungeon(
   const mood = applyDungeonMood(nextDungeon);
   applyAtmosphereFromParams();
   let state = playRuntime.load({ dungeon, mood });
+  applyTextureSmoothing(scene, userSettings.textureSmoothing);
   lastTimeFreezeDisplay = "";
   lastLuminousWardDisplay = "";
   lastAnnihilationPulseDisplay = "";
@@ -2645,12 +2683,12 @@ function buildDungeon(
     if (runSource === "campaign" && requestedCampaignMood) {
       const rootSeed = options.restore?.generation.seed ?? normalizedSeed;
       const floorCount = biomeCampaignFloorCount(requestedCampaignMood);
-      campaignFloorSet = generateDungeonFloorSet(rootSeed, generationOptions, floorCount);
+      campaignFloorSet = createDungeonFloorCampaign(rootSeed, generationOptions, floorCount);
       const activeFloorIndex = Math.min(
         floorCount - 1,
         Math.max(0, options.restore?.generation.activeFloor ?? 0),
       );
-      generated = campaignFloorSet.floors[activeFloorIndex]!;
+      generated = campaignFloorSet.floor(activeFloorIndex)!;
     } else {
       generated = generateCompletableDungeon(normalizedSeed, generationOptions);
       if (runSource === "campaign" && !generated.forge) {
@@ -2660,12 +2698,17 @@ function buildDungeon(
         }
         const moodId = resolveActiveMood(generated).id;
         const floorCount = biomeCampaignFloorCount(moodId);
-        campaignFloorSet = generateDungeonFloorSet(rootSeed, generationOptions, floorCount);
+        campaignFloorSet = createDungeonFloorCampaign(
+          rootSeed,
+          generationOptions,
+          floorCount,
+          generated,
+        );
         const activeFloorIndex = Math.min(
           floorCount - 1,
           Math.max(0, options.restore?.generation.activeFloor ?? 0),
         );
-        generated = campaignFloorSet.floors[activeFloorIndex]!;
+        generated = campaignFloorSet.floor(activeFloorIndex)!;
       } else {
         campaignFloorSet = null;
       }
@@ -2749,6 +2792,7 @@ function selectEditorSpawn(cell: { x: number; y: number }): void {
   const mood = applyDungeonMood(dungeon);
   applyAtmosphereFromParams();
   const state = playRuntime.load({ dungeon, mood, persisted: playRuntime.snapshot() });
+  applyTextureSmoothing(scene, userSettings.textureSmoothing);
   lastTimeFreezeDisplay = "";
   lastLuminousWardDisplay = "";
   lastAnnihilationPulseDisplay = "";
@@ -3108,19 +3152,19 @@ elements.leaderboardPortraitPreviewFace.addEventListener("keydown", (event) => {
   }
 });
 
-elements.endLeaderboardForm.addEventListener("submit", (event) => {
-  event.preventDefault();
+async function submitPreparedLeaderboardEntry(): Promise<void> {
   if (!isLeaderboardEligible(runSource) || Boolean(dungeon?.forge)) {
     setStatus(COPY.leaderboard.customExcluded);
     return;
   }
-  if (!pendingLeaderboardSubmission || elements.leaderboardSubmit.disabled) return;
+  if (!pendingLeaderboardSubmission || leaderboardSubmissionPending) return;
   const playerName = normalizePlayerName(elements.leaderboardName.value);
   if (!playerName) {
     elements.leaderboardSubmitStatus.textContent = `Use 1-20 letters, numbers, spaces or . _ ' -`;
     elements.leaderboardName.focus();
     return;
   }
+  leaderboardSubmissionPending = true;
   elements.leaderboardSubmit.disabled = true;
   elements.leaderboardSubmit.textContent = COPY.leaderboard.saving;
   elements.leaderboardSubmitStatus.textContent = COPY.leaderboard.saving;
@@ -3128,38 +3172,45 @@ elements.endLeaderboardForm.addEventListener("submit", (event) => {
     currentSelectedPortraitIndex !== null
       ? currentSelectedPortraitIndex
       : portraitIndexForName(playerName);
-  void submitLeaderboardEntry({ ...pendingLeaderboardSubmission, playerName, portraitIndex })
-    .then(({ entry }) => {
-      try {
-        localStorage.setItem(LAST_LEADERBOARD_NAME_KEY, entry.playerName);
-      } catch {
-        // Score is already stored. Remembering the local name is optional.
-      }
-      elements.leaderboardName.value = entry.playerName;
-      if (playerProfile) {
-        const nextProfile = updatePlayerIdentity(playerProfile, entry.playerName, portraitIndex);
-        if (nextProfile && writePlayerProfile(nextProfile)) {
-          playerProfile = nextProfile;
-          syncPlayerProfileUi();
-        }
-      }
-      elements.leaderboardName.disabled = true;
-      elements.leaderboardSubmit.textContent = "Saved";
-      updateLeaderboardPortraitPreview(entry.playerName);
-      elements.leaderboardSubmitStatus.textContent = COPY.leaderboard.saved(
-        entry.rank,
-        entry.score,
-      );
-      // Keep progression UI in sync when an older restored win is submitted.
-      revealEndNextBiomeAfterSave();
-      void refreshLeaderboard();
-    })
-    .catch((error) => {
-      elements.leaderboardSubmit.disabled = false;
-      elements.leaderboardSubmit.textContent = COPY.leaderboard.submit;
-      elements.leaderboardSubmitStatus.textContent =
-        error instanceof Error ? error.message : COPY.leaderboard.unavailable;
+  try {
+    const { entry } = await submitLeaderboardEntry({
+      ...pendingLeaderboardSubmission,
+      playerName,
+      portraitIndex,
     });
+    try {
+      localStorage.setItem(LAST_LEADERBOARD_NAME_KEY, entry.playerName);
+    } catch {
+      // Score is already stored. Remembering the local name is optional.
+    }
+    elements.leaderboardName.value = entry.playerName;
+    if (playerProfile) {
+      const nextProfile = updatePlayerIdentity(playerProfile, entry.playerName, portraitIndex);
+      if (nextProfile && writePlayerProfile(nextProfile)) {
+        playerProfile = nextProfile;
+        syncPlayerProfileUi();
+      }
+    }
+    elements.leaderboardName.disabled = true;
+    elements.leaderboardSubmit.textContent = "Saved";
+    updateLeaderboardPortraitPreview(entry.playerName);
+    elements.leaderboardSubmitStatus.textContent = COPY.leaderboard.saved(entry.rank, entry.score);
+    // Keep progression UI in sync when an older restored win is submitted.
+    revealEndNextBiomeAfterSave();
+    void refreshLeaderboard();
+  } catch (error) {
+    elements.leaderboardSubmit.disabled = false;
+    elements.leaderboardSubmit.textContent = "Retry save";
+    elements.leaderboardSubmitStatus.textContent =
+      error instanceof Error ? error.message : COPY.leaderboard.unavailable;
+  } finally {
+    leaderboardSubmissionPending = false;
+  }
+}
+
+elements.endLeaderboardForm.addEventListener("submit", (event) => {
+  event.preventDefault();
+  void submitPreparedLeaderboardEntry();
 });
 function scheduleEditorRegeneration(): void {
   if (!localDevTools || engineMode === "play") return;
@@ -3490,6 +3541,39 @@ forgeFrameClient.onTrustedMessage((data) => {
     setEditorSurfaceStatus("runtime", "MAP PREVIEW · INVALID", "error");
   }
 });
+
+function updateUserSettings(patch: Partial<UserSettings>): void {
+  userSettings = { ...userSettings, ...patch };
+  writeUserSettings(userSettings);
+}
+
+function syncVolumeControl(
+  input: HTMLInputElement,
+  output: HTMLOutputElement,
+  value: number,
+): void {
+  const percent = Math.round(value * 100);
+  input.value = String(percent);
+  output.value = `${percent}%`;
+}
+
+function syncTextureSmoothingUi(): void {
+  setToggleValue(elements.textureSmoothingToggle, userSettings.textureSmoothing, "ON", "OFF");
+  elements.textureSmoothingToggle.title = userSettings.textureSmoothing
+    ? "Use crisp texture filtering"
+    : "Use smooth texture filtering";
+}
+
+function applyVolumeInputs(): void {
+  const musicVolume = Number(elements.musicVolume.value) / 100;
+  const effectsVolume = Number(elements.effectsVolume.value) / 100;
+  audio.setMusicVolume(musicVolume);
+  audio.setEffectsVolume(effectsVolume);
+  updateUserSettings({ musicVolume, effectsVolume });
+  syncVolumeControl(elements.musicVolume, elements.musicVolumeValue, musicVolume);
+  syncVolumeControl(elements.effectsVolume, elements.effectsVolumeValue, effectsVolume);
+}
+
 function syncAudioToggleUi(): void {
   const muted = audio.isMuted;
   setToggleValue(elements.audioToggle, !muted, COPY.hud.audioOn, COPY.hud.mute);
@@ -3511,6 +3595,16 @@ function onMusicToggleClick(): void {
 }
 elements.musicToggle.addEventListener("click", onMusicToggleClick);
 elements.welcomeMusicToggle.addEventListener("click", onMusicToggleClick);
+elements.musicVolume.addEventListener("input", applyVolumeInputs);
+elements.effectsVolume.addEventListener("input", applyVolumeInputs);
+elements.effectsVolume.addEventListener("change", () => playCue("uiTick"));
+elements.textureSmoothingToggle.addEventListener("click", () => {
+  const textureSmoothing = !userSettings.textureSmoothing;
+  updateUserSettings({ textureSmoothing });
+  const textureCount = applyTextureSmoothing(scene, textureSmoothing);
+  syncTextureSmoothingUi();
+  setStatus(`Texture smoothing ${textureSmoothing ? "on" : "off"} · ${textureCount} textures.`);
+});
 function syncCrtToggleUi(): void {
   elements.shell.classList.toggle("crt-off", !crtEnabled);
   setToggleValue(elements.crtToggle, crtEnabled, COPY.hud.crtOn, COPY.hud.crtOff);
@@ -3521,6 +3615,9 @@ function syncCrtToggleUi(): void {
 povPost.setCrtEnabled(crtEnabled);
 syncCrtToggleUi();
 syncAudioToggleUi();
+syncVolumeControl(elements.musicVolume, elements.musicVolumeValue, userSettings.musicVolume);
+syncVolumeControl(elements.effectsVolume, elements.effectsVolumeValue, userSettings.effectsVolume);
+syncTextureSmoothingUi();
 
 elements.crtToggle.addEventListener("click", () => {
   crtEnabled = !crtEnabled;
@@ -3552,11 +3649,9 @@ elements.interactionPrompt.addEventListener("pointerdown", (event) => {
 });
 
 document.addEventListener("keydown", (event) => {
-  if (event.target instanceof HTMLElement && event.target.closest("input, textarea, select"))
-    return;
   if (event.repeat) return;
-  if (welcomeOpen) return;
-  if (event.code === "Escape" && engineMode === "play") {
+  // Escape always owns pause, including while a range input has focus.
+  if (!welcomeOpen && event.code === "Escape" && engineMode === "play") {
     event.preventDefault();
     if (mapExpanded) {
       toggleMap(false);
@@ -3571,6 +3666,9 @@ document.addEventListener("keydown", (event) => {
     }
     return;
   }
+  if (event.target instanceof HTMLElement && event.target.closest("input, textarea, select"))
+    return;
+  if (welcomeOpen) return;
   if (event.code === "KeyM") {
     event.preventDefault();
     toggleMap();
@@ -3616,12 +3714,12 @@ async function transitionCampaignFloor(
     !campaignFloorSet ||
     !dungeon?.floor ||
     targetFloor < 0 ||
-    targetFloor >= campaignFloorSet.floors.length
+    targetFloor >= campaignFloorSet.count
   ) {
     return;
   }
   const currentFloor = dungeon.floor.index;
-  const targetDungeon = campaignFloorSet.floors[targetFloor];
+  const targetDungeon = campaignFloorSet.floor(targetFloor);
   const resume = captureLocalRunResume();
   if (!targetDungeon || !resume) return;
   const entryStair = targetDungeon.floor?.stairs.find(
@@ -3659,20 +3757,20 @@ async function transitionCampaignFloor(
     const params = readEditorParams();
     activateDungeon(
       targetDungeon,
-      `Floor ${targetFloor + 1} of ${campaignFloorSet.floors.length}.`,
+      `Floor ${targetFloor + 1} of ${campaignFloorSet.count}.`,
       params,
       { restore },
     );
     showObjectiveBanner(
-      playRuntime.state().quest.portalOpen && targetFloor === campaignFloorSet.floors.length - 1
+      playRuntime.state().quest.portalOpen && targetFloor === campaignFloorSet.count - 1
         ? COPY.objective.openPortal
-        : `Floor ${targetFloor + 1}/${campaignFloorSet.floors.length} · Find the remaining stones`,
+        : `Floor ${targetFloor + 1}/${campaignFloorSet.count} · Find the remaining stones`,
       playRuntime.state().quest.portalOpen ? "portal" : "hunt",
       2600,
       900,
     );
     setStatus(
-      `${direction === "down" ? "Descended" : "Ascended"} to floor ${targetFloor + 1}/${campaignFloorSet.floors.length}.${floorCheckpointSaved ? "" : " Local save unavailable."}`,
+      `${direction === "down" ? "Descended" : "Ascended"} to floor ${targetFloor + 1}/${campaignFloorSet.count}.${floorCheckpointSaved ? "" : " Local save unavailable."}`,
     );
   } catch (error) {
     transitionFailed = true;
@@ -3957,7 +4055,18 @@ function frame(now: number): void {
     audio.setThreatDistance(null);
   }
   camera.getWorldDirection(lanternForward);
-  lighting.update(delta, playerPosition, currentThreatDistance, lanternForward);
+  const explorationView = floorExploration.activeView();
+  lighting.update(
+    delta,
+    playerPosition,
+    currentThreatDistance,
+    lanternForward,
+    resolveExplorationFogMultiplier({
+      exploredCount: explorationView.exploredCount,
+      totalWalkableCells: dungeon?.stats.floorCount ?? 1,
+      mapRevealed: explorationView.mapRevealed,
+    }),
+  );
 
   // POV: close enemies shake a little; hits keep the lens unstable for a few seconds.
   const maxSpeed = PLAYER_MOVE_SPEED * PLAYER_SPRINT_MULT;
