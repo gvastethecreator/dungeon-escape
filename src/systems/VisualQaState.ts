@@ -1,4 +1,6 @@
-export type VisualQaState = "critical" | "dead" | "portal" | "won";
+import { parseLaunchConfiguration, type VisualQaState } from "../launch/LaunchConfiguration";
+
+export type { VisualQaState } from "../launch/LaunchConfiguration";
 
 /**
  * Deterministic visual states stay behind the existing performance-audit flag.
@@ -6,18 +8,10 @@ export type VisualQaState = "critical" | "dead" | "portal" | "won";
  * a normal player run or exposing visible debug controls.
  */
 export function readVisualQaState(search: string): VisualQaState | null {
-  const params = new URLSearchParams(search);
-  if (!params.has("perfAudit")) return null;
-  const state = params.get("qaState");
-  return state === "critical" || state === "dead" || state === "portal" || state === "won"
-    ? state
-    : null;
+  return parseLaunchConfiguration(search).visualQa.state;
 }
 
 /** Keep campaign captures repeatable without changing normal New Game seed generation. */
 export function readVisualQaSeed(search: string): string | null {
-  const params = new URLSearchParams(search);
-  if (!params.has("perfAudit")) return null;
-  const seed = params.get("seed")?.trim();
-  return seed ? seed.slice(0, 96) : null;
+  return parseLaunchConfiguration(search).visualQa.seed;
 }

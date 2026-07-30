@@ -5,11 +5,7 @@ import { footstepSurfaceAt } from "./audio/FootstepSurface";
 import { createAuthorityClient } from "./authority/client";
 import {
   createDomainBridge,
-  readMoodFromUrl,
-  readSeedFromUrl,
   roomLabelForCell,
-  writeModeToUrl,
-  writeSeedToUrl,
   type DomainBridge,
   type DungeonDomainState,
 } from "./domain/bridge";
@@ -30,6 +26,7 @@ import {
   type DifficultySnapshot,
 } from "./game/DifficultyDirector";
 import { isLocalDevToolsEnabled, readLocalDevToolsEnv } from "./game/LocalDevTools";
+import { createLaunchHistory, parseLaunchConfiguration } from "./launch/LaunchConfiguration";
 import { FirstPersonController, type PlayerAction } from "./player/FirstPersonController";
 import { AtmosphereSystem } from "./systems/AtmosphereSystem";
 import {
@@ -53,7 +50,6 @@ import type { BiomeEventSnapshot } from "./systems/BiomeEventDirector";
 import { detectRenderCapabilities, raceWithTimeout } from "./systems/RenderCapabilities";
 import { collectVisibleRenderInventory } from "./systems/RenderInventory";
 import { resolveRenderPixelRatio } from "./systems/RenderScale";
-import { readVisualQaSeed, readVisualQaState } from "./systems/VisualQaState";
 import {
   computePovFeel,
   decayExhaustionTrauma,
@@ -121,6 +117,12 @@ import type { HazardSurfaceEffect } from "./world/HazardTileSystem";
 import { WORLD_TILE_SIZE, WORLD_WALL_HEIGHT } from "./world/WorldMetrics";
 import "./styles.css";
 import "./styles/editor.css";
+
+const launchConfig = parseLaunchConfiguration(window.location.search);
+const launchHistory = createLaunchHistory({
+  currentHref: () => window.location.href,
+  replaceHref: (href) => window.history.replaceState({}, "", href),
+});
 
 function requireElement<T extends Element>(selector: string): T {
   const element = document.querySelector<T>(selector);
@@ -306,13 +308,11 @@ const PLAYER_MOVE_SPEED = 4.25;
 const PLAYER_SPRINT_MULT = 1.48;
 
 // Local domain bridge keeps seed, floor, exploration, and engine mode coherent.
-const urlSeed = readSeedFromUrl() ?? (elements.seed.value.trim() || COPY.hud.seedDefault);
+const urlSeed = launchConfig.seed ?? (elements.seed.value.trim() || COPY.hud.seedDefault);
 elements.seed.value = urlSeed;
 /** Map Tools + Server Runs only on local dev hosts — never on public deploy. */
 const localDevTools = isLocalDevToolsEnabled(readLocalDevToolsEnv());
-const authorityBaseUrl = localDevTools
-  ? (new URLSearchParams(window.location.search).get("authority")?.trim() ?? "")
-  : "";
+const authorityBaseUrl = localDevTools ? launchConfig.authorityBaseUrl : "";
 const authority = createAuthorityClient({ baseUrl: authorityBaseUrl });
 const domainBridge: DomainBridge = createDomainBridge({
   initialSeed: urlSeed,
@@ -343,7 +343,7 @@ applyLocalDevToolsChrome();
 const scene = new THREE.Scene();
 
 const camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.08, 120);
-const renderCaps = detectRenderCapabilities();
+const renderCaps = detectRenderCapabilities({ overrides: launchConfig.render });
 function createPlayRenderer(): THREE.WebGLRenderer {
   const common = {
     canvas: elements.scene,
@@ -965,8 +965,7 @@ function startNewGameWithBiome(biomeId: BiomeId): void {
   // Apply the campaign ramp for this biome (Ancient soft → Backrooms brutal).
   applyEditorParamsToForm(biomeCampaignParams(biomeId));
   setRunSource("campaign", false);
-  const visualQaSeed = readVisualQaSeed(window.location.search);
-  void startPlayWithSeed(visualQaSeed ?? makeSeed(), {
+  void startPlayWithSeed(launchConfig.visualQa.seed ?? makeSeed(), {
     refreshProcedural: true,
     runSource: "campaign",
   }).then(() => {
@@ -1021,11 +1020,6 @@ function setMusicMutedPreference(muted: boolean, options: { playClick?: boolean 
   syncMusicToggleUi();
   if (options.playClick !== false && !audio.isMuted) audio.play("uiToggle");
   setStatus(muted ? "Music off." : "Music on.");
-}
-
-function readSkipRunIntroFromUrl(search = window.location.search): boolean {
-  const params = new URLSearchParams(search.startsWith("?") ? search.slice(1) : search);
-  return params.get("skipRunIntro") === "1" || params.get("skipRunIntro") === "true";
 }
 
 function setRunIntroActive(active: boolean, statusText = ""): void {
@@ -1199,7 +1193,7 @@ function waitForForgeAnimComplete(timeoutMs: number): Promise<void> {
 
 function resolveIntroThemeKey(): string {
   if (forcedPlayMoodId) return forcedPlayMoodId;
-  return readMoodFromUrl() || "ancient";
+  return launchConfig.mood || "ancient";
 }
 
 /**
@@ -1218,7 +1212,7 @@ async function startPlayWithSeed(
   if (options.runSource) setRunSource(options.runSource, false);
   const normalizedSeed = seed.trim() || COPY.hud.seedDefault;
   elements.seed.value = normalizedSeed;
-  const skipIntro = readSkipRunIntroFromUrl();
+  const skipIntro = launchConfig.skipRunIntro;
   const animateMap = !skipIntro && !REDUCED_MOTION_QUERY.matches;
   const introThemeKey = resolveIntroThemeKey();
 
@@ -1985,7 +1979,7 @@ function applyEditorParamsToForm(params: DungeonEditorParams): void {
 /** Resolve active mood: forced NEW GAME biome, URL, forge/profile, or seed. */
 function resolveActiveMood(nextDungeon: DungeonData) {
   if (forcedPlayMoodId) return getDungeonMood(forcedPlayMoodId);
-  const forced = parseDungeonMoodId(readMoodFromUrl());
+  const forced = parseDungeonMoodId(launchConfig.mood);
   if (forced) return getDungeonMood(forced);
   return resolveDungeonMood(nextDungeon, readEditorParams().profile);
 }
@@ -2543,7 +2537,7 @@ function showEndOverlay(mode: "dead" | "won"): void {
     elements.endOverlay.hidden = true;
     return;
   }
-  if (!readVisualQaState(window.location.search)) recordPlayerRunCompleted();
+  if (!launchConfig.visualQa.state) recordPlayerRunCompleted();
   const activeMood = dungeon ? resolveActiveMood(dungeon) : null;
   const endingBiomeId = activeMood?.id ?? "ancient";
   elements.endArt.src = biomeScreenArtSrc(endingBiomeId, "ending");
@@ -2688,7 +2682,7 @@ function activateDungeon(
   // Scene graph changed — force the next materials inventory to rescan.
   lastMaterialCountAt = 0;
   elements.seed.value = nextDungeon.seed;
-  writeSeedToUrl(nextDungeon.seed);
+  launchHistory.replace({ seed: nextDungeon.seed });
   visitedCells.clear();
   mapRevealed = false;
   collectExploredAround(nextDungeon, nextDungeon.spawn, MINIMAP_REVEAL_RADIUS, visitedCells);
@@ -2805,7 +2799,7 @@ function buildDungeon(
       runSource === "campaign"
         ? (parseDungeonMoodId(options.resume?.campaignBiomeId) ??
           forcedPlayMoodId ??
-          parseDungeonMoodId(readMoodFromUrl()))
+          parseDungeonMoodId(launchConfig.mood))
         : null;
     let generated: DungeonData;
     if (runSource === "campaign" && requestedCampaignMood) {
@@ -2966,7 +2960,7 @@ function setEngineMode(
   const external = nextMode !== "play";
   elements.shell.dataset.engineMode = nextMode;
   // Keep the URL state aligned with editor, debug, and play modes.
-  writeModeToUrl(nextMode);
+  launchHistory.replace({ mode: nextMode });
   if (options.persist !== false) domainBridge.setEngineMode(nextMode);
   if (nextMode === "play" && options.hydrate !== false && localDevTools) {
     void (async () => {
@@ -3218,7 +3212,7 @@ function publishPerformanceDiagnostics(now: number): void {
   dataset.renderPrograms = String(renderer.info.programs?.length ?? 0);
   dataset.renderDpr = renderer.getPixelRatio().toFixed(2);
   dataset.worldLights = String(world.stats.lights);
-  if (new URLSearchParams(window.location.search).has("perfAudit")) {
+  if (launchConfig.performanceAudit) {
     dataset.renderInventory = JSON.stringify(collectVisibleRenderInventory(scene, camera));
   }
   lastPerformancePublish = now;
@@ -4312,7 +4306,7 @@ setBootProgress(0.12, "Binding audio…");
 audio.setMusicMuted(readStoredMusicMuted());
 syncMusicToggleUi();
 // Welcome owns the first choice. New Game starts play; Custom Run opens Creation.
-const visualQaState = readVisualQaState(window.location.search);
+const visualQaState = launchConfig.visualQa.state;
 setBootProgress(0.28, visualQaState ? "Forging the QA map…" : "Opening the hall…");
 // The welcome screen does not need either WebGL world. Keep the runtime canvas
 // empty and the Forge iframe unmounted until the player chooses a real route.

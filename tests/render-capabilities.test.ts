@@ -85,6 +85,18 @@ describe("render capabilities", () => {
     expect(crtOff.enableCrtByDefault).toBe(false);
   });
 
+  test("uses a parsed override snapshot without falling back to search", () => {
+    const caps = detectRenderCapabilities({
+      userAgent: "Mozilla/5.0 Firefox/153.0",
+      hardwareConcurrency: 8,
+      search: "?quality=1&crt=1",
+      overrides: { quality: null, crt: null, safeRender: null },
+    });
+
+    expect(caps.skipShaderPrecompile).toBe(true);
+    expect(caps.enableCrtByDefault).toBe(false);
+  });
+
   test("raceWithTimeout resolves success and timeout", async () => {
     const ok = await raceWithTimeout(Promise.resolve(42), 100);
     expect(ok).toEqual({ ok: true, value: 42 });

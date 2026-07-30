@@ -69,38 +69,6 @@ export function engineModeToShell(mode: EngineMode): "editor" | "play" | "debug"
   return mode;
 }
 
-export function readModeFromUrl(search = window.location.search): EngineMode {
-  const raw = new URLSearchParams(search.startsWith("?") ? search.slice(1) : search).get("mode");
-  return shellModeToEngine(raw);
-}
-
-export function writeModeToUrl(mode: EngineMode): void {
-  const url = new URL(window.location.href);
-  url.searchParams.set("mode", engineModeToShell(mode));
-  window.history.replaceState({}, "", url);
-}
-
-export function readSeedFromUrl(search = window.location.search): string | null {
-  const raw = new URLSearchParams(search.startsWith("?") ? search.slice(1) : search).get("seed");
-  return raw && raw.trim() ? raw.trim() : null;
-}
-
-/**
- * Optional lighting biome override: `?mood=frost` or `?theme=molten`.
- * Wins over profile/seed so proof captures and playtests can force a look.
- */
-export function readMoodFromUrl(search = window.location.search): string | null {
-  const params = new URLSearchParams(search.startsWith("?") ? search.slice(1) : search);
-  const raw = params.get("mood") ?? params.get("theme");
-  return raw && raw.trim() ? raw.trim().toLowerCase() : null;
-}
-
-export function writeSeedToUrl(seed: string): void {
-  const url = new URL(window.location.href);
-  url.searchParams.set("seed", seed);
-  window.history.replaceState({}, "", url);
-}
-
 export type DomainBridgeOptions = {
   initialSeed?: string;
   authority?: AuthorityClient | null;

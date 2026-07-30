@@ -3,6 +3,8 @@
  * Firefox and low-end hosts choke on full shader precompile + CRT history passes.
  */
 
+import type { LaunchRenderOverrides } from "../launch/LaunchConfiguration";
+
 export interface RenderCapabilityProfile {
   readonly isFirefox: boolean;
   readonly isLowEnd: boolean;
@@ -30,6 +32,8 @@ export interface RenderCapabilityInput {
   deviceMemory?: number;
   /** Override for tests / QA. */
   search?: string;
+  /** Parsed once by the browser host. Wins over `search` when supplied. */
+  overrides?: LaunchRenderOverrides;
 }
 
 function readQueryFlag(search: string, key: string): boolean | null {
@@ -64,16 +68,19 @@ export function detectRenderCapabilities(
     (typeof navigator !== "undefined"
       ? (navigator as Navigator & { deviceMemory?: number }).deviceMemory
       : undefined);
-  const search =
-    input.search ?? (typeof window !== "undefined" ? window.location.search : "");
+  const search = input.overrides
+    ? ""
+    : (input.search ?? (typeof window !== "undefined" ? window.location.search : ""));
 
   const isFirefox = isFirefoxUserAgent(userAgent);
   const isLowEnd =
     cores <= 4 || (typeof memory === "number" && Number.isFinite(memory) && memory <= 4);
 
-  const forceQuality = readQueryFlag(search, "quality");
-  const forceCrt = readQueryFlag(search, "crt");
-  const forceSafe = readQueryFlag(search, "safeRender");
+  const forceQuality = input.overrides ? input.overrides.quality : readQueryFlag(search, "quality");
+  const forceCrt = input.overrides ? input.overrides.crt : readQueryFlag(search, "crt");
+  const forceSafe = input.overrides
+    ? input.overrides.safeRender
+    : readQueryFlag(search, "safeRender");
 
   const safeMode = forceSafe === true || (forceQuality === false && forceSafe !== false);
   const treatAsConstrained = safeMode || isFirefox || isLowEnd;
