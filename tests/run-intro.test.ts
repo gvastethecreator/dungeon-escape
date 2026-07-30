@@ -8,18 +8,19 @@ describe("new-game map theater intro", () => {
     expect(host).toContain('class="scene-fade"');
   });
 
-  test("startPlayWithSeed ships the real play dungeon into isometric Forge theater", async () => {
+  test("main delegates New Game and Hall seeds to the run intro director", async () => {
     const source = await Bun.file(new URL("../src/main.ts", import.meta.url)).text();
     const forge = await Bun.file(new URL("../src/forge/main.js", import.meta.url)).text();
-    expect(source).toContain("async function startPlayWithSeed");
-    expect(source).toContain("setRunIntroActive(true");
-    expect(source).toContain("setSceneFadeOpaque(true, { instant: true })");
-    expect(source).toContain("buildPlayWorldForIntro");
-    expect(source).toContain('setEditorSurface("forge")');
-    expect(source).toContain("exportPlayDungeonToForgePresentation");
-    expect(source).toContain("forgeFrameClient.startPresentation");
-    expect(source).toContain("presentationSession?.stop()");
-    expect(source).toContain("dungeon: presentationDungeon");
+    const director = await Bun.file(
+      new URL("../src/game/RunIntroDirector.ts", import.meta.url),
+    ).text();
+    expect(source).toContain("const runIntroDirector = new RunIntroDirector");
+    expect(source).toContain("return runIntroDirector.start");
+    expect(source).toContain('startPlayWithSeed(entry.seed, { runSource: "campaign" })');
+    expect(source).not.toContain("runIntroToken");
+    expect(source).not.toContain("buildPlayWorldForIntro");
+    expect(director).toContain("exportPlayDungeonToForgePresentation");
+    expect(director).toContain("startPresentation");
     expect(source).toContain("generateCompletableDungeon");
     expect(forge).toContain("black-flag:forge-presentation");
     expect(forge).toContain("hostDungeon");
@@ -44,18 +45,8 @@ describe("new-game map theater intro", () => {
     expect(preserveEditorAt).toBeGreaterThan(presentationHandlerAt);
     expect(inspectHostDungeonAt).toBeGreaterThan(preserveEditorAt);
 
-    const blackFirstAt = source.indexOf("setSceneFadeOpaque(true, { instant: true })");
-    const introActiveAt = source.indexOf("setRunIntroActive(true", blackFirstAt);
-    const buildAt = source.indexOf("buildPlayWorldForIntro(normalizedSeed, token)", introActiveAt);
-    const presentAt = source.indexOf("exportPlayDungeonToForgePresentation", buildAt);
-    const startPresentationAt = source.indexOf("forgeFrameClient.startPresentation", presentAt);
-    const revealAt = source.indexOf("setSceneFadeOpaque(false", presentAt);
-    expect(blackFirstAt).toBeGreaterThan(-1);
-    expect(introActiveAt).toBeGreaterThan(blackFirstAt);
-    expect(buildAt).toBeGreaterThan(introActiveAt);
-    expect(presentAt).toBeGreaterThan(buildAt);
-    expect(startPresentationAt).toBeGreaterThan(presentAt);
-    expect(revealAt).toBeGreaterThan(startPresentationAt);
+    expect(director).toContain('"forge-fallback"');
+    expect(director).toContain("restorePlayInputAndFocus");
   });
 
   test("copy exposes forging and entering status lines", async () => {
