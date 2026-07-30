@@ -19,7 +19,12 @@ import { hashSeed } from "./core/random";
 import { parseForgeDungeonMessage, type ForgeDungeonIntakeValue } from "./dungeon/forgeIntake";
 import type { DungeonData } from "./dungeon/types";
 import { DungeonEditorView } from "./editor/DungeonEditorView";
-import { type EngineMode, isEngineMode, shouldMountForge } from "./game/EngineMode";
+import { type EngineMode, isEngineMode } from "./game/EngineMode";
+import {
+  createBrowserForgeFramePort,
+  ForgeFrameClient,
+  type ForgePresentationSession,
+} from "./forge/ForgeFrameClient";
 import {
   difficultyLabel,
   formatRunClock,
@@ -298,6 +303,10 @@ const elements = {
   debugEnemies: requireElement<HTMLElement>("#debug-enemies"),
 };
 
+const forgeFrameClient = new ForgeFrameClient(
+  createBrowserForgeFramePort({ frame: elements.forgeFrame }),
+);
+
 const welcomeScreenParticles = new BiomeScreenParticles(elements.welcomeParticles, "ancient", {
   density: 1,
   seedSalt: 17,
@@ -483,12 +492,9 @@ let editorSurface: "runtime" | "forge" = "forge";
 let forgeIntake: ForgeDungeonIntakeValue | null = null;
 let forgePreviewDungeon: DungeonData | null = null;
 let lastProceduralSeed = 0;
-let pendingProceduralSeed: number | null = null;
 /** Bumps to cancel an in-flight new-game map theater sequence. */
 let runIntroToken = 0;
 let runIntroActive = false;
-/** Resolvers waiting for Forge build-reveal completion (or timeout). */
-const forgeAnimWaiters = new Set<() => void>();
 type EditorSurfaceState = "idle" | "loading" | "updating" | "ready" | "error";
 const editorSurfaceStatus: Record<
   "runtime" | "forge",
@@ -826,7 +832,7 @@ function showBiomePicker(): void {
   syncWelcomeLeaderboardVisibility();
   // Warm the Forge iframe while the player picks a biome so New Game does not
   // stall on a cold WebGL load under the black curtain.
-  void ensureForgeFrameLoaded(8_000, { presentation: true });
+  void forgeFrameClient.ensureLoaded({ timeoutMs: 8_000, presentation: true });
   window.requestAnimationFrame(() => elements.biomePickerBack.focus());
 }
 
@@ -976,13 +982,6 @@ function setRunIntroStatus(statusText: string): void {
   elements.runIntroStatus.textContent = statusText;
 }
 
-function notifyForgeAnimComplete(): void {
-  if (forgeAnimWaiters.size === 0) return;
-  const waiters = [...forgeAnimWaiters];
-  forgeAnimWaiters.clear();
-  for (const resolve of waiters) resolve();
-}
-
 /** Soft crossfade between map theater and Play — keep short so black never feels stuck. */
 const SCENE_FADE_OUT_MS = 260;
 const SCENE_FADE_IN_MS = 300;
@@ -1036,30 +1035,6 @@ async function setSceneFadeOpaque(
   }
 }
 
-function forgeFrameSrc(presentation: boolean): string {
-  const base = elements.forgeFrame.dataset.src ?? "/forge.html";
-  if (!presentation) return base;
-  const url = new URL(base, window.location.origin);
-  url.searchParams.set("presentation", "1");
-  return `${url.pathname}${url.search}`;
-}
-
-async function ensureForgeFrameLoaded(
-  timeoutMs = 8_000,
-  options: { presentation?: boolean } = {},
-): Promise<boolean> {
-  if (elements.forgeFrame.dataset.loaded === "true") return true;
-  if (!elements.forgeFrame.hasAttribute("src")) {
-    elements.forgeFrame.src = forgeFrameSrc(Boolean(options.presentation));
-  }
-  const started = performance.now();
-  while (performance.now() - started < timeoutMs) {
-    if (elements.forgeFrame.dataset.loaded === "true") return true;
-    await waitAnimationFrames(1);
-  }
-  return elements.forgeFrame.dataset.loaded === "true";
-}
-
 /**
  * Build the playable world while the map theater is on screen so the black
  * gap between map and first-person is only a short crossfade, not a long hang.
@@ -1085,43 +1060,6 @@ async function buildPlayWorldForIntro(
   }
 }
 
-function postForgeMessage(payload: Record<string, unknown>): void {
-  elements.forgeFrame.contentWindow?.postMessage(payload, location.origin);
-}
-
-function postForgePresentation(options: {
-  enabled: boolean;
-  animate: boolean;
-  seed?: number;
-  themeKey?: string | null;
-  dungeon?: ReturnType<typeof exportPlayDungeonToForgePresentation>;
-}): void {
-  postForgeMessage({
-    type: "black-flag:forge-presentation",
-    version: 1,
-    enabled: options.enabled,
-    animate: options.animate,
-    seed: options.seed,
-    themeKey: options.themeKey ?? undefined,
-    dungeon: options.dungeon,
-  });
-}
-
-function waitForForgeAnimComplete(timeoutMs: number): Promise<void> {
-  return new Promise((resolve) => {
-    let settled = false;
-    const done = (): void => {
-      if (settled) return;
-      settled = true;
-      window.clearTimeout(timer);
-      forgeAnimWaiters.delete(done);
-      resolve();
-    };
-    forgeAnimWaiters.add(done);
-    const timer = window.setTimeout(done, Math.max(200, timeoutMs));
-  });
-}
-
 function resolveIntroThemeKey(): string {
   if (forcedPlayMoodId) return forcedPlayMoodId;
   return launchConfig.mood || "ancient";
@@ -1137,8 +1075,7 @@ async function startPlayWithSeed(
 ): Promise<void> {
   const token = ++runIntroToken;
   campaignClearRecordedForRun = false;
-  // Free any waiter from a previous intro so it can exit on the token check.
-  notifyForgeAnimComplete();
+  forgeFrameClient.cancelPresentation();
   void audio.unlock();
   if (options.runSource) setRunSource(options.runSource, false);
   const normalizedSeed = seed.trim() || COPY.hud.seedDefault;
@@ -1155,8 +1092,7 @@ async function startPlayWithSeed(
 
   if (skipIntro) {
     if (options.refreshProcedural) {
-      pendingProceduralSeed = makeProceduralSeed();
-      postPendingProceduralSeed();
+      forgeFrameClient.setProceduralSeed(makeProceduralSeed());
     }
     buildDungeon(normalizedSeed);
     setEngineMode("play", { hydrate: false });
@@ -1198,26 +1134,28 @@ async function startPlayWithSeed(
     return;
   }
 
-  const forgeReady = await ensureForgeFrameLoaded(6_000, { presentation: true });
-  if (token !== runIntroToken) return;
-
   const presentationDungeon = exportPlayDungeonToForgePresentation(dungeon, introThemeKey);
-  let mapShown = false;
-  if (forgeReady) {
-    postForgeMessage({ type: "black-flag:forge-visibility", visible: true });
-    const settled = waitForForgeAnimComplete(animateMap ? 10_000 : 800);
-    postForgePresentation({
-      enabled: true,
+  const presentation = await forgeFrameClient.startPresentation({
+    presentation: {
       animate: animateMap,
       seed: hashSeed(normalizedSeed) % 999_999 || 1,
       themeKey: introThemeKey,
       dungeon: presentationDungeon,
-    });
+    },
+    loadTimeoutMs: 6_000,
+    completionTimeoutMs: animateMap ? 10_000 : 800,
+  });
+  if (token !== runIntroToken) return;
+
+  let presentationSession: ForgePresentationSession | null = null;
+  let mapShown = false;
+  if (presentation.ok) {
+    presentationSession = presentation.session;
     await waitAnimationFrames(2);
     if (token !== runIntroToken) return;
     await setSceneFadeOpaque(false, { durationMs: SCENE_FADE_IN_MS });
     mapShown = true;
-    await settled;
+    await presentationSession.completion;
   } else {
     // No Forge iframe: still hold a beat so the handoff does not snap.
     await setSceneFadeOpaque(false, { durationMs: SCENE_FADE_IN_MS });
@@ -1229,8 +1167,7 @@ async function startPlayWithSeed(
   await setSceneFadeOpaque(true, { durationMs: SCENE_FADE_OUT_MS });
   if (token !== runIntroToken) return;
 
-  postForgePresentation({ enabled: false, animate: false });
-  postForgeMessage({ type: "black-flag:forge-visibility", visible: false });
+  presentationSession?.stop();
   setRunIntroActive(false);
   setEngineMode("play", { hydrate: false });
   if (!renderWarmupReady) await waitForRendererWarmup(4_000);
@@ -2768,15 +2705,11 @@ function setEditorSurface(nextSurface: "runtime" | "forge"): void {
     button.classList.toggle("is-active", active);
     button.setAttribute("aria-selected", String(active));
   });
-  if (shouldMountForge(nextSurface, engineMode, elements.forgeFrame.hasAttribute("src"))) {
-    // Presentation query hides Forge chrome before the first paint of a cold load.
-    elements.forgeFrame.src = forgeFrameSrc(runIntroActive);
+  if (nextSurface === "forge" && engineMode !== "play") {
+    void forgeFrameClient.ensureLoaded({ presentation: runIntroActive, timeoutMs: 8_000 });
   }
   const visible = nextSurface === "forge" && (engineMode === "editor" || runIntroActive);
-  elements.forgeFrame.contentWindow?.postMessage(
-    { type: "black-flag:forge-visibility", visible },
-    location.origin,
-  );
+  forgeFrameClient.setVisible(visible);
   if (engineMode === "editor") setMapToolsOpen(nextSurface === "runtime");
   if (nextSurface === "runtime") window.requestAnimationFrame(() => editorView.redraw());
 }
@@ -2980,18 +2913,8 @@ function makeProceduralSeed(): number {
   return lastProceduralSeed;
 }
 
-function postPendingProceduralSeed(): void {
-  if (pendingProceduralSeed === null || elements.forgeFrame.dataset.loaded !== "true") return;
-  elements.forgeFrame.contentWindow?.postMessage(
-    { type: "black-flag:forge-new-seed", seed: pendingProceduralSeed },
-    location.origin,
-  );
-  pendingProceduralSeed = null;
-}
-
 function queueNewProceduralSeed(): void {
-  pendingProceduralSeed = makeProceduralSeed();
-  postPendingProceduralSeed();
+  forgeFrameClient.setProceduralSeed(makeProceduralSeed());
 }
 
 function refreshMinimapViewport(): void {
@@ -3525,26 +3448,12 @@ elements.editorViewButtons.forEach((button) =>
   }),
 );
 elements.forgeApply.addEventListener("click", applyForgeDungeon);
-elements.forgeFrame.addEventListener("load", () => {
-  elements.forgeFrame.dataset.loaded = "true";
+forgeFrameClient.onLoaded(() => {
+  if (forgeIntake) return;
   setEditorSurfaceStatus("forge", "DUNGEON CREATION · BUILDING", "loading");
-  elements.forgeFrame.contentWindow?.postMessage(
-    {
-      type: "black-flag:forge-visibility",
-      visible: editorSurface === "forge" && engineMode === "editor",
-    },
-    location.origin,
-  );
-  postPendingProceduralSeed();
 });
-window.addEventListener("message", (event) => {
-  if (event.origin !== location.origin || event.source !== elements.forgeFrame.contentWindow)
-    return;
-  if (event.data?.type === "black-flag:forge-anim-complete") {
-    notifyForgeAnimComplete();
-    return;
-  }
-  const intake = parseForgeDungeonMessage(event.data);
+forgeFrameClient.onTrustedMessage((data) => {
+  const intake = parseForgeDungeonMessage(data);
   if (intake.kind === "ignored") return;
   if (intake.kind === "rejected") {
     forgeIntake = null;
@@ -4136,6 +4045,7 @@ window.addEventListener("beforeunload", () => {
   cancelAnimationFrame(animationFrameId);
   localRunSave.flush();
   localRunSave.dispose();
+  forgeFrameClient.dispose();
   longTaskObserver?.disconnect();
   minimapResizeObserver.disconnect();
   minimapLayout.dispose();
