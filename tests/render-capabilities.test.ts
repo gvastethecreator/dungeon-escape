@@ -1,12 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 
-import {
-  detectRenderCapabilities,
-  isFirefoxUserAgent,
-  raceWithTimeout,
-  SerialRenderWorkQueue,
-} from "../src/systems/RenderCapabilities";
+import { detectRenderCapabilities, isFirefoxUserAgent } from "../src/systems/RenderCapabilities";
 
 describe("render capabilities", () => {
   test("detects Firefox from user agent", () => {
@@ -26,7 +21,6 @@ describe("render capabilities", () => {
     expect(caps.skipShaderPrecompile).toBe(true);
     expect(caps.preferDefaultGpu).toBe(true);
     expect(caps.pixelRatioCap).toBe(1);
-    expect(caps.compileTimeoutMs).toBeLessThanOrEqual(2_500);
   });
 
   test("Chrome desktop keeps CRT and full precompile", () => {
@@ -99,60 +93,18 @@ describe("render capabilities", () => {
     expect(caps.enableCrtByDefault).toBe(false);
   });
 
-  test("raceWithTimeout resolves success and timeout", async () => {
-    const ok = await raceWithTimeout(Promise.resolve(42), 100);
-    expect(ok).toEqual({ ok: true, value: 42 });
-
-    const slow = await raceWithTimeout(
-      new Promise<number>((resolve) => setTimeout(() => resolve(1), 200)),
-      30,
-      "warmup-timeout",
-    );
-    expect(slow.ok).toBe(false);
-    if (!slow.ok) expect(slow.reason).toBe("warmup-timeout");
-  });
-
-  test("serializes uncancellable renderer work and survives a rejected task", async () => {
-    const queue = new SerialRenderWorkQueue();
-    const events: string[] = [];
-    let finishFirst = (): void => undefined;
-    const first = queue.run(async () => {
-      events.push("first:start");
-      await new Promise<void>((resolve) => {
-        finishFirst = resolve;
-      });
-      events.push("first:end");
-    });
-    const second = queue.run(async () => {
-      events.push("second:start");
-      throw new Error("expected");
-    });
-    const third = queue.run(async () => {
-      events.push("third:start");
-    });
-
-    await Promise.resolve();
-    expect(events).toEqual(["first:start"]);
-    finishFirst();
-    await first;
-    await expect(second).rejects.toThrow("expected");
-    await third;
-    expect(events).toEqual(["first:start", "first:end", "second:start", "third:start"]);
-  });
-
-  test("main guards stale warmup side effects after every uncancellable await", () => {
+  test("main never polls shader programs across a replaceable world lifecycle", () => {
     const source = readFileSync("src/main.ts", "utf8");
     const start = source.indexOf("function startRendererWarmup(");
     const end = source.indexOf("\nfunction clearObjectiveBannerTimers", start);
     const warmup = source.slice(start, end);
 
-    expect(warmup).toContain("rendererWarmupQueue.run");
     expect(warmup).toContain("renderer.compile(scene, camera);");
     expect(warmup).toContain("povPost.compileScene(renderer, scene, camera);");
-    expect(warmup).not.toContain("renderer.compileAsync(scene, camera)");
-    expect(warmup).not.toContain("compileSceneAsync");
-    expect(warmup.match(/if \(!isCurrent\(\)\) return;/g)).toHaveLength(2);
-    expect(warmup).toContain("if (isCurrent()) world.setPickupEffectsWarmupVisible(false);");
-    expect(warmup).toContain("A timed-out compile is still running and must stay alone.");
+    expect(warmup).toContain("povPost.render(renderer, scene, camera);");
+    expect(warmup).not.toContain("compileAsync(");
+    expect(warmup).not.toContain("rendererWarmupQueue");
+    expect(warmup).not.toContain("raceWithTimeout");
+    expect(warmup).toContain("world.setPickupEffectsWarmupVisible(false);");
   });
 });

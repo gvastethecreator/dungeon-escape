@@ -87,4 +87,44 @@ describe("POV CRT post effect", () => {
 
     post.dispose();
   });
+
+  test("registers scene shaders synchronously against the post target", () => {
+    const post = new PovPostFx();
+    const internals = post as unknown as PovPostFxInternals;
+    const previousTarget = { name: "previous" } as unknown as THREE.WebGLRenderTarget;
+    const targets: Array<THREE.WebGLRenderTarget | null> = [];
+    let compileCalls = 0;
+    const renderer = {
+      getRenderTarget: () => previousTarget,
+      setRenderTarget: (target: THREE.WebGLRenderTarget | null) => targets.push(target),
+      compile: () => {
+        compileCalls += 1;
+      },
+    } as unknown as THREE.WebGLRenderer;
+
+    post.compileScene(renderer, new THREE.Scene(), new THREE.Camera());
+
+    expect(compileCalls).toBe(1);
+    expect(targets).toEqual([internals.sceneTarget, previousTarget]);
+    post.dispose();
+  });
+
+  test("restores the prior render target when synchronous registration fails", () => {
+    const post = new PovPostFx();
+    const previousTarget = { name: "previous" } as unknown as THREE.WebGLRenderTarget;
+    const targets: Array<THREE.WebGLRenderTarget | null> = [];
+    const renderer = {
+      getRenderTarget: () => previousTarget,
+      setRenderTarget: (target: THREE.WebGLRenderTarget | null) => targets.push(target),
+      compile: () => {
+        throw new Error("expected compile failure");
+      },
+    } as unknown as THREE.WebGLRenderer;
+
+    expect(() => post.compileScene(renderer, new THREE.Scene(), new THREE.Camera())).toThrow(
+      "expected compile failure",
+    );
+    expect(targets.at(-1)).toBe(previousTarget);
+    post.dispose();
+  });
 });
