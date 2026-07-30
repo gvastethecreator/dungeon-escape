@@ -272,6 +272,11 @@ describe("StaticDungeonScene", () => {
       });
       expect(classic.ambientBeams).toHaveLength(2);
       expect(group.getObjectByName("Ambient godray 1")).toBeDefined();
+      const ambientMaterial = classic.ambientBeams[0]!.material as THREE.ShaderMaterial;
+      expect(ambientMaterial.blending).toBe(THREE.NormalBlending);
+      expect(ambientMaterial.fog).toBe(true);
+      expect(ambientMaterial.toneMapped).toBe(true);
+      expect(classic.ambientBeams[0]!.userData.screenSpace).toBe(false);
       expect(classic.solidCells.size).toBe(22);
       expect(classic.solidColliders).toHaveLength(22);
       expect(group.getObjectByName("Escape portal gate")).toBeDefined();
