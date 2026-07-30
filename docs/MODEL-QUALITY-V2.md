@@ -80,7 +80,7 @@ Los 11 roles actuales son:
 
 `aged-oak`, `black-iron`, `dull-brass`, `dungeon-stone`, `ash-ceramic`, `aged-bone`, `woven-cloth`, `dungeon-ice`, `arcane-crystal`, `root-bark` y `ochre-painted-steel`.
 
-El manifiesto de salida está en `public/assets/textures/model-materials-v2/manifest.json`: 11 roles × 5 mapas = 55 archivos de 512 px. Guarda hashes de fuente y salida, recorte, luma, rango de rugosidad y medida de detalle central. El menor `centerDetailRatio` actual es `0.8691`.
+El manifiesto de producción está en `assets-source/runtime-metadata/textures/model-materials-v2/manifest.json`: 11 roles × 5 mapas. Los WebP de runtime miden 256 px; el manifiesto conserva las métricas de los maestros de 512 px.
 
 La textura aporta respuesta de superficie. La geometría sigue a cargo de la factory; un normal map no sustituye espesor, bisagras o una silueta válida.
 
@@ -102,7 +102,7 @@ Cada bioma usa una placa ImageGen cuadrada para el frente completo de dos hojas.
 | Fungal    | Madera púrpura y marcas fúngicas apagadas        |
 | Backrooms | Paneles de acero ocre desgastado                 |
 
-El constructor genera albedo, normal y rugosidad a 512 px: 11 biomas × 3 mapas = 33. La división detectada queda a un máximo absoluto de 4 px del centro; el contrato admite hasta 8 px. Las fuentes y el manifiesto están en `assets-source/imagegen/biome-door-textures-v2/`; los mapas de juego están en `public/assets/textures/biomes/<bioma>/door*.png`.
+El constructor genera maestros de 512 px: 11 biomas × 3 mapas = 33. La división detectada queda a un máximo absoluto de 4 px del centro; el contrato admite hasta 8 px. Las fuentes y el manifiesto están en `assets-source/imagegen/biome-door-textures-v2/`; los mapas WebP de juego miden 256 px y están en `public/assets/textures/biomes/<bioma>/door*.webp`.
 
 La puerta de mazmorra usa dos cajas cerradas, una por hoja, más marco y herrajes. La versión actual mide 5 mallas, 848 triángulos y 3 materiales. La puerta de oficina mide 5 mallas, 448 triángulos y 3 materiales. Los barriles de bisagra y anillas quedan como herraje 3D; la oficina conserva barras de empuje y placa baja.
 
@@ -185,7 +185,7 @@ Estas cifras sirven como línea base. El resultado final de rendimiento permanec
 | Contrato y roster                       | `assets-source/imagegen/model-references-v2/README.md` y `manifest.json`                |
 | Hojas y prompts                         | `assets-source/imagegen/model-references-v2/<categoria>/` y `prompts/`                  |
 | Maestros PBR                            | `assets-source/imagegen/material-textures-v2/`                                          |
-| Manifiesto PBR de juego                 | `public/assets/textures/model-materials-v2/manifest.json`                               |
+| Manifiesto PBR de producción            | `assets-source/runtime-metadata/textures/model-materials-v2/manifest.json`              |
 | Maestros de puertas                     | `assets-source/imagegen/biome-door-textures-v2/`                                        |
 | Specs y prueba por objeto               | `.scratch/img2threejs/model-references-v2/<categoria>/<id>/`                            |
 | Métricas de colgantes y ambiente        | `.scratch/img2threejs/model-references-v2/runtime-metrics.json`                         |

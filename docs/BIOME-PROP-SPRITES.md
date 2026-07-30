@@ -21,19 +21,19 @@ espacio inmediato.
 
 ## Clasificación de los frames
 
-| Bioma | Plano sobre suelo | Erguido en suelo | Esquina con giro limitado |
-| --- | --- | --- | --- |
-| Ancient | — | Broken column, Funerary urns | Rune tablet |
-| Molten | Cooling magma rocks | Copper slag bowl | Scorched anvil |
-| Frost | Frozen floor altar | Ice shard pile | Snow rune stone |
-| Grim | Rusted chain coil | Bone heap | Gravestone fragment |
-| Verdant | — | Mossy standing stone, Seed pods | Root cluster |
-| Ash | Cinder rubble | Ash urn | Charred crate |
-| Iron | Gear scraps | Pressure valve | Iron storage crate |
-| Obsidian | — | Purple crystals, Ritual prism | Obsidian rock |
-| Sunken | Coral rubble | Barnacle pot | Waterlogged crate |
-| Fungal | — | Mushroom cluster, Spore pod | Mycelium stone |
-| Backrooms | Carpet debris, Cable bundle | — | Office phone |
+| Bioma     | Plano sobre suelo           | Erguido en suelo                | Esquina con giro limitado |
+| --------- | --------------------------- | ------------------------------- | ------------------------- |
+| Ancient   | —                           | Broken column, Funerary urns    | Rune tablet               |
+| Molten    | Cooling magma rocks         | Copper slag bowl                | Scorched anvil            |
+| Frost     | Frozen floor altar          | Ice shard pile                  | Snow rune stone           |
+| Grim      | Rusted chain coil           | Bone heap                       | Gravestone fragment       |
+| Verdant   | —                           | Mossy standing stone, Seed pods | Root cluster              |
+| Ash       | Cinder rubble               | Ash urn                         | Charred crate             |
+| Iron      | Gear scraps                 | Pressure valve                  | Iron storage crate        |
+| Obsidian  | —                           | Purple crystals, Ritual prism   | Obsidian rock             |
+| Sunken    | Coral rubble                | Barnacle pot                    | Waterlogged crate         |
+| Fungal    | —                           | Mushroom cluster, Spore pod     | Mycelium stone            |
+| Backrooms | Carpet debris, Cable bundle | —                               | Office phone              |
 
 La clasificación se guarda junto a `surface` en
 `src/world/BiomeSpriteDecorKit.ts`. Frost usa un altar de hielo en el frame 4;
@@ -41,9 +41,9 @@ el cofre generado fue retirado del roster.
 
 ## Atlas
 
-- Tamaño: `1536 × 1024`.
+- Tamaño runtime: `768 × 512`.
 - Rejilla: `3 × 2`.
-- Celda: `512 × 512`.
+- Celda runtime: `256 × 256`.
 - Marco transparente interior: `4 px`.
 - Frames `0..2`: decals de pared.
 - Frames `3..5`: candidatos de suelo; su plano final depende de `placement`.
@@ -61,9 +61,9 @@ el cofre generado fue retirado del roster.
 2. Los originales quedan en `assets-source/imagegen/biome-props/`.
 3. `scripts/birefnet-biome-prop-sheets.py` ejecuta
    `ZhengPeng7/BiRefNet` con el entorno local CUDA y crea los atlas
-   transparentes en `public/assets/sprites/biome-props/`.
-4. El script elimina la placa conectada a los bordes, corta un marco de `4 px`
-   y escribe `manifest.json` con el bbox y el estado alpha de cada frame.
+   transparentes y publica WebP a mitad de tamaño en `public/assets/sprites/biome-props/`.
+4. El script elimina la placa conectada a los bordes, corta el marco y escribe el
+   manifiesto de producción en `assets-source/runtime-metadata/sprites/biome-props/manifest.json`.
 
 Comando de reproceso:
 
