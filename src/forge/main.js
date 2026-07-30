@@ -146,6 +146,7 @@ const camTarget = new THREE.Vector3(0, 0, 0);
 /** Host new-game theater: full-viewport map with no editor panel bias. */
 let presentationMode =
   typeof document !== "undefined" && document.documentElement.dataset.forgePresentation === "true";
+let activePresentationId = null;
 function updateCam() {
   const cp = Math.cos(pitch),
     sp = Math.sin(pitch);
@@ -2715,9 +2716,13 @@ function settleAll() {
 }
 /** Host-driven new-game theater: hide chrome and report when the reveal ends. */
 function publishAnimComplete() {
-  if (window.parent === window) return;
+  if (window.parent === window || activePresentationId === null) return;
   window.parent.postMessage(
-    { type: "black-flag:forge-anim-complete", version: 1 },
+    {
+      type: "black-flag:forge-anim-complete",
+      version: 1,
+      ...(activePresentationId > 0 ? { presentationId: activePresentationId } : {}),
+    },
     location.origin,
   );
 }
@@ -2924,10 +2929,17 @@ addEventListener("message", (event) => {
     return;
   }
   if (event.data?.type === "black-flag:forge-presentation") {
+    const rawPresentationId = event.data.presentationId;
+    const presentationId =
+      rawPresentationId === undefined ? 0 : Number(rawPresentationId);
+    if (!Number.isSafeInteger(presentationId) || presentationId < 0) return;
     const enabled = Boolean(event.data.enabled);
+    if (!enabled && presentationId !== activePresentationId) return;
+    if (enabled) activePresentationId = presentationId;
     // Enable presentation before forge() so fitCameraToDungeon centers the map.
     setPresentationMode(enabled);
     if (!enabled) {
+      activePresentationId = null;
       restoreEditorDungeonAfterPresentation();
       // Leave the editor free to pick themes again after the map theater.
       if (themeSel !== "random" && !THEME_KEYS.includes(themeSel)) setThemeSel("random");

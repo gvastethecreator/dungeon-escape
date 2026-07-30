@@ -321,15 +321,15 @@ export class PovPostFx {
     ]);
   }
 
-  async compileSceneAsync(
+  compileScene(
     renderer: THREE.WebGLRenderer,
     scene: THREE.Scene,
     camera: THREE.Camera,
-  ): Promise<void> {
+  ): void {
     const previousTarget = renderer.getRenderTarget();
     renderer.setRenderTarget(this.sceneTarget);
     try {
-      await renderer.compileAsync(scene, camera);
+      renderer.compile(scene, camera);
     } finally {
       renderer.setRenderTarget(previousTarget);
     }

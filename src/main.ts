@@ -46,7 +46,11 @@ import {
 } from "./systems/HazardFeel";
 import { FrameGapProfiler, type FrameGapSnapshot } from "./systems/FrameGapProfiler";
 import type { BiomeEventSnapshot } from "./systems/BiomeEventDirector";
-import { detectRenderCapabilities, raceWithTimeout } from "./systems/RenderCapabilities";
+import {
+  detectRenderCapabilities,
+  raceWithTimeout,
+  SerialRenderWorkQueue,
+} from "./systems/RenderCapabilities";
 import { collectVisibleRenderInventory } from "./systems/RenderInventory";
 import { resolveRenderPixelRatio } from "./systems/RenderScale";
 import {
@@ -481,9 +485,14 @@ let forcedPlayMoodId: DungeonMoodId | null = null;
 let playerBiomeStars: PlayerBiomeStars = emptyPlayerBiomeStars();
 let welcomeArtSequence = 0;
 let continueDomainState: DungeonDomainState | null = null;
+let continueRecoveryOverride: {
+  readonly resume: LocalRunResumeState;
+  readonly runSource: RunSource;
+} | null = null;
 let runHasStarted = false;
 let renderWarmupReady = false;
 let renderWarmupSequence = 0;
+const rendererWarmupQueue = new SerialRenderWorkQueue();
 let lastDebugDraw = 0;
 let regenerateTimer = 0;
 let currentThreatDistance: number | null = null;
@@ -651,6 +660,7 @@ function persistCurrentRun(): boolean {
     Date.now(),
     captureLocalRunResume(),
     runSource,
+    runSource === "custom" ? (dungeon.forge ? "forge" : "procedural") : undefined,
   );
 }
 
@@ -664,8 +674,13 @@ function flushLocalRunSaveWhenHidden(): void {
   if (document.visibilityState === "hidden") localRunSave.flush();
 }
 
-function setContinueCandidate(state: DungeonDomainState | null, status: string): void {
+function setContinueCandidate(
+  state: DungeonDomainState | null,
+  status: string,
+  recovery: { readonly resume: LocalRunResumeState; readonly runSource: RunSource } | null = null,
+): void {
   continueDomainState = canContinueDomainRun(state) ? state : null;
+  continueRecoveryOverride = continueDomainState ? recovery : null;
   elements.welcomeContinue.disabled = continueDomainState === null;
   elements.welcomeStatus.textContent = status;
 }
@@ -1053,6 +1068,7 @@ function resolveIntroThemeKey(): string {
 const runIntroDirector = new RunIntroDirector({
   prepare(request) {
     campaignClearRecordedForRun = false;
+    continueRecoveryOverride = null;
     elements.shell.dataset.runIntroInputGate = "true";
     void audio.unlock();
     if (request.runSource) setRunSource(request.runSource, false);
@@ -1387,6 +1403,7 @@ function prepareLeaderboardSubmission(
 function canEnablePlayController(): boolean {
   return (
     elements.shell.dataset.runIntroInputGate !== "true" &&
+    !welcomeOpen &&
     renderWarmupReady &&
     engineMode === "play" &&
     playRuntime.state().runMode === "playing"
@@ -1398,6 +1415,9 @@ function beginRendererWarmup(): number {
   renderWarmupReady = false;
   elements.shell.dataset.rendererReady = "false";
   controller.setEnabled(false);
+  // A superseded compile cannot be cancelled, so its finalizer must not own
+  // the new scene's warmup sentinel. The replacement starts from a clean state.
+  world.setPickupEffectsWarmupVisible(false);
   return renderWarmupSequence;
 }
 
@@ -1406,38 +1426,52 @@ function startRendererWarmup(sequence: number, readyMessage: string): void {
   window.requestAnimationFrame(() => {
     if (sequence !== renderWarmupSequence) return;
     const startedAt = performance.now();
-    world.setPickupEffectsWarmupVisible(true);
+    let expired = false;
+    const isCurrent = (): boolean => sequence === renderWarmupSequence && !expired;
     void (async () => {
-      try {
-        const warmupWork = async (): Promise<void> => {
-          // Firefox: skip compileAsync — parallel compile is weak and long tasks
-          // freeze the tab (Chrome already spends ~12s here with 100+ programs).
+      const timeoutLabel = `renderer-warmup-timeout:${sequence}`;
+      const warmupWork = rendererWarmupQueue.run(async (): Promise<void> => {
+        if (!isCurrent()) return;
+        world.setPickupEffectsWarmupVisible(true);
+        try {
+          // Firefox: skip precompile — long shader work can freeze the tab.
           if (!renderCaps.skipShaderPrecompile) {
-            await renderer.compileAsync(scene, camera);
-            await povPost.compileSceneAsync(renderer, scene, camera);
+            // Scene materials can be disposed by a replacement build. Register
+            // them synchronously so Three never polls stale material handles.
+            renderer.compile(scene, camera);
+            povPost.compileScene(renderer, scene, camera);
             await povPost.compileAsync(renderer);
+            if (!isCurrent()) return;
           }
           // One locked-control draw uploads pooled geometry and forces a first
           // program link on the constrained path without blocking the UI thread
           // on a full scene compile.
           povPost.render(renderer, scene, camera);
-        };
-        const raced = await raceWithTimeout(
-          warmupWork(),
-          renderCaps.compileTimeoutMs,
-          "renderer-warmup-timeout",
-        );
+        } finally {
+          if (isCurrent()) world.setPickupEffectsWarmupVisible(false);
+        }
+      });
+      try {
+        const raced = await raceWithTimeout(warmupWork, renderCaps.compileTimeoutMs, timeoutLabel);
         if (!raced.ok) {
-          console.warn("Dungeon renderer warmup timed out or failed", raced.reason);
-          // Still attempt a single draw so the canvas is not left black.
-          try {
-            povPost.render(renderer, scene, camera);
-          } catch (drawError) {
-            console.warn("Warmup fallback draw failed", drawError);
+          expired = true;
+          if (sequence === renderWarmupSequence) {
+            world.setPickupEffectsWarmupVisible(false);
+            console.warn("Dungeon renderer warmup timed out or failed", raced.reason);
+            // A rejected compile has settled and can safely fall back to one
+            // draw. A timed-out compile is still running and must stay alone.
+            if (raced.reason !== timeoutLabel) {
+              try {
+                povPost.render(renderer, scene, camera);
+              } catch (drawError) {
+                console.warn("Warmup fallback draw failed", drawError);
+              }
+            }
           }
         }
-      } finally {
-        world.setPickupEffectsWarmupVisible(false);
+      } catch (error) {
+        expired = true;
+        throw error;
       }
     })()
       .then(() => {
@@ -2540,12 +2574,7 @@ function activateDungeon(
   if (!options.restore) floorExploration.start(nextDungeon, nextDungeon.spawn);
   const mood = applyDungeonMood(nextDungeon);
   applyAtmosphereFromParams();
-  const state = playRuntime.load({
-    dungeon,
-    mood,
-    persisted: options.restore?.persistedSession,
-    runtimeProgress: options.restore?.runtimeProgress,
-  });
+  let state = playRuntime.load({ dungeon, mood });
   lastTimeFreezeDisplay = "";
   lastLuminousWardDisplay = "";
   lastAnnihilationPulseDisplay = "";
@@ -2565,10 +2594,22 @@ function activateDungeon(
   syncRunTimer();
   atmosphere.setDungeon(dungeon, mood);
   controller.setDungeon(dungeon);
-  if (options.restore) applyRunResumePlan(options.restore);
-  if (options.restore?.playerPose) syncDomainExplore();
   controller.setBlockedCells([]);
   controller.setSolidColliders(world.getSolidColliders());
+  if (options.restore) {
+    applyRunResumePlan(options.restore);
+    const restoredPlayer = controller.getState().position;
+    state = playRuntime.restore(
+      options.restore.persistedSession,
+      options.restore.runtimeProgress
+        ? {
+            ...options.restore.runtimeProgress,
+            player: { x: restoredPlayer.x, z: restoredPlayer.z },
+          }
+        : undefined,
+    );
+  }
+  if (options.restore?.playerPose) syncDomainExplore();
   controller.setEnabled(canEnablePlayController());
   editorView.setDungeon(dungeon, mood);
   setEditorSurfaceStatus(
@@ -2726,9 +2767,11 @@ function applyForgeDungeon(): void {
       `${imported.forge?.name ?? "Dungeon Creation"} · ${mood.label} ready to play.`,
       params,
     );
+    setContinueCandidate(null, "Imported Forge maps are session-only.");
     setEngineMode("play");
     showPickupFeedback(COPY.status.forgeLoaded);
     playCue("forge");
+    setStatus("Forge map ready. Continue is unavailable for imported maps.");
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "Could not load the Dungeon Creation map.";
@@ -3367,7 +3410,13 @@ elements.biomePickerBack.addEventListener("click", () => {
 elements.welcomeContinue.addEventListener("click", () => {
   void (async () => {
     const save = readLocalRunSave();
-    const state = canContinueLocalRun(save) ? save.state : continueDomainState;
+    const validSave = canContinueLocalRun(save) ? save : null;
+    const recovery = continueRecoveryOverride;
+    const state = recovery
+      ? continueDomainState
+      : validSave
+        ? validSave.state
+        : continueDomainState;
     if (!state) return;
 
     void audio.unlock();
@@ -3375,9 +3424,9 @@ elements.welcomeContinue.addEventListener("click", () => {
     // Two frames guarantee the busy state is painted before generation blocks the main thread.
     await waitAnimationFrames(2);
     try {
-      setRunSource(runSourceFromLocalSave(save), false);
+      setRunSource(recovery?.runSource ?? runSourceFromLocalSave(validSave), false);
       applyDungeonDomainToForm(state);
-      const restore = planRunResumeRestore(state, save?.resume);
+      const restore = planRunResumeRestore(state, recovery?.resume ?? validSave?.resume);
       forcedPlayMoodId = parseDungeonMoodId(restore.generation.campaignBiomeId);
       elements.seed.value = restore.generation.seed;
       buildDungeon(restore.generation.seed, {
@@ -3400,6 +3449,7 @@ elements.welcomeContinue.addEventListener("click", () => {
 elements.welcomeCustom.addEventListener("click", () => {
   void (async () => {
     void audio.unlock();
+    continueRecoveryOverride = null;
     setWelcomeTransitionBusy(true, "Creating custom dungeon…");
     // Keep feedback visible even when procedural generation takes more than one frame.
     await waitAnimationFrames(2);
@@ -3634,12 +3684,13 @@ async function transitionCampaignFloor(
     return;
   }
 
-  floorTransitionPending = true;
-  controller.setEnabled(false);
-  controller.releasePointerLock();
   const entry = gridToWorld(targetDungeon, entryStair.cell, TILE_SIZE);
+  const previousDomain = currentDomainSave();
+  // Flush through the sole save owner so a queued autosave cannot later replace
+  // this checkpoint. Local storage remains best-effort for gameplay.
+  const floorCheckpointSaved = localRunSave.flush();
   const restore = planFloorTransition({
-    domain: currentDomainSave(),
+    domain: previousDomain,
     resume,
     destination: {
       floorIndex: targetFloor,
@@ -3650,6 +3701,11 @@ async function transitionCampaignFloor(
     },
   });
 
+  floorTransitionPending = true;
+  controller.setEnabled(false);
+  controller.releasePointerLock();
+  let transitionFailed = false;
+  let transitionError: unknown;
   try {
     await setSceneFadeOpaque(true, { durationMs: 180 });
     const params = readEditorParams();
@@ -3668,12 +3724,38 @@ async function transitionCampaignFloor(
       900,
     );
     setStatus(
-      `${direction === "down" ? "Descended" : "Ascended"} to floor ${targetFloor + 1}/${campaignFloorSet.floors.length}.`,
+      `${direction === "down" ? "Descended" : "Ascended"} to floor ${targetFloor + 1}/${campaignFloorSet.floors.length}.${floorCheckpointSaved ? "" : " Local save unavailable."}`,
     );
+  } catch (error) {
+    transitionFailed = true;
+    transitionError = error;
+    if (dungeon === targetDungeon) {
+      // A build that failed after replacing the active floor is not safe to
+      // resume. Keep the last durable save intact and return to a stable menu.
+      runHasStarted = false;
+      controller.setEnabled(false);
+      setContinueCandidate(
+        previousDomain,
+        floorCheckpointSaved
+          ? `Continue ready · ${previousDomain.seed}`
+          : `Continue ready for this session · ${previousDomain.seed}`,
+        { resume, runSource },
+      );
+      setWelcomeOpen(true);
+    }
   } finally {
-    await setSceneFadeOpaque(false, { durationMs: 240 });
-    floorTransitionPending = false;
+    try {
+      await setSceneFadeOpaque(false, { durationMs: 240 });
+    } catch (fadeError) {
+      console.error("Floor transition fade recovery failed", fadeError);
+    } finally {
+      floorTransitionPending = false;
+      if (transitionFailed && dungeon !== targetDungeon) {
+        controller.setEnabled(canEnablePlayController());
+      }
+    }
   }
+  if (transitionFailed) throw transitionError;
 }
 
 function descendFloor(): DungeonRuntimeState {

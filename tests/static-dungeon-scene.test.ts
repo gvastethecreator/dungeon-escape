@@ -94,6 +94,7 @@ function addOwnedBuildRoots(staticScene: StaticDungeonScene, ...roots: THREE.Obj
 
 function createSharedDisposalProbe(): {
   roots: [THREE.Group, THREE.Group];
+  material: THREE.MeshBasicMaterial;
   geometryDisposals: () => number;
   materialDisposals: () => number;
   borrowedMaterialDisposals: () => number;
@@ -128,6 +129,7 @@ function createSharedDisposalProbe(): {
   second.add(new THREE.Mesh(geometry, borrowedMaterial));
   return {
     roots: [first, second],
+    material,
     geometryDisposals: () => geometryDisposals,
     materialDisposals: () => materialDisposals,
     borrowedMaterialDisposals: () => borrowedMaterialDisposals,
@@ -344,7 +346,13 @@ describe("StaticDungeonScene", () => {
     try {
       const staticScene = createScene(new THREE.Group());
       const firstClear = createSharedDisposalProbe();
+      firstClear.material.userData.sharedDungeonMaterial = true;
       addOwnedBuildRoots(staticScene, ...firstClear.roots);
+      (
+        staticScene as unknown as {
+          biomeWallDecalMaterials: Map<string, THREE.Material>;
+        }
+      ).biomeWallDecalMaterials.set("cached-and-mounted", firstClear.material);
       staticScene.clear();
       staticScene.clear();
       expect(firstClear.geometryDisposals()).toBe(1);

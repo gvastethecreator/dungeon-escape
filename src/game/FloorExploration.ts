@@ -85,6 +85,28 @@ function isCellKey(value: string): boolean {
   return Number.isSafeInteger(x) && Number.isSafeInteger(y);
 }
 
+function parseCellKey(value: string): GridCell | null {
+  if (!isCellKey(value)) return null;
+  const [x, y] = value.split(",").map(Number);
+  return x === undefined || y === undefined ? null : { x, y };
+}
+
+function isCellKeyInBounds(dungeon: DungeonData, value: string): boolean {
+  const cell = parseCellKey(value);
+  return (
+    cell !== null &&
+    cell.x >= 0 &&
+    cell.y >= 0 &&
+    cell.x < dungeon.width &&
+    cell.y < dungeon.height
+  );
+}
+
+function isWalkableCellKey(dungeon: DungeonData, value: string): boolean {
+  const cell = parseCellKey(value);
+  return cell !== null && dungeon.grid[cell.y]?.[cell.x] === FLOOR;
+}
+
 function createReadonlySetView(read: () => ReadonlySet<string>): ReadonlySet<string> {
   const view = {
     get size() {
@@ -202,17 +224,20 @@ export class FloorExploration {
       if (!Number.isSafeInteger(index) || index < 0 || index >= floor.count) {
         return { ok: false, reason: "invalid-floor" };
       }
-      if (!Array.isArray(cells) || !cells.every((cell) => isCellKey(cell))) {
+      if (!Array.isArray(cells) || !cells.every((cell) => isCellKeyInBounds(dungeon, cell))) {
         return { ok: false, reason: "invalid-cell" };
       }
       nextFloors.set(index, new Set(cells));
     }
 
     const legacyCells = restore.visitedCells ?? [];
-    if (!Array.isArray(legacyCells) || !legacyCells.every((cell) => isCellKey(cell))) {
+    if (!Array.isArray(legacyCells) || !legacyCells.every((cell) => isCellKeyInBounds(dungeon, cell))) {
       return { ok: false, reason: "invalid-cell" };
     }
     const activeCells = nextFloors.get(floor.index) ?? new Set(legacyCells);
+    if (![...activeCells].every((cell) => isWalkableCellKey(dungeon, cell))) {
+      return { ok: false, reason: "invalid-cell" };
+    }
     nextFloors.set(floor.index, activeCells);
     if (activeCells.size === 0) {
       collectExploredAround(dungeon, entry, this.#revealRadius, activeCells);
@@ -235,7 +260,11 @@ export class FloorExploration {
     }
     if (!isGridCell(entry)) throw new TypeError("Exploration entry must be an integer grid cell.");
 
-    const cells = this.#cellsByFloor.get(floor.index) ?? new Set<string>();
+    const cells = new Set(
+      [...(this.#cellsByFloor.get(floor.index) ?? [])].filter((cell) =>
+        isWalkableCellKey(dungeon, cell),
+      ),
+    );
     if (cells.size === 0) collectExploredAround(dungeon, entry, this.#revealRadius, cells);
     this.#cellsByFloor.set(floor.index, cells);
     this.#dungeon = dungeon;

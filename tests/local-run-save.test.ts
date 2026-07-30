@@ -94,6 +94,26 @@ describe("local dungeon continue save", () => {
     expect(canContinueLocalRun(loaded)).toBe(true);
   });
 
+  test("continues reproducible custom seeds but fails closed for imported Forge maps", () => {
+    const storage = memoryStorage();
+    expect(writeLocalRunSave(state(), storage, 7, resume(), "custom", "procedural")).toBe(true);
+    expect(readLocalRunSave(storage)).toMatchObject({
+      runSource: "custom",
+      customMapKind: "procedural",
+    });
+    expect(canContinueLocalRun(readLocalRunSave(storage))).toBe(true);
+
+    expect(writeLocalRunSave(state(), storage, 8, resume(), "custom", "forge")).toBe(true);
+    expect(readLocalRunSave(storage)).toMatchObject({ runSource: "custom", customMapKind: "forge" });
+    expect(canContinueLocalRun(readLocalRunSave(storage))).toBe(false);
+
+    storage.setItem(
+      LOCAL_RUN_SAVE_KEY,
+      JSON.stringify({ version: 3, savedAt: 6, state: state(), runSource: "custom" }),
+    );
+    expect(canContinueLocalRun(readLocalRunSave(storage))).toBe(false);
+  });
+
   test("still reads legacy v1 saves without resume", () => {
     const storage = memoryStorage();
     storage.setItem(LOCAL_RUN_SAVE_KEY, JSON.stringify({ version: 1, savedAt: 9, state: state() }));
@@ -121,6 +141,39 @@ describe("local dungeon continue save", () => {
       }),
     );
     expect(readLocalRunSave(storage)).toBeNull();
+
+    storage.setItem(
+      LOCAL_RUN_SAVE_KEY,
+      JSON.stringify({
+        version: LOCAL_RUN_SAVE_VERSION,
+        savedAt: 4,
+        state: state(),
+        resume: {
+          ...resume(),
+          difficultyElapsed: 1e300,
+          player: { ...resume().player, distanceTravelled: 1e300 },
+        },
+      }),
+    );
+    expect(readLocalRunSave(storage)).toBeNull();
+
+    for (const maliciousTimer of [
+      { timeFreezeRemaining: 10.01 },
+      { luminousWardRemaining: 15.01 },
+      { annihilationPulseRemaining: 13.01 },
+      { mobilityBoostRemaining: 14.01 },
+    ]) {
+      storage.setItem(
+        LOCAL_RUN_SAVE_KEY,
+        JSON.stringify({
+          version: LOCAL_RUN_SAVE_VERSION,
+          savedAt: 5,
+          state: state(),
+          resume: { ...resume(), ...maliciousTimer },
+        }),
+      );
+      expect(readLocalRunSave(storage)).toBeNull();
+    }
   });
 
   test("routes changed cells and browser lifecycle through the save coordinator", async () => {
@@ -174,6 +227,9 @@ describe("local dungeon continue save", () => {
     expect(coordinatorStart).toBeGreaterThanOrEqual(0);
     expect(coordinatorEnd).toBeGreaterThan(coordinatorStart);
     expect(source).toContain("return writeLocalRunSave(");
+    expect(source).toContain('dungeon.forge ? "forge" : "procedural"');
+    expect(source).toContain("const validSave = canContinueLocalRun(save) ? save : null;");
+    expect(source).toContain("Continue is unavailable for imported maps.");
     expect(coordinatorSource).toContain("isActive: () => runHasStarted");
     expect(coordinatorSource).toContain("persist: persistCurrentRun");
     expect(coordinatorSource).toContain(

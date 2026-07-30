@@ -57,6 +57,7 @@ class FakeRunIntroPort implements RunIntroPort {
   autoCompletePresentation = true;
   blockFramesOnce = false;
   blockRestoreOnce = false;
+  presentationError: Error | null = null;
   restoreCount = 0;
   lastPresentation: ForgePresentationInput | null = null;
   lastSession: FakePresentationSession | null = null;
@@ -129,6 +130,7 @@ class FakeRunIntroPort implements RunIntroPort {
       `present:${input.animate}:${options.loadTimeoutMs}:${options.completionTimeoutMs}`,
     );
     if (options.signal.aborted) return Promise.resolve({ ok: false, reason: "aborted" });
+    if (this.presentationError) return Promise.reject(this.presentationError);
     if (this.presentationReason) {
       return Promise.resolve({ ok: false, reason: this.presentationReason });
     }
@@ -156,7 +158,7 @@ class FakeRunIntroPort implements RunIntroPort {
     this.events.push(`welcome:${message ?? ""}`);
   }
 
-  resetIntro(destination: "cancelled" | "superseded" | "disposed"): void {
+  resetIntro(destination: "cancelled" | "superseded" | "disposed" | "failed"): void {
     this.events.push(`reset:${destination}`);
   }
 }
@@ -283,6 +285,25 @@ describe("run intro director", () => {
     expect(port.lastSession).toBeNull();
   });
 
+  test("unexpected intro failure resets the opaque overlay before Welcome recovery", async () => {
+    const port = new FakeRunIntroPort();
+    port.presentationError = new Error("presentation rejected");
+    const director = new RunIntroDirector(port);
+
+    expect(await director.start(request())).toEqual({
+      kind: "failed",
+      seed: "INTRO-DIRECTOR",
+      stage: "intro",
+      message: "presentation rejected",
+    });
+    expect(port.events.slice(-3)).toEqual([
+      "reset:failed",
+      "theater:off",
+      "welcome:presentation rejected",
+    ]);
+    expect(port.restoreCount).toBe(0);
+  });
+
   test("explicit cancellation settles promptly and leaves no active intro", async () => {
     const port = new FakeRunIntroPort();
     port.blockFramesOnce = true;
@@ -345,6 +366,23 @@ describe("run intro director", () => {
       port.events.indexOf("prepare:NEW"),
     );
     expect(port.restoreCount).toBe(1);
+  });
+
+  test("cancels a replacement while it waits for superseded cleanup", async () => {
+    const port = new FakeRunIntroPort();
+    port.blockFramesOnce = true;
+    const director = new RunIntroDirector(port);
+    const oldRun = director.start(request({ seed: "OLD" }));
+    await waitForEvent(port, "frames:2");
+
+    const replacement = director.start(request({ seed: "NEW", skip: true }));
+    expect(director.cancel()).toBe(true);
+
+    expect(await oldRun).toEqual({ kind: "cancelled", seed: "OLD", reason: "superseded" });
+    expect(await replacement).toEqual({ kind: "cancelled", seed: "NEW", reason: "cancelled" });
+    expect(port.events).toContain("reset:cancelled");
+    expect(port.events).not.toContain("prepare:NEW");
+    expect(port.restoreCount).toBe(0);
   });
 
   test("dispose cancels active work and permanently rejects later starts", async () => {
