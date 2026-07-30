@@ -18,6 +18,7 @@ from PIL import Image
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / "assets-source" / "imagegen" / "biome-icons-v1"
 OUT = ROOT / "public" / "assets" / "ui" / "biome-icons"
+MANIFEST_OUT = ROOT / "assets-source" / "runtime-metadata" / "ui" / "biome-icons" / "manifest.json"
 CELL = 128
 COLS = 4
 ROWS = 3
@@ -221,7 +222,8 @@ def main() -> None:
         "sheet": "/assets/ui/biome-icons/biome-icons-sheet.png",
         "entries": entries,
     }
-    (OUT / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+    MANIFEST_OUT.parent.mkdir(parents=True, exist_ok=True)
+    MANIFEST_OUT.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
     print(f"wrote sheet {sheet_black_path.name} + {len(entries)} icons")
 
 

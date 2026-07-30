@@ -16,7 +16,7 @@ interface WardTextureSet {
 export function createLuminousWardRuntimeTexture(
   kind: "albedo" | "normal" | "roughness" | "ao",
 ): THREE.Texture {
-  const path = `${BASE}_${kind}.png`;
+  const path = `${BASE}_${kind}.webp`;
   const texture =
     typeof document === "undefined"
       ? new THREE.Texture()

@@ -28,15 +28,15 @@ interface AtlasManifest {
 describe("enemy atlas runtime contract", () => {
   test("runtime frame data matches the shipped manifest", async () => {
     const manifestFile = Bun.file(
-      new URL("../public/assets/sprites/enemies-v8/manifest.json", import.meta.url),
+      new URL("../assets-source/enemies/v8/manifest.json", import.meta.url),
     );
     const manifest = JSON.parse(await manifestFile.text()) as AtlasManifest;
 
     expect(manifest.frame_layout).toMatchObject({
-      sheetWidth: 1280,
-      sheetHeight: 3520,
-      cellWidth: 320,
-      cellHeight: 320,
+      sheetWidth: 640,
+      sheetHeight: 1760,
+      cellWidth: 160,
+      cellHeight: 160,
     });
     expect(Object.keys(manifest.frame_layout.rows)).toEqual([...ENEMY_ROSTER]);
 
@@ -65,12 +65,12 @@ describe("enemy atlas runtime contract", () => {
 
     for (const moodId of listDungeonMoodIds()) {
       const src = enemyAtlasSrcForMood(moodId);
-      expect(src).toBe(`/assets/sprites/enemies-v8/biomes/${moodId}-enemies.png`);
+      expect(src).toBe(`/assets/sprites/enemies-v8/biomes/${moodId}-enemies.webp`);
       const animations = enemyAnimationsForMood(moodId);
       for (const kind of ENEMY_ROSTER) {
         expect(animations[kind].src).toBe(src);
         expect(animations[kind].frames).toHaveLength(4);
-        expect(animations[kind].size).toEqual([1280, 3520]);
+        expect(animations[kind].size).toEqual([640, 1760]);
       }
       const file = Bun.file(new URL(`../public${src}`, import.meta.url));
       expect(await file.exists()).toBe(true);

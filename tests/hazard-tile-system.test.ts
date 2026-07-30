@@ -193,10 +193,10 @@ describe("biome hazard tiles", () => {
 
   test("routes browser forged iron through the ImageGen PBR set", async () => {
     expect(FORGED_IRON_PBR_PATHS).toEqual({
-      albedo: "/assets/textures/model-materials-v2/black-iron/black-iron_albedo.png",
-      normal: "/assets/textures/model-materials-v2/black-iron/black-iron_normal.png",
-      roughness: "/assets/textures/model-materials-v2/black-iron/black-iron_roughness.png",
-      ao: "/assets/textures/model-materials-v2/black-iron/black-iron_ao.png",
+      albedo: "/assets/textures/model-materials-v2/black-iron/black-iron_albedo.webp",
+      normal: "/assets/textures/model-materials-v2/black-iron/black-iron_normal.webp",
+      roughness: "/assets/textures/model-materials-v2/black-iron/black-iron_roughness.webp",
+      ao: "/assets/textures/model-materials-v2/black-iron/black-iron_ao.webp",
     });
     for (const path of Object.values(FORGED_IRON_PBR_PATHS)) {
       const asset = Bun.file(new URL(`../public${path}`, import.meta.url));

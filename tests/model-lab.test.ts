@@ -379,13 +379,13 @@ describe("model QA lab", () => {
       THREE.BufferGeometry,
       THREE.MeshStandardMaterial
     >;
-    expect(leaf.material.map?.name).toBe("/assets/textures/biomes/frost/door.png");
-    expect(leaf.material.normalMap?.name).toBe("/assets/textures/biomes/frost/door-normal.png");
+    expect(leaf.material.map?.name).toBe("/assets/textures/biomes/frost/door.webp");
+    expect(leaf.material.normalMap?.name).toBe("/assets/textures/biomes/frost/door-normal.webp");
     expect(leaf.material.roughnessMap?.name).toBe(
-      "/assets/textures/biomes/frost/door-roughness.png",
+      "/assets/textures/biomes/frost/door-roughness.webp",
     );
     expect(leaf.material.metalnessMap?.name).toBe(
-      "/assets/textures/biomes/frost/door-metalness.png",
+      "/assets/textures/biomes/frost/door-metalness.webp",
     );
     expect(leaf.material.metalness).toBe(1);
   });
@@ -397,11 +397,12 @@ describe("model QA lab", () => {
     const dungeonLeaf = dungeonDoor.getObjectByName(
       "Left closed iron-bound door leaf",
     ) as THREE.Mesh<THREE.BufferGeometry, THREE.MeshStandardMaterial>;
-    const officeLeaf = officeDoor.getObjectByName(
-      "Left closed iron-bound door leaf",
-    ) as THREE.Mesh<THREE.BufferGeometry, THREE.MeshStandardMaterial>;
+    const officeLeaf = officeDoor.getObjectByName("Left closed iron-bound door leaf") as THREE.Mesh<
+      THREE.BufferGeometry,
+      THREE.MeshStandardMaterial
+    >;
 
-    expect(dungeonLeaf.material.map?.name).toBe("/assets/textures/biomes/ancient/door.png");
-    expect(officeLeaf.material.map?.name).toBe("/assets/textures/biomes/backrooms/door.png");
+    expect(dungeonLeaf.material.map?.name).toBe("/assets/textures/biomes/ancient/door.webp");
+    expect(officeLeaf.material.map?.name).toBe("/assets/textures/biomes/backrooms/door.webp");
   });
 });

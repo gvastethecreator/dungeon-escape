@@ -120,15 +120,15 @@ export const LEADERBOARD_PORTRAITS: readonly LeaderboardPortrait[] = PORTRAIT_DE
     id,
     slug: def.slug,
     title: def.title,
-    src: `/assets/ui/portraits/${def.slug}.png`,
+    src: `/assets/ui/portraits/${def.slug}.webp`,
   }),
 );
 
 const FRAME_SRCS: Record<LeaderboardFrameKind, string> = {
-  gold: "/assets/ui/portraits/frames/frame-gold.png",
-  silver: "/assets/ui/portraits/frames/frame-silver.png",
-  bronze: "/assets/ui/portraits/frames/frame-bronze.png",
-  wood: "/assets/ui/portraits/frames/frame-wood.png",
+  gold: "/assets/ui/portraits/frames/frame-gold.webp",
+  silver: "/assets/ui/portraits/frames/frame-silver.webp",
+  bronze: "/assets/ui/portraits/frames/frame-bronze.webp",
+  wood: "/assets/ui/portraits/frames/frame-wood.webp",
 };
 
 /**
@@ -139,6 +139,16 @@ export function portraitIndexForName(playerName: string): number {
   const key = playerName.normalize("NFKC").trim().toLowerCase();
   if (!key) return 0;
   return hashSeed(`${LEADERBOARD_PORTRAIT_SEED_PREFIX}${key}`) % LEADERBOARD_PORTRAIT_COUNT;
+}
+
+/** Fresh identity drafts start on a valid random face; persisted profiles stay stable. */
+export function randomPortraitIndex(random: () => number = Math.random): number {
+  const sample = random();
+  if (!Number.isFinite(sample)) return 0;
+  return Math.min(
+    LEADERBOARD_PORTRAIT_COUNT - 1,
+    Math.max(0, Math.floor(sample * LEADERBOARD_PORTRAIT_COUNT)),
+  );
 }
 
 export function portraitForName(playerName: string): LeaderboardPortrait {

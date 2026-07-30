@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Reprocess imported enemy strips and pack biome RGBA atlases.
 
-The raw import stays immutable under enemies-v8/_src/strips-biome. A reviewed
+The raw import stays immutable under assets-source/enemies/v8/raw/strips-biome. A reviewed
 assignment manifest maps each destination biome to the folder that holds the
 right source strip. Background removal runs per 320 px cell, then every row is
 registered against one shared union box before atlas composition.
@@ -20,7 +20,6 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
-import shutil
 from collections import deque
 from pathlib import Path
 from typing import Any
@@ -28,11 +27,11 @@ from typing import Any
 from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
 ROOT = Path(__file__).resolve().parents[1]
-V8 = ROOT / "public" / "assets" / "sprites" / "enemies-v8"
-RAW_ROOT = V8 / "_src" / "strips-biome"
-DEFAULT_OUT = V8 / "biomes"
-DEFAULT_ASSIGNMENTS = V8 / "source-assignments.json"
-RUNTIME = ROOT / "public" / "assets" / "sprites" / "enemies-v6"
+V8_SOURCE = ROOT / "assets-source" / "enemies" / "v8"
+RAW_ROOT = V8_SOURCE / "raw" / "strips-biome"
+DEFAULT_OUT = ROOT / ".scratch" / "enemies-v8" / "processed"
+DEFAULT_ASSIGNMENTS = V8_SOURCE / "source-assignments.json"
+RUNTIME = ROOT / "public" / "assets" / "sprites" / "enemies-v8"
 QA_ROOT = ROOT / ".scratch" / "enemies-v8" / "qa"
 
 CELL = 320
@@ -430,7 +429,11 @@ def main() -> int:
     )
     parser.add_argument("--device", default=None)
     parser.add_argument("--out-root", type=Path, default=DEFAULT_OUT)
-    parser.add_argument("--publish", action="store_true", help="copy validated output into enemies-v6")
+    parser.add_argument(
+        "--publish",
+        action="store_true",
+        help="resize validated output to 50% and publish lossless WebP into enemies-v8",
+    )
     args = parser.parse_args()
 
     args.assignments = args.assignments.resolve()
@@ -481,9 +484,16 @@ def main() -> int:
             raise SystemExit("--publish requires all moods")
         for mood in assignments["moods"]:
             source = args.out_root / f"{mood}-enemies.png"
-            destination = RUNTIME / "biomes" / source.name
+            destination = RUNTIME / "biomes" / f"{mood}-enemies.webp"
             destination.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(source, destination)
+            with Image.open(source) as loaded:
+                loaded.resize((SHEET_SIZE[0] // 2, SHEET_SIZE[1] // 2), Image.Resampling.NEAREST).save(
+                    destination,
+                    "WEBP",
+                    lossless=True,
+                    exact=True,
+                    method=4,
+                )
             print(f"published {destination}")
     return 0
 

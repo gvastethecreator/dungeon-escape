@@ -157,15 +157,15 @@ describe("DungeonEditorView asset loading", () => {
 
       expect([...requestedUrls].sort()).toEqual(
         [
-          "/assets/textures/biomes/ash/floor.png",
-          "/assets/textures/biomes/ash/wall.png",
-          "/assets/sprites/enemies-v8/biomes/ash-enemies.png",
-          "/assets/sprites/enemies-v8/iron-ash-enemies-v8.png",
-          "/assets/sprites/iron-ash-items.png",
-          "/assets/sprites/keyed/ember-sheet.png",
-          "/assets/sprites/keyed/ash-sheet.png",
-          "/assets/sprites/keyed/crypt-sheet.png",
-          "/assets/sprites/keyed/verdant-sheet.png",
+          "/assets/textures/biomes/ash/floor.webp",
+          "/assets/textures/biomes/ash/wall.webp",
+          "/assets/sprites/enemies-v8/biomes/ash-enemies.webp",
+          "/assets/sprites/enemies-v8/iron-ash-enemies-v8.webp",
+          "/assets/sprites/iron-ash-items.webp",
+          "/assets/sprites/keyed/ember-sheet.webp",
+          "/assets/sprites/keyed/ash-sheet.webp",
+          "/assets/sprites/keyed/crypt-sheet.webp",
+          "/assets/sprites/keyed/verdant-sheet.webp",
         ].sort(),
       );
     } finally {
@@ -184,23 +184,23 @@ describe("DungeonEditorView asset loading", () => {
       view.setMood(getDungeonMood("frost"));
 
       const frostUrls = [
-        "/assets/textures/biomes/frost/floor.png",
-        "/assets/textures/biomes/frost/wall.png",
-        "/assets/sprites/enemies-v8/biomes/frost-enemies.png",
+        "/assets/textures/biomes/frost/floor.webp",
+        "/assets/textures/biomes/frost/wall.webp",
+        "/assets/sprites/enemies-v8/biomes/frost-enemies.webp",
       ];
       for (const url of frostUrls)
         expect(requestedUrls.filter((requested) => requested === url)).toHaveLength(1);
 
-      completeImage("/assets/textures/biomes/ash/floor.png");
-      completeImage("/assets/textures/biomes/ash/wall.png");
+      completeImage("/assets/textures/biomes/ash/floor.webp");
+      completeImage("/assets/textures/biomes/ash/wall.webp");
       await flushImageTasks();
       expect(drawnUrls).toEqual([]);
 
-      completeImage("/assets/textures/biomes/frost/floor.png");
-      completeImage("/assets/textures/biomes/frost/wall.png");
+      completeImage("/assets/textures/biomes/frost/floor.webp");
+      completeImage("/assets/textures/biomes/frost/wall.webp");
       await flushImageTasks();
-      expect(drawnUrls).toContain("/assets/textures/biomes/frost/floor.png");
-      expect(drawnUrls).toContain("/assets/textures/biomes/frost/wall.png");
+      expect(drawnUrls).toContain("/assets/textures/biomes/frost/floor.webp");
+      expect(drawnUrls).toContain("/assets/textures/biomes/frost/wall.webp");
       view.setMood(getDungeonMood("frost"));
       for (const url of frostUrls)
         expect(requestedUrls.filter((requested) => requested === url)).toHaveLength(1);
@@ -208,21 +208,21 @@ describe("DungeonEditorView asset loading", () => {
       view.setMood(getDungeonMood("molten"));
       view.setMood(getDungeonMood("molten"));
       const moltenUrls = [
-        "/assets/textures/biomes/molten/floor.png",
-        "/assets/textures/biomes/molten/wall.png",
-        "/assets/sprites/enemies-v8/biomes/molten-enemies.png",
+        "/assets/textures/biomes/molten/floor.webp",
+        "/assets/textures/biomes/molten/wall.webp",
+        "/assets/sprites/enemies-v8/biomes/molten-enemies.webp",
       ];
       for (const url of moltenUrls)
         expect(requestedUrls.filter((requested) => requested === url)).toHaveLength(1);
 
       const imagesBeforeFailure = drawnUrls.length;
       const fillsBeforeFailure = fillRectCount();
-      failImage("/assets/textures/biomes/molten/floor.png");
+      failImage("/assets/textures/biomes/molten/floor.webp");
       await flushImageTasks();
       view.setMood(getDungeonMood("molten"));
       for (const url of moltenUrls)
         expect(requestedUrls.filter((requested) => requested === url)).toHaveLength(1);
-      completeImage("/assets/textures/biomes/molten/wall.png");
+      completeImage("/assets/textures/biomes/molten/wall.webp");
       await flushImageTasks();
       expect(drawnUrls).toHaveLength(imagesBeforeFailure);
       expect(fillRectCount()).toBeGreaterThan(fillsBeforeFailure);

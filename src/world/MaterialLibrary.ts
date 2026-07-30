@@ -60,28 +60,30 @@ function loadPbrMaps(family: PbrFamily, compact = false): PbrMapSet {
   if (typeof document === "undefined")
     return { albedo: null, normal: null, roughness: null, ao: null };
   const base = `/assets/textures/model-materials-v2/${family}/${family}`;
-  const albedo = textureLoader.load(`${base}_albedo.png`, (loaded) => resolveTextureSource(loaded));
-  registerTextureSource(albedo, `${base}_albedo.png`, { seam: "none" });
+  const albedo = textureLoader.load(`${base}_albedo.webp`, (loaded) =>
+    resolveTextureSource(loaded),
+  );
+  registerTextureSource(albedo, `${base}_albedo.webp`, { seam: "none" });
   albedo.colorSpace = THREE.SRGBColorSpace;
   const normal = compact
     ? null
-    : textureLoader.load(`${base}_normal.png`, (loaded) => resolveTextureSource(loaded));
+    : textureLoader.load(`${base}_normal.webp`, (loaded) => resolveTextureSource(loaded));
   if (normal) {
-    registerTextureSource(normal, `${base}_normal.png`, { seam: "none" });
+    registerTextureSource(normal, `${base}_normal.webp`, { seam: "none" });
     normal.colorSpace = THREE.NoColorSpace;
   }
   const roughness = compact
     ? null
-    : textureLoader.load(`${base}_roughness.png`, (loaded) => resolveTextureSource(loaded));
+    : textureLoader.load(`${base}_roughness.webp`, (loaded) => resolveTextureSource(loaded));
   if (roughness) {
-    registerTextureSource(roughness, `${base}_roughness.png`, { seam: "none" });
+    registerTextureSource(roughness, `${base}_roughness.webp`, { seam: "none" });
     roughness.colorSpace = THREE.NoColorSpace;
   }
   const ao = compact
     ? null
-    : textureLoader.load(`${base}_ao.png`, (loaded) => resolveTextureSource(loaded));
+    : textureLoader.load(`${base}_ao.webp`, (loaded) => resolveTextureSource(loaded));
   if (ao) {
-    registerTextureSource(ao, `${base}_ao.png`, { seam: "none" });
+    registerTextureSource(ao, `${base}_ao.webp`, { seam: "none" });
     ao.colorSpace = THREE.NoColorSpace;
     // Three defaults aoMap to UV1. Procedural props share a well-formed UV0
     // but do not duplicate it, so select UV0 explicitly.
@@ -358,33 +360,33 @@ export function createDungeonMaterials({
 
   const woodMap =
     woodPbr.albedo ??
-    generatedAlbedo("/assets/textures/generated/iron-ash-prop-oak-v1.png", [2, 4]);
+    generatedAlbedo("/assets/textures/generated/iron-ash-prop-oak-v1.webp", [2, 4]);
   const woodHeight = surfaceTexture("wood", true);
   const stoneMap = stonePbr.albedo ?? surfaceTexture("stone");
   const stoneHeight = surfaceTexture("stone", true);
   const ironMap =
     ironPbr.albedo ??
-    generatedAlbedo("/assets/textures/generated/iron-ash-prop-iron-v1.png", [3, 3]);
+    generatedAlbedo("/assets/textures/generated/iron-ash-prop-iron-v1.webp", [3, 3]);
   const ironHeight = surfaceTexture("metal", true);
   const brassMap =
     brassPbr.albedo ??
-    generatedAlbedo("/assets/textures/generated/iron-ash-prop-brass-v1.png", [3, 3]);
+    generatedAlbedo("/assets/textures/generated/iron-ash-prop-brass-v1.webp", [3, 3]);
   const brassHeight = surfaceTexture("metal", true);
   const clothMap = clothPbr.albedo ?? surfaceTexture("cloth");
   const clothHeight = surfaceTexture("cloth", true);
   const boneMap =
     bonePbr.albedo ??
-    generatedAlbedo("/assets/textures/generated/iron-ash-prop-bone-v1.png", [1.5, 1.5]);
+    generatedAlbedo("/assets/textures/generated/iron-ash-prop-bone-v1.webp", [1.5, 1.5]);
   const ceramicMap =
     ceramicPbr.albedo ??
-    generatedAlbedo("/assets/textures/generated/iron-ash-prop-ceramic-v1.png", [2, 2]);
+    generatedAlbedo("/assets/textures/generated/iron-ash-prop-ceramic-v1.webp", [2, 2]);
   const crystalMap =
     crystalPbr.albedo ??
-    generatedAlbedo("/assets/textures/generated/iron-ash-prop-crystal-v1.png", [1.25, 1.25]);
+    generatedAlbedo("/assets/textures/generated/iron-ash-prop-crystal-v1.webp", [1.25, 1.25]);
   const crystalHeight = surfaceTexture("stone", true);
   const iceMap =
     icePbr.albedo ??
-    generatedAlbedo("/assets/textures/generated/iron-ash-prop-ice-v1.png", [1.25, 1.25]);
+    generatedAlbedo("/assets/textures/generated/iron-ash-prop-ice-v1.webp", [1.25, 1.25]);
   const iceHeight = surfaceTexture("stone", true);
 
   const materials: DungeonMaterials = {

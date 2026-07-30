@@ -120,10 +120,10 @@ export function planHazardTiles(
 const HAZARD_ATLAS_PATH = "/assets/textures/hazards/hazard-tiles-pixel-v1.webp";
 const FORGED_IRON_PBR_ROOT = "/assets/textures/model-materials-v2/black-iron/black-iron";
 export const FORGED_IRON_PBR_PATHS = Object.freeze({
-  albedo: `${FORGED_IRON_PBR_ROOT}_albedo.png`,
-  normal: `${FORGED_IRON_PBR_ROOT}_normal.png`,
-  roughness: `${FORGED_IRON_PBR_ROOT}_roughness.png`,
-  ao: `${FORGED_IRON_PBR_ROOT}_ao.png`,
+  albedo: `${FORGED_IRON_PBR_ROOT}_albedo.webp`,
+  normal: `${FORGED_IRON_PBR_ROOT}_normal.webp`,
+  roughness: `${FORGED_IRON_PBR_ROOT}_roughness.webp`,
+  ao: `${FORGED_IRON_PBR_ROOT}_ao.webp`,
 });
 const FORGED_IRON_MATERIAL_COLOR = 0x8f9698;
 const FORGED_IRON_METALNESS = 0.72;

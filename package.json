@@ -16,13 +16,15 @@
     "lint": "oxlint .",
     "fmt": "oxfmt .",
     "fmt:check": "oxfmt --check .",
+    "optimize:runtime-assets": "python scripts/optimize-runtime-assets.py",
+    "audit:runtime-assets": "bun run scripts/audit-runtime-assets.ts",
     "audit:enemy-atlases": "python scripts/audit-enemy-atlases-v8.py --write-package-metadata",
     "generate:biome-textures": "bun run scripts/generate-biome-textures.ts",
     "bake:biome-pbr": ".venv-pbr\\Scripts\\python.exe scripts/bake-biome-pbr.py",
     "db:migrate:local": "wrangler d1 migrations apply LEADERBOARD_DB --local",
     "db:migrate:remote": "wrangler d1 migrations apply dungeon-escape-leaderboard --remote",
     "cloudflare:dev": "wrangler dev",
-    "cloudflare:deploy": "bun run build && wrangler deploy"
+    "cloudflare:deploy": "bun run audit:runtime-assets && bun run build && wrangler deploy"
   },
   "dependencies": {
     "three": "^0.185.1"

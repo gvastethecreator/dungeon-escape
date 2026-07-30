@@ -1,9 +1,4 @@
-import {
-  isBiomeId,
-  listBiomeIdentities,
-  listBiomeIds,
-  type BiomeId,
-} from "./BiomeIdentity";
+import { isBiomeId, listBiomeIdentities, listBiomeIds, type BiomeId } from "./BiomeIdentity";
 
 /** UI accent for biome picker hover/focus and leaderboard stars. */
 export const BIOME_HOVER_COLOR: Record<BiomeId, string> = {
@@ -25,7 +20,7 @@ const LABEL_TO_ID = new Map(
 );
 
 export function biomeIconSrc(id: BiomeId): string {
-  return `/assets/ui/biome-icons/${id}.png`;
+  return `/assets/ui/biome-icons/${id}.webp`;
 }
 
 export function biomeHoverColor(id: BiomeId): string {
@@ -81,5 +76,3 @@ export function biomeHoverCssVariables(): string {
     .map((id) => `--biome-hover-${id}: ${BIOME_HOVER_COLOR[id]};`)
     .join("\n  ");
 }
-
-

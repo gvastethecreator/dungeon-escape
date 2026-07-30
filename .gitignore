@@ -12,3 +12,4 @@ test-results/
 *.tsbuildinfo
 .data/
 .wrangler/
+scripts/__pycache__/*.pyc

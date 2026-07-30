@@ -2039,19 +2039,19 @@ kbd {
 
 .stone-socket[data-stone="ember"] {
   --socket: var(--ember);
-  --gem: url("/assets/sprites/keyed/ember-sheet.png");
+  --gem: url("/assets/sprites/keyed/ember-sheet.webp");
 }
 .stone-socket[data-stone="ash"] {
   --socket: #cfc8b6;
-  --gem: url("/assets/sprites/keyed/ash-sheet.png");
+  --gem: url("/assets/sprites/keyed/ash-sheet.webp");
 }
 .stone-socket[data-stone="crypt"] {
   --socket: var(--stone-crypt);
-  --gem: url("/assets/sprites/keyed/crypt-sheet.png");
+  --gem: url("/assets/sprites/keyed/crypt-sheet.webp");
 }
 .stone-socket[data-stone="verdant"] {
   --socket: var(--stone-verdant);
-  --gem: url("/assets/sprites/keyed/verdant-sheet.png");
+  --gem: url("/assets/sprites/keyed/verdant-sheet.webp");
 }
 
 .stone-socket.is-bound {
@@ -2676,6 +2676,42 @@ kbd {
 }
 
 .options-toggle:focus-visible {
+  outline: 2px solid var(--bone);
+  outline-offset: 2px;
+}
+
+.options-volume-grid {
+  display: grid;
+  gap: 6px;
+}
+
+.options-volume {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px 12px;
+  padding: 9px 12px;
+  border: var(--edge);
+  background: rgb(0 0 0 / 20%);
+  color: var(--ash);
+  font-family: var(--font-pixel);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.options-volume output {
+  color: var(--bone);
+  font-variant-numeric: tabular-nums;
+}
+
+.options-volume input {
+  grid-column: 1 / -1;
+  width: 100%;
+  accent-color: var(--bone);
+}
+
+.options-volume:focus-within {
   outline: 2px solid var(--bone);
   outline-offset: 2px;
 }
