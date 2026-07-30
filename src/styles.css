@@ -226,7 +226,8 @@ body.is-booting .app-shell {
 }
 
 /* Hide every host chrome while the isometric map theater runs. */
-.app-shell[data-run-intro="true"] > *:not(#editor-workspace):not(#scene-fade):not(#run-intro-status) {
+.app-shell[data-run-intro="true"]
+  > *:not(#editor-workspace):not(#scene-fade):not(#run-intro-status) {
   visibility: hidden !important;
   pointer-events: none !important;
 }
@@ -391,7 +392,12 @@ kbd {
 .app-shell[data-biome-event="whiteout"] .view-falloff,
 .app-shell[data-biome-event="high-tide"] .view-falloff {
   background:
-    radial-gradient(ellipse at 50% 52%, transparent 35%, rgb(157 216 224 / 15%) 74%, rgb(4 9 13 / 58%) 100%),
+    radial-gradient(
+      ellipse at 50% 52%,
+      transparent 35%,
+      rgb(157 216 224 / 15%) 74%,
+      rgb(4 9 13 / 58%) 100%
+    ),
     linear-gradient(rgb(134 197 212 / 6%), rgb(22 55 66 / 12%));
   opacity: 0.9;
 }
@@ -403,7 +409,9 @@ kbd {
 
 @keyframes biome-fall {
   to {
-    background-position: 0 22px, 0 0;
+    background-position:
+      0 22px,
+      0 0;
   }
 }
 
@@ -421,9 +429,11 @@ kbd {
   inset: 0;
   display: grid;
   align-items: center;
-  justify-items: start;
-  padding: max(20px, env(safe-area-inset-top)) max(18px, env(safe-area-inset-right))
-    max(20px, env(safe-area-inset-bottom)) max(clamp(22px, 7vw, 128px), env(safe-area-inset-left));
+  justify-items: center;
+  padding: max(clamp(20px, 4vw, 52px), env(safe-area-inset-top))
+    max(clamp(18px, 4vw, 52px), env(safe-area-inset-right))
+    max(clamp(20px, 4vw, 52px), env(safe-area-inset-bottom))
+    max(clamp(18px, 4vw, 52px), env(safe-area-inset-left));
   overflow: hidden;
   isolation: isolate;
   background: #050606;
@@ -434,8 +444,8 @@ kbd {
   z-index: 2;
   inset: 0;
   background:
-    linear-gradient(90deg, rgb(3 4 5 / 88%) 0%, rgb(4 5 6 / 58%) 42%, transparent 73%),
-    linear-gradient(0deg, rgb(3 4 4 / 42%), transparent 45%);
+    radial-gradient(circle at 50% 48%, rgb(3 4 5 / 18%) 0%, rgb(3 4 5 / 54%) 62%, #030405 118%),
+    linear-gradient(0deg, rgb(3 4 4 / 52%), transparent 52%);
   content: "";
   pointer-events: none;
 }
@@ -470,11 +480,17 @@ kbd {
   position: relative;
   z-index: 3;
   display: grid;
-  grid-template-columns: minmax(0, 480px) minmax(280px, 360px);
+  grid-template-columns: minmax(0, 520px);
   gap: 16px;
-  width: min(860px, 100%);
+  justify-content: center;
+  width: min(520px, 100%);
   max-height: min(760px, calc(100dvh - 40px));
-  align-items: stretch;
+  align-items: center;
+}
+
+.welcome-content.is-ranked {
+  grid-template-columns: minmax(0, 520px) minmax(300px, 360px);
+  width: min(896px, 100%);
 }
 
 .welcome-card {
@@ -549,6 +565,7 @@ kbd {
 .welcome-menu__item {
   display: block;
   width: 100%;
+  min-height: 44px;
   margin: 0;
   padding: 10px 12px;
   border: 0;
@@ -1028,10 +1045,10 @@ kbd {
   z-index: 1;
   display: grid;
   place-items: center;
-  width: 40px;
-  min-width: 40px;
-  height: 40px;
-  min-height: 40px;
+  width: 44px;
+  min-width: 44px;
+  height: 44px;
+  min-height: 44px;
   padding: 0;
   border: 1px solid transparent;
   background: transparent;
@@ -1099,6 +1116,10 @@ kbd {
   box-shadow: 8px 10px 0 rgb(0 0 0 / 44%);
   text-align: left;
   overflow: hidden;
+}
+
+.welcome-leaderboard[hidden] {
+  display: none;
 }
 
 .welcome-leaderboard header {
@@ -4007,7 +4028,8 @@ kbd {
     overflow: auto;
   }
 
-  .welcome-content {
+  .welcome-content,
+  .welcome-content.is-ranked {
     grid-template-columns: 1fr;
     width: min(480px, 100%);
     max-height: none;
@@ -4025,6 +4047,12 @@ kbd {
 
   .leaderboard-list li:nth-child(n + 6) {
     display: none;
+  }
+
+  .welcome-biome-picker__back,
+  .leaderboard-seed {
+    min-width: 44px;
+    min-height: 44px;
   }
 }
 
