@@ -12,6 +12,7 @@ import {
 import type { AuthorityClient } from "../authority/client";
 import type { EngineMode } from "../game/EngineMode";
 import type { PersistedRunSession } from "../game/RunSession";
+import { AuthorityWriteQueue } from "./AuthorityWriteQueue";
 
 export type DungeonDomainState = {
   floor: number;
@@ -115,42 +116,11 @@ export type ApplyOptions = {
   remote?: boolean;
 };
 
-type RemoteJob = {
-  type: string;
-  payload?: unknown;
-  revisions: number[];
-  clientRevision: number;
-  expectedRunId?: string;
-  reconcilesThrough?: number;
-};
-
-type ActivePush = {
-  epoch: number;
-  controller: AbortController;
-  job: RemoteJob;
-};
-
-type DrainWaiter = {
-  epoch: number;
-  resolve: (ok: boolean) => void;
-};
-
 export function createDomainBridge(options: DomainBridgeOptions | string = "CAMPANA-17") {
   const opts: DomainBridgeOptions =
     typeof options === "string" ? { initialSeed: options } : options;
   const initialSeed = opts.initialSeed ?? "CAMPANA-17";
-  const configuredPushTimeout = opts.pushTimeoutMs ?? 10_000;
-  const pushTimeoutMs =
-    Number.isFinite(configuredPushTimeout) && configuredPushTimeout > 0
-      ? configuredPushTimeout
-      : 10_000;
-  const clientId =
-    opts.clientId?.trim() ||
-    globalThis.crypto?.randomUUID?.() ||
-    `dungeon-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-  let authorityRunId = opts.authorityRunId?.trim() || null;
-  let authority = opts.authority ?? null;
-  let authorityEpoch = 0;
+  const initialAuthorityRunId = opts.authorityRunId?.trim() || null;
   let status: BridgeStatus = {
     online: false,
     lastError: null,
@@ -158,21 +128,19 @@ export function createDomainBridge(options: DomainBridgeOptions | string = "CAMP
     lastHydrateAt: null,
   };
   let lastProbeAt = 0;
-  let pushTimer: ReturnType<typeof setTimeout> | null = null;
-  let pendingExplore: RemoteJob | null = null;
-  const remoteQueue: RemoteJob[] = [];
-  let activePush: ActivePush | null = null;
-  let localRevision = 0;
-  let remoteCommandRevision = 0;
-  let acknowledgedRevision = 0;
   let hydrateSequence = 0;
-  let unreconciledPushError: string | null = null;
-  let reconciliationPending = false;
   let runTransitionActive = false;
-  const acknowledgedOutOfOrder = new Set<number>();
-  const drainWaiters = new Set<DrainWaiter>();
+  const authorityWrites = new AuthorityWriteQueue({
+    authority: opts.authority ?? null,
+    expectedRunId: initialAuthorityRunId,
+    clientId: opts.clientId,
+    pushTimeoutMs: opts.pushTimeoutMs,
+    onStatus(patch) {
+      status = { ...status, ...patch };
+    },
+  });
 
-  let run: FullRunSnapshot = createFullRun(initialSeed, authorityRunId ?? "run-dungeon");
+  let run: FullRunSnapshot = createFullRun(initialSeed, initialAuthorityRunId ?? "run-dungeon");
   const seeded = executeSim(run, { type: "dungeons/setSeed", payload: { seed: initialSeed } });
   if (seeded.ok) run = seeded.run as FullRunSnapshot;
 
@@ -189,159 +157,6 @@ export function createDomainBridge(options: DomainBridgeOptions | string = "CAMP
     pendingDecisions: run.pendingDecisions,
   });
 
-  const acknowledgeRemote = (job: RemoteJob) => {
-    if (job.reconcilesThrough !== undefined) {
-      acknowledgedRevision = Math.max(acknowledgedRevision, job.reconcilesThrough);
-      for (const revision of acknowledgedOutOfOrder) {
-        if (revision <= acknowledgedRevision) acknowledgedOutOfOrder.delete(revision);
-      }
-      return;
-    }
-    for (const revision of job.revisions) acknowledgedOutOfOrder.add(revision);
-    while (acknowledgedOutOfOrder.delete(acknowledgedRevision + 1)) {
-      acknowledgedRevision += 1;
-    }
-  };
-
-  const canHydrate = () =>
-    acknowledgedRevision === localRevision &&
-    unreconciledPushError === null &&
-    !pendingExplore &&
-    remoteQueue.length === 0 &&
-    !activePush;
-
-  const remoteIsIdle = () => !pendingExplore && remoteQueue.length === 0 && !activePush;
-
-  const remoteIsClean = () =>
-    remoteIsIdle() && acknowledgedRevision === localRevision && unreconciledPushError === null;
-
-  const settleDrainWaiters = () => {
-    if (!remoteIsIdle()) return;
-    for (const waiter of drainWaiters) {
-      drainWaiters.delete(waiter);
-      waiter.resolve(waiter.epoch === authorityEpoch && remoteIsClean());
-    }
-  };
-
-  const queuePendingExplore = () => {
-    if (!pendingExplore) return;
-    remoteQueue.push(pendingExplore);
-    pendingExplore = null;
-  };
-
-  const postRemote = async (
-    targetAuthority: AuthorityClient,
-    job: RemoteJob,
-    controller: AbortController,
-  ) => {
-    let timeout: ReturnType<typeof setTimeout> | null = null;
-    try {
-      return await Promise.race([
-        targetAuthority.postCommand({ type: job.type, payload: job.payload }, "dungeon", {
-          clientId,
-          clientRevision: job.clientRevision,
-          expectedRunId: job.expectedRunId,
-          signal: controller.signal,
-        }),
-        new Promise<never>((_, reject) => {
-          controller.signal.addEventListener("abort", () => reject(new Error("push aborted")), {
-            once: true,
-          });
-        }),
-        new Promise<never>((_, reject) => {
-          timeout = setTimeout(() => {
-            controller.abort();
-            reject(new Error(`push timed out after ${pushTimeoutMs}ms`));
-          }, pushTimeoutMs);
-        }),
-      ]);
-    } catch (error) {
-      if (controller.signal.aborted) {
-        throw new Error(`push timed out after ${pushTimeoutMs}ms`);
-      }
-      throw error;
-    } finally {
-      if (timeout) clearTimeout(timeout);
-    }
-  };
-
-  const flushRemote = () => {
-    if (!authority || !remoteQueue.length || activePush) {
-      settleDrainWaiters();
-      return;
-    }
-    const job = remoteQueue.shift();
-    if (!job) return;
-    const targetAuthority = authority;
-    const push: ActivePush = {
-      epoch: authorityEpoch,
-      controller: new AbortController(),
-      job,
-    };
-    activePush = push;
-    void (async () => {
-      try {
-        const res = await postRemote(targetAuthority, job, push.controller);
-        if (activePush !== push || authorityEpoch !== push.epoch) return;
-        if (res.ok) {
-          acknowledgeRemote(job);
-          if (job.reconcilesThrough !== undefined) unreconciledPushError = null;
-        } else {
-          unreconciledPushError = res.error?.message ?? "push failed";
-        }
-        status = {
-          ...status,
-          online: true,
-          lastPushAt: Date.now(),
-          lastError: unreconciledPushError,
-        };
-      } catch (err) {
-        if (activePush !== push || authorityEpoch !== push.epoch) return;
-        unreconciledPushError = err instanceof Error ? err.message : String(err);
-        status = {
-          ...status,
-          online: false,
-          lastError: unreconciledPushError,
-        };
-      } finally {
-        if (activePush === push && authorityEpoch === push.epoch) {
-          if (job.reconcilesThrough !== undefined) reconciliationPending = false;
-          activePush = null;
-          flushRemote();
-          settleDrainWaiters();
-        }
-      }
-    })();
-  };
-
-  const scheduleRemote = (type: string, payload: unknown, ordered: boolean, revision: number) => {
-    if (!authority) return;
-    const job: RemoteJob = {
-      type,
-      payload,
-      revisions: [revision],
-      clientRevision: ++remoteCommandRevision,
-      ...(authorityRunId ? { expectedRunId: authorityRunId } : {}),
-    };
-    if (type === "dungeons/syncExplore" && !ordered) {
-      pendingExplore = pendingExplore
-        ? { ...job, revisions: [...pendingExplore.revisions, revision] }
-        : job;
-      if (pushTimer) return;
-      pushTimer = setTimeout(() => {
-        pushTimer = null;
-        queuePendingExplore();
-        flushRemote();
-      }, 1200);
-      return;
-    }
-    if (pushTimer) clearTimeout(pushTimer);
-    pushTimer = null;
-    queuePendingExplore();
-    remoteQueue.push(job);
-    flushRemote();
-  };
-
   const apply = (
     type: string,
     payload?: unknown,
@@ -352,20 +167,19 @@ export function createDomainBridge(options: DomainBridgeOptions | string = "CAMP
     const result = executeSim(run, { type, payload });
     if (result.ok) {
       run = result.run as FullRunSnapshot;
-      localRevision += 1;
       const remote =
         applyOpts.remote ?? (REMOTE_IMMEDIATE.has(type) || type === "dungeons/raiseThreat");
-      if (remote) {
-        scheduleRemote(
-          type,
-          payload,
-          orderedRemote || REMOTE_IMMEDIATE.has(type) || type === "dungeons/syncExplore",
-          localRevision,
-        );
-      } else if (type === "dungeons/syncExplore") {
-        // coalesce explore to at most one push / 1.2s
-        scheduleRemote(type, payload, false, localRevision);
-      }
+      authorityWrites.recordMutation(
+        remote || type === "dungeons/syncExplore"
+          ? {
+              type,
+              payload,
+              ordered:
+                remote &&
+                (orderedRemote || REMOTE_IMMEDIATE.has(type) || type === "dungeons/syncExplore"),
+            }
+          : undefined,
+      );
     }
     return result;
   };
@@ -374,83 +188,41 @@ export function createDomainBridge(options: DomainBridgeOptions | string = "CAMP
     getRun: () => run,
     getDungeon: dungeonState,
     getStatus: () => ({ ...status }),
-    getAuthorityRunId: () => authorityRunId,
+    getAuthorityRunId: () => authorityWrites.context().expectedRunId,
     bindAuthorityRun(runId: string) {
       const normalized = runId.trim();
-      if (!normalized || runTransitionActive || !remoteIsClean()) return false;
+      if (!normalized || runTransitionActive || !authorityWrites.isClean()) return false;
       hydrateSequence += 1;
-      authorityRunId = normalized;
+      authorityWrites.setExpectedRunId(normalized);
       run = { ...run, id: normalized };
       return true;
     },
     setAuthority(next: AuthorityClient | null, runId?: string) {
       const normalizedRunId = runId?.trim();
-      if (authority === next && (!normalizedRunId || normalizedRunId === authorityRunId)) return;
-      authorityEpoch += 1;
+      const replaced = authorityWrites.replaceAuthority(next, normalizedRunId || undefined, {
+        ...dungeonState(),
+      });
+      if (!replaced) return;
       hydrateSequence += 1;
-      if (pushTimer) clearTimeout(pushTimer);
-      pushTimer = null;
-      pendingExplore = null;
-      remoteQueue.length = 0;
-      const previousPush = activePush;
-      activePush = null;
-      previousPush?.controller.abort();
-      for (const waiter of drainWaiters) waiter.resolve(false);
-      drainWaiters.clear();
-      acknowledgedRevision = 0;
-      acknowledgedOutOfOrder.clear();
-      unreconciledPushError = null;
-      reconciliationPending = false;
-      authority = next;
       if (normalizedRunId) {
-        authorityRunId = normalizedRunId;
         run = { ...run, id: normalizedRunId };
       }
-      status = { ...status, online: false, lastError: null };
-      if (authority) {
-        remoteQueue.push({
-          type: "dungeons/hydrate",
-          payload: { ...dungeonState() },
-          revisions: [],
-          clientRevision: ++remoteCommandRevision,
-          ...(authorityRunId ? { expectedRunId: authorityRunId } : {}),
-          reconcilesThrough: localRevision,
-        });
-        reconciliationPending = true;
-      }
-      flushRemote();
     },
     /** Flushes coalesced explore and waits for every earlier remote mutation. */
     async drainRemoteWrites(): Promise<boolean> {
-      if (pushTimer) clearTimeout(pushTimer);
-      pushTimer = null;
-      queuePendingExplore();
-      flushRemote();
-      if (remoteIsIdle()) return remoteIsClean();
-      const epoch = authorityEpoch;
-      return new Promise<boolean>((resolve) => {
-        drainWaiters.add({ epoch, resolve });
-      });
+      return authorityWrites.drain();
     },
     async beginRunTransition(): Promise<boolean> {
       if (runTransitionActive) return false;
       runTransitionActive = true;
       hydrateSequence += 1;
-      if (pushTimer) clearTimeout(pushTimer);
-      pushTimer = null;
-      queuePendingExplore();
-      flushRemote();
-      if (remoteIsIdle()) return remoteIsClean();
-      const epoch = authorityEpoch;
-      return new Promise<boolean>((resolve) => {
-        drainWaiters.add({ epoch, resolve });
-      });
+      return authorityWrites.drain();
     },
     completeRunTransition(runId: string): boolean {
       const normalized = runId.trim();
-      if (!runTransitionActive || !normalized || !remoteIsClean()) return false;
+      if (!runTransitionActive || !normalized || !authorityWrites.isClean()) return false;
       hydrateSequence += 1;
-      authorityRunId = normalized;
+      authorityWrites.setExpectedRunId(normalized);
       run = { ...run, id: normalized };
       runTransitionActive = false;
       return true;
@@ -464,23 +236,7 @@ export function createDomainBridge(options: DomainBridgeOptions | string = "CAMP
     /** Pushes the complete local snapshot to repair any unacknowledged revision. */
     reconcileRemote() {
       if (runTransitionActive) return false;
-      const needsReconciliation =
-        unreconciledPushError !== null || acknowledgedRevision !== localRevision;
-      if (!authority || !needsReconciliation || reconciliationPending) return false;
-      if (pushTimer) clearTimeout(pushTimer);
-      pushTimer = null;
-      queuePendingExplore();
-      remoteQueue.push({
-        type: "dungeons/hydrate",
-        payload: { ...dungeonState() },
-        revisions: [],
-        clientRevision: ++remoteCommandRevision,
-        ...(authorityRunId ? { expectedRunId: authorityRunId } : {}),
-        reconcilesThrough: localRevision,
-      });
-      reconciliationPending = true;
-      flushRemote();
-      return true;
+      return authorityWrites.reconcile({ ...dungeonState() });
     },
     project: (): FullSurfaceProjection => projectSurfaceFull(run),
 
@@ -564,37 +320,38 @@ export function createDomainBridge(options: DomainBridgeOptions | string = "CAMP
       candidate = result.run as FullRunSnapshot;
 
       run = candidate;
-      localRevision += 1;
-      scheduleRemote(
-        "dungeons/hydrate",
-        { ...(candidate.domains.dungeons as DungeonDomainState) },
-        true,
-        localRevision,
-      );
+      authorityWrites.recordMutation({
+        type: "dungeons/hydrate",
+        payload: { ...(candidate.domains.dungeons as DungeonDomainState) },
+        ordered: true,
+      });
       return result;
     },
 
     async hydrateFromAuthority(): Promise<{ seed: string; state: DungeonDomainState } | null> {
-      if (runTransitionActive || !authority || !canHydrate()) return null;
-      const targetAuthority = authority;
-      const targetAuthorityEpoch = authorityEpoch;
-      const expectedRunId = authorityRunId;
-      const hydrateRevision = localRevision;
+      const authorityContext = authorityWrites.context();
+      if (
+        runTransitionActive ||
+        !authorityContext.authority ||
+        !authorityWrites.canHydrate(authorityContext)
+      ) {
+        return null;
+      }
+      const targetAuthority = authorityContext.authority;
+      const expectedRunId = authorityContext.expectedRunId;
       const hydrateRequest = ++hydrateSequence;
       const hydrateContextIsCurrent = () =>
         !runTransitionActive &&
-        targetAuthorityEpoch === authorityEpoch &&
-        targetAuthority === authority &&
         hydrateRequest === hydrateSequence &&
-        hydrateRevision === localRevision &&
-        canHydrate();
+        authorityWrites.canHydrate(authorityContext);
       try {
         const reachable = await targetAuthority.isReachable();
         if (!hydrateContextIsCurrent()) return null;
         status = {
           ...status,
           online: reachable,
-          lastError: unreconciledPushError ?? (reachable ? null : "backend unreachable"),
+          lastError:
+            authorityWrites.getUnreconciledError() ?? (reachable ? null : "backend unreachable"),
         };
         if (!reachable) return null;
         const remote = await targetAuthority.getDomain("dungeons");
@@ -603,7 +360,8 @@ export function createDomainBridge(options: DomainBridgeOptions | string = "CAMP
         if (!state || typeof state.seed !== "string" || !state.seed.trim()) {
           status = {
             ...status,
-            lastError: unreconciledPushError ?? "remote dungeon state missing seed",
+            lastError:
+              authorityWrites.getUnreconciledError() ?? "remote dungeon state missing seed",
           };
           return null;
         }
@@ -619,7 +377,7 @@ export function createDomainBridge(options: DomainBridgeOptions | string = "CAMP
         if (!result.ok) {
           status = {
             ...status,
-            lastError: unreconciledPushError ?? result.error.message,
+            lastError: authorityWrites.getUnreconciledError() ?? result.error.message,
           };
           return null;
         }
@@ -631,14 +389,17 @@ export function createDomainBridge(options: DomainBridgeOptions | string = "CAMP
         status = {
           ...status,
           online: false,
-          lastError: unreconciledPushError ?? (err instanceof Error ? err.message : String(err)),
+          lastError:
+            authorityWrites.getUnreconciledError() ??
+            (err instanceof Error ? err.message : String(err)),
         };
         return null;
       }
     },
 
     async probeAuthority(): Promise<boolean> {
-      if (!authority) {
+      const authorityContext = authorityWrites.context();
+      if (!authorityContext.authority) {
         status = { ...status, online: false };
         return false;
       }
@@ -646,18 +407,22 @@ export function createDomainBridge(options: DomainBridgeOptions | string = "CAMP
       if (now - lastProbeAt < 4000 && status.online) return true;
       lastProbeAt = now;
       try {
-        const ok = await authority.isReachable();
+        const ok = await authorityContext.authority.isReachable();
+        if (!authorityWrites.isAuthorityContextCurrent(authorityContext)) return false;
         status = {
           ...status,
           online: ok,
-          lastError: unreconciledPushError ?? (ok ? null : "backend unreachable"),
+          lastError: authorityWrites.getUnreconciledError() ?? (ok ? null : "backend unreachable"),
         };
         return ok;
       } catch (err) {
+        if (!authorityWrites.isAuthorityContextCurrent(authorityContext)) return false;
         status = {
           ...status,
           online: false,
-          lastError: unreconciledPushError ?? (err instanceof Error ? err.message : String(err)),
+          lastError:
+            authorityWrites.getUnreconciledError() ??
+            (err instanceof Error ? err.message : String(err)),
         };
         return false;
       }
