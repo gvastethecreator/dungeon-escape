@@ -1,10 +1,10 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 
 import {
-  leaderboardLimit,
-  parseLeaderboardSubmission,
-  type LeaderboardErrorResponse,
-} from "../../src/leaderboard/contract.ts";
+  createHallApplication,
+  type HallBodyReadResult,
+} from "../../src/leaderboard/application.ts";
+import type { LeaderboardRepository } from "../../src/leaderboard/repository.ts";
 import { SqliteLeaderboardRepository } from "./SqliteLeaderboardRepository.ts";
 
 type Next = (error?: unknown) => void;
@@ -16,30 +16,37 @@ function sendJson(response: ServerResponse, status: number, value: unknown): voi
   response.end(JSON.stringify(value));
 }
 
-function sendError(response: ServerResponse, status: number, code: string, message: string): void {
-  const body: LeaderboardErrorResponse = { error: { code, message } };
-  sendJson(response, status, body);
-}
-
-async function readJson(request: IncomingMessage, maxBytes = 12_000): Promise<unknown> {
+async function readBody(request: IncomingMessage, maxBytes = 12_000): Promise<HallBodyReadResult> {
   let size = 0;
   const chunks: Buffer[] = [];
   for await (const chunk of request) {
     const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
     size += buffer.length;
-    if (size > maxBytes) throw new Error("PAYLOAD_TOO_LARGE");
+    if (size > maxBytes) return { ok: false, reason: "PAYLOAD_TOO_LARGE" };
     chunks.push(buffer);
   }
-  const source = Buffer.concat(chunks).toString("utf8");
-  if (!source) throw new Error("EMPTY_BODY");
-  return JSON.parse(source) as unknown;
+  return { ok: true, source: Buffer.concat(chunks).toString("utf8") };
 }
 
-export async function createLeaderboardMiddleware(): Promise<{
+export interface LeaderboardMiddlewareOptions {
+  readonly repository?: LeaderboardRepository;
+  readonly now?: () => Date;
+  readonly reportError?: (error: unknown) => void;
+}
+
+export async function createLeaderboardMiddleware(
+  options: LeaderboardMiddlewareOptions = {},
+): Promise<{
   handle(request: IncomingMessage, response: ServerResponse, next: Next): Promise<void>;
   close(): void;
 }> {
-  const repository = await SqliteLeaderboardRepository.open();
+  const ownedRepository = options.repository ? null : await SqliteLeaderboardRepository.open();
+  const repository = options.repository ?? ownedRepository!;
+  const application = createHallApplication({
+    repository,
+    ...(options.now ? { now: options.now } : {}),
+    ...(options.reportError ? { reportError: options.reportError } : {}),
+  });
   return {
     async handle(request, response, next): Promise<void> {
       const url = new URL(request.url ?? "/", "http://localhost");
@@ -47,47 +54,16 @@ export async function createLeaderboardMiddleware(): Promise<{
         next();
         return;
       }
-      try {
-        if (request.method === "GET") {
-          const limit = leaderboardLimit(url.searchParams.get("limit"));
-          const [entries, playerBiomeStars] = await Promise.all([
-            repository.list(limit),
-            repository.listBiomeStars(),
-          ]);
-          sendJson(response, 200, {
-            entries,
-            playerBiomeStars,
-            generatedAt: new Date().toISOString(),
-          });
-          return;
-        }
-        if (request.method === "POST") {
-          const parsed = parseLeaderboardSubmission(await readJson(request));
-          if (!parsed.ok) {
-            sendError(response, 400, parsed.code, parsed.message);
-            return;
-          }
-          const entry = await repository.create(parsed.value);
-          sendJson(response, 201, { entry });
-          return;
-        }
-        response.setHeader("Allow", "GET, POST");
-        sendError(response, 405, "METHOD_NOT_ALLOWED", "Use GET or POST.");
-      } catch (error) {
-        if (error instanceof SyntaxError) {
-          sendError(response, 400, "INVALID_JSON", "Request body must be valid JSON.");
-          return;
-        }
-        if (error instanceof Error && error.message === "PAYLOAD_TOO_LARGE") {
-          sendError(response, 413, "PAYLOAD_TOO_LARGE", "Request body is too large.");
-          return;
-        }
-        console.error("Leaderboard API failed", error);
-        sendError(response, 500, "LEADERBOARD_UNAVAILABLE", "Leaderboard is unavailable.");
-      }
+      const result = await application({
+        method: request.method ?? "",
+        limit: url.searchParams.get("limit"),
+        readBody: () => readBody(request),
+      });
+      if ("allow" in result) response.setHeader("Allow", result.allow);
+      sendJson(response, result.status, result.body);
     },
     close(): void {
-      repository.close();
+      ownedRepository?.close();
     },
   };
 }
