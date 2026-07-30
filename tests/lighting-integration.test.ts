@@ -305,6 +305,8 @@ describe("integrated dungeon lighting", () => {
     expect(mat.fragmentShader).toContain("bayer4");
     expect(mat.fragmentShader).toContain("quantize5Bit");
     expect(mat.fragmentShader).toContain("vBeamUv");
+    expect(mat.fragmentShader).toContain("cameraInside");
+    expect(mat.vertexShader).toContain("vCameraLocal");
     expect(mat.fragmentShader).toContain("#include <tonemapping_fragment>");
     expect(mat.fragmentShader).toContain("#include <colorspace_fragment>");
     expect(mat.fragmentShader).not.toContain("gl_FragCoord");
@@ -316,6 +318,8 @@ describe("integrated dungeon lighting", () => {
     );
     expect(beam.userData.beamRole).toBe("ambient");
     expect(beam.userData.sourceRadius).toBeGreaterThan(0.04);
+    expect(mat.uniforms.uTopRadius.value).toBe(beam.userData.sourceRadius);
+    expect(mat.uniforms.uBottomRadius.value).toBe(beam.userData.bottomRadius);
     expect(beam.userData.profile).toBe("retro-faceted");
     expect(beam.geometry.userData.radialSegments).toBe(8);
     expect(beam.geometry.userData.heightSegments).toBe(4);

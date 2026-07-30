@@ -35,4 +35,18 @@ describe("CDP live-scene photo tool", () => {
     expect(source).toContain("p99: gaps.p99");
     expect(source).toContain("max: gaps.max");
   });
+
+  test("waits for the menu before starting a run and only then requires renderer warmup", async () => {
+    const source = await Bun.file(new URL("../scripts/cdp-photo.ts", import.meta.url)).text();
+    const appReady = source.indexOf("await waitForAppReady(ws);");
+    const picker = source.indexOf("const openedPicker");
+    const pickerStarted = source.indexOf("Biome picker did not start a new game.");
+    const gameReady = source.indexOf("await waitForGameReady(ws);", pickerStarted);
+
+    expect(appReady).toBeGreaterThan(-1);
+    expect(appReady).toBeLessThan(picker);
+    expect(gameReady).toBeGreaterThan(pickerStarted);
+    expect(source).toContain("if (qaState)");
+    expect(source).toContain("boot.hidden = true");
+  });
 });
