@@ -11,6 +11,7 @@ const BEAM_VERTEX_SHADER = /* glsl */ `
   varying vec3 vWorldPos;
   varying vec3 vWorldNormal;
   varying vec3 vLocalPos;
+  varying vec3 vCameraLocal;
   varying vec2 vBeamUv;
 
   void main() {
@@ -19,6 +20,15 @@ const BEAM_VERTEX_SHADER = /* glsl */ `
     vec4 world = modelMatrix * vec4(position, 1.0);
     vWorldPos = world.xyz;
     vWorldNormal = normalize(mat3(modelMatrix) * normal);
+    vec3 cameraOffset = cameraPosition - modelMatrix[3].xyz;
+    vec3 axisX = modelMatrix[0].xyz;
+    vec3 axisY = modelMatrix[1].xyz;
+    vec3 axisZ = modelMatrix[2].xyz;
+    vCameraLocal = vec3(
+      dot(cameraOffset, axisX) / max(dot(axisX, axisX), 0.0001),
+      dot(cameraOffset, axisY) / max(dot(axisY, axisY), 0.0001),
+      dot(cameraOffset, axisZ) / max(dot(axisZ, axisZ), 0.0001)
+    );
 
     vec4 mvPosition = viewMatrix * world;
     gl_Position = projectionMatrix * mvPosition;
@@ -34,10 +44,13 @@ const BEAM_FRAGMENT_SHADER = /* glsl */ `
   uniform float uStrength;
   uniform float uTime;
   uniform float uHeight;
+  uniform float uTopRadius;
+  uniform float uBottomRadius;
 
   varying vec3 vWorldPos;
   varying vec3 vWorldNormal;
   varying vec3 vLocalPos;
+  varying vec3 vCameraLocal;
   varying vec2 vBeamUv;
 
 #ifndef AMBIENT_RETRO_PROFILE
@@ -107,7 +120,7 @@ const BEAM_FRAGMENT_SHADER = /* glsl */ `
     // The ambient shaft is intentionally a sparse polygon volume. Flat mesh
     // normals and three view-facing levels keep its sides authored and legible.
     float facingBand = floor(clamp(facing * 3.0, 0.0, 2.999)) * 0.5;
-    float viewDensity = mix(0.72, 1.0, facingBand);
+    float viewDensity = mix(0.28, 1.0, facingBand);
 
     // Fade both open ends before the geometry boundary. This removes the dark
     // ceiling mouth and the hard floor ring of the previous smooth cone.
@@ -129,6 +142,13 @@ const BEAM_FRAGMENT_SHADER = /* glsl */ `
     );
 
     float alpha = clamp(uStrength * 3.35 * viewDensity * densityBand * sourceFade * floorFade, 0.0, 0.42);
+    float cameraHeight01 = clamp(-vCameraLocal.y / max(uHeight, 0.001), 0.0, 1.0);
+    float cameraRadius = mix(uTopRadius, uBottomRadius, cameraHeight01);
+    float cameraInside =
+      step(-uHeight, vCameraLocal.y) *
+      step(vCameraLocal.y, 0.0) *
+      (1.0 - step(cameraRadius, length(vCameraLocal.xz)));
+    alpha *= mix(1.0, 0.16, cameraInside);
     if (alpha < 0.002) discard;
 
     // A fixed dungeon-space light vector creates broad faceted value changes.
@@ -188,6 +208,8 @@ function makeBeamMaterial(
   color: number,
   strength: number,
   height: number,
+  sourceRadius: number,
+  bottomRadius: number,
   options: VolumetricBeamOptions,
 ): THREE.ShaderMaterial {
   const ambient = options.role === "ambient";
@@ -201,6 +223,8 @@ function makeBeamMaterial(
         uStrength: { value: strength },
         uTime: { value: 0 },
         uHeight: { value: height },
+        uTopRadius: { value: sourceRadius },
+        uBottomRadius: { value: bottomRadius },
       },
     ]),
     defines: ambient ? { AMBIENT_RETRO_PROFILE: 1 } : {},
@@ -267,7 +291,14 @@ export function createVolumetricBeam(
   const sourceRadius = Math.max(0.04, options.topRadius ?? Math.min(bottomRadius * 0.24, 0.28));
   const ambient = options.role === "ambient";
   const geometry = makeBeamGeometry(sourceRadius, bottomRadius, shaftHeight, ambient);
-  const material = makeBeamMaterial(color, strength, shaftHeight, options);
+  const material = makeBeamMaterial(
+    color,
+    strength,
+    shaftHeight,
+    sourceRadius,
+    bottomRadius,
+    options,
+  );
   const beam = new THREE.Mesh(geometry, material);
   beam.name = "World-space volumetric light shaft";
   beam.renderOrder = 0;
