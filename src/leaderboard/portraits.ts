@@ -1,4 +1,4 @@
-import { hashSeed } from "../core/random";
+import { hashSeed } from "../core/random.ts";
 
 /** Fixed roster size for name → portrait assignment. */
 export const LEADERBOARD_PORTRAIT_COUNT = 72;

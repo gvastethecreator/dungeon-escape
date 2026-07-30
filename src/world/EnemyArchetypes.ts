@@ -1,5 +1,5 @@
-import type { EnemyRosterKind } from "./EnemySpriteAtlas";
-import type { DungeonMoodId } from "../systems/DungeonMood";
+import type { EnemyRosterKind } from "./EnemySpriteAtlas.ts";
+import type { DungeonMoodId } from "../systems/DungeonMood.ts";
 
 export type EnemyKind = EnemyRosterKind;
 export type EnemyBehavior =
