@@ -69,8 +69,17 @@ describe("luminous ward power", () => {
 
     const moteMaterial = motes.material as THREE.PointsMaterial;
     expect(moteMaterial.map).toBeTruthy();
+    const particleTexture = moteMaterial.map;
+    if (
+      !(
+        particleTexture instanceof THREE.DataTexture ||
+        particleTexture instanceof THREE.CanvasTexture
+      )
+    ) {
+      throw new Error("Expected a data or canvas particle texture");
+    }
     // Soft circle map is square so Points read as discs, not default squares.
-    expect(moteMaterial.map!.image.width).toBe(moteMaterial.map!.image.height);
+    expect(particleTexture.image.width).toBe(particleTexture.image.height);
 
     // Orbit a few frames so trail samples accumulate while the ward is live.
     for (let frame = 0; frame < 24; frame += 1) {

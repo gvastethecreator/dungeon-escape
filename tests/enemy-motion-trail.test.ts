@@ -42,10 +42,15 @@ function target(
 
 function instanceScale(mesh: THREE.InstancedMesh, index: number): number {
   const matrix = new THREE.Matrix4();
-  const scale = new THREE.Vector3();
   mesh.getMatrixAt(index, matrix);
-  matrix.decompose(new THREE.Vector3(), new THREE.Quaternion(), scale);
-  return scale.length();
+  const elements = matrix.elements;
+  // Three 0.185 returns unit scale when decompose() receives a singular
+  // matrix. Read the basis vectors directly so a hidden zero matrix stays 0.
+  return Math.hypot(
+    Math.hypot(elements[0]!, elements[1]!, elements[2]!),
+    Math.hypot(elements[4]!, elements[5]!, elements[6]!),
+    Math.hypot(elements[8]!, elements[9]!, elements[10]!),
+  );
 }
 
 function makeVfx(kinds: Array<"goblin" | "ghost" | "husk"> = ["goblin"]): EnemyMotionTrailVfx {

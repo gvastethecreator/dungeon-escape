@@ -3,6 +3,7 @@
 ## Requirements
 
 - Bun 1.3.14 or later
+- TypeScript 7 (installed through the project manifest)
 - A modern WebGL browser
 
 ## Run locally
@@ -24,11 +25,16 @@ Available entries:
 
 ```bash
 bun run test
-bun run typecheck
-bun run build
+bun run typecheck:all
+bun run build:code
 bun run lint
 bun run fmt:check
 ```
+
+`build:code` checks browser, server, and worker types and builds every HTML entry into
+`.scratch/build/code` without copying the large runtime asset catalog. Use it for normal code
+iteration. `bun run build` remains the production check and copies all files under `public/` into
+`dist/`; deployments always use that full build.
 
 ## Optional authority service
 

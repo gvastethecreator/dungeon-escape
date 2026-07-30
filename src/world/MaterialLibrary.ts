@@ -87,9 +87,8 @@ function loadPbrMaps(family: PbrFamily, compact = false): PbrMapSet {
     // but do not duplicate it, so select UV0 explicitly.
     ao.channel = 0;
   }
-  for (const texture of [albedo, normal, roughness, ao].filter(
-    (candidate): candidate is THREE.Texture => candidate !== null,
-  )) {
+  for (const texture of [albedo, normal, roughness, ao]) {
+    if (texture === null) continue;
     texture.wrapS = texture.wrapT = THREE.MirroredRepeatWrapping;
     texture.repeat.set(
       PBR_REPEATS[family][0] * MODEL_PBR_SOURCE_REPEAT_SCALE,

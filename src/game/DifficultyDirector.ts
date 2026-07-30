@@ -1,4 +1,4 @@
-import { ENEMY_ARCHETYPES, type EnemyKind } from "../world/EnemyArchetypes";
+import { ENEMY_ARCHETYPES, type EnemyKind } from "../world/EnemyArchetypes.ts";
 
 export const DEFAULT_DIFFICULTY = 0.5;
 

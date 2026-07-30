@@ -1,5 +1,5 @@
-import { difficultyLabel, type DifficultyLabel } from "../game/DifficultyDirector";
-import { LEADERBOARD_PORTRAIT_COUNT } from "./portraits";
+import { difficultyLabel, type DifficultyLabel } from "../game/DifficultyDirector.ts";
+import { LEADERBOARD_PORTRAIT_COUNT } from "./portraits.ts";
 
 export const LEADERBOARD_SCORE_VERSION = 1;
 export const PLAYER_NAME_MAX_LENGTH = 20;

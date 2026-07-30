@@ -4,8 +4,8 @@ import {
   leaderboardLimit,
   parseLeaderboardSubmission,
   type LeaderboardErrorResponse,
-} from "../../src/leaderboard/contract";
-import { SqliteLeaderboardRepository } from "./SqliteLeaderboardRepository";
+} from "../../src/leaderboard/contract.ts";
+import { SqliteLeaderboardRepository } from "./SqliteLeaderboardRepository.ts";
 
 type Next = (error?: unknown) => void;
 

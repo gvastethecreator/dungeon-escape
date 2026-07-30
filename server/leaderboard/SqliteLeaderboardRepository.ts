@@ -5,8 +5,8 @@ import type {
   LeaderboardEntry,
   PlayerBiomeStars,
   ValidLeaderboardSubmission,
-} from "../../src/leaderboard/contract";
-import type { LeaderboardRepository } from "../../src/leaderboard/repository";
+} from "../../src/leaderboard/contract.ts";
+import type { LeaderboardRepository } from "../../src/leaderboard/repository.ts";
 
 interface LeaderboardRow {
   run_id: string;

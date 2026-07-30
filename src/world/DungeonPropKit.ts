@@ -566,7 +566,8 @@ function createChair(materials: DungeonMaterials, variant: number): THREE.Group 
       z: 0,
     }),
   );
-  root.scale.set([1.08, 1.02, 0.98][variant]!, 1.04, [1.14, 1.08, 1.02][variant]!);
+  // Keep rivets and splayed posts inside the 0.75 m gameplay footprint.
+  root.scale.set([1.04, 0.98, 0.93][variant]!, 1.04, [1.14, 1.08, 1.02][variant]!);
   root.userData.variant = variant;
   return finalizeCarpentryModel(root, {
     id: "chair",
