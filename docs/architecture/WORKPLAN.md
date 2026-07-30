@@ -4,6 +4,9 @@ Source: [architecture review](architecture-review-2026-07-27.md)
 
 Status: implemented and locally verified on 2026-07-27.
 
+The 2026-07-30 dependency/performance follow-up in the source review proposes A7-A9. Those items are
+not accepted and are intentionally not implementation tasks yet.
+
 ## Frontier
 
 | ID  | Module               | Status   | Depends on          | Acceptance proof                                                                                       |
@@ -40,3 +43,11 @@ Status: implemented and locally verified on 2026-07-27.
 - Domain language: [`CONTEXT.md`](../../CONTEXT.md)
 - Quality baseline: [`docs/quality-review-2026-07-27.md`](../quality-review-2026-07-27.md)
 - Execution state: `.scratch/planning/2026-07-27-accepted-architecture-a1-a6/`
+
+## Pending owner decision
+
+| ID  | Candidate                               | Status              | Measured driver                                              |
+| --- | --------------------------------------- | ------------------- | ------------------------------------------------------------ |
+| A7  | Runtime-only public asset boundary      | awaiting acceptance | 200.50 MiB of non-runtime enemy inputs under `public/`       |
+| A8  | Lazy Play/Creation experience lifecycle | awaiting acceptance | welcome eagerly preloads about 391 kB gzip and creates WebGL |
+| A9  | Static scene plan then Three commit     | awaiting acceptance | 3,973-line synchronous build transaction                     |
