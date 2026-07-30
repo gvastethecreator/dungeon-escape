@@ -314,68 +314,60 @@ export class PovPostFx {
     this.material.uniforms.uSpikeEdge.value = THREE.MathUtils.clamp(spikeEdge, 0, 1);
   }
 
-  compileScene(
-    renderer: THREE.WebGLRenderer,
-    scene: THREE.Scene,
-    camera: THREE.Camera,
-  ): void {
-    const previousTarget = renderer.getRenderTarget();
-    renderer.setRenderTarget(this.sceneTarget);
-    try {
-      renderer.compile(scene, camera);
-    } finally {
-      renderer.setRenderTarget(previousTarget);
-    }
-  }
-
   /**
    * Draw scene → RT → fullscreen warp. When disabled, falls back to a normal render.
    */
   render(renderer: THREE.WebGLRenderer, scene: THREE.Scene, camera: THREE.Camera): void {
+    const prevTarget = renderer.getRenderTarget();
     if (!this.enabled) {
-      renderer.setRenderTarget(null);
-      renderer.render(scene, camera);
+      try {
+        renderer.setRenderTarget(null);
+        renderer.render(scene, camera);
+      } finally {
+        renderer.setRenderTarget(prevTarget);
+      }
       return;
     }
 
-    const prevTarget = renderer.getRenderTarget();
     const prevTone = renderer.toneMapping;
     const prevAutoClear = renderer.autoClear;
-    if (this.animateGrain) this.material.uniforms.uTime.value = performance.now() * 0.001;
+    try {
+      if (this.animateGrain) this.material.uniforms.uTime.value = performance.now() * 0.001;
 
-    renderer.setRenderTarget(this.sceneTarget);
-    renderer.autoClear = true;
-    renderer.clear();
-    renderer.render(scene, camera);
-
-    // Scene already tone-mapped into the RT; composite without a second grade.
-    renderer.toneMapping = THREE.NoToneMapping;
-    renderer.autoClear = true;
-
-    if (this.crtEnabled) {
-      const historyWriteIndex = 1 - this.historyReadIndex;
-      const historyRead = this.historyTargets[this.historyReadIndex];
-      const historyWrite = this.historyTargets[historyWriteIndex];
-      this.material.uniforms.tHistory.value = historyRead.texture;
-      this.material.uniforms.uHistoryReady.value = this.historyReady ? 1 : 0;
-
-      renderer.setRenderTarget(historyWrite);
+      renderer.setRenderTarget(this.sceneTarget);
+      renderer.autoClear = true;
       renderer.clear();
-      renderer.render(this.fsScene, this.fsCamera);
+      renderer.render(scene, camera);
 
-      this.copyMaterial.uniforms.tDiffuse.value = historyWrite.texture;
-      renderer.setRenderTarget(null);
-      renderer.render(this.copyScene, this.fsCamera);
-      this.historyReadIndex = historyWriteIndex;
-      this.historyReady = true;
-    } else {
-      renderer.setRenderTarget(null);
-      renderer.render(this.fsScene, this.fsCamera);
+      // Scene already tone-mapped into the RT; composite without a second grade.
+      renderer.toneMapping = THREE.NoToneMapping;
+      renderer.autoClear = true;
+
+      if (this.crtEnabled) {
+        const historyWriteIndex = 1 - this.historyReadIndex;
+        const historyRead = this.historyTargets[this.historyReadIndex];
+        const historyWrite = this.historyTargets[historyWriteIndex];
+        this.material.uniforms.tHistory.value = historyRead.texture;
+        this.material.uniforms.uHistoryReady.value = this.historyReady ? 1 : 0;
+
+        renderer.setRenderTarget(historyWrite);
+        renderer.clear();
+        renderer.render(this.fsScene, this.fsCamera);
+
+        this.copyMaterial.uniforms.tDiffuse.value = historyWrite.texture;
+        renderer.setRenderTarget(null);
+        renderer.render(this.copyScene, this.fsCamera);
+        this.historyReadIndex = historyWriteIndex;
+        this.historyReady = true;
+      } else {
+        renderer.setRenderTarget(null);
+        renderer.render(this.fsScene, this.fsCamera);
+      }
+    } finally {
+      renderer.toneMapping = prevTone;
+      renderer.autoClear = prevAutoClear;
+      renderer.setRenderTarget(prevTarget);
     }
-
-    renderer.toneMapping = prevTone;
-    renderer.autoClear = prevAutoClear;
-    renderer.setRenderTarget(prevTarget);
   }
 
   dispose(): void {

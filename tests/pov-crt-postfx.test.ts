@@ -88,43 +88,67 @@ describe("POV CRT post effect", () => {
     post.dispose();
   });
 
-  test("registers scene shaders synchronously against the post target", () => {
-    const post = new PovPostFx();
-    const internals = post as unknown as PovPostFxInternals;
-    const previousTarget = { name: "previous" } as unknown as THREE.WebGLRenderTarget;
-    const targets: Array<THREE.WebGLRenderTarget | null> = [];
-    let compileCalls = 0;
-    const renderer = {
-      getRenderTarget: () => previousTarget,
-      setRenderTarget: (target: THREE.WebGLRenderTarget | null) => targets.push(target),
-      compile: () => {
-        compileCalls += 1;
-      },
-    } as unknown as THREE.WebGLRenderer;
+  test("restores renderer state when any enabled render pass fails", () => {
+    for (const failingPass of [1, 2, 3]) {
+      const post = new PovPostFx();
+      const previousTarget = { name: "previous" } as unknown as THREE.WebGLRenderTarget;
+      const renderer = {
+        currentTarget: previousTarget as THREE.WebGLRenderTarget | null,
+        toneMapping: THREE.ACESFilmicToneMapping,
+        autoClear: false,
+        getRenderTarget() {
+          return this.currentTarget;
+        },
+        setRenderTarget(target: THREE.WebGLRenderTarget | null) {
+          this.currentTarget = target;
+        },
+        clear() {},
+        renderCalls: 0,
+        render() {
+          this.renderCalls += 1;
+          if (this.renderCalls === failingPass) throw new Error(`pass ${failingPass}`);
+        },
+      };
 
-    post.compileScene(renderer, new THREE.Scene(), new THREE.Camera());
-
-    expect(compileCalls).toBe(1);
-    expect(targets).toEqual([internals.sceneTarget, previousTarget]);
-    post.dispose();
+      expect(() =>
+        post.render(
+          renderer as unknown as THREE.WebGLRenderer,
+          new THREE.Scene(),
+          new THREE.Camera(),
+        ),
+      ).toThrow(`pass ${failingPass}`);
+      expect(renderer.currentTarget).toBe(previousTarget);
+      expect(renderer.toneMapping).toBe(THREE.ACESFilmicToneMapping);
+      expect(renderer.autoClear).toBe(false);
+      post.dispose();
+    }
   });
 
-  test("restores the prior render target when synchronous registration fails", () => {
+  test("restores the prior target when a disabled-path draw fails", () => {
     const post = new PovPostFx();
     const previousTarget = { name: "previous" } as unknown as THREE.WebGLRenderTarget;
-    const targets: Array<THREE.WebGLRenderTarget | null> = [];
     const renderer = {
-      getRenderTarget: () => previousTarget,
-      setRenderTarget: (target: THREE.WebGLRenderTarget | null) => targets.push(target),
-      compile: () => {
-        throw new Error("expected compile failure");
+      currentTarget: previousTarget as THREE.WebGLRenderTarget | null,
+      getRenderTarget() {
+        return this.currentTarget;
       },
-    } as unknown as THREE.WebGLRenderer;
+      setRenderTarget(target: THREE.WebGLRenderTarget | null) {
+        this.currentTarget = target;
+      },
+      render() {
+        throw new Error("disabled pass");
+      },
+    };
+    post.setEnabled(false);
 
-    expect(() => post.compileScene(renderer, new THREE.Scene(), new THREE.Camera())).toThrow(
-      "expected compile failure",
-    );
-    expect(targets.at(-1)).toBe(previousTarget);
+    expect(() =>
+      post.render(
+        renderer as unknown as THREE.WebGLRenderer,
+        new THREE.Scene(),
+        new THREE.Camera(),
+      ),
+    ).toThrow("disabled pass");
+    expect(renderer.currentTarget).toBe(previousTarget);
     post.dispose();
   });
 });
