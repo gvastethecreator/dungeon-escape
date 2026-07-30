@@ -314,13 +314,6 @@ export class PovPostFx {
     this.material.uniforms.uSpikeEdge.value = THREE.MathUtils.clamp(spikeEdge, 0, 1);
   }
 
-  async compileAsync(renderer: THREE.WebGLRenderer): Promise<void> {
-    await Promise.all([
-      renderer.compileAsync(this.fsScene, this.fsCamera),
-      renderer.compileAsync(this.copyScene, this.fsCamera),
-    ]);
-  }
-
   compileScene(
     renderer: THREE.WebGLRenderer,
     scene: THREE.Scene,
