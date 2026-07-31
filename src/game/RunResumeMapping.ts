@@ -29,6 +29,7 @@ export interface RunResumeCaptureInput {
     readonly annihilationPulseRemaining: number;
     readonly mapRevealed: boolean;
     readonly mobilityBoostRemaining: number;
+    readonly fogClearRemaining: number;
   };
   readonly exploration: FloorExplorationSnapshot;
   readonly campaign: {
@@ -119,6 +120,7 @@ export function captureRunResume(input: RunResumeCaptureInput): LocalRunResumeSt
     annihilationPulseRemaining: input.world.annihilationPulseRemaining,
     mapRevealed: input.world.mapRevealed || input.exploration.mapRevealed,
     mobilityBoostRemaining: input.world.mobilityBoostRemaining,
+    fogClearRemaining: input.world.fogClearRemaining,
     activeFloor: input.exploration.activeFloor,
     campaignRootSeed: input.campaign.rootSeed,
     campaignBiomeId: input.campaign.biomeId,
@@ -158,6 +160,7 @@ export function planRunResumeRestore(
         annihilationPulseRemaining: resume.annihilationPulseRemaining,
         mapRevealed: resume.mapRevealed,
         mobilityBoostRemaining: resume.mobilityBoostRemaining,
+        fogClearRemaining: resume.fogClearRemaining,
       },
       player: { x: resume.player.x, z: resume.player.z },
     },

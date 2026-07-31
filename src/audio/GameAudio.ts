@@ -1,6 +1,14 @@
 /** Asset-backed dungeon mix. Sources live in public/assets/audio/dungeon. */
 
 import type { FootstepSurface } from "./FootstepSurface";
+import { MUSIC_ASSET_IDS, type MusicTrack } from "./AudioMusicPolicy";
+
+export type {
+  BiomeMusicTrack,
+  BiomePortalMusicTrack,
+  MusicTrack,
+} from "./AudioMusicPolicy";
+export { musicTrackForBiome, MUSIC_ASSET_IDS } from "./AudioMusicPolicy";
 
 export type AudioCue =
   | "ui"
@@ -25,36 +33,6 @@ export type AudioCue =
   | "portal";
 
 export type AudioGroup = "sfx" | "ui" | "ambience" | "threat" | "music";
-
-/** Looping scene beds. Each campaign biome owns an original exploration cue. */
-export type BiomeMusicTrack =
-  | "biome-ancient"
-  | "biome-molten"
-  | "biome-frost"
-  | "biome-grim"
-  | "biome-verdant"
-  | "biome-ash"
-  | "biome-iron"
-  | "biome-obsidian"
-  | "biome-sunken"
-  | "biome-fungal"
-  | "biome-backrooms";
-
-/** Higher-stakes beds after all four stones bind and the portal opens. */
-export type BiomePortalMusicTrack =
-  | "biome-ancient-portal"
-  | "biome-molten-portal"
-  | "biome-frost-portal"
-  | "biome-grim-portal"
-  | "biome-verdant-portal"
-  | "biome-ash-portal"
-  | "biome-iron-portal"
-  | "biome-obsidian-portal"
-  | "biome-sunken-portal"
-  | "biome-fungal-portal"
-  | "biome-backrooms-portal";
-
-export type MusicTrack = "menu" | "win" | "lose" | BiomeMusicTrack | BiomePortalMusicTrack;
 
 export interface AudioPosition {
   x: number;
@@ -123,7 +101,8 @@ export interface CollectedPickupAudio {
     | "luminous-ward"
     | "annihilation-pulse"
     | "map"
-    | "mobility";
+    | "mobility"
+    | "clarity";
   position: AudioPosition;
 }
 
@@ -326,45 +305,7 @@ const AUDIO_ASSETS: Record<string, AssetDefinition> = {
 
 type AudioAssetId = string;
 
-const MUSIC_ASSETS: Readonly<Record<MusicTrack, AudioAssetId>> = {
-  menu: "music-menu",
-  win: "music-win",
-  lose: "music-lose",
-  "biome-ancient": "music-biome-ancient",
-  "biome-molten": "music-biome-molten",
-  "biome-frost": "music-biome-frost",
-  "biome-grim": "music-biome-grim",
-  "biome-verdant": "music-biome-verdant",
-  "biome-ash": "music-biome-ash",
-  "biome-iron": "music-biome-iron",
-  "biome-obsidian": "music-biome-obsidian",
-  "biome-sunken": "music-biome-sunken",
-  "biome-fungal": "music-biome-fungal",
-  "biome-backrooms": "music-biome-backrooms",
-  "biome-ancient-portal": "music-biome-ancient-portal",
-  "biome-molten-portal": "music-biome-molten-portal",
-  "biome-frost-portal": "music-biome-frost-portal",
-  "biome-grim-portal": "music-biome-grim-portal",
-  "biome-verdant-portal": "music-biome-verdant-portal",
-  "biome-ash-portal": "music-biome-ash-portal",
-  "biome-iron-portal": "music-biome-iron-portal",
-  "biome-obsidian-portal": "music-biome-obsidian-portal",
-  "biome-sunken-portal": "music-biome-sunken-portal",
-  "biome-fungal-portal": "music-biome-fungal-portal",
-  "biome-backrooms-portal": "music-biome-backrooms-portal",
-};
-
-export function musicTrackForBiome(
-  moodId: string,
-  options?: { portalOpen?: boolean },
-): BiomeMusicTrack | BiomePortalMusicTrack {
-  const normalized = moodId.trim().toLowerCase();
-  const base = `biome-${normalized}` as BiomeMusicTrack;
-  const exploration: BiomeMusicTrack = base in MUSIC_ASSETS ? base : "biome-ancient";
-  if (!options?.portalOpen) return exploration;
-  const portal = `${exploration}-portal` as BiomePortalMusicTrack;
-  return portal in MUSIC_ASSETS ? portal : "biome-ancient-portal";
-}
+const MUSIC_ASSETS: Readonly<Record<MusicTrack, AudioAssetId>> = MUSIC_ASSET_IDS;
 
 function buildCreatureTakeTable(
   role: "voice" | "attack",
@@ -415,6 +356,7 @@ const PICKUP_ASSETS: Readonly<Record<CollectedPickupAudio["kind"], AudioAssetId>
   "annihilation-pulse": "pickup-ward",
   map: "pickup-stone",
   mobility: "pickup-resolve",
+  clarity: "pickup-time-freeze",
 };
 
 const CUE_ASSETS: Readonly<Record<Exclude<AudioCue, "step" | "pickup">, AudioAssetId>> = {

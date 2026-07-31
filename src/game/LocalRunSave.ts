@@ -1,6 +1,7 @@
 import type { DungeonDomainState } from "../domain/bridge";
 import { ANNIHILATION_PULSE_DURATION_SECONDS } from "./AnnihilationPulse";
 import { LUMINOUS_WARD_DURATION_SECONDS } from "./LuminousWard";
+import { FOG_CLEAR_DURATION_SECONDS } from "./FogClear";
 import { MOBILITY_BOOST_DURATION_SECONDS } from "./MobilityBoost";
 import { isRunSource, type RunSource } from "./RunSource";
 import { TIME_FREEZE_DURATION_SECONDS } from "./TimeFreeze";
@@ -34,6 +35,8 @@ export interface LocalRunResumeState {
   mapRevealed?: boolean;
   /** Active speed/stamina/floor-trap immunity time. */
   mobilityBoostRemaining?: number;
+  /** Temporary fog-clear window remaining. */
+  fogClearRemaining?: number;
   /** Active zero-based floor in a deterministic campaign floor set. */
   activeFloor?: number;
   /** Root seed used to regenerate every sibling floor. */
@@ -181,6 +184,13 @@ function isLocalRunResumeState(value: unknown): value is LocalRunResumeState {
     (!isFiniteNumber(value.mobilityBoostRemaining) ||
       value.mobilityBoostRemaining < 0 ||
       value.mobilityBoostRemaining > MOBILITY_BOOST_DURATION_SECONDS)
+  )
+    return false;
+  if (
+    value.fogClearRemaining !== undefined &&
+    (!isFiniteNumber(value.fogClearRemaining) ||
+      value.fogClearRemaining < 0 ||
+      value.fogClearRemaining > FOG_CLEAR_DURATION_SECONDS)
   )
     return false;
   if (!Array.isArray(value.visitedCells)) return false;

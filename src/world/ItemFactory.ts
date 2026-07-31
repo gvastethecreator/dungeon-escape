@@ -1323,6 +1323,87 @@ export function createDungeonMapPickup(materials: DungeonMaterials): THREE.Group
   return root;
 }
 
+/**
+ * Clarity phial: pale glass with silver-blue mist that lifts dungeon fog for a
+ * short window. Distinct from the permanent map scroll.
+ */
+export function createClarityPhial(materials: DungeonMaterials): THREE.Group {
+  const root = new THREE.Group();
+  root.name = "Clarity phial pickup";
+  const glass = new THREE.MeshPhysicalMaterial({
+    color: 0xc8e4f2,
+    transparent: true,
+    opacity: 0.38,
+    roughness: 0.12,
+    metalness: 0.04,
+    clearcoat: 0.82,
+    clearcoatRoughness: 0.1,
+    side: THREE.DoubleSide,
+  });
+  const mist = new THREE.MeshStandardMaterial({
+    color: 0xa8d8ef,
+    emissive: 0x3a6f8c,
+    emissiveIntensity: 0.55,
+    roughness: 0.28,
+    transparent: true,
+    opacity: 0.82,
+  });
+  const silver = materials.brass.clone();
+  silver.color.setHex(0xb8c4d0);
+  silver.metalness = 0.78;
+  silver.roughness = 0.32;
+  const cork = materials.wood.clone();
+  cork.color.setHex(0x5a4030);
+
+  const bottle = mesh(
+    new THREE.CylinderGeometry(0.16, 0.2, 0.52, 10),
+    glass,
+    "Clarity phial body",
+  );
+  bottle.position.y = 0.42;
+  const liquid = mesh(
+    new THREE.CylinderGeometry(0.12, 0.155, 0.34, 10),
+    mist,
+    "Clarity phial mist charge",
+  );
+  liquid.position.y = 0.36;
+  const neck = mesh(
+    new THREE.CylinderGeometry(0.08, 0.1, 0.16, 8),
+    glass,
+    "Clarity phial neck",
+  );
+  neck.position.y = 0.74;
+  const stopper = mesh(
+    new THREE.CylinderGeometry(0.09, 0.08, 0.11, 8),
+    cork,
+    "Clarity phial stopper",
+  );
+  stopper.position.y = 0.86;
+  const rim = mesh(new THREE.TorusGeometry(0.11, 0.018, 6, 12), silver, "Clarity phial silver rim");
+  rim.rotation.x = Math.PI / 2;
+  rim.position.y = 0.68;
+  // Small lens disc so the prop reads as "sight" not just another tonic bottle.
+  const lens = mesh(
+    new THREE.CircleGeometry(0.11, 12),
+    new THREE.MeshStandardMaterial({
+      color: 0xd8f0ff,
+      emissive: 0x6aa8c8,
+      emissiveIntensity: 0.4,
+      roughness: 0.18,
+      metalness: 0.15,
+      transparent: true,
+      opacity: 0.72,
+      side: THREE.DoubleSide,
+    }),
+    "Clarity phial sight lens",
+  );
+  lens.position.set(0.18, 0.48, 0);
+  lens.rotation.y = Math.PI / 2;
+  root.add(bottle, liquid, neck, stopper, rim, lens);
+  root.userData.pickupKind = "clarity";
+  return root;
+}
+
 /** Green wayfinder draught: restores sprint while granting a short speed window. */
 export function createMobilityDraught(materials: DungeonMaterials): THREE.Group {
   const root = new THREE.Group();

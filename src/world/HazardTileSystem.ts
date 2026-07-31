@@ -5,6 +5,7 @@ import { createSeededRandom } from "../core/random";
 import { gridToWorld } from "../dungeon/gridCollision";
 import type { DungeonData, DungeonRoom, GridCell } from "../dungeon/types";
 import type { DungeonMood, DungeonMoodId } from "../systems/DungeonMood";
+import { HAZARD_CONTACT_RADIUS, tickHazardTraversal } from "./HazardTraversal";
 
 export type HazardTileKind = "fire" | "ice" | "toxin" | "spikes";
 
@@ -29,6 +30,16 @@ export interface HazardTraversalState {
   immune?: boolean;
 }
 
+export {
+  HAZARD_CONTACT_RADIUS,
+  HAZARD_LABELS,
+  tickHazardTraversal,
+  createHazardClockState,
+  type HazardClockState,
+  type HazardTraversalInput,
+  type HazardTraversalResult,
+} from "./HazardTraversal";
+
 const HAZARDS_BY_MOOD: Readonly<Record<DungeonMoodId, readonly HazardTileKind[]>> = {
   ancient: ["spikes", "toxin"],
   molten: ["fire", "spikes"],
@@ -41,13 +52,6 @@ const HAZARDS_BY_MOOD: Readonly<Record<DungeonMoodId, readonly HazardTileKind[]>
   sunken: ["toxin", "ice"],
   fungal: ["toxin", "fire"],
   backrooms: ["spikes", "toxin"],
-};
-
-const LABELS: Readonly<Record<HazardTileKind, string>> = {
-  fire: "BURNING FLOOR",
-  ice: "SLICK ICE",
-  toxin: "TOXIC FLOOR",
-  spikes: "SPIKE PLATE",
 };
 
 const BIOME_ACCENTS: Readonly<Record<DungeonMoodId, readonly [string, string]>> = {
@@ -1078,45 +1082,43 @@ export class HazardTileSystem {
     player: THREE.Vector3,
     traversal: HazardTraversalState = {},
   ): HazardSurfaceEffect {
-    this.fireCooldown = Math.max(0, this.fireCooldown - delta);
-    this.spikeCooldown = Math.max(0, this.spikeCooldown - delta);
-    this.toxinTickCooldown = Math.max(0, this.toxinTickCooldown - delta);
-    this.toxinRemaining = Math.max(0, this.toxinRemaining - delta);
-    if (traversal.immune) this.toxinRemaining = 0;
-    let damage = 0;
-    let active: HazardVisual | null = null;
+    let contactKind: HazardTileKind | null = null;
+    let spikeExposure = 0;
     if (!traversal.airborne && !traversal.immune) {
       for (const visual of this.visuals) {
-        if (Math.hypot(player.x - visual.position.x, player.z - visual.position.z) > 0.82) continue;
-        active = visual;
+        if (
+          Math.hypot(player.x - visual.position.x, player.z - visual.position.z) >
+          HAZARD_CONTACT_RADIUS
+        ) {
+          continue;
+        }
+        contactKind = visual.placement.kind;
+        if (contactKind === "spikes") {
+          spikeExposure = this.spikeExposure(visual.placement.phase);
+        }
         break;
       }
     }
-    if (active?.placement.kind === "fire" && this.fireCooldown === 0) {
-      damage += 5;
-      this.fireCooldown = 0.58;
-    }
-    if (active?.placement.kind === "toxin") this.toxinRemaining = 3.2;
-    if (this.toxinRemaining > 0 && this.toxinTickCooldown === 0) {
-      damage += 3;
-      this.toxinTickCooldown = 0.8;
-    }
-    if (
-      active?.placement.kind === "spikes" &&
-      this.spikeCooldown === 0 &&
-      this.spikeExposure(active.placement.phase) > 0.62
-    ) {
-      damage += 14;
-      this.spikeCooldown = 1.4;
-    }
-    const kind = active?.placement.kind ?? (this.toxinRemaining > 0 ? "toxin" : null);
-    return {
-      kind,
-      label: kind ? LABELS[kind] : "",
-      damage,
-      movementScale: kind === "ice" ? 0.82 : 1,
-      traction: kind === "ice" ? 0.18 : 1,
-    };
+    const result = tickHazardTraversal(
+      {
+        fireCooldown: this.fireCooldown,
+        spikeCooldown: this.spikeCooldown,
+        toxinTickCooldown: this.toxinTickCooldown,
+        toxinRemaining: this.toxinRemaining,
+      },
+      {
+        delta,
+        contactKind,
+        spikeExposure,
+        airborne: Boolean(traversal.airborne),
+        immune: Boolean(traversal.immune),
+      },
+    );
+    this.fireCooldown = result.clocks.fireCooldown;
+    this.spikeCooldown = result.clocks.spikeCooldown;
+    this.toxinTickCooldown = result.clocks.toxinTickCooldown;
+    this.toxinRemaining = result.clocks.toxinRemaining;
+    return result.effect;
   }
 
   dispose(): void {

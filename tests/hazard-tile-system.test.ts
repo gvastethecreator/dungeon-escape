@@ -129,8 +129,13 @@ describe("biome hazard tiles", () => {
     expect(source).toContain("normalMap: textures.normal");
     expect(source).toContain("aoMap: textures.ao");
     expect(source).toContain("new THREE.TextureLoader(THREE.DefaultLoadingManager)");
-    expect(source).toContain('movementScale: kind === "ice" ? 0.82 : 1');
-    expect(source).toContain("this.toxinRemaining = 3.2");
+    expect(source).toContain("tickHazardTraversal");
+    expect(source).toContain("HAZARD_CONTACT_RADIUS");
+    const policy = await Bun.file(
+      new URL("../src/world/HazardTraversal.ts", import.meta.url),
+    ).text();
+    expect(policy).toContain("HAZARD_ICE_MOVEMENT_SCALE");
+    expect(policy).toContain("HAZARD_TOXIN_DURATION");
     const atlas = Bun.file(
       new URL("../public/assets/textures/hazards/hazard-tiles-pixel-v1.webp", import.meta.url),
     );

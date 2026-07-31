@@ -2,7 +2,7 @@
 
 Date: 2026-07-27; dependency follow-up 2026-07-30
 
-Status: A1-A6 accepted and implemented. A7-A9 await owner acceptance in the 2026-07-30 follow-up.
+Status: A1-A8 accepted and implemented (A7/A8 on 2026-07-30; see ADR 0006). **A9 remains deferred** and still needs explicit owner acceptance. Historical sections below may still say “await acceptance” for A7–A9 — treat those as the original proposal state, not current frontier.
 
 ## Summary
 

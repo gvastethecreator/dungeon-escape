@@ -7,7 +7,8 @@ export type PickupBurstKind =
   | "luminous-ward"
   | "annihilation-pulse"
   | "map"
-  | "mobility";
+  | "mobility"
+  | "clarity";
 
 interface PickupBurstSlot {
   root: THREE.Group;
@@ -28,6 +29,7 @@ const BURST_COLORS: Readonly<Record<PickupBurstKind, number>> = {
   "annihilation-pulse": 0xff5d86,
   map: 0xd5bd7a,
   mobility: 0x72d45f,
+  clarity: 0xa8d8ef,
 };
 
 const SPARK_COUNT = 22;

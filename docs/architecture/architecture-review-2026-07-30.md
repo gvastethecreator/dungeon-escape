@@ -22,8 +22,9 @@ distinguished from imported Forge maps. Forge imports are session-only because t
 reconstruct their topology; ambiguous legacy custom saves fail closed. See ADR 0005.
 
 Fresh independent and adversarial review found real lifecycle, hostile-input, migration, and cancellation
-defects. All P1/P2 findings in the accepted seams were fixed before the final gates. A7-A9 from the earlier
-performance review remain deferred and require explicit owner acceptance.
+defects. All P1/P2 findings in the accepted seams were fixed before the final gates. **Postscript (2026-07-30/31):**
+A7 and A8 were later accepted (ADR 0006). **Only A9 remains deferred** and still needs owner acceptance.
+Residual wording later in this report that still lists A7–A9 as deferred is historical to the deep-module cut.
 
 ## Scope and method
 
