@@ -1,6 +1,7 @@
 /** English UI copy for dungeon runtime and editor shell. */
 
 import { ANNIHILATION_PULSE_DURATION_SECONDS } from "../game/AnnihilationPulse";
+import { FOG_CLEAR_DURATION_SECONDS } from "../game/FogClear";
 import { LUMINOUS_WARD_DURATION_SECONDS } from "../game/LuminousWard";
 import { TIME_FREEZE_DURATION_SECONDS } from "../game/TimeFreeze";
 
@@ -28,6 +29,7 @@ export const COPY = {
     annihilationPulse: "PULSE RELIC",
     map: "DUNGEON MAPPED",
     mobility: "WAYFINDER DRAUGHT",
+    clarity: "CLEAR AIR",
   },
   interaction: {
     openChest: "OPEN CHEST",
@@ -55,6 +57,7 @@ export const COPY = {
     annihilationPulse: `Annihilation pulse active for ${ANNIHILATION_PULSE_DURATION_SECONDS} seconds.`,
     map: "Dungeon map found. Every room and route is now visible.",
     mobility: "Speed and stamina boosted. Floor traps cannot harm you for 14 seconds.",
+    clarity: `Fog thins for ${FOG_CLEAR_DURATION_SECONDS} seconds.`,
     won: "You escaped the dungeon",
     dead: "Keep distance. Shadows strike on contact.",
     hydrate: (seed: string) => `Loaded from server · seed ${seed}`,

@@ -3,6 +3,16 @@ import type { CreatureVoice, DungeonAudioFrame } from "../audio/GameAudio";
 import { createSeededRandom } from "../core/random";
 import { gridToWorld, worldToGrid, type WorldCollider } from "../dungeon/gridCollision";
 import type { DungeonData, DungeonRoom, GridCell } from "../dungeon/types";
+import { isPlayerAirborneFromJumpHeight } from "../player/CombatPose";
+import {
+  creatureVoiceForEnemy,
+  projectDungeonAudioFrame,
+} from "./DungeonAudioFrame";
+import {
+  filterEnemyActivationCandidates,
+  preferEnemyActivationPool,
+} from "./EnemyActivation";
+import { horizontalDistance } from "./InteractionReach";
 import { AssetLibrary } from "./AssetLibrary";
 import {
   ENEMY_ROSTER,
@@ -95,6 +105,7 @@ import {
   tickMobilityBoost,
 } from "../game/MobilityBoost";
 import { MobilityBoostVfx } from "./MobilityBoostVfx";
+import { activateFogClear, isFogClearActive, tickFogClear } from "../game/FogClear";
 import {
   canCollectPickup,
   canInteractWithChest,
@@ -170,6 +181,8 @@ export interface WorldUpdate {
   mapRevealed: boolean;
   /** Active speed/stamina/trap-immunity window. */
   mobilityBoostRemaining: number;
+  /** Temporary fog-clear / clarity window (seconds). */
+  fogClearRemaining: number;
   /** Pulse ring event; hits are already removed from the enemy seats. */
   annihilationPulse: {
     position: { x: number; y: number; z: number };
@@ -204,17 +217,10 @@ export interface WorldUpdate {
   nearestThreat: number | null;
 }
 
-/** Presence and attack SFX are keyed 1:1 with enemy kind. */
-export function creatureVoiceForEnemy(kind: EnemyKind): CreatureVoice {
-  return kind;
-}
+export { creatureVoiceForEnemy } from "./DungeonAudioFrame";
 
 function roomDistance(dungeon: DungeonData, room: DungeonRoom): number {
   return dungeon.distances[room.center.y * dungeon.width + room.center.x] ?? -1;
-}
-
-function horizontalDistance(left: THREE.Vector3, right: THREE.Vector3): number {
-  return Math.hypot(left.x - right.x, left.z - right.z);
 }
 
 function nearestEnemyDistance(enemies: readonly EnemyActor[], player: THREE.Vector3): number {
@@ -291,6 +297,7 @@ export class DungeonWorld {
   private timeFreezeSeconds = 0;
   private luminousWardSeconds = 0;
   private mobilityBoostSeconds = 0;
+  private fogClearSeconds = 0;
   private mapRevealed = false;
   private playerAirborne = false;
   private readonly annihilationPulseClock = createAnnihilationPulseClock();
@@ -483,6 +490,7 @@ export class DungeonWorld {
     this.timeFreezeSeconds = 0;
     this.luminousWardSeconds = 0;
     this.mobilityBoostSeconds = 0;
+    this.fogClearSeconds = 0;
     this.mapRevealed = false;
     this.playerAirborne = false;
     this.annihilationPulseClock.remaining = 0;
@@ -511,7 +519,7 @@ export class DungeonWorld {
   setPlayerTraversalState(state: { jumpHeight: number }): void {
     // Ignore the first few centimeters so ordinary stair/ground jitter cannot
     // bypass a trap; a real jump clears the floor trigger.
-    this.playerAirborne = Number.isFinite(state.jumpHeight) && state.jumpHeight > 0.16;
+    this.playerAirborne = isPlayerAirborneFromJumpHeight(state.jumpHeight);
   }
 
   getDifficultyState(): Readonly<DifficultySnapshot> {
@@ -562,75 +570,38 @@ export class DungeonWorld {
     const activatedThisPulse: THREE.Vector3[] = [];
     const unlockedMaxTier = this.difficultyState.unlockedMaxTier;
     const stonesFound = this.collectedStones.size;
+    const dungeon = this.dungeon;
     while (this.enemies.length < target) {
-      const candidates: number[] = [];
-      for (let index = 0; index < this.enemyReserve.length; index += 1) {
-        const enemy = this.enemyReserve[index]!;
-        if (mode === "opening" && !enemy.startsActive) continue;
-        // Seat tier gates by progress (time + stones). Kind unlock is the same ladder.
-        if (enemy.tier > unlockedMaxTier) continue;
-        if (
-          !isEnemyKindUnlocked(
-            enemy.kind,
+      const candidates = filterEnemyActivationCandidates(this.enemyReserve, {
+        mode,
+        player,
+        unlockedMaxTier,
+        safeSpawnDistance,
+        minSpread: ENEMY_ACTIVATION_SPREAD,
+        isKindUnlocked: (kind) =>
+          isEnemyKindUnlocked(
+            kind as EnemyKind,
             this.difficultyElapsed,
             this.difficultyState,
             stonesFound,
-          )
-        )
-          continue;
-        if (
-          this.dungeon &&
-          this.isObjectOccupiedCell(
-            worldToGrid(this.dungeon, { x: enemy.position.x, z: enemy.position.z }, this.tileSize),
-          )
-        )
-          continue;
-        const distance = Math.hypot(enemy.position.x - player.x, enemy.position.z - player.z);
-        if (mode === "play" && distance < safeSpawnDistance) continue;
-        if (mode === "resume" && distance < 2.4) continue;
-        if (
-          mode === "play" &&
-          hasGridLineOfSight(this.dungeon, player, enemy.position, this.tileSize)
-        ) {
-          continue;
-        }
-        candidates.push(index);
-      }
-      if (candidates.length === 0) break;
-      const minSpread = ENEMY_ACTIVATION_SPREAD;
-      const spreadCandidates = candidates.filter((index) => {
-        const enemy = this.enemyReserve[index]!;
-        const farFromPulse = activatedThisPulse.every(
-          (active) =>
-            Math.hypot(enemy.position.x - active.x, enemy.position.z - active.z) >= minSpread,
-        );
-        if (!farFromPulse) return false;
-        // Also stay clear of enemies already in the active set, not only this pulse.
-        return this.enemies.every(
-          (active) =>
-            Math.hypot(
-              enemy.position.x - active.position.x,
-              enemy.position.z - active.position.z,
-            ) >= minSpread,
-        );
+          ),
+        isObjectOccupied: (position) =>
+          Boolean(
+            dungeon &&
+              this.isObjectOccupiedCell(worldToGrid(dungeon, position, this.tileSize)),
+          ),
+        hasLineOfSight: (position) =>
+          Boolean(dungeon && hasGridLineOfSight(dungeon, player, position, this.tileSize)),
       });
-      // Prefer seats whose tier matches the newest unlocked band so each 25s /
-      // stone find rotates into the new type group instead of only old rats.
-      const newest = candidates.filter(
-        (index) => this.enemyReserve[index]!.tier === unlockedMaxTier,
+      if (candidates.length === 0) break;
+      const pool = preferEnemyActivationPool(
+        this.enemyReserve,
+        candidates,
+        this.enemies.map((enemy) => enemy.position),
+        activatedThisPulse,
+        unlockedMaxTier,
+        ENEMY_ACTIVATION_SPREAD,
       );
-      const preferred =
-        newest.length > 0
-          ? newest.filter(
-              (index) => spreadCandidates.includes(index) || spreadCandidates.length === 0,
-            )
-          : [];
-      const pool =
-        preferred.length > 0
-          ? preferred
-          : spreadCandidates.length > 0
-            ? spreadCandidates
-            : candidates;
       const selectedIndex = pool[this.enemyActivationRandom.integer(0, pool.length - 1)]!;
       const [enemy] = this.enemyReserve.splice(selectedIndex, 1);
       if (!enemy) break;
@@ -666,6 +637,7 @@ export class DungeonWorld {
     this.timeFreezeSeconds = tickTimeFreeze(this.timeFreezeSeconds, delta);
     this.luminousWardSeconds = tickLuminousWard(this.luminousWardSeconds, delta);
     this.mobilityBoostSeconds = tickMobilityBoost(this.mobilityBoostSeconds, delta);
+    this.fogClearSeconds = tickFogClear(this.fogClearSeconds, delta);
     const pulseCount = tickAnnihilationPulse(this.annihilationPulseClock, delta);
     const enemiesFrozen = isTimeFreezeActive(this.timeFreezeSeconds);
     const luminousWardActive = isLuminousWardActive(this.luminousWardSeconds);
@@ -1037,6 +1009,8 @@ export class DungeonWorld {
         this.mapRevealed = true;
       } else if (pickup.kind === "mobility") {
         this.mobilityBoostSeconds = activateMobilityBoost(this.mobilityBoostSeconds);
+      } else if (pickup.kind === "clarity") {
+        this.fogClearSeconds = activateFogClear(this.fogClearSeconds);
       }
     }
 
@@ -1072,6 +1046,7 @@ export class DungeonWorld {
       annihilationPulseRemaining: this.annihilationPulseClock.remaining,
       mapRevealed: this.mapRevealed,
       mobilityBoostRemaining: this.mobilityBoostSeconds,
+      fogClearRemaining: this.fogClearSeconds,
       annihilationPulse,
       stonesFound: this.collectedStones.size,
       stonesTotal: STONE_ORDER.length,
@@ -1328,6 +1303,14 @@ export class DungeonWorld {
     return this.mobilityBoostSeconds;
   }
 
+  get fogClearRemaining(): number {
+    return this.fogClearSeconds;
+  }
+
+  get isFogClearActive(): boolean {
+    return isFogClearActive(this.fogClearSeconds);
+  }
+
   restoreSession(foundStoneIds: readonly StoneId[]): void {
     const restored = new Set(foundStoneIds.filter((id) => STONE_ORDER.includes(id)));
     this.collectedStones.clear();
@@ -1362,6 +1345,7 @@ export class DungeonWorld {
       annihilationPulseRemaining?: number;
       mapRevealed?: boolean;
       mobilityBoostRemaining?: number;
+      fogClearRemaining?: number;
     },
     player: { x: number; z: number },
   ): void {
@@ -1372,6 +1356,7 @@ export class DungeonWorld {
     this.annihilationPulseClock.remaining = Math.max(0, progress.annihilationPulseRemaining ?? 0);
     this.mapRevealed = progress.mapRevealed === true;
     this.mobilityBoostSeconds = Math.max(0, progress.mobilityBoostRemaining ?? 0);
+    this.fogClearSeconds = Math.max(0, progress.fogClearRemaining ?? 0);
     this.annihilationPulseClock.timeSincePulse = 0;
     this.refreshDifficultyState();
     this.activateEnemiesToTarget(player, "resume");
@@ -1426,6 +1411,7 @@ export class DungeonWorld {
     );
     const map = this.pickups.find((pickup) => pickup.kind === "map" && !pickup.collected);
     const mobility = this.pickups.find((pickup) => pickup.kind === "mobility" && !pickup.collected);
+    const clarity = this.pickups.find((pickup) => pickup.kind === "clarity" && !pickup.collected);
     return {
       doors,
       fires,
@@ -1437,6 +1423,7 @@ export class DungeonWorld {
       annihilationPulse: annihilationPulse ? toCell(annihilationPulse.object.position) : undefined,
       map: map ? toCell(map.object.position) : undefined,
       mobility: mobility ? toCell(mobility.object.position) : undefined,
+      clarity: clarity ? toCell(clarity.object.position) : undefined,
       stairs: this.staircases.map((stair) => ({
         cell: { ...stair.cell },
         direction: stair.direction,
@@ -1447,69 +1434,21 @@ export class DungeonWorld {
 
   /** Positions for HRTF sound placement; no simulation state leaves this adapter. */
   getAudioFrame(): DungeonAudioFrame {
-    let fireCount = 0;
-    for (const fire of this.fireEffects) {
-      if (fire.audio === false) continue;
-      const anchor = this.audioFrame.fires[fireCount] ?? {
-        id: `fire-${fireCount}`,
-        x: 0,
-        y: 0,
-        z: 0,
-      };
-      anchor.x = fire.root.position.x;
-      anchor.y = fire.root.position.y + fire.baseY;
-      anchor.z = fire.root.position.z;
-      this.audioFrame.fires[fireCount++] = anchor;
-    }
-    this.audioFrame.fires.length = fireCount;
-
-    let stoneCount = 0;
-    for (const pickup of this.pickups) {
-      if (pickup.kind !== "stone" || pickup.collected || !pickup.stoneId) continue;
-      const anchor = this.audioFrame.magicStones[stoneCount] ?? {
-        id: `stone-${pickup.stoneId}`,
-        x: 0,
-        y: 0,
-        z: 0,
-      };
-      anchor.id = `stone-${pickup.stoneId}`;
-      anchor.x = pickup.object.position.x;
-      anchor.y = pickup.object.position.y;
-      anchor.z = pickup.object.position.z;
-      this.audioFrame.magicStones[stoneCount++] = anchor;
-    }
-    this.audioFrame.magicStones.length = stoneCount;
-
-    let enemyCount = 0;
-    for (const enemy of this.enemies) {
-      if (enemy.scaleX <= 0.001 || enemy.scaleY <= 0.001) continue;
-      const anchor = this.audioFrame.enemies[enemyCount] ?? {
-        id: `enemy-${enemy.kind}-${enemy.instanceIndex}`,
-        x: 0,
-        y: 0,
-        z: 0,
-        voice: creatureVoiceForEnemy(enemy.kind),
-      };
-      anchor.id = `enemy-${enemy.kind}-${enemy.instanceIndex}`;
-      anchor.voice = creatureVoiceForEnemy(enemy.kind);
-      anchor.x = enemy.position.x;
-      anchor.y = enemy.position.y + ENEMY_ARCHETYPES[enemy.kind].height * 0.5;
-      anchor.z = enemy.position.z;
-      this.audioFrame.enemies[enemyCount++] = anchor;
-    }
-    this.audioFrame.enemies.length = enemyCount;
-
-    if (this.portalRoot) {
-      const portal = this.audioFrame.portal ?? { id: "exit-portal", x: 0, y: 0, z: 0 };
-      portal.x = this.portalRoot.position.x;
-      portal.y = this.portalRoot.position.y + 1.7;
-      portal.z = this.portalRoot.position.z;
-      this.audioFrame.portal = portal;
-    } else {
-      this.audioFrame.portal = null;
-    }
-    this.audioFrame.moodId = this.activeMood.id;
-    return this.audioFrame;
+    return projectDungeonAudioFrame(this.audioFrame, {
+      fires: this.fireEffects,
+      stones: this.pickups,
+      enemies: this.enemies,
+      portal: this.portalRoot
+        ? {
+            position: {
+              x: this.portalRoot.position.x,
+              y: this.portalRoot.position.y,
+              z: this.portalRoot.position.z,
+            },
+          }
+        : null,
+      moodId: this.activeMood.id,
+    });
   }
 
   dispose(): void {
@@ -1839,6 +1778,7 @@ export class DungeonWorld {
     this.timeFreezeSeconds = 0;
     this.luminousWardSeconds = 0;
     this.mobilityBoostSeconds = 0;
+    this.fogClearSeconds = 0;
     this.mapRevealed = false;
     this.playerAirborne = false;
     this.annihilationPulseClock.remaining = 0;

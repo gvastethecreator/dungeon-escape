@@ -162,6 +162,7 @@ describe("local dungeon continue save", () => {
       { luminousWardRemaining: 15.01 },
       { annihilationPulseRemaining: 13.01 },
       { mobilityBoostRemaining: 14.01 },
+      { fogClearRemaining: 20.01 },
     ]) {
       storage.setItem(
         LOCAL_RUN_SAVE_KEY,

@@ -13,6 +13,7 @@ export interface SessionWorldUpdate {
     | "annihilation-pulse"
     | "map"
     | "mobility"
+    | "clarity"
     | null;
   collectedStoneId: StoneId | null;
   /** All IDs collected in one world update. Older adapters may omit this. */
@@ -55,6 +56,7 @@ export interface RunSessionEffects {
     annihilationPulse?: boolean;
     mapReveal?: boolean;
     mobilityBoost?: boolean;
+    fogClear?: boolean;
   };
   endOverlay?: "dead" | "won";
   flash?: "event" | "damage";
@@ -191,6 +193,14 @@ export function applyWorldUpdate(
   if (update.collectedPickupKind === "mobility") {
     effects.status = COPY.status.mobility;
     effects.pickup = { label: COPY.pickup.mobility, mobilityBoost: true };
+    effects.playPickup = true;
+    effects.flash = "event";
+    effects.sessionChanged = true;
+  }
+
+  if (update.collectedPickupKind === "clarity") {
+    effects.status = COPY.status.clarity;
+    effects.pickup = { label: COPY.pickup.clarity, fogClear: true };
     effects.playPickup = true;
     effects.flash = "event";
     effects.sessionChanged = true;

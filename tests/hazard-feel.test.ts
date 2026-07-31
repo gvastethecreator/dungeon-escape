@@ -56,7 +56,7 @@ describe("hazard feel — continuous lens response", () => {
 describe("hazard feel — host wiring and styles", () => {
   test("main routes surface damage into wash kind and post hazard feel", async () => {
     const main = await Bun.file(new URL("../src/main.ts", import.meta.url)).text();
-    expect(main).toContain("resolveDamageWashKind");
+    expect(main).toContain("projectPlayStepDamage");
     expect(main).toContain("computeHazardFeel");
     expect(main).toContain("setHazardFeel");
     expect(main).toContain("hazardHitBoost");

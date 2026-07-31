@@ -305,6 +305,16 @@
             <span class="annihilation-pulse-status__label">PULSE ACTIVE</span>
             <time id="annihilation-pulse-value" datetime="PT0S">26.0s</time>
           </div>
+          <div
+            id="fog-clear-status"
+            class="fog-clear-status"
+            role="status"
+            aria-live="polite"
+            hidden
+          >
+            <span class="fog-clear-status__label">CLEAR AIR</span>
+            <time id="fog-clear-value" datetime="PT0S">20.0s</time>
+          </div>
           <!-- Biome atmosphere pulses (dustfall, whiteout, …) are environment VFX
                via data-biome-event on the shell — not character-status chips. -->
           <div id="biome-event-status" class="biome-event-status" hidden aria-hidden="true">

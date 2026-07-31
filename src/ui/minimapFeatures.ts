@@ -50,6 +50,8 @@ export interface MinimapFeatures {
   map?: MinimapCell;
   /** Sprint/stamina/trap-immunity draught. */
   mobility?: MinimapCell;
+  /** Temporary fog-clear clarity phial. */
+  clarity?: MinimapCell;
   /** Connections to adjacent dungeon floors. */
   stairs?: MinimapStair[];
   /** Special objective prop (reliquary altar / boss-shrine crystal), if any. */

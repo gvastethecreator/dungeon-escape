@@ -76,6 +76,9 @@ describe("exploration-aware first-person fog", () => {
     expect(lighting.fog.density).toBeCloseTo(base * 2.2, 4);
     lighting.update(10, new THREE.Vector3(), null, undefined, 1);
     expect(lighting.fog.density).toBeCloseTo(base, 4);
+    // Clarity multipliers below 1 are allowed (temporary fog-clear pickup).
+    lighting.update(10, new THREE.Vector3(), null, undefined, 0.18);
+    expect(lighting.fog.density).toBeCloseTo(base * 0.18, 4);
     lighting.dispose();
   });
 });

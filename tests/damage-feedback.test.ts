@@ -61,8 +61,8 @@ describe("damage feedback — HUD markup and styles", () => {
     expect(src).toContain("spawnOrbBloodSplash");
     expect(src).toContain("worldUpdate.knockback");
     expect(src).toContain("DAMAGE_WASH_SECONDS");
-    expect(src).toContain("resolveDamageWashKind");
-    expect(src).toContain("dataset.kind = washKind");
+    expect(src).toContain("projectPlayStepDamage");
+    expect(src).toContain("damageIntent.washKind");
   });
 
   test("main arms hit trauma so the camera keeps shaking after a hit", async () => {

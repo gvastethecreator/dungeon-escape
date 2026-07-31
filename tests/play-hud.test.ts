@@ -229,9 +229,12 @@ describe("Play HUD structure (Ash Binding)", () => {
     expect(pause).toContain("resumeTouchControls = true;");
     expect(source).toContain('elements.touchPause.addEventListener("click", pauseTouchPlay);');
     expect(source).toContain('elements.optionsResume.addEventListener("click", resumePlay);');
+    // Touch resume skips pointer lock; desktop resume requests it after closing pause.
+    expect(source).toMatch(/if\s*\(\s*useTouchControls\s*\)\s*\{/);
     expect(source).toMatch(
-      /if\s*\(\s*!useTouchControls\s*&&\s*engineMode === "play"\s*&&\s*playRuntime\.state\(\)\.runMode === "playing"\s*\)/,
+      /if\s*\(\s*engineMode === "play"\s*&&\s*playRuntime\.state\(\)\.runMode === "playing"\s*\)\s*\{\s*controller\.requestPointerLock\(\);/,
     );
+    expect(source).toContain("suppressPauseOnPointerUnlock");
     expect(source).toContain('window.addEventListener("pagehide", clearTouchSession);');
     expect(source).toContain(
       'document.addEventListener("visibilitychange", clearTouchSessionWhenHidden);',

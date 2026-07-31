@@ -38,6 +38,7 @@ import {
   createAnnihilationPulseRelic,
   createDungeonMapPickup,
   createLuminousWardStone,
+  createClarityPhial,
   createMobilityDraught,
   createTimeFreezeRelic,
   ANNIHILATION_PULSE_PICKUP_GLOW_OPACITY,
@@ -59,6 +60,7 @@ import type { DungeonMood } from "../systems/DungeonMood";
 import { getDungeonMood } from "../systems/DungeonMood";
 import { FIRE_LIGHT_TUNING, MAX_DYNAMIC_FIRE_LIGHTS } from "../systems/LightTuning";
 import { HazardTileSystem } from "./HazardTileSystem";
+import { inInteractionRange } from "./InteractionReach";
 import {
   collectRoomCornerSeats,
   collectRoomInteriorSeats,
@@ -150,7 +152,8 @@ export type StaticPickupKind =
   | "luminous-ward"
   | "annihilation-pulse"
   | "map"
-  | "mobility";
+  | "mobility"
+  | "clarity";
 
 export interface StaticPickupActor {
   kind: StaticPickupKind;
@@ -1659,7 +1662,9 @@ export class StaticDungeonScene {
               ? createDungeonMapPickup(this.materials)
               : rewardKind === "mobility"
                 ? createMobilityDraught(this.materials)
-                : createResolveFlask(this.materials);
+                : rewardKind === "clarity"
+                  ? createClarityPhial(this.materials)
+                  : createResolveFlask(this.materials);
     preparePickupOpacity(item);
     item.name = `${rewardKind} reward from chest`;
     const rewardScale =
@@ -1667,7 +1672,7 @@ export class StaticDungeonScene {
         ? 0.64
         : rewardKind === "map"
           ? 0.62
-          : rewardKind === "mobility"
+          : rewardKind === "mobility" || rewardKind === "clarity"
             ? 0.58
             : rewardKind === "time-freeze" || rewardKind === "annihilation-pulse"
               ? 0.54
@@ -3349,6 +3354,7 @@ export class StaticDungeonScene {
     }
     placePowerChest("map", 0.18, 37);
     placePowerChest("mobility", 0.54, 53);
+    placePowerChest("clarity", 0.36, 71);
     for (const fraction of [0.42, 0.88] as const) {
       placePowerChest("luminous-ward", fraction, 61);
     }
@@ -3865,10 +3871,20 @@ export type ChestRewardKind =
   | "luminous-ward"
   | "annihilation-pulse"
   | "map"
-  | "mobility";
+  | "mobility"
+  | "clarity";
 
 export function canInteractWithChest(distance: number, opened: boolean): boolean {
   return !opened && Number.isFinite(distance) && distance <= CHEST_INTERACTION_DISTANCE;
+}
+
+/** Point-form of chest reach for callers that still have world positions. */
+export function canInteractWithChestAt(
+  player: { x: number; z: number },
+  chest: { x: number; z: number },
+  opened: boolean,
+): boolean {
+  return !opened && inInteractionRange(player, chest, CHEST_INTERACTION_DISTANCE);
 }
 
 export function chestRewardAutoActivates(kind: ChestRewardKind): boolean {
@@ -3884,6 +3900,17 @@ export function canCollectPickup(
   if (!Number.isFinite(distance)) return false;
   const limit = kind === "stone" ? STONE_COLLECTION_DISTANCE : PICKUP_COLLECTION_DISTANCE;
   return distance <= limit;
+}
+
+export function canCollectPickupAt(
+  player: { x: number; z: number },
+  pickup: { x: number; z: number },
+  autoCollect = false,
+  kind: StaticPickupKind | "other" = "other",
+): boolean {
+  if (autoCollect) return true;
+  const limit = kind === "stone" ? STONE_COLLECTION_DISTANCE : PICKUP_COLLECTION_DISTANCE;
+  return inInteractionRange(player, pickup, limit);
 }
 
 function deterministicLosAge(phase: number): number {

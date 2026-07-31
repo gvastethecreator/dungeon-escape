@@ -7,6 +7,11 @@ export interface ExplorationFogState {
    * exploration fog so the escape path reads at the biome's authored density.
    */
   readonly allStonesBound?: boolean;
+  /**
+   * Temporary clarity pickup. Nearly removes scene fog for a short window
+   * without permanently revealing the minimap.
+   */
+  readonly fogClearActive?: boolean;
 }
 
 /**
@@ -24,14 +29,21 @@ export const EXPLORATION_FOG_REVEALED = 5.2;
  * mood-authored FogExp2 density so corridors stay readable to the portal.
  */
 export const EXPLORATION_FOG_CLEAR = 1;
+/**
+ * Temporary clarity phial: far below biome base so corridors open wide,
+ * with a whisper of density so the scene does not go fully flat.
+ */
+export const EXPLORATION_FOG_CLARITY = 0.18;
 
 /**
  * Keep unvisited geometry behind a deep fog wall early on a floor, then settle
  * into the revealed soft haze once roughly 45% of walkable cells are discovered
  * (or the map is revealed outright). Binding every stone lifts the fog wall
- * completely so the escape path is visible.
+ * completely so the escape path is visible. The clarity pickup temporarily
+ * opens the air further without changing map reveal state.
  */
 export function resolveExplorationFogMultiplier(state: ExplorationFogState): number {
+  if (state.fogClearActive) return EXPLORATION_FOG_CLARITY;
   if (state.allStonesBound) return EXPLORATION_FOG_CLEAR;
   if (state.mapRevealed) return EXPLORATION_FOG_REVEALED;
   const total = Math.max(1, Math.floor(state.totalWalkableCells));

@@ -47,9 +47,10 @@ import { computeCriticalHealthFeel } from "./systems/CriticalHealthFeel";
 import {
   computeHazardFeel,
   decayHazardHitBoost,
-  resolveDamageWashKind,
   type DamageWashKind,
 } from "./systems/HazardFeel";
+import { projectPlayStepDamage } from "./systems/PlayStepEffects";
+import { TimedStatusChip } from "./ui/TimedStatusChip";
 import { FrameGapProfiler, type FrameGapSnapshot } from "./systems/FrameGapProfiler";
 import type { BiomeEventSnapshot } from "./systems/BiomeEventDirector";
 import { detectRenderCapabilities } from "./systems/RenderCapabilities";
@@ -227,6 +228,8 @@ const elements = {
   luminousWardValue: requireElement<HTMLTimeElement>("#luminous-ward-value"),
   annihilationPulseStatus: requireElement<HTMLElement>("#annihilation-pulse-status"),
   annihilationPulseValue: requireElement<HTMLTimeElement>("#annihilation-pulse-value"),
+  fogClearStatus: requireElement<HTMLElement>("#fog-clear-status"),
+  fogClearValue: requireElement<HTMLTimeElement>("#fog-clear-value"),
   biomeEventStatus: requireElement<HTMLElement>("#biome-event-status"),
   biomeEventLabel: requireElement<HTMLElement>("#biome-event-label"),
   biomeEventValue: requireElement<HTMLTimeElement>("#biome-event-value"),
@@ -425,11 +428,31 @@ let dungeon: DungeonData | null = null;
 let mapExpanded = false;
 let lastMapDraw = 0;
 let lastRunTimerSecond = -1;
-let lastTimeFreezeDisplay = "";
-let lastLuminousWardDisplay = "";
-let lastAnnihilationPulseDisplay = "";
-let lastBiomeEventDisplay = "";
 let lastHazardKind: HazardSurfaceEffect["kind"] | undefined;
+const timeFreezeChip = new TimedStatusChip({
+  elements: { root: elements.timeFreezeStatus, value: elements.timeFreezeValue },
+  shell: elements.shell,
+  shellDatasetKey: "timeFreeze",
+  ariaRemaining: "time freeze remaining",
+});
+const luminousWardChip = new TimedStatusChip({
+  elements: { root: elements.luminousWardStatus, value: elements.luminousWardValue },
+  shell: elements.shell,
+  shellDatasetKey: "luminousWard",
+  ariaRemaining: "ward remaining",
+});
+const annihilationPulseChip = new TimedStatusChip({
+  elements: { root: elements.annihilationPulseStatus, value: elements.annihilationPulseValue },
+  shell: elements.shell,
+  shellDatasetKey: "annihilationPulse",
+  ariaRemaining: "pulse remaining",
+});
+const fogClearChip = new TimedStatusChip({
+  elements: { root: elements.fogClearStatus, value: elements.fogClearValue },
+  shell: elements.shell,
+  shellDatasetKey: "fogClear",
+  ariaRemaining: "clear air remaining",
+});
 /**
  * Cached minimap viewport (CSS size + clamped DPR). Refreshed on resize so the
  * per-frame drawMinimap call never triggers a getBoundingClientRect reflow even
@@ -479,6 +502,12 @@ let crtEnabled = renderCaps.enableCrtByDefault;
 let crtAutoDisabled = false;
 let crtManualOverride = false;
 let optionsOpen = false;
+/**
+ * After RESUME / Escape-close, browsers often reject requestPointerLock when the
+ * activation key was Escape (same key that exits lock). Do not reopen the pause
+ * panel on that failed unlock; keep the scene click path as the retry.
+ */
+let suppressPauseOnPointerUnlock = false;
 let welcomeOpen = true;
 const LAST_LEADERBOARD_NAME_KEY = "dungeon-escape:leaderboard-name";
 const MUSIC_MUTED_KEY = "dungeon-escape:music-muted";
@@ -559,12 +588,24 @@ const controller = new FirstPersonController(camera, elements.scene, {
     // ESC releases pointer lock → open options in play.
     // Pointer lock can fail on touch browsers. Keep an armed touch session in
     // play instead of reopening the pause panel over its controls.
-    if (!hasActivePlayInput && engineMode === "play" && playRuntime.state().runMode === "playing") {
-      setOptionsOpen(true);
-    } else if (locked) {
+    if (locked) {
+      suppressPauseOnPointerUnlock = false;
       setOptionsOpen(false);
+    } else if (
+      !hasActivePlayInput &&
+      engineMode === "play" &&
+      playRuntime.state().runMode === "playing" &&
+      !suppressPauseOnPointerUnlock
+    ) {
+      setOptionsOpen(true);
+    } else if (suppressPauseOnPointerUnlock && engineMode === "play") {
+      // Intentional resume failed to re-lock (common after Escape). Stay unpaused
+      // in the options sense; click the scene to capture the pointer again.
+      setStatus(COPY.status.pointerFailed);
     }
-    setStatus(message);
+    if (!(suppressPauseOnPointerUnlock && !locked)) {
+      setStatus(message);
+    }
   },
 });
 
@@ -637,6 +678,7 @@ function captureLocalRunResume(): LocalRunResumeState | undefined {
       annihilationPulseRemaining: world.annihilationPulseRemaining,
       mapRevealed: world.isMapRevealed,
       mobilityBoostRemaining: world.mobilityBoostRemaining,
+      fogClearRemaining: world.fogClearRemaining,
     },
     exploration,
     campaign: {
@@ -1672,13 +1714,11 @@ function applyPersistedRunSession(plan: RunResumeActivationPlan): void {
   const state = playRuntime.restore(plan.persistedSession, plan.runtimeProgress);
   applyRunResumePlan(plan, false);
   if (plan.playerPose) syncDomainExplore();
-  lastTimeFreezeDisplay = "";
-  lastLuminousWardDisplay = "";
-  lastAnnihilationPulseDisplay = "";
   lastRunTimerSecond = -1;
-  syncTimeFreezeHud();
-  syncLuminousWardHud();
-  syncAnnihilationPulseHud();
+  timeFreezeChip.reset();
+  luminousWardChip.reset();
+  annihilationPulseChip.reset();
+  fogClearChip.reset();
   syncRunTimer();
   controller.setSolidColliders(world.getSolidColliders());
   elements.shell.dataset.mode = state.runMode;
@@ -1698,6 +1738,7 @@ function setOptionsOpen(open: boolean): void {
   if (engineMode !== "play") {
     // Creation/Debug always show the docked tools shell.
     optionsOpen = false;
+    suppressPauseOnPointerUnlock = false;
     elements.shell.classList.remove("options-open");
     elements.optionsMenu.hidden = false;
     elements.optionsCard.setAttribute("role", "region");
@@ -1706,6 +1747,7 @@ function setOptionsOpen(open: boolean): void {
     return;
   }
   optionsOpen = open;
+  if (open) suppressPauseOnPointerUnlock = false;
   elements.shell.classList.toggle("options-open", open);
   elements.optionsMenu.hidden = !open;
   elements.optionsCard.setAttribute("role", "dialog");
@@ -1732,9 +1774,17 @@ function clearTouchSession(): void {
 function resumePlay(): void {
   const useTouchControls = resumeTouchControls;
   resumeTouchControls = false;
+  // Escape (and some browsers) refuse pointer lock on the same key that exits
+  // lock. Suppress auto-pause-on-unlock so the panel stays closed; scene click
+  // re-locks. Successful lock clears the flag in onLockChange.
+  suppressPauseOnPointerUnlock = true;
   setOptionsOpen(false);
   void audio.unlock();
-  if (!useTouchControls && engineMode === "play" && playRuntime.state().runMode === "playing") {
+  if (useTouchControls) {
+    suppressPauseOnPointerUnlock = false;
+    return;
+  }
+  if (engineMode === "play" && playRuntime.state().runMode === "playing") {
     controller.requestPointerLock();
   }
 }
@@ -1839,60 +1889,20 @@ function syncRunTimer(snapshot = world.getDifficultyState()): void {
 }
 
 function syncTimeFreezeHud(remaining = world.timeFreezeRemaining): void {
-  const seconds = Math.max(0, remaining);
-  const active = seconds > 0.0001;
-  elements.timeFreezeStatus.hidden = !active;
-  elements.shell.dataset.timeFreeze = active ? "true" : "false";
-  if (!active) {
-    lastTimeFreezeDisplay = "";
-    elements.timeFreezeStatus.removeAttribute("data-urgent");
-    return;
-  }
-  const display = `${seconds.toFixed(1)}s`;
-  if (display === lastTimeFreezeDisplay) return;
-  lastTimeFreezeDisplay = display;
-  elements.timeFreezeValue.textContent = display;
-  elements.timeFreezeValue.dateTime = `PT${seconds.toFixed(1)}S`;
-  elements.timeFreezeValue.setAttribute("aria-label", `${display} time freeze remaining`);
-  elements.timeFreezeStatus.toggleAttribute("data-urgent", seconds <= 5);
+  timeFreezeChip.sync(remaining);
 }
 
 function syncLuminousWardHud(remaining = world.luminousWardRemaining): void {
-  const seconds = Math.max(0, remaining);
-  const active = seconds > 0.0001;
-  elements.luminousWardStatus.hidden = !active;
-  elements.shell.dataset.luminousWard = active ? "true" : "false";
-  if (!active) {
-    lastLuminousWardDisplay = "";
-    elements.luminousWardStatus.removeAttribute("data-urgent");
-    return;
-  }
-  const display = `${seconds.toFixed(1)}s`;
-  if (display === lastLuminousWardDisplay) return;
-  lastLuminousWardDisplay = display;
-  elements.luminousWardValue.textContent = display;
-  elements.luminousWardValue.dateTime = `PT${seconds.toFixed(1)}S`;
-  elements.luminousWardValue.setAttribute("aria-label", `${display} ward remaining`);
-  elements.luminousWardStatus.toggleAttribute("data-urgent", seconds <= 5);
+  luminousWardChip.sync(remaining);
 }
 
 function syncAnnihilationPulseHud(remaining = world.annihilationPulseRemaining): void {
-  const seconds = Math.max(0, remaining);
-  const active = seconds > 0.0001;
-  elements.annihilationPulseStatus.hidden = !active;
-  elements.shell.dataset.annihilationPulse = active ? "true" : "false";
-  if (!active) {
-    lastAnnihilationPulseDisplay = "";
-    elements.annihilationPulseStatus.removeAttribute("data-urgent");
-    return;
-  }
-  const display = `${seconds.toFixed(1)}s`;
-  if (display === lastAnnihilationPulseDisplay) return;
-  lastAnnihilationPulseDisplay = display;
-  elements.annihilationPulseValue.textContent = display;
-  elements.annihilationPulseValue.dateTime = `PT${seconds.toFixed(1)}S`;
-  elements.annihilationPulseValue.setAttribute("aria-label", `${display} pulse remaining`);
-  elements.annihilationPulseStatus.toggleAttribute("data-urgent", seconds <= 5);
+  annihilationPulseChip.sync(remaining);
+}
+
+function syncFogClearHud(remaining = world.fogClearRemaining): void {
+  fogClearChip.sync(remaining);
+  atmosphere.setFogClearPulse(remaining > 0 ? 1 : 0);
 }
 
 /**
@@ -1908,12 +1918,8 @@ function syncBiomeEvent(snapshot?: BiomeEventSnapshot): void {
   // (dustfall, cinderfall, spore-bloom, …) use AtmosphereSystem ceiling motes.
   elements.shell.dataset.biomeEvent = active && snapshot ? snapshot.id : "none";
   atmosphere.setEventPulse(active ? 1 : 0);
-  if (!active || !snapshot) {
-    lastBiomeEventDisplay = "";
-    return;
-  }
+  if (!active || !snapshot) return;
   if (snapshot.started) {
-    lastBiomeEventDisplay = snapshot.id;
     // Soft world notice only — no countdown state on the character HUD.
     setStatus(`${snapshot.label}.`);
     flash("event");
@@ -2309,38 +2315,43 @@ function showPickupFeedback(
   annihilationPulse = false,
   mapReveal = false,
   mobilityBoost = false,
+  fogClear = false,
 ): void {
   elements.pickupFeedbackText.textContent = label;
   elements.pickupFeedbackKicker.textContent = mapReveal
     ? COPY.pickup.map
-    : mobilityBoost
-      ? COPY.pickup.mobility
-      : annihilationPulse
-        ? COPY.pickup.annihilationPulse
-        : luminousWard
-          ? COPY.pickup.luminousWard
-          : timeFreeze
-            ? COPY.pickup.timeFreeze
-            : restoreResolve
-              ? COPY.pickup.flask
-              : stoneId
-                ? COPY.pickup.small
-                : COPY.pickup.notice;
+    : fogClear
+      ? COPY.pickup.clarity
+      : mobilityBoost
+        ? COPY.pickup.mobility
+        : annihilationPulse
+          ? COPY.pickup.annihilationPulse
+          : luminousWard
+            ? COPY.pickup.luminousWard
+            : timeFreeze
+              ? COPY.pickup.timeFreeze
+              : restoreResolve
+                ? COPY.pickup.flask
+                : stoneId
+                  ? COPY.pickup.small
+                  : COPY.pickup.notice;
   elements.pickupFeedback.dataset.kind = mapReveal
     ? "map"
-    : mobilityBoost
-      ? "mobility"
-      : annihilationPulse
-        ? "annihilation-pulse"
-        : luminousWard
-          ? "luminous-ward"
-          : timeFreeze
-            ? "time-freeze"
-            : restoreResolve
-              ? "flask"
-              : stoneId
-                ? "stone"
-                : "notice";
+    : fogClear
+      ? "clarity"
+      : mobilityBoost
+        ? "mobility"
+        : annihilationPulse
+          ? "annihilation-pulse"
+          : luminousWard
+            ? "luminous-ward"
+            : timeFreeze
+              ? "time-freeze"
+              : restoreResolve
+                ? "flask"
+                : stoneId
+                  ? "stone"
+                  : "notice";
   if (stoneId) elements.pickupFeedback.dataset.stone = stoneId;
   else delete elements.pickupFeedback.dataset.stone;
   elements.pickupFeedback.classList.add("is-active");
@@ -2741,13 +2752,10 @@ async function activateDungeon(
   const worldBuildMs = performance.now() - worldStartedAt;
   // Only re-upload textures whose sampling filters actually changed.
   applyTextureSmoothing(scene, userSettings.textureSmoothing);
-  lastTimeFreezeDisplay = "";
-  lastLuminousWardDisplay = "";
-  lastAnnihilationPulseDisplay = "";
-  lastBiomeEventDisplay = "";
-  syncTimeFreezeHud(0);
-  syncLuminousWardHud(0);
-  syncAnnihilationPulseHud(0);
+  timeFreezeChip.reset();
+  luminousWardChip.reset();
+  annihilationPulseChip.reset();
+  fogClearChip.reset();
   syncBiomeEvent();
   controller.setSurfaceMovement(1, 1);
   lastHazardKind = undefined;
@@ -2811,6 +2819,8 @@ async function activateDungeon(
   updateResolve();
   syncTimeFreezeHud();
   syncLuminousWardHud();
+  syncAnnihilationPulseHud();
+  syncFogClearHud();
   updateObjective();
   // Intro objective: appears at run start, then fades so the scene stays clean.
   if (engineMode === "play" && state.runMode === "playing" && !state.quest.portalOpen) {
@@ -2991,9 +3001,10 @@ function selectEditorSpawn(cell: { x: number; y: number }): void {
   applyAtmosphereFromParams();
   const state = playRuntime.load({ dungeon, mood, persisted: playRuntime.snapshot() });
   applyTextureSmoothing(scene, userSettings.textureSmoothing);
-  lastTimeFreezeDisplay = "";
-  lastLuminousWardDisplay = "";
-  lastAnnihilationPulseDisplay = "";
+  timeFreezeChip.reset();
+  luminousWardChip.reset();
+  annihilationPulseChip.reset();
+  fogClearChip.reset();
   lastRunTimerSecond = -1;
   atmosphere.setDungeon(dungeon, mood);
   controller.setDungeon(dungeon);
@@ -3017,6 +3028,7 @@ function selectEditorSpawn(cell: { x: number; y: number }): void {
   syncTimeFreezeHud();
   syncLuminousWardHud();
   syncAnnihilationPulseHud();
+  syncFogClearHud();
   updateReadout();
   drawMap();
   setStatus(`Spawn set to ${formatCell(cell)}. Exit was recalculated.`);
@@ -3863,9 +3875,18 @@ document.addEventListener("keydown", (event) => {
       return;
     }
     // While pointer-locked, the browser unlocks first; onLockChange opens options.
+    // Do not also toggle here or the same Escape would open then immediately close.
     if (controller.getState().locked) return;
     if (optionsOpen) {
       resumePlay();
+      // Escape often cannot re-lock; leave a clear click-to-continue cue.
+      if (!controller.getState().locked && !touchSessionActive) {
+        setStatus(COPY.status.pointerFailed);
+      }
+    } else if (suppressPauseOnPointerUnlock) {
+      // Mid resume-pending (options closed, not locked): Escape re-opens pause.
+      suppressPauseOnPointerUnlock = false;
+      setOptionsOpen(true);
     } else {
       setOptionsOpen(true);
     }
@@ -4134,6 +4155,7 @@ function frame(now: number): void {
       syncTimeFreezeHud(worldUpdate.timeFreezeRemaining);
       syncLuminousWardHud(worldUpdate.luminousWardRemaining);
       syncAnnihilationPulseHud(worldUpdate.annihilationPulseRemaining);
+      syncFogClearHud(worldUpdate.fogClearRemaining);
       syncBiomeEvent(worldUpdate.biomeEvent);
       floorExploration.setMapRevealed(worldUpdate.mapRevealed);
       controller.setMobilityBoost(worldUpdate.mobilityBoostRemaining > 0);
@@ -4183,6 +4205,7 @@ function frame(now: number): void {
           Boolean(effects.pickup.annihilationPulse),
           Boolean(effects.pickup.mapReveal),
           Boolean(effects.pickup.mobilityBoost),
+          Boolean(effects.pickup.fogClear),
         );
       }
       if (worldUpdate.annihilationPulse) {
@@ -4197,12 +4220,13 @@ function frame(now: number): void {
       }
       if (effects.playEnemyHit) {
         elements.shell.dataset.resolve = String(Math.ceil(state.resolve));
-        const washKind = resolveDamageWashKind(
-          worldUpdate.surfaceEffect.kind,
-          worldUpdate.surfaceEffect.damage,
-        );
-        triggerDamageFeedback(worldUpdate.knockback, washKind);
-        if (worldUpdate.damageSource) {
+        const damageIntent = projectPlayStepDamage({
+          enemyDamage: Math.max(0, worldUpdate.damage - worldUpdate.surfaceEffect.damage),
+          surface: worldUpdate.surfaceEffect,
+          hasAttacker: Boolean(worldUpdate.damageSource),
+        });
+        triggerDamageFeedback(worldUpdate.knockback, damageIntent.washKind);
+        if (damageIntent.useAttackerAudio && worldUpdate.damageSource) {
           audio.playEnemyHit(worldUpdate.damageSource.position, worldUpdate.damageSource.voice);
         } else {
           // Hazard floor damage: hit sting only (no creature bark).
@@ -4232,6 +4256,7 @@ function frame(now: number): void {
   syncTimeFreezeHud();
   syncLuminousWardHud();
   syncAnnihilationPulseHud();
+  syncFogClearHud();
   syncRunTimer();
 
   damageTimer = Math.max(0, damageTimer - delta);
@@ -4278,6 +4303,8 @@ function frame(now: number): void {
       mapRevealed: explorationView.mapRevealed,
       // Fourth stone opens the portal and lifts the deep fog wall for the escape run.
       allStonesBound: playRuntime.state().quest.portalOpen,
+      // Clarity phial temporarily opens the air without revealing the minimap.
+      fogClearActive: world.isFogClearActive,
     }),
   );
 
