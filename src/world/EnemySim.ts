@@ -59,10 +59,93 @@ export interface EnemySimContext {
   /** Run difficulty 0–1; scales biome mods. */
   difficulty?: number;
   /**
+   * Camera/eye height used to recover feet Y from player.y.
+   * Defaults to the play controller eye height.
+   */
+  playerEyeHeight?: number;
+  /**
    * Optional pre-resolved archetypes for this tick. When omitted, each enemy
    * resolves through applyBiomeEnemyMods(kind, moodId, difficulty).
    */
   archetypes?: Readonly<Partial<Record<EnemyKind, EnemyArchetype>>>;
+}
+
+/** Matches FirstPersonController default eye height (player.y is the eye). */
+export const PLAYER_COMBAT_EYE_HEIGHT = 1.62;
+
+/**
+ * Soles must reach this far into the enemy top band (or above it) to vault.
+ * A few centimeters of forgiveness keeps jump-overs readable.
+ */
+const VAULT_CLEARANCE_METERS = 0.05;
+
+/**
+ * Solid body height for contact. Low-profile crawlers use a hard top cap so a
+ * mid jump (well below double-jump apex) reliably vaults them; tall humanoids
+ * keep nearly full authored height.
+ */
+function enemySolidBodyHeight(
+  archetype: Pick<EnemyArchetype, "height" | "lowProfile">,
+): number {
+  const ratio = archetype.lowProfile ? 0.8 : 0.92;
+  const body = archetype.height * ratio;
+  // ~0.7 m top: single-jump apex is ~0.99 m of feet clearance in play stats.
+  return archetype.lowProfile ? Math.min(body, 0.7) : body;
+}
+
+export interface VerticalRange {
+  minY: number;
+  maxY: number;
+}
+
+/** Player hurt volume from soles to just above the eyes. */
+export function playerHurtVerticalRange(
+  playerY: number,
+  eyeHeight = PLAYER_COMBAT_EYE_HEIGHT,
+): VerticalRange {
+  const safeEye = Number.isFinite(eyeHeight) && eyeHeight > 0.5 ? eyeHeight : PLAYER_COMBAT_EYE_HEIGHT;
+  const feetY = playerY - safeEye;
+  return {
+    minY: feetY,
+    maxY: playerY + 0.18,
+  };
+}
+
+/**
+ * Enemy contact volume in world Y. Includes hover seat and the current bob /
+ * pounce / flight offset from the authored base center.
+ */
+export function enemyContactVerticalRange(
+  enemy: Pick<EnemySimBody, "position" | "baseY">,
+  archetype: Pick<EnemyArchetype, "height" | "hoverOffset" | "lowProfile">,
+): VerticalRange {
+  const bob = enemy.position.y - enemy.baseY;
+  const seat = archetype.hoverOffset + bob;
+  const minY = Math.max(0, seat - 0.08);
+  const maxY = enemySolidBodyHeight(archetype) + seat;
+  return {
+    minY,
+    maxY: Math.max(minY + 0.1, maxY),
+  };
+}
+
+/**
+ * True when the player body still intersects the enemy strike volume on Y.
+ * Jumping so soles clear the enemy top is a successful vault (no contact).
+ */
+export function enemyStrikesPlayerVertically(
+  playerY: number,
+  enemy: Pick<EnemySimBody, "position" | "baseY">,
+  archetype: Pick<EnemyArchetype, "height" | "hoverOffset" | "lowProfile">,
+  eyeHeight = PLAYER_COMBAT_EYE_HEIGHT,
+): boolean {
+  const playerBand = playerHurtVerticalRange(playerY, eyeHeight);
+  const enemyBand = enemyContactVerticalRange(enemy, archetype);
+  // Vault: feet at or above the solid top (with a small clearance).
+  if (playerBand.minY >= enemyBand.maxY - VAULT_CLEARANCE_METERS) return false;
+  // Entirely under the strike volume (rare; floating hazards).
+  if (playerBand.maxY <= enemyBand.minY) return false;
+  return true;
 }
 
 // Enemy simulation runs every rendered frame. Reuse its temporary vectors so
@@ -187,6 +270,7 @@ export function tickEnemySim(
   const { delta, elapsed, player, dungeon, solidColliders, tileSize } = ctx;
   const repelRadius = Math.max(0, ctx.repelRadius ?? 0);
   const repelSpeedMultiplier = Math.max(1, ctx.repelSpeedMultiplier ?? 1);
+  const eyeHeight = ctx.playerEyeHeight ?? PLAYER_COMBAT_EYE_HEIGHT;
   for (const enemy of enemies) {
     if (enemy.defeated || enemy.scaleX <= 0.001 || enemy.scaleY <= 0.001) {
       enemy.moving = false;
@@ -314,7 +398,8 @@ export function tickEnemySim(
       !repelActive &&
       distance < archetype.attackRange &&
       enemy.hitCooldown === 0 &&
-      enemy.phaseVisibility >= 0.82
+      enemy.phaseVisibility >= 0.82 &&
+      enemyStrikesPlayerVertically(player.y, enemy, archetype, eyeHeight)
     ) {
       damage += archetype.damage;
       enemy.hitCooldown = archetype.attackCooldown;

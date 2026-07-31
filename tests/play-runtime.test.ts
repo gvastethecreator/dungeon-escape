@@ -16,6 +16,11 @@ type TestWorldUpdate = PlayWorldUpdate & { frame: number };
 class FakeWorld implements PlayWorldPort<TestDungeon, TestMood, TestPlayer, TestWorldUpdate> {
   readonly calls: string[] = [];
   readonly updates: TestWorldUpdate[] = [];
+  setDungeonWithYield?: (
+    dungeon: TestDungeon,
+    mood: TestMood,
+    yieldToMain: () => Promise<void>,
+  ) => Promise<void>;
 
   setDungeon(dungeon: TestDungeon, mood: TestMood): void {
     this.calls.push(`setDungeon:${dungeon.id}:${mood.id}`);
@@ -92,6 +97,40 @@ describe("PlayRuntime", () => {
       exitReached: false,
       quest: { stonesFound: 0, portalOpen: false, isRunning: true },
     });
+  });
+
+  test("loadWithYield falls back to setDungeon when the world has no async path", async () => {
+    const { runtime, world } = createRuntime();
+    let yielded = 0;
+
+    const state = await runtime.loadWithYield({ dungeon, mood }, async () => {
+      yielded += 1;
+    });
+
+    expect(yielded).toBe(0);
+    expect(world.calls).toEqual(["setDungeon:test-dungeon:test-mood"]);
+    expect(state.runMode).toBe("playing");
+  });
+
+  test("loadWithYield uses setDungeonWithYield when the world provides it", async () => {
+    const { runtime, world } = createRuntime();
+    let yielded = 0;
+    world.setDungeonWithYield = async (nextDungeon, nextMood, yieldToMain) => {
+      world.calls.push(`setDungeonWithYield:${nextDungeon.id}:${nextMood.id}:before`);
+      await yieldToMain();
+      world.calls.push(`setDungeonWithYield:${nextDungeon.id}:${nextMood.id}:after`);
+    };
+
+    const state = await runtime.loadWithYield({ dungeon, mood }, async () => {
+      yielded += 1;
+    });
+
+    expect(yielded).toBe(1);
+    expect(world.calls).toEqual([
+      "setDungeonWithYield:test-dungeon:test-mood:before",
+      "setDungeonWithYield:test-dungeon:test-mood:after",
+    ]);
+    expect(state.runMode).toBe("playing");
   });
 
   test("steps the world once and returns the raw update, reducer effects, and frozen state", () => {

@@ -71,7 +71,7 @@ The owner of Play order and live run transitions across the world, run session, 
 
 **Floor exploration**:
 The owner of active and per-floor visited cells, map visibility, floor switching, restoration, and defensive save snapshots.
-It also supplies the explored ratio that tightens first-person fog on unknown space and restores the normal biome fog after enough traversal or an active-floor map reveal.
+It also supplies the explored ratio that drives first-person fog: unknown space sits behind a deep fog wall with only a few meters of visibility, softening into a light haze after enough traversal or an active-floor map reveal. Binding all four stones lifts that fog wall to the biome's authored density so the escape path stays readable.
 
 **Runtime asset boundary**:
 Only deployable assets live under `public/`. Source sheets, raw generations, provenance, and production manifests live under `assets-source/`. Runtime rasters are half-size WebP files tracked by one optimization manifest and checked before deployment.

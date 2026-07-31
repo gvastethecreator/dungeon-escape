@@ -72,11 +72,21 @@ class FakeRunIntroPort implements RunIntroPort {
 
   fade(
     target: "opaque" | "clear",
-    options: { readonly instant?: boolean; readonly durationMs?: number },
+    options: {
+      readonly instant?: boolean;
+      readonly durationMs?: number;
+      readonly showLoader?: boolean;
+    },
     signal: AbortSignal,
   ): Promise<void> {
-    this.events.push(`fade:${target}:${Boolean(options.instant)}:${options.durationMs ?? 0}`);
+    this.events.push(
+      `fade:${target}:${Boolean(options.instant)}:${options.durationMs ?? 0}:loader=${options.showLoader !== false}`,
+    );
     return abortableResolution(signal);
+  }
+
+  clearLoader(): void {
+    this.events.push("loader:clear");
   }
 
   enterTheater(): void {
@@ -180,20 +190,21 @@ describe("run intro director", () => {
     expect(port.events).toEqual([
       "prepare:INTRO-DIRECTOR",
       "refresh",
-      "fade:opaque:true:0",
+      "fade:opaque:true:0:loader=true",
       "theater:forging",
       "frames:2",
       "build:INTRO-DIRECTOR",
       "warmup:10000",
       "present:true:6000:10000",
-      "frames:2",
-      "fade:clear:false:300",
+      "loader:clear",
+      "frames:3",
+      "fade:clear:false:300:loader=false",
       "theater:entering-play",
-      "fade:opaque:false:260",
+      "fade:opaque:false:260:loader=false",
       "theater:off",
       "play:activate",
       "warmup:4000",
-      "fade:clear:false:300",
+      "fade:clear:false:300:loader=false",
       "play:restore",
     ]);
     expect(port.lastSession?.stopCount).toBe(1);
@@ -213,11 +224,12 @@ describe("run intro director", () => {
     expect(result).toMatchObject({ kind: "entered-play", path: "forge" });
     expect(port.events).toContain("present:false:6000:800");
     expect(port.events.filter((event) => event.startsWith("fade:"))).toEqual([
-      "fade:opaque:true:0",
-      "fade:clear:true:300",
-      "fade:opaque:true:260",
-      "fade:clear:true:300",
+      "fade:opaque:true:0:loader=true",
+      "fade:clear:true:300:loader=false",
+      "fade:opaque:true:260:loader=false",
+      "fade:clear:true:300:loader=false",
     ]);
+    expect(port.events).toContain("loader:clear");
     expect(port.events).toContain("delay:600");
     expect(port.restoreCount).toBe(1);
   });
@@ -237,9 +249,12 @@ describe("run intro director", () => {
     expect(port.events).toEqual([
       "prepare:INTRO-DIRECTOR",
       "refresh",
+      "fade:opaque:false:260:loader=true",
       "build:INTRO-DIRECTOR",
+      "loader:clear",
       "play:activate",
       "warmup:4000",
+      "fade:clear:false:300:loader=false",
       "play:restore",
     ]);
     expect(port.restoreCount).toBe(1);
@@ -276,9 +291,10 @@ describe("run intro director", () => {
       stage: "build",
       message: "generation blocked",
     });
-    expect(port.events.slice(-3)).toEqual([
+    expect(port.events.slice(-4)).toEqual([
       "theater:off",
-      "fade:clear:false:300",
+      "loader:clear",
+      "fade:clear:false:300:loader=false",
       "welcome:generation blocked",
     ]);
     expect(port.restoreCount).toBe(0);
@@ -327,7 +343,7 @@ describe("run intro director", () => {
     port.autoCompletePresentation = false;
     const director = new RunIntroDirector(port);
     const running = director.start(request());
-    await waitForEvent(port, "fade:clear:false:300");
+    await waitForEvent(port, "fade:clear:false:300:loader=false");
 
     expect(director.cancel()).toBe(true);
     expect(await running).toMatchObject({ kind: "cancelled", reason: "cancelled" });

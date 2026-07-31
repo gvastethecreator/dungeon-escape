@@ -30,6 +30,15 @@ export interface PlayWorldUpdate extends Omit<SessionWorldUpdate, "collectedPick
  */
 export interface PlayWorldPort<TDungeon, TMood, TPlayer, TWorldUpdate extends PlayWorldUpdate> {
   setDungeon(dungeon: TDungeon, mood: TMood): void;
+  /**
+   * Optional: clear the previous floor, yield once, then rebuild. Hosts use this
+   * during successive map loads so the load cover can paint between dispose and build.
+   */
+  setDungeonWithYield?(
+    dungeon: TDungeon,
+    mood: TMood,
+    yieldToMain: () => Promise<void>,
+  ): Promise<void>;
   update(delta: number, player: TPlayer, atExit: boolean, interactPressed?: boolean): TWorldUpdate;
   restoreSession(foundStoneIds: readonly StoneId[]): void;
   restoreRuntimeProgress(
@@ -132,6 +141,27 @@ export class PlayRuntime<TDungeon, TMood, TPlayer, TWorldUpdate extends PlayWorl
   load(input: PlayRuntimeLoad<TDungeon, TMood>): Readonly<PlayRuntimeState> {
     this.assertActive();
     this.world.setDungeon(input.dungeon, input.mood);
+    return this.finishLoad(input);
+  }
+
+  /**
+   * Same restore order as `load`, but rebuilds the world with a host-supplied
+   * yield so successive map swaps stay responsive.
+   */
+  async loadWithYield(
+    input: PlayRuntimeLoad<TDungeon, TMood>,
+    yieldToMain: () => Promise<void>,
+  ): Promise<Readonly<PlayRuntimeState>> {
+    this.assertActive();
+    if (this.world.setDungeonWithYield) {
+      await this.world.setDungeonWithYield(input.dungeon, input.mood, yieldToMain);
+    } else {
+      this.world.setDungeon(input.dungeon, input.mood);
+    }
+    return this.finishLoad(input);
+  }
+
+  private finishLoad(input: PlayRuntimeLoad<TDungeon, TMood>): Readonly<PlayRuntimeState> {
     if (input.persisted) {
       this.restorePersisted(input.persisted, input.runtimeProgress);
     } else {

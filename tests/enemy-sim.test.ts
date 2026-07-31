@@ -2,8 +2,12 @@ import { describe, expect, test } from "bun:test";
 import { generateDungeon } from "../src/dungeon/generateDungeon";
 import { gridToWorld } from "../src/dungeon/gridCollision";
 import {
+  enemyContactVerticalRange,
   enemyPhaseVisibility,
+  enemyStrikesPlayerVertically,
   impFlightOffset,
+  PLAYER_COMBAT_EYE_HEIGHT,
+  playerHurtVerticalRange,
   spiderPounceHeight,
   tickEnemySim,
   type EnemySimBody,
@@ -34,7 +38,7 @@ describe("EnemySim", () => {
   test("deals damage and sets cooldown when player is in attack range", () => {
     const dungeon = generateDungeon("SIM-HIT", { roomTarget: 10 });
     const enemy = body("zombie-orc", 0, 0);
-    const player = { x: 0.4, y: 1.6, z: 0.2 };
+    const player = { x: 0.4, y: PLAYER_COMBAT_EYE_HEIGHT, z: 0.2 };
     const first = tickEnemySim([enemy], {
       delta: 0.016,
       elapsed: 1,
@@ -57,6 +61,77 @@ describe("EnemySim", () => {
       tileSize: 2.4,
     });
     expect(second.damage).toBe(0);
+  });
+
+  test("standing player still takes contact damage from low-profile enemies", () => {
+    const dungeon = generateDungeon("SIM-HIT-GROUND", { roomTarget: 10 });
+    const spider = body("spider", 0.2, 0);
+    const result = tickEnemySim([spider], {
+      delta: 0.016,
+      elapsed: 1,
+      player: { x: 0, y: PLAYER_COMBAT_EYE_HEIGHT, z: 0 },
+      dungeon,
+      solidColliders: [],
+      tileSize: 2.4,
+    });
+    expect(result.damage).toBeGreaterThan(0);
+    expect(result.attacker).toBe(spider);
+  });
+
+  test("jumping clears low-profile contact while tall enemies still hit", () => {
+    const dungeon = generateDungeon("SIM-HIT-VAULT", { roomTarget: 10 });
+    // Mid single-jump height (apex ~0.99 m with play jump stats).
+    const jumpHeight = 0.72;
+    const playerY = PLAYER_COMBAT_EYE_HEIGHT + jumpHeight;
+    const spider = body("spider", 0.15, 0);
+    const carrion = body("carrion", 0.15, 0);
+    const ratling = body("ratling", 0.15, 0);
+    const orc = body("zombie-orc", 0.15, 0);
+
+    const vaulted = tickEnemySim([spider, carrion, ratling], {
+      delta: 0.016,
+      elapsed: 1,
+      player: { x: 0, y: playerY, z: 0 },
+      dungeon,
+      solidColliders: [],
+      tileSize: 2.4,
+    });
+    expect(vaulted.damage).toBe(0);
+    expect(vaulted.knockHits).toBe(0);
+    expect(spider.hitCooldown).toBe(0);
+    expect(carrion.hitCooldown).toBe(0);
+    expect(ratling.hitCooldown).toBe(0);
+
+    const tallHit = tickEnemySim([orc], {
+      delta: 0.016,
+      elapsed: 1,
+      player: { x: 0, y: playerY, z: 0 },
+      dungeon,
+      solidColliders: [],
+      tileSize: 2.4,
+    });
+    expect(tallHit.damage).toBeGreaterThan(0);
+    expect(tallHit.attacker).toBe(orc);
+  });
+
+  test("enemy contact height tracks low-profile bodies below a mid jump", () => {
+    const spider = body("spider", 0, 0);
+    const ratling = body("ratling", 0, 0);
+    const orc = body("zombie-orc", 0, 0);
+    const spiderBand = enemyContactVerticalRange(spider, ENEMY_ARCHETYPES.spider);
+    const ratlingBand = enemyContactVerticalRange(ratling, ENEMY_ARCHETYPES.ratling);
+    const orcBand = enemyContactVerticalRange(orc, ENEMY_ARCHETYPES["zombie-orc"]);
+    const midJumpFeet = 0.7;
+    const playerY = PLAYER_COMBAT_EYE_HEIGHT + midJumpFeet;
+    const playerBand = playerHurtVerticalRange(playerY);
+
+    expect(spiderBand.maxY).toBeLessThanOrEqual(0.7);
+    expect(ratlingBand.maxY).toBeLessThanOrEqual(0.7);
+    expect(playerBand.minY).toBeCloseTo(midJumpFeet, 5);
+    expect(enemyStrikesPlayerVertically(playerY, spider, ENEMY_ARCHETYPES.spider)).toBe(false);
+    expect(enemyStrikesPlayerVertically(playerY, ratling, ENEMY_ARCHETYPES.ratling)).toBe(false);
+    expect(enemyStrikesPlayerVertically(playerY, orc, ENEMY_ARCHETYPES["zombie-orc"])).toBe(true);
+    expect(orcBand.maxY).toBeGreaterThan(1.8);
   });
 
   test("reports nearest threat distance", () => {
