@@ -11,8 +11,14 @@ const BEAM_VERTEX_SHADER = /* glsl */ `
   varying vec3 vWorldPos;
   varying vec3 vWorldNormal;
   varying vec3 vLocalPos;
-  varying vec3 vCameraLocal;
   varying vec2 vBeamUv;
+
+#if defined(AMBIENT_STRATA_PROFILE) || defined(OBJECTIVE_STRATA_PROFILE)
+  attribute float aBeamLayer;
+  attribute float aStratumPhase;
+  varying float vBeamLayer;
+  varying float vStratumPhase;
+#endif
 
   void main() {
     vLocalPos = position;
@@ -20,15 +26,11 @@ const BEAM_VERTEX_SHADER = /* glsl */ `
     vec4 world = modelMatrix * vec4(position, 1.0);
     vWorldPos = world.xyz;
     vWorldNormal = normalize(mat3(modelMatrix) * normal);
-    vec3 cameraOffset = cameraPosition - modelMatrix[3].xyz;
-    vec3 axisX = modelMatrix[0].xyz;
-    vec3 axisY = modelMatrix[1].xyz;
-    vec3 axisZ = modelMatrix[2].xyz;
-    vCameraLocal = vec3(
-      dot(cameraOffset, axisX) / max(dot(axisX, axisX), 0.0001),
-      dot(cameraOffset, axisY) / max(dot(axisY, axisY), 0.0001),
-      dot(cameraOffset, axisZ) / max(dot(axisZ, axisZ), 0.0001)
-    );
+
+#if defined(AMBIENT_STRATA_PROFILE) || defined(OBJECTIVE_STRATA_PROFILE)
+    vBeamLayer = aBeamLayer;
+    vStratumPhase = aStratumPhase;
+#endif
 
     vec4 mvPosition = viewMatrix * world;
     gl_Position = projectionMatrix * mvPosition;
@@ -50,10 +52,50 @@ const BEAM_FRAGMENT_SHADER = /* glsl */ `
   varying vec3 vWorldPos;
   varying vec3 vWorldNormal;
   varying vec3 vLocalPos;
-  varying vec3 vCameraLocal;
   varying vec2 vBeamUv;
 
-#ifndef AMBIENT_RETRO_PROFILE
+#if defined(AMBIENT_STRATA_PROFILE) || defined(OBJECTIVE_STRATA_PROFILE)
+  varying float vBeamLayer;
+  varying float vStratumPhase;
+
+  // Exact recursive 4x4 Bayer ordering. Inputs are local stratum UVs, never
+  // framebuffer coordinates, so every broken edge stays fixed in the room.
+  float bayer2(vec2 cell) {
+    vec2 p = mod(floor(cell), 2.0);
+    float top = mix(0.0, 2.0, p.x);
+    float bottom = mix(3.0, 1.0, p.x);
+    return mix(top, bottom, p.y);
+  }
+
+  float bayer4(vec2 cell) {
+    float lowBits = bayer2(mod(cell, 2.0));
+    float highBits = bayer2(floor(cell * 0.5));
+    return (4.0 * lowBits + highBits + 0.5) / 16.0;
+  }
+
+  float hash21(vec2 p) {
+    p = fract(p * vec2(123.34, 456.21));
+    p += dot(p, p + 45.32);
+    return fract(p.x * p.y);
+  }
+
+  float coarseFlow(vec2 cell, float phase) {
+    float tick = floor(uTime * 1.35);
+    vec2 stepped = floor(cell + vec2(phase * 11.0 + tick * 0.25, -tick * 0.5));
+    return hash21(stepped);
+  }
+
+  float retroDensityBand(float band) {
+    if (band < 0.5) return 0.82;
+    if (band < 1.5) return 1.0;
+    if (band < 2.5) return 0.76;
+    return 0.48;
+  }
+
+  vec3 quantize5Bit(vec3 color) {
+    return floor(clamp(color, 0.0, 1.0) * 31.0 + 0.5) / 31.0;
+  }
+#else
   // Stable 3D value noise. The sample position is in world space so the
   // authored signal texture moves with the dungeon instead of the framebuffer.
   float hash31(vec3 p) {
@@ -82,32 +124,6 @@ const BEAM_FRAGMENT_SHADER = /* glsl */ `
     float x3 = mix(n011, n111, local.x);
     return mix(mix(x0, x1, local.y), mix(x2, x3, local.y), local.z);
   }
-#else
-  // Exact recursive 4x4 Bayer ordering. The input is local cylindrical UV,
-  // never framebuffer coordinates, so the pattern is fixed to the shaft.
-  float bayer2(vec2 cell) {
-    vec2 p = mod(floor(cell), 2.0);
-    float top = mix(0.0, 2.0, p.x);
-    float bottom = mix(3.0, 1.0, p.x);
-    return mix(top, bottom, p.y);
-  }
-
-  float bayer4(vec2 cell) {
-    float lowBits = bayer2(mod(cell, 2.0));
-    float highBits = bayer2(floor(cell * 0.5));
-    return (4.0 * lowBits + highBits + 0.5) / 16.0;
-  }
-
-  float retroDensityBand(float band) {
-    if (band < 0.5) return 0.88;
-    if (band < 1.5) return 1.0;
-    if (band < 2.5) return 0.82;
-    return 0.58;
-  }
-
-  vec3 quantize5Bit(vec3 color) {
-    return floor(clamp(color, 0.0, 1.0) * 31.0 + 0.5) / 31.0;
-  }
 #endif
 
   void main() {
@@ -116,53 +132,70 @@ const BEAM_FRAGMENT_SHADER = /* glsl */ `
     vec3 toCamera = normalize(cameraPosition - vWorldPos);
     float facing = abs(dot(normalize(vWorldNormal), toCamera));
 
-#ifdef AMBIENT_RETRO_PROFILE
-    // The ambient shaft is intentionally a sparse polygon volume. Flat mesh
-    // normals and three view-facing levels keep its sides authored and legible.
-    float facingBand = floor(clamp(facing * 3.0, 0.0, 2.999)) * 0.5;
-    float viewDensity = mix(0.28, 1.0, facingBand);
+#ifdef AMBIENT_STRATA_PROFILE
+    // Six open world-space planes overlap into a volume without enclosing the
+    // camera in a visible cone. Three broad strata establish the shaft while
+    // three narrow, interleaved strata make its centre deeper and irregular.
+    float lateral = clamp(1.0 - abs(vBeamUv.x * 2.0 - 1.0), 0.0, 1.0);
+    float edgeCoverage = pow(lateral, mix(0.72, 1.35, vBeamLayer));
+    vec2 ditherCell = vec2(
+      vBeamUv.x * 12.0 + vStratumPhase * 7.0,
+      vBeamUv.y * 14.0 + floor(uTime * 1.35) * 0.25
+    );
+    float orderedEdge = step(bayer4(ditherCell), clamp(edgeCoverage * 1.12, 0.0, 1.0));
+    float edgeMask = mix(orderedEdge, 1.0, smoothstep(0.52, 0.82, lateral));
 
-    // Fade both open ends before the geometry boundary. This removes the dark
-    // ceiling mouth and the hard floor ring of the previous smooth cone.
-    float sourceFade = smoothstep(0.0, 0.065, height01);
-    float floorFade = 1.0 - smoothstep(0.72, 1.0, height01);
-
-    // Four authored density zones replace expensive interpolated 3D noise.
-    // Ordered dither is limited to each zone transition and stays on the mesh.
+    float sourceFade = smoothstep(0.0, 0.08, height01);
+    float floorFade = 1.0 - smoothstep(0.66, 1.0, height01);
     float bandCoord = clamp(height01 * 4.0, 0.0, 3.999);
     float band = floor(bandCoord);
-    float nextBand = min(band + 1.0, 3.0);
-    vec2 ditherCell = vec2(vBeamUv.x * 32.0, vBeamUv.y * 24.0);
-    float threshold = bayer4(ditherCell);
-    float transition = smoothstep(0.8, 1.0, fract(bandCoord));
-    float densityBand = mix(
-      retroDensityBand(band),
-      retroDensityBand(nextBand),
-      step(threshold, transition)
-    );
+    float densityBand = retroDensityBand(band);
+    float flow = coarseFlow(vec2(vBeamUv.x * 3.5, vBeamUv.y * 8.0), vStratumPhase);
+    float flowDensity = mix(0.8, 1.08, step(0.42 - lateral * 0.12, flow));
+    float facingBand = floor(clamp(facing * 3.0, 0.0, 2.999)) * 0.5;
+    float viewDensity = mix(0.32, 1.0, facingBand);
+    float layerDensity = mix(0.62, 1.08, vBeamLayer);
 
-    float alpha = clamp(uStrength * 3.35 * viewDensity * densityBand * sourceFade * floorFade, 0.0, 0.42);
-    float cameraHeight01 = clamp(-vCameraLocal.y / max(uHeight, 0.001), 0.0, 1.0);
-    float cameraRadius = mix(uTopRadius, uBottomRadius, cameraHeight01);
-    float cameraInside =
-      step(-uHeight, vCameraLocal.y) *
-      step(vCameraLocal.y, 0.0) *
-      (1.0 - step(cameraRadius, length(vCameraLocal.xz)));
-    alpha *= mix(1.0, 0.16, cameraInside);
+    float alpha = clamp(
+      uStrength * 1.9 * viewDensity * layerDensity * densityBand * flowDensity *
+        sourceFade * floorFade * edgeMask,
+      0.0,
+      0.24
+    );
     if (alpha < 0.002) discard;
 
-    // A fixed dungeon-space light vector creates broad faceted value changes.
-    // Quantizing after that modulation keeps the shaft inside a 15-bit-era
-    // color vocabulary before the renderer's standard output transform.
-    vec3 facetLightDirection = normalize(vec3(-0.42, 0.14, 0.9));
-    float facetLight = dot(normalize(vWorldNormal), facetLightDirection) * 0.5 + 0.5;
-    facetLight = floor(clamp(facetLight * 3.0, 0.0, 2.999)) * 0.5;
-    vec3 col = quantize5Bit(uColor * mix(0.82, 1.06, facetLight));
+    float stratumValue = floor(mod(vStratumPhase * 19.0, 3.0)) * 0.5;
+    vec3 col = quantize5Bit(uColor * mix(0.72, 1.08, stratumValue));
     gl_FragColor = vec4(col, alpha);
 
     #include <tonemapping_fragment>
     #include <colorspace_fragment>
     #include <fog_fragment>
+#elif defined(OBJECTIVE_STRATA_PROFILE)
+    // Objective beacons use thinner open strata and stepped gaps. They point
+    // to the pickup without flattening it behind a broad luminous cylinder.
+    float lateral = clamp(1.0 - abs(vBeamUv.x * 2.0 - 1.0), 0.0, 1.0);
+    float edgeCoverage = pow(lateral, mix(0.82, 1.55, vBeamLayer));
+    vec2 ditherCell = vec2(
+      vBeamUv.x * 18.0 + vStratumPhase * 7.0,
+      vBeamUv.y * 30.0 - floor(uTime * 2.0) * 0.35
+    );
+    float edgeMask = step(bayer4(ditherCell), clamp(edgeCoverage * 1.12, 0.0, 1.0));
+    float sourceFade = smoothstep(0.0, 0.06, height01);
+    float pickupFade = 1.0 - smoothstep(0.82, 1.0, height01);
+    float flow = coarseFlow(vec2(vBeamUv.x * 8.0, vBeamUv.y * 21.0), vStratumPhase);
+    float steppedGap = mix(0.58, 1.0, step(0.34, flow + lateral * 0.22));
+    float viewDensity = mix(0.28, 1.0, smoothstep(0.08, 0.82, facing));
+    float layerDensity = mix(0.7, 1.12, vBeamLayer);
+    float alpha = clamp(
+      uStrength * 2.35 * viewDensity * layerDensity * steppedGap * sourceFade *
+        pickupFade * edgeMask,
+      0.0,
+      0.32
+    );
+    if (alpha < 0.002) discard;
+    vec3 col = quantize5Bit(uColor * mix(0.78, 1.12, vBeamLayer));
+    gl_FragColor = vec4(col, alpha);
 #else
     // Signal beams retain the smoother portal/stone vocabulary. This avoids
     // applying the ambient PSone profile to authored gameplay indicators.
@@ -202,6 +235,8 @@ export interface VolumetricBeamOptions {
   readonly toneMapped?: boolean;
   /** Radius at the ceiling opening; defaults to a small non-zero source. */
   readonly topRadius?: number;
+  /** Thin open objective strata; the default signal profile remains portal-safe. */
+  readonly signalStyle?: "smooth" | "objective";
 }
 
 function makeBeamMaterial(
@@ -213,6 +248,7 @@ function makeBeamMaterial(
   options: VolumetricBeamOptions,
 ): THREE.ShaderMaterial {
   const ambient = options.role === "ambient";
+  const objective = !ambient && options.signalStyle === "objective";
   const material = new THREE.ShaderMaterial({
     vertexShader: BEAM_VERTEX_SHADER,
     fragmentShader: BEAM_FRAGMENT_SHADER,
@@ -227,17 +263,21 @@ function makeBeamMaterial(
         uBottomRadius: { value: bottomRadius },
       },
     ]),
-    defines: ambient ? { AMBIENT_RETRO_PROFILE: 1 } : {},
+    defines: ambient
+      ? { AMBIENT_STRATA_PROFILE: 1 }
+      : objective
+        ? { OBJECTIVE_STRATA_PROFILE: 1 }
+        : {},
     transparent: true,
     depthWrite: false,
     depthTest: true,
-    side: ambient ? THREE.BackSide : THREE.DoubleSide,
+    side: THREE.DoubleSide,
     blending: options.blending ?? THREE.AdditiveBlending,
     toneMapped: options.toneMapped ?? false,
     fog: options.fog ?? false,
   });
   material.forceSinglePass = true;
-  material.name = `${ambient ? "Retro ambient world" : "World"} volumetric beam material`;
+  material.name = `${ambient ? "Retro ambient strata" : objective ? "Objective strata" : "World"} volumetric beam material`;
   material.userData.volumetricSpace = "world";
   material.userData.screenSpace = false;
   return material;
@@ -247,9 +287,9 @@ function makeBeamGeometry(
   sourceRadius: number,
   bottomRadius: number,
   height: number,
-  ambient: boolean,
+  profile: "signal" | "ambient" | "objective",
 ): THREE.BufferGeometry {
-  if (!ambient) {
+  if (profile === "signal") {
     const geometry = new THREE.CylinderGeometry(sourceRadius, bottomRadius, height, 20, 8, true);
     geometry.translate(0, -height / 2, 0);
     geometry.userData.radialSegments = 20;
@@ -258,16 +298,98 @@ function makeBeamGeometry(
     return geometry;
   }
 
-  const indexed = new THREE.CylinderGeometry(sourceRadius, bottomRadius, height, 8, 4, true);
-  const geometry = indexed.toNonIndexed();
-  indexed.dispose();
-  geometry.translate(0, -height / 2, 0);
+  const ambient = profile === "ambient";
+  const strata = ambient ? 6 : 4;
+  const broadStrata = ambient ? 3 : 2;
+  const heightSegments = ambient ? 3 : 4;
+  const widthScales = ambient ? [0.95, 0.78, 0.65, 0.38, 0.32, 0.27] : [0.42, 0.34, 0.25, 0.2];
+  const positions: number[] = [];
+  const uvs: number[] = [];
+  const layers: number[] = [];
+  const phases: number[] = [];
+
+  const pushVertex = (
+    x: number,
+    y: number,
+    z: number,
+    u: number,
+    v: number,
+    layer: number,
+    phase: number,
+  ) => {
+    positions.push(x, y, z);
+    uvs.push(u, v);
+    layers.push(layer);
+    phases.push(phase);
+  };
+
+  for (let stratum = 0; stratum < strata; stratum += 1) {
+    const layer = stratum < broadStrata ? 0 : 1;
+    const layerIndex = layer === 0 ? stratum : stratum - broadStrata;
+    const layerCount = layer === 0 ? broadStrata : strata - broadStrata;
+    const angle = (layerIndex / layerCount) * Math.PI + (layer === 1 ? Math.PI / (strata + 2) : 0);
+    const directionX = Math.sin(angle);
+    const directionZ = Math.cos(angle);
+    const perpendicularX = directionZ;
+    const perpendicularZ = -directionX;
+    const widthScale = widthScales[stratum]!;
+    const phase = stratum / strata;
+    const offsetBias = Math.sin((stratum + 1) * 1.73) * bottomRadius * (ambient ? 0.075 : 0.045);
+
+    for (let segment = 0; segment < heightSegments; segment += 1) {
+      const topT = segment / heightSegments;
+      const bottomT = (segment + 1) / heightSegments;
+      const topRadius = THREE.MathUtils.lerp(sourceRadius, bottomRadius, topT) * widthScale;
+      const lowerRadius = THREE.MathUtils.lerp(sourceRadius, bottomRadius, bottomT) * widthScale;
+      const topOffset = offsetBias * topT;
+      const lowerOffset = offsetBias * bottomT;
+      const topY = -height * topT;
+      const lowerY = -height * bottomT;
+      const topLeft: readonly [number, number, number] = [
+        perpendicularX * topOffset - directionX * topRadius,
+        topY,
+        perpendicularZ * topOffset - directionZ * topRadius,
+      ];
+      const topRight: readonly [number, number, number] = [
+        perpendicularX * topOffset + directionX * topRadius,
+        topY,
+        perpendicularZ * topOffset + directionZ * topRadius,
+      ];
+      const lowerLeft: readonly [number, number, number] = [
+        perpendicularX * lowerOffset - directionX * lowerRadius,
+        lowerY,
+        perpendicularZ * lowerOffset - directionZ * lowerRadius,
+      ];
+      const lowerRight: readonly [number, number, number] = [
+        perpendicularX * lowerOffset + directionX * lowerRadius,
+        lowerY,
+        perpendicularZ * lowerOffset + directionZ * lowerRadius,
+      ];
+
+      pushVertex(...topLeft, 0, topT, layer, phase);
+      pushVertex(...lowerLeft, 0, bottomT, layer, phase);
+      pushVertex(...lowerRight, 1, bottomT, layer, phase);
+      pushVertex(...topLeft, 0, topT, layer, phase);
+      pushVertex(...lowerRight, 1, bottomT, layer, phase);
+      pushVertex(...topRight, 1, topT, layer, phase);
+    }
+  }
+
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+  geometry.setAttribute("uv", new THREE.Float32BufferAttribute(uvs, 2));
+  geometry.setAttribute("aBeamLayer", new THREE.Float32BufferAttribute(layers, 1));
+  geometry.setAttribute("aStratumPhase", new THREE.Float32BufferAttribute(phases, 1));
   geometry.computeVertexNormals();
-  geometry.name = "Eight-sided retro ambient light shaft";
-  geometry.userData.radialSegments = 8;
-  geometry.userData.heightSegments = 4;
-  geometry.userData.triangles = 64;
-  geometry.userData.flatFacets = true;
+  geometry.name = ambient
+    ? "Open crossed retro ambient light strata"
+    : "Open crossed objective light strata";
+  geometry.userData.closedVolume = false;
+  geometry.userData.strata = strata;
+  geometry.userData.broadStrata = broadStrata;
+  geometry.userData.narrowStrata = strata - broadStrata;
+  geometry.userData.heightSegments = heightSegments;
+  geometry.userData.triangles = strata * heightSegments * 2;
   return geometry;
 }
 
@@ -290,7 +412,13 @@ export function createVolumetricBeam(
   const bottomRadius = Math.max(0.02, radius);
   const sourceRadius = Math.max(0.04, options.topRadius ?? Math.min(bottomRadius * 0.24, 0.28));
   const ambient = options.role === "ambient";
-  const geometry = makeBeamGeometry(sourceRadius, bottomRadius, shaftHeight, ambient);
+  const objective = !ambient && options.signalStyle === "objective";
+  const geometry = makeBeamGeometry(
+    sourceRadius,
+    bottomRadius,
+    shaftHeight,
+    ambient ? "ambient" : objective ? "objective" : "signal",
+  );
   const material = makeBeamMaterial(
     color,
     strength,
@@ -306,7 +434,11 @@ export function createVolumetricBeam(
   beam.userData.volumetricSpace = "world";
   beam.userData.screenSpace = false;
   beam.userData.beamRole = options.role ?? "signal";
-  beam.userData.profile = ambient ? "retro-faceted" : "signal-smooth";
+  beam.userData.profile = ambient
+    ? "retro-crossed-strata"
+    : objective
+      ? "objective-strata"
+      : "signal-smooth";
   beam.userData.sourceRadius = sourceRadius;
   beam.userData.bottomRadius = bottomRadius;
   beam.userData.height = shaftHeight;

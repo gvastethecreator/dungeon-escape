@@ -288,7 +288,7 @@ describe("integrated dungeon lighting", () => {
     expect(beam.userData.screenSpace).toBe(false);
   });
 
-  test("ambient shafts opt into scene fog, tone mapping, and normal blending", () => {
+  test("ambient shafts use open crossed strata with scene fog and normal blending", () => {
     const beam = createVolumetricBeam(0xc8c0b0, 4.2, 0.8, 0.1, {
       role: "ambient",
       blending: THREE.NormalBlending,
@@ -299,14 +299,15 @@ describe("integrated dungeon lighting", () => {
     expect(mat.blending).toBe(THREE.NormalBlending);
     expect(mat.fog).toBe(true);
     expect(mat.toneMapped).toBe(true);
-    expect(mat.side).toBe(THREE.BackSide);
+    expect(mat.side).toBe(THREE.DoubleSide);
     expect(mat.forceSinglePass).toBe(true);
-    expect(mat.defines?.AMBIENT_RETRO_PROFILE).toBe(1);
+    expect(mat.defines?.AMBIENT_STRATA_PROFILE).toBe(1);
     expect(mat.fragmentShader).toContain("bayer4");
     expect(mat.fragmentShader).toContain("quantize5Bit");
     expect(mat.fragmentShader).toContain("vBeamUv");
-    expect(mat.fragmentShader).toContain("cameraInside");
-    expect(mat.vertexShader).toContain("vCameraLocal");
+    expect(mat.fragmentShader).toContain("coarseFlow");
+    expect(mat.vertexShader).toContain("aBeamLayer");
+    expect(mat.vertexShader).toContain("aStratumPhase");
     expect(mat.fragmentShader).toContain("#include <tonemapping_fragment>");
     expect(mat.fragmentShader).toContain("#include <colorspace_fragment>");
     expect(mat.fragmentShader).not.toContain("gl_FragCoord");
@@ -320,18 +321,36 @@ describe("integrated dungeon lighting", () => {
     expect(beam.userData.sourceRadius).toBeGreaterThan(0.04);
     expect(mat.uniforms.uTopRadius.value).toBe(beam.userData.sourceRadius);
     expect(mat.uniforms.uBottomRadius.value).toBe(beam.userData.bottomRadius);
-    expect(beam.userData.profile).toBe("retro-faceted");
-    expect(beam.geometry.userData.radialSegments).toBe(8);
-    expect(beam.geometry.userData.heightSegments).toBe(4);
-    expect(beam.geometry.userData.triangles).toBe(64);
+    expect(beam.userData.profile).toBe("retro-crossed-strata");
+    expect(beam.geometry.userData.closedVolume).toBe(false);
+    expect(beam.geometry.userData.strata).toBe(6);
+    expect(beam.geometry.userData.broadStrata).toBe(3);
+    expect(beam.geometry.userData.narrowStrata).toBe(3);
+    expect(beam.geometry.userData.heightSegments).toBe(3);
+    expect(beam.geometry.userData.triangles).toBe(36);
     expect(beam.geometry.index).toBeNull();
-    expect(beam.geometry.getAttribute("position").count).toBe(192);
-    const normals = beam.geometry.getAttribute("normal");
-    for (let index = 1; index < 6; index += 1) {
-      expect(normals.getX(index)).toBeCloseTo(normals.getX(0), 6);
-      expect(normals.getY(index)).toBeCloseTo(normals.getY(0), 6);
-      expect(normals.getZ(index)).toBeCloseTo(normals.getZ(0), 6);
-    }
+    expect(beam.geometry.getAttribute("position").count).toBe(108);
+    expect(beam.geometry.getAttribute("aBeamLayer").count).toBe(108);
+    expect(beam.geometry.getAttribute("aStratumPhase").count).toBe(108);
+  });
+
+  test("objective shafts use thin open strata without changing the portal default", () => {
+    const objective = createVolumetricBeam(0xb04a28, 3.8, 0.56, 0.12, {
+      signalStyle: "objective",
+      topRadius: 0.1,
+    });
+    const portal = createVolumetricBeam(0x66aacc, 4.15, 1.05, 0.18);
+    const objectiveMaterial = objective.material as THREE.ShaderMaterial;
+
+    expect(objective.userData.profile).toBe("objective-strata");
+    expect(objective.geometry.userData.closedVolume).toBe(false);
+    expect(objective.geometry.userData.strata).toBe(4);
+    expect(objectiveMaterial.defines?.OBJECTIVE_STRATA_PROFILE).toBe(1);
+    expect(objectiveMaterial.side).toBe(THREE.DoubleSide);
+    expect(portal.userData.profile).toBe("signal-smooth");
+    expect(
+      (portal.material as THREE.ShaderMaterial).defines?.OBJECTIVE_STRATA_PROFILE,
+    ).toBeUndefined();
   });
 
   test("wall torch keeps spherical halos and no forward light cone", () => {

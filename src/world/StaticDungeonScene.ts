@@ -167,6 +167,8 @@ export interface StaticPickupActor {
     light: THREE.PointLight;
     glow: THREE.Mesh;
     crown: THREE.Mesh;
+    crystalAssembly: THREE.Group;
+    effectColor: number;
     baseLightIntensity: number;
     baseGlowOpacity: number;
   };
@@ -3255,11 +3257,16 @@ export class StaticDungeonScene {
           light: stone.light,
           glow: stone.glow,
           crown: stone.crown,
+          crystalAssembly: stone.crystalAssembly,
+          effectColor: stone.effectColor,
           baseLightIntensity: stone.baseLightIntensity,
           baseGlowOpacity: stone.baseGlowOpacity,
         },
       });
-      const beam = createVolumetricBeam(stone.emissive, 3.8, 0.78, 0.2);
+      const beam = createVolumetricBeam(stone.effectColor, 3.8, 0.5, 0.095, {
+        signalStyle: "objective",
+        topRadius: 0.1,
+      });
       beam.position.set(stone.root.position.x, this.wallHeight - 0.03, stone.root.position.z);
       beam.name = `${stoneId} magic stone beacon`;
       this.stoneBeams.push(beam);
