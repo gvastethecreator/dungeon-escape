@@ -1,4 +1,4 @@
-import type { LeaderboardEntry, PlayerBiomeStars, ValidLeaderboardSubmission } from "./contract";
+import type { LeaderboardEntry, PlayerBiomeStars, ValidLeaderboardSubmission } from "./contract.ts";
 
 export type HallStorageSource = "local" | "test" | "d1";
 export type HallSqlBinding = string | number | null;

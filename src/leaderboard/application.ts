@@ -4,8 +4,8 @@ import {
   type LeaderboardCreateResponse,
   type LeaderboardErrorResponse,
   type LeaderboardListResponse,
-} from "./contract";
-import type { LeaderboardRepository } from "./repository";
+} from "./contract.ts";
+import type { LeaderboardRepository } from "./repository.ts";
 
 export type HallBodyReadResult =
   | { readonly ok: true; readonly source: string }
