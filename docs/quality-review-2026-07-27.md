@@ -66,8 +66,10 @@ The raw maximum closes a telemetry defect: the former sample could not report ga
 
 ## Residual risks and next work
 
+> **Superseded (2026-07-31):** Architecture A1–A8 are accepted (see `docs/architecture/WORKPLAN.md` and ADR 0006). Only **A9** remains owner-deferred. Item 2 below is historical.
+
 1. Run a production, fixed-camera A/B profile with CPU and GPU timing. Compare trail enabled/disabled and record p95, p99, maximum, calls, textures, and memory.
-2. Decide whether to accept architecture items A1 and A2. They offer the safest ownership gain. Keep A4 and A5 deferred until current runtime and world work reach a clean checkpoint.
+2. ~~Decide whether to accept architecture items A1 and A2.~~ Done — A1–A8 landed; A9 still deferred.
 3. Settle the 26-file format backlog in its own reviewed change. Several files contain active work from other tasks.
 4. Audit the remaining active texture ownership. The editor no longer preloads every mood, while the world still needs its active and transition assets.
 5. Keep the large `engine` and Three.js chunks on the release backlog. The build warns at the 500 kB threshold.

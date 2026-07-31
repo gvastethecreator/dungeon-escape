@@ -648,6 +648,8 @@ export class AtmosphereSystem {
   private ceilingBaseSpeed = 0;
   /** 0..1 — biome event pulse (dustfall, cinderfall, …) intensifies ceiling fallers. */
   private eventPulse = 0;
+  /** 0..1 — clarity pickup thins soft volume fog and mist banks. */
+  private fogClearPulse = 0;
   private elapsed = 0;
   private readonly wallHeight: number;
   private readonly viewer = new THREE.Vector3();
@@ -671,10 +673,17 @@ export class AtmosphereSystem {
     this.applyCeilingEventPulse();
   }
 
+  /** Temporary clarity pickup: fade soft ground fog and mist banks. */
+  setFogClearPulse(amount: number): void {
+    this.fogClearPulse = THREE.MathUtils.clamp(amount, 0, 1);
+    this.applyFogClearPulse();
+  }
+
   setDungeon(dungeon: DungeonData, mood: DungeonMood = getDungeonMood("ash")): void {
     this.clear();
     this.elapsed = 0;
     this.eventPulse = 0;
+    this.fogClearPulse = 0;
     const random = createSeededRandom(`${dungeon.seed}:atmosphere`);
     const rooms = [...dungeon.rooms].sort((a, b) => b.width * b.height - a.width * a.height);
 
@@ -765,15 +774,18 @@ export class AtmosphereSystem {
         );
       }
     }
+    const clearFade = 1 - this.fogClearPulse * 0.94;
     for (const bank of this.mistBanks) {
       bank.sprite.position.y = bank.baseY + Math.sin(this.elapsed * 0.34 + bank.phase) * 0.1;
       bank.sprite.material.opacity =
-        bank.baseOpacity + (Math.sin(this.elapsed * 0.47 + bank.phase) * 0.5 + 0.5) * 0.02;
+        (bank.baseOpacity + (Math.sin(this.elapsed * 0.47 + bank.phase) * 0.5 + 0.5) * 0.02) *
+        clearFade;
     }
     if (this.softGroundFog) {
       this.softGroundFog.material.uniforms.uTime.value = this.elapsed;
       const pulse = 1 + Math.sin(this.elapsed * 0.17) * 0.03;
-      this.softGroundFog.material.uniforms.uDensity.value = this.softGroundFog.baseDensity * pulse;
+      this.softGroundFog.material.uniforms.uDensity.value =
+        this.softGroundFog.baseDensity * pulse * clearFade;
     }
     // All flow and the player wake run on the GPU; only tick shared uniforms.
     for (const material of [
@@ -797,12 +809,23 @@ export class AtmosphereSystem {
   private applyCeilingEventPulse(): void {
     if (!this.ceilingParticleMaterial) return;
     const pulse = this.eventPulse;
+    const clearFade = 1 - this.fogClearPulse * 0.72;
     this.ceilingParticleMaterial.uniforms.uOpacity.value = Math.min(
       1,
-      this.ceilingBaseOpacity * (1 + pulse * (CEILING_EVENT_OPACITY_BOOST - 1)),
+      this.ceilingBaseOpacity * (1 + pulse * (CEILING_EVENT_OPACITY_BOOST - 1)) * clearFade,
     );
     this.ceilingParticleMaterial.uniforms.uSpeed.value =
       this.ceilingBaseSpeed * (1 + pulse * (CEILING_EVENT_SPEED_BOOST - 1));
+  }
+
+  private applyFogClearPulse(): void {
+    // Ceiling opacity depends on both event and clarity pulses.
+    this.applyCeilingEventPulse();
+    for (const material of [this.supportParticleMaterial, this.signatureParticleMaterial]) {
+      if (!material) continue;
+      // Support/signature keep base authored opacity; only soft volume fog thins hard.
+      // No extra work here — mist + soft fog apply clearFade each frame.
+    }
   }
 
   private addSoftGroundFog(
@@ -933,6 +956,7 @@ export class AtmosphereSystem {
     this.ceilingBaseOpacity = 0;
     this.ceilingBaseSpeed = 0;
     this.eventPulse = 0;
+    this.fogClearPulse = 0;
 
     this.stats.mistBanks = 0;
     this.stats.motes = 0;

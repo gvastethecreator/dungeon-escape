@@ -184,9 +184,10 @@ export class LightingRig {
     this.playerFill.position.lerp(this.target, 1 - Math.exp(-10 * delta));
     const threat = nearestThreat !== null && nearestThreat < 6 ? 1 - nearestThreat / 6 : 0;
     // Threat closes the fog slightly and boosts the lantern — readable panic, not a full blackout.
+    // Multipliers below 1 come from the temporary clarity pickup (fog clear).
     this.fog.density = THREE.MathUtils.damp(
       this.fog.density,
-      this.baseFogDensity * THREE.MathUtils.clamp(explorationFogMultiplier, 1, 5.6) +
+      this.baseFogDensity * THREE.MathUtils.clamp(explorationFogMultiplier, 0.08, 5.6) +
         threat * 0.0035,
       1.7,
       delta,

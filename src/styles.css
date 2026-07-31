@@ -3270,6 +3270,17 @@ kbd {
   transform: rotate(45deg) scale(0.86);
 }
 
+.pickup-feedback[data-kind="clarity"] {
+  border-color: rgb(168 216 239 / 55%);
+  box-shadow: 0 0 18px rgb(120 190 220 / 28%);
+}
+
+.pickup-feedback[data-kind="clarity"] .pickup-mark {
+  border-color: #d2eefc;
+  background: rgb(168 216 239 / 42%);
+  box-shadow: 0 0 10px rgb(120 190 220 / 62%);
+}
+
 .pickup-copy {
   display: grid;
   gap: 2px;
@@ -3487,6 +3498,48 @@ kbd {
 .luminous-ward-status[data-urgent] {
   border-right-color: #efffd7;
   animation: luminous-ward-pulse 560ms steps(2, end) infinite;
+}
+
+.fog-clear-status {
+  display: grid;
+  gap: 3px;
+  min-width: 10ch;
+  padding: 5px 8px 5px 10px;
+  border-right: 2px solid rgb(168 216 239 / 82%);
+  background: linear-gradient(90deg, transparent, rgb(10 22 32 / 90%) 26%);
+  color: #d2eefc;
+  font-family: var(--font-pixel);
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  line-height: 1;
+  text-align: right;
+  text-shadow: 0 0 10px rgb(120 190 220 / 55%);
+}
+
+.fog-clear-status[hidden] {
+  display: none;
+}
+
+.fog-clear-status__label {
+  color: rgb(210 238 252 / 74%);
+  font-size: 9px;
+}
+
+.fog-clear-status time {
+  font-size: 15px;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.08em;
+}
+
+.fog-clear-status[data-urgent] {
+  border-right-color: #e8f7ff;
+  animation: fog-clear-pulse 540ms steps(2, end) infinite;
+}
+
+@keyframes fog-clear-pulse {
+  50% {
+    filter: brightness(1.35);
+  }
 }
 
 .annihilation-pulse-status {

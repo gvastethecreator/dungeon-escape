@@ -76,6 +76,15 @@ Imported Forge maps now fail closed as session-only under
 [ADR 0005](../adr/0005-forge-imports-are-session-only.md). A7 and A8 were accepted afterward; see
 [ADR 0006](../adr/0006-runtime-assets-and-lazy-campaign.md). A9 remains deferred and requires explicit owner acceptance.
 
+## Completed maintenance deepenings — 2026-07-31
+
+Exactly ten small/medium pure-module deepenings landed under
+[architecture-review-2026-07-31.md](architecture-review-2026-07-31.md)
+and `.scratch/dungeon-maint-architecture-batch/`. Covers timed HUD chips, enemy contact
+vertical vault, combat pose constants, music track policy, creature voice / audio frame
+projection, hazard traversal damage policy, enemy activation filters, play-step damage
+intent, and interaction reach helpers. A9 remains deferred.
+
 ## Completed VFX architecture follow-up — 2026-07-30
 
 Exactly ten improvements were completed and integrated. Canonical outcomes are in the

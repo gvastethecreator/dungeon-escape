@@ -28,6 +28,7 @@ export const MINIMAP_COLORS = {
   annihilationPulse: "#ff5d86",
   map: "#d5bd7a",
   mobility: "#72d45f",
+  clarity: "#a8d8ef",
   stairs: "#d7d2c4",
   relic: "#8a4fb0",
   door: "#3a3d3a",
@@ -335,6 +336,7 @@ function drawFeatures(
   for (const [cell, color, shape] of [
     [features.map, COLORS.map, "square"],
     [features.mobility, COLORS.mobility, "circle"],
+    [features.clarity, COLORS.clarity, "circle"],
   ] as const) {
     if (!cell || !isExplored(cell.x, cell.y)) continue;
     const [cx, cy] = cellCenter(cell);

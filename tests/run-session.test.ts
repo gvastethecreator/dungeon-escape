@@ -211,6 +211,18 @@ describe("RunSession applyWorldUpdate", () => {
       playPickup: true,
       sessionChanged: true,
     });
+
+    const clarity = applyWorldUpdate(
+      session,
+      quest,
+      emptyUpdate({ collectedPickupKind: "clarity" }),
+    );
+    expect(clarity).toMatchObject({
+      status: COPY.status.clarity,
+      pickup: { label: COPY.pickup.clarity, fogClear: true },
+      playPickup: true,
+      sessionChanged: true,
+    });
     expect(session.resolve).toBe(64);
   });
 

@@ -29,6 +29,21 @@ describe("pause options behavior", () => {
     expect(handler).toContain("resumePlay();");
   });
 
+  test("Escape resume does not reopen pause when pointer lock is refused", async () => {
+    const main = await Bun.file(new URL("../src/main.ts", import.meta.url)).text();
+    expect(main).toContain("suppressPauseOnPointerUnlock");
+    expect(main).toContain("suppressPauseOnPointerUnlock = true");
+    expect(main).toContain("!suppressPauseOnPointerUnlock");
+    expect(main).toContain("COPY.status.pointerFailed");
+    // Intentional resume must not treat a failed re-lock as a fresh pause open.
+    const onLock = main.slice(
+      main.indexOf("onLockChange(locked, message)"),
+      main.indexOf("const editorView = new DungeonEditorView"),
+    );
+    expect(onLock).toContain("!suppressPauseOnPointerUnlock");
+    expect(onLock).toContain("setStatus(COPY.status.pointerFailed)");
+  });
+
   test("auto-saves a completed campaign with the persisted player identity", async () => {
     const main = await Bun.file(new URL("../src/main.ts", import.meta.url)).text();
     expect(main).toContain("queueMicrotask(() => void submitPreparedLeaderboardEntry())");
