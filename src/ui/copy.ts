@@ -43,7 +43,7 @@ export const COPY = {
     enterPlay: "Click the scene to explore. ESC opens options.",
     forgingMap: "Forging the dungeon…",
     enteringDungeon: "Entering the depths…",
-    exploring: "WASD move · SHIFT sprint · SPACE jump · E interact · ESC options.",
+    exploring: "WASD move · SHIFT sprint · SPACE double jump · E interact · ESC options.",
     pointerReleased: "Paused. ESC or RESUME to continue.",
     pointerFailed: "Could not capture the pointer. Click the scene to retry.",
     pointerBlocked: "The browser blocked the pointer. Click the scene to retry.",
@@ -86,7 +86,7 @@ export const COPY = {
     /** Disabled Next run CTA (final biome, death, or not yet unlocked). */
     nextRun: "Next run",
     /** Victory CTA after Hall save when a harder biome remains. */
-    nextBiome: (label: string) => `Next: ${label}`,
+    nextBiome: (label: string) => `Next level · ${label}`,
     /** Victory note after Hall save on the final campaign biome. */
     finalBiomeSaved: "Final biome cleared. The hall remembers this escape.",
   },

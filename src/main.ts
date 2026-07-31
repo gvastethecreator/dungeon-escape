@@ -21,6 +21,7 @@ import { parseForgeDungeonMessage, type ForgeDungeonIntakeValue } from "./dungeo
 import type { DungeonData } from "./dungeon/types";
 import { DungeonEditorView } from "./editor/DungeonEditorView";
 import { type EngineMode, isEngineMode } from "./game/EngineMode";
+import { MOBILITY_BOOST_FOOTSTEP_GAIN } from "./game/MobilityBoost";
 import { createBrowserForgeFramePort, ForgeFrameClient } from "./forge/ForgeFrameClient";
 import {
   difficultyLabel,
@@ -288,6 +289,7 @@ const elements = {
   bootFill: requireElement<HTMLElement>("#boot-fill"),
   bootStatus: requireElement<HTMLElement>("#boot-status"),
   sceneFade: requireElement<HTMLElement>("#scene-fade"),
+  sceneLoader: requireElement<HTMLElement>("#scene-loader"),
   runIntroStatus: requireElement<HTMLElement>("#run-intro-status"),
   crtToggle: requireElement<HTMLButtonElement>("#crt-toggle"),
   editorWorkspace: requireElement<HTMLElement>("#editor-workspace"),
@@ -800,8 +802,9 @@ function setWelcomeOpen(open: boolean): void {
     window.requestAnimationFrame(focusWelcomeEntry);
   } else {
     elements.scene.focus({ preventScroll: true });
-    // Leaving the welcome screen for play or editor stops the menu bed.
-    if (playRuntime.state().runMode === "playing") setMusicBed(null);
+    // Leave the menu bed: restore exploration/portal music if a run is live.
+    if (playRuntime.state().runMode === "playing") setActiveBiomeMusic();
+    else setMusicBed(null);
   }
 }
 
@@ -937,13 +940,21 @@ function startNewGameWithBiome(biomeId: BiomeId): void {
   });
 }
 
-/** Soft 8-bit scene beds. Menu / end screens keep music while play SFX are paused. */
+/** Scene beds. Menu / end screens keep music while play SFX are paused. */
 function setMusicBed(track: MusicTrack | null): void {
   audio.setMusicTrack(track);
 }
 
+/** Exploration bed, or denser portal bed once all four stones are bound. */
 function setActiveBiomeMusic(): void {
-  setMusicBed(dungeon ? musicTrackForBiome(resolveActiveMood(dungeon).id) : null);
+  if (!dungeon) {
+    setMusicBed(null);
+    return;
+  }
+  const portalOpen = playRuntime.state().quest.portalOpen;
+  setMusicBed(
+    musicTrackForBiome(resolveActiveMood(dungeon).id, { portalOpen }),
+  );
 }
 
 function readStoredMusicMuted(): boolean {
@@ -1030,16 +1041,48 @@ function waitMs(ms: number, signal?: AbortSignal): Promise<void> {
   });
 }
 
+function isSceneFadeCovering(): boolean {
+  return (
+    !elements.sceneFade.hidden && elements.sceneFade.classList.contains("is-opaque")
+  );
+}
+
+/** Map-build spinner only. Black fades used for theater bookends stay clean. */
+function setSceneLoaderVisible(visible: boolean): void {
+  elements.sceneLoader.hidden = !visible;
+  elements.sceneLoader.setAttribute("aria-hidden", visible ? "false" : "true");
+}
+
+/**
+ * While the isometric Forge theater is ready to be seen, raise it above the
+ * global scene-fade (z-index 55). Otherwise a stuck or mid-transition fade
+ * permanently hides the map animation and looks like a failed texture load.
+ */
+function setIntroTheaterRevealed(revealed: boolean): void {
+  if (revealed) elements.shell.dataset.introReveal = "true";
+  else delete elements.shell.dataset.introReveal;
+}
+
 async function setSceneFadeOpaque(
   opaque: boolean,
-  options: { instant?: boolean; durationMs?: number; signal?: AbortSignal } = {},
+  options: {
+    instant?: boolean;
+    durationMs?: number;
+    signal?: AbortSignal;
+    /** When covering, show the "Loading dungeon" spinner. Default true. */
+    showLoader?: boolean;
+  } = {},
 ): Promise<void> {
   if (options.signal?.aborted) return;
   const fade = elements.sceneFade;
   const instant = Boolean(options.instant) || REDUCED_MOTION_QUERY.matches;
   const durationMs = options.durationMs ?? (opaque ? SCENE_FADE_OUT_MS : SCENE_FADE_IN_MS);
   if (opaque) {
+    // Play bookends must cover Forge again; build covers keep theater hidden.
+    if (options.showLoader === false) setIntroTheaterRevealed(false);
     fade.hidden = false;
+    // Build swaps may ride the spinner; isometric/FPS bookends use a clean veil.
+    setSceneLoaderVisible(options.showLoader !== false);
     fade.setAttribute("aria-hidden", "false");
     if (instant) {
       fade.classList.add("is-instant");
@@ -1053,6 +1096,11 @@ async function setSceneFadeOpaque(
     void fade.offsetWidth;
     fade.classList.add("is-opaque");
   } else {
+    // Always drop the spinner before revealing the world or isometric theater.
+    setSceneLoaderVisible(false);
+    // Only raise Forge above residual fade once we intentionally reveal the
+    // theater — never while a previous Creation layout might still be on screen.
+    if (isRunIntroActive()) setIntroTheaterRevealed(true);
     if (instant) {
       fade.classList.add("is-instant");
       fade.classList.remove("is-opaque");
@@ -1095,15 +1143,25 @@ const runIntroDirector = new RunIntroDirector({
     setOptionsOpen(false);
   },
   refreshProcedural() {
+    // Never regenerate a cosmetic Forge layout while the map theater is about to
+    // host the real play dungeon — that second build is a visible pop-in and a
+    // wasted full scene rebuild on the critical New Game path.
+    if (isRunIntroActive() || elements.shell.dataset.runIntroInputGate === "true") return;
     forgeFrameClient.setProceduralSeed(makeProceduralSeed());
   },
   fade(target, options, signal) {
     return setSceneFadeOpaque(target === "opaque", { ...options, signal });
   },
+  clearLoader() {
+    // Drop the spinner only. Keep the black fade ABOVE Forge until fade("clear")
+    // so a leftover Creation/procedural map cannot flash before the host layout.
+    setSceneLoaderVisible(false);
+  },
   enterTheater() {
     if (engineMode === "play") {
       setEngineMode("editor", { hydrate: false, persist: false });
     }
+    setIntroTheaterRevealed(false);
     setRunIntroActive(true, COPY.status.forgingMap);
     setEditorSurface("forge");
     setMapToolsOpen(false);
@@ -1113,6 +1171,7 @@ const runIntroDirector = new RunIntroDirector({
     setRunIntroStatus(COPY.status.enteringDungeon);
   },
   leaveTheater() {
+    setIntroTheaterRevealed(false);
     setRunIntroActive(false);
     forgeFrameClient.setVisible(false);
   },
@@ -1125,7 +1184,7 @@ const runIntroDirector = new RunIntroDirector({
   async buildWorld(seed, signal) {
     if (signal.aborted) return { ok: false, message: "cancelled" };
     try {
-      buildDungeon(seed);
+      await buildDungeon(seed);
       if (signal.aborted) return { ok: false, message: "cancelled" };
       if (!dungeon) return { ok: false, message: "Could not generate the dungeon." };
       return { ok: true, dungeon };
@@ -1170,6 +1229,8 @@ const runIntroDirector = new RunIntroDirector({
   },
   recoverToWelcome(message) {
     delete elements.shell.dataset.runIntroInputGate;
+    setIntroTheaterRevealed(false);
+    setSceneLoaderVisible(false);
     setRunIntroActive(false);
     forgeFrameClient.setVisible(false);
     setWelcomeOpen(true);
@@ -1178,9 +1239,11 @@ const runIntroDirector = new RunIntroDirector({
   resetIntro(destination) {
     controller.setEnabled(false);
     if (destination !== "superseded") delete elements.shell.dataset.runIntroInputGate;
+    setIntroTheaterRevealed(false);
+    setSceneLoaderVisible(false);
     setRunIntroActive(false);
     forgeFrameClient.setVisible(false);
-    void setSceneFadeOpaque(false, { instant: true });
+    void setSceneFadeOpaque(false, { instant: true, showLoader: false });
     if (destination === "cancelled") setWelcomeOpen(true);
   },
 });
@@ -1447,10 +1510,56 @@ function beginRendererWarmup(): number {
   return renderWarmupSequence;
 }
 
+function markRendererWarmupReady(
+  sequence: number,
+  state: "true" | "error" | "timeout",
+  readyMessage: string,
+  detail?: string,
+  readyMs?: number,
+): void {
+  if (sequence !== renderWarmupSequence || renderWarmupReady) return;
+  renderWarmupReady = true;
+  elements.shell.dataset.rendererReady = state;
+  controller.setEnabled(canEnablePlayController());
+  if (state === "error") {
+    console.error("Dungeon renderer warmup failed", detail);
+    if (localDevTools) {
+      setStatus(`${readyMessage} Renderer warmup failed: ${detail ?? "unknown error"}.`);
+    } else if (engineMode === "play") {
+      setStatus(COPY.status.enterPlay);
+    } else {
+      setStatus(readyMessage);
+    }
+    return;
+  }
+  if (state === "timeout") {
+    if (localDevTools) setStatus(`${readyMessage} Renderer warmup timed out.`);
+    else if (engineMode === "play") setStatus(COPY.status.enterPlay);
+    else setStatus(readyMessage);
+    return;
+  }
+  elements.shell.dataset.renderPath = renderCaps.telemetryPath;
+  if (localDevTools && readyMs !== undefined) {
+    setStatus(`${readyMessage} Renderer ready in ${readyMs}ms.`);
+  } else if (engineMode === "play") {
+    setStatus(COPY.status.enterPlay);
+  } else {
+    setStatus(readyMessage);
+  }
+}
+
 function startRendererWarmup(sequence: number, readyMessage: string): void {
   if (localDevTools) setStatus("Preparing renderer...");
+  // Never leave the load cover waiting forever if rAF is delayed or the first
+  // draw stalls. Parents (intro / rebuild cover) wait on renderWarmupReady.
+  const failsafe = window.setTimeout(() => {
+    markRendererWarmupReady(sequence, "timeout", readyMessage);
+  }, 4_000);
   window.requestAnimationFrame(() => {
-    if (sequence !== renderWarmupSequence) return;
+    if (sequence !== renderWarmupSequence) {
+      window.clearTimeout(failsafe);
+      return;
+    }
     const startedAt = performance.now();
     let warmupError: unknown = null;
     world.setPickupEffectsWarmupVisible(true);
@@ -1462,34 +1571,21 @@ function startRendererWarmup(sequence: number, readyMessage: string): void {
       warmupError = error;
     } finally {
       world.setPickupEffectsWarmupVisible(false);
+      window.clearTimeout(failsafe);
     }
 
-    if (sequence !== renderWarmupSequence) return;
-    renderWarmupReady = true;
-    elements.shell.dataset.rendererReady = warmupError === null ? "true" : "error";
-    controller.setEnabled(canEnablePlayController());
     if (warmupError !== null) {
       const detail = warmupError instanceof Error ? warmupError.message : "unknown error";
-      console.error("Dungeon renderer warmup failed", warmupError);
-      if (localDevTools) {
-        setStatus(`${readyMessage} Renderer warmup failed: ${detail}.`);
-      } else if (engineMode === "play") {
-        setStatus(COPY.status.enterPlay);
-      } else {
-        setStatus(readyMessage);
-      }
+      markRendererWarmupReady(sequence, "error", readyMessage, detail);
       return;
     }
-
-    elements.shell.dataset.renderPath = renderCaps.telemetryPath;
-    const readyMs = Math.round(performance.now() - startedAt);
-    if (localDevTools) {
-      setStatus(`${readyMessage} Renderer ready in ${readyMs}ms.`);
-    } else if (engineMode === "play") {
-      setStatus(COPY.status.enterPlay);
-    } else {
-      setStatus(readyMessage);
-    }
+    markRendererWarmupReady(
+      sequence,
+      "true",
+      readyMessage,
+      undefined,
+      Math.round(performance.now() - startedAt),
+    );
   });
 }
 
@@ -1558,9 +1654,10 @@ function syncQuestHud(): void {
   elements.shell.classList.toggle("has-relic", portalOpen);
   elements.shell.dataset.stones = String(stonesFound);
 
-  // Portal-open beat: one banner when the fourth stone binds.
+  // Portal-open beat: one banner when the fourth stone binds, and escalate the music bed.
   if (portalOpen && !quest.escaped && !lastPortalBanner) {
     lastPortalBanner = true;
+    setActiveBiomeMusic();
     const finalFloor = !dungeon?.floor || dungeon.floor.index === dungeon.floor.count - 1;
     showObjectiveBanner(
       finalFloor ? COPY.objective.openPortal : "All stones bound. Take the stairs to the portal",
@@ -1642,16 +1739,47 @@ function resumePlay(): void {
   }
 }
 
+let mapRebuildPending = false;
+
+/**
+ * End-overlay and pause-menu rebuilds swap the whole world.
+ * Cover the swap with the scene fade + loader and hold it until the new
+ * world's first frame is warm, so players never watch two layouts pop.
+ */
+async function rebuildDungeonCovered(build: () => void | Promise<unknown>): Promise<void> {
+  if (mapRebuildPending) return;
+  mapRebuildPending = true;
+  controller.setEnabled(false);
+  try {
+    await setSceneFadeOpaque(true, { durationMs: 180 });
+    await build();
+    // The reveal waits for the new world's compiled first frame; otherwise the
+    // old layout flashes through the fade and the new one pops in behind it.
+    await waitForRendererWarmup(10_000);
+  } catch (error) {
+    console.error("Dungeon rebuild failed", error);
+  } finally {
+    try {
+      await setSceneFadeOpaque(false, { durationMs: 240 });
+    } finally {
+      mapRebuildPending = false;
+      controller.setEnabled(canEnablePlayController());
+    }
+  }
+}
+
 /** Rebuild the current seed from the pause menu (same as R while options open). */
 function restartCurrentMap(): void {
   void audio.unlock();
   clearTouchSession();
   resumeTouchControls = false;
-  closeEndOverlay();
-  setOptionsOpen(false);
   campaignClearRecordedForRun = false;
-  buildDungeon();
-  setStatus(COPY.pause.restarted);
+  void rebuildDungeonCovered(async () => {
+    closeEndOverlay();
+    setOptionsOpen(false);
+    await buildDungeon();
+    setStatus(COPY.pause.restarted);
+  });
 }
 
 /** Leave play and open the welcome screen without wiping the continue save. */
@@ -1767,23 +1895,27 @@ function syncAnnihilationPulseHud(remaining = world.annihilationPulseRemaining):
   elements.annihilationPulseStatus.toggleAttribute("data-urgent", seconds <= 5);
 }
 
+/**
+ * Biome events (dustfall, whiteout, …) are environment pulses — falling grit,
+ * weather, light loops — not player buffs. Drive world ceiling particles + mild
+ * shell atmosphere; never surface a character-status chip next to ward / pulse.
+ */
 function syncBiomeEvent(snapshot?: BiomeEventSnapshot): void {
   const active = Boolean(snapshot?.active);
-  elements.biomeEventStatus.hidden = !active;
+  // Keep the legacy chip permanently off.
+  elements.biomeEventStatus.hidden = true;
+  // Soft non-precipitation tints only (whiteout / light-loop). Fall events
+  // (dustfall, cinderfall, spore-bloom, …) use AtmosphereSystem ceiling motes.
   elements.shell.dataset.biomeEvent = active && snapshot ? snapshot.id : "none";
+  atmosphere.setEventPulse(active ? 1 : 0);
   if (!active || !snapshot) {
     lastBiomeEventDisplay = "";
     return;
   }
-  const display = `${snapshot.remainingSeconds.toFixed(1)}s`;
-  elements.biomeEventLabel.textContent = snapshot.label.toUpperCase();
-  if (display !== lastBiomeEventDisplay) {
-    lastBiomeEventDisplay = display;
-    elements.biomeEventValue.textContent = display;
-    elements.biomeEventValue.dateTime = `PT${snapshot.remainingSeconds.toFixed(1)}S`;
-  }
   if (snapshot.started) {
-    setStatus(`${snapshot.label} started.`);
+    lastBiomeEventDisplay = snapshot.id;
+    // Soft world notice only — no countdown state on the character HUD.
+    setStatus(`${snapshot.label}.`);
     flash("event");
   }
 }
@@ -2524,7 +2656,39 @@ function bindAuthorityRunTransition(runId: string): void {
   }
 }
 
-function activateDungeon(
+/** One painted frame between heavy map-load steps so the fade/loader stays alive. */
+function yieldMapLoadFrame(): Promise<void> {
+  return waitAnimationFrames(1);
+}
+
+function publishMapLoadTelemetry(metrics: {
+  seed: string;
+  clearToReadyMs: number;
+  worldBuildMs: number;
+  atmosphereMs: number;
+  rooms: number;
+  floorCells: number;
+  props: number;
+  geometries: number;
+  textures: number;
+  programs: number;
+}): void {
+  const dataset = elements.scene.dataset;
+  dataset.mapLoadMs = String(Math.round(metrics.clearToReadyMs));
+  dataset.mapLoadWorldMs = String(Math.round(metrics.worldBuildMs));
+  dataset.mapLoadAtmosphereMs = String(Math.round(metrics.atmosphereMs));
+  dataset.mapLoadRooms = String(metrics.rooms);
+  dataset.mapLoadFloorCells = String(metrics.floorCells);
+  dataset.mapLoadProps = String(metrics.props);
+  dataset.mapLoadGeometries = String(metrics.geometries);
+  dataset.mapLoadTextures = String(metrics.textures);
+  dataset.mapLoadPrograms = String(metrics.programs);
+  if (localDevTools || launchConfig.performanceAudit) {
+    console.info("[map-load]", metrics);
+  }
+}
+
+async function activateDungeon(
   nextDungeon: DungeonData,
   message: string,
   params: DungeonEditorParams,
@@ -2532,7 +2696,7 @@ function activateDungeon(
     persistBuild?: boolean;
     restore?: RunResumeActivationPlan;
   } = {},
-): DungeonRuntimeState {
+): Promise<DungeonRuntimeState> {
   const persistBuild = options.persistBuild ?? true;
   if (persistBuild) {
     const captured = domainBridge.captureBuild({
@@ -2546,7 +2710,17 @@ function activateDungeon(
       throw error;
     }
   }
+  // Parent covers (intro, floor transition, rebuildDungeonCovered) own reveal.
+  // Never self-own a cover-and-wait here: that deadlocked first-map loads when
+  // the warmup rAF and the waiter both stalled behind the same fade.
+  // Only re-show the spinner while a black cover is already up for a real build.
+  if (isSceneFadeCovering()) setSceneLoaderVisible(true);
   const warmupSequence = beginRendererWarmup();
+  const loadStartedAt = performance.now();
+  const mayYieldDuringBuild = isSceneFadeCovering();
+  const yieldIfCovered = async (): Promise<void> => {
+    if (mayYieldDuringBuild) await yieldMapLoadFrame();
+  };
 
   dungeon = nextDungeon;
   forgePreviewDungeon = nextDungeon.forge ? nextDungeon : null;
@@ -2559,7 +2733,13 @@ function activateDungeon(
   if (!options.restore) floorExploration.start(nextDungeon, nextDungeon.spawn);
   const mood = applyDungeonMood(nextDungeon);
   applyAtmosphereFromParams();
-  let state = playRuntime.load({ dungeon, mood });
+  // Dispose previous world, optionally yield under an existing cover so GC can
+  // reclaim, then build the next floor. No yield without a cover — that flashed
+  // empty frames and could stall the first New Game path.
+  const worldStartedAt = performance.now();
+  let state = await playRuntime.loadWithYield({ dungeon, mood }, yieldIfCovered);
+  const worldBuildMs = performance.now() - worldStartedAt;
+  // Only re-upload textures whose sampling filters actually changed.
   applyTextureSmoothing(scene, userSettings.textureSmoothing);
   lastTimeFreezeDisplay = "";
   lastLuminousWardDisplay = "";
@@ -2578,7 +2758,10 @@ function activateDungeon(
   elements.healthOrb.dataset.damageKind = "enemy";
   lastRunTimerSecond = -1;
   syncRunTimer();
+  const atmosphereStartedAt = performance.now();
   atmosphere.setDungeon(dungeon, mood);
+  const atmosphereMs = performance.now() - atmosphereStartedAt;
+  await yieldIfCovered();
   controller.setDungeon(dungeon);
   controller.setBlockedCells([]);
   controller.setSolidColliders(world.getSolidColliders());
@@ -2643,6 +2826,18 @@ function activateDungeon(
   if (localDevTools) setStatus(message);
   else if (engineMode === "play") setStatus(COPY.status.enterPlay);
   else setStatus(message);
+  publishMapLoadTelemetry({
+    seed: nextDungeon.seed,
+    clearToReadyMs: performance.now() - loadStartedAt,
+    worldBuildMs,
+    atmosphereMs,
+    rooms: nextDungeon.stats.roomCount,
+    floorCells: nextDungeon.stats.floorCount,
+    props: world.stats.props,
+    geometries: renderer.info.memory.geometries,
+    textures: renderer.info.memory.textures,
+    programs: renderer.info.programs?.length ?? 0,
+  });
   startRendererWarmup(warmupSequence, message);
   if (persistBuild) {
     runHasStarted = true;
@@ -2652,13 +2847,13 @@ function activateDungeon(
   return getRuntimeState();
 }
 
-function buildDungeon(
+async function buildDungeon(
   seed = elements.seed.value,
   options: {
     persistBuild?: boolean;
     restore?: RunResumeActivationPlan;
   } = {},
-): DungeonRuntimeState {
+): Promise<DungeonRuntimeState> {
   povPost.resetCrtHistory();
   const normalizedSeed = seed.trim() || COPY.hud.seedDefault;
   const params = readEditorParams();
@@ -2717,7 +2912,7 @@ function buildDungeon(
     const statusMessage = localDevTools
       ? COPY.status.generation(params.profile, mood.label)
       : COPY.status.generationPlayer(mood.label);
-    return activateDungeon(generated, statusMessage, params, options);
+    return await activateDungeon(generated, statusMessage, params, options);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Could not generate the dungeon.";
     setEditorSurfaceStatus("runtime", "PLAY MAP · GENERATION FAILED", "error");
@@ -2747,28 +2942,31 @@ function setEditorSurface(nextSurface: "runtime" | "forge"): void {
 
 function applyForgeDungeon(): void {
   if (!forgeIntake) return;
-  try {
-    const imported = forgePreviewDungeon ?? forgeIntake.dungeon;
-    const { params } = forgeIntake;
-    applyEditorParamsToForm(params);
-    const mood = resolveActiveMood(imported);
-    setRunSource("custom", true);
-    activateDungeon(
-      imported,
-      `${imported.forge?.name ?? "Dungeon Creation"} · ${mood.label} ready to play.`,
-      params,
-    );
-    setContinueCandidate(null, "Imported Forge maps are session-only.");
-    setEngineMode("play");
-    showPickupFeedback(COPY.status.forgeLoaded);
-    playCue("forge");
-    setStatus("Forge map ready. Continue is unavailable for imported maps.");
-  } catch (error) {
-    const message =
-      error instanceof Error ? error.message : "Could not load the Dungeon Creation map.";
-    setEditorSurfaceStatus("forge", message.toUpperCase(), "error");
-    setStatus(message);
-  }
+  void (async () => {
+    if (!forgeIntake) return;
+    try {
+      const imported = forgePreviewDungeon ?? forgeIntake.dungeon;
+      const { params } = forgeIntake;
+      applyEditorParamsToForm(params);
+      const mood = resolveActiveMood(imported);
+      setRunSource("custom", true);
+      await activateDungeon(
+        imported,
+        `${imported.forge?.name ?? "Dungeon Creation"} · ${mood.label} ready to play.`,
+        params,
+      );
+      setContinueCandidate(null, "Imported Forge maps are session-only.");
+      setEngineMode("play");
+      showPickupFeedback(COPY.status.forgeLoaded);
+      playCue("forge");
+      setStatus("Forge map ready. Continue is unavailable for imported maps.");
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Could not load the Dungeon Creation map.";
+      setEditorSurfaceStatus("forge", message.toUpperCase(), "error");
+      setStatus(message);
+    }
+  })();
 }
 
 function selectEditorSpawn(cell: { x: number; y: number }): void {
@@ -2853,7 +3051,7 @@ function setEngineMode(
         applyDungeonDomainToForm(hydrated.state);
         elements.seed.value = hydrated.seed;
         const restore = planRunResumeRestore(hydrated.state);
-        buildDungeon(hydrated.seed, {
+        await buildDungeon(hydrated.seed, {
           persistBuild: false,
           restore,
         });
@@ -3134,8 +3332,10 @@ elements.generationForm.addEventListener("submit", (event) => {
     return;
   }
   setRunSource("custom", false);
-  buildDungeon();
-  playCue("forge");
+  void rebuildDungeonCovered(async () => {
+    await buildDungeon();
+    playCue("forge");
+  });
 });
 elements.leaderboardName.addEventListener("input", () => {
   updateLeaderboardPortraitPreview(elements.leaderboardName.value || "Wanderer");
@@ -3220,8 +3420,9 @@ function scheduleEditorRegeneration(): void {
   regenerateTimer = window.setTimeout(() => {
     elements.profileSelect.value = "custom";
     setRunSource("custom", false);
-    buildDungeon();
-    audio.play("forge");
+    void buildDungeon().then(() => {
+      audio.play("forge");
+    });
   }, 280);
 }
 function bindRange(
@@ -3268,9 +3469,11 @@ elements.presetButtons.forEach((button) => {
     if (!preset) return;
     applyEditorParamsToForm(preset);
     setRunSource("custom", false);
-    buildDungeon();
-    playCue("forge");
-    setStatus(`Preset ${id} applied and regenerated.`);
+    void rebuildDungeonCovered(async () => {
+      await buildDungeon();
+      playCue("forge");
+      setStatus(`Preset ${id} applied and regenerated.`);
+    });
   });
 });
 elements.cameraSensitivity.addEventListener("input", applyCameraSettings);
@@ -3279,8 +3482,10 @@ elements.reroll.addEventListener("click", () => {
   if (!localDevTools) return;
   elements.seed.value = makeSeed();
   setRunSource("custom", false);
-  buildDungeon();
-  playCue("forge");
+  void rebuildDungeonCovered(async () => {
+    await buildDungeon();
+    playCue("forge");
+  });
 });
 elements.pushServer.addEventListener("click", () => {
   if (!localDevTools) {
@@ -3326,7 +3531,7 @@ elements.runNew.addEventListener("click", () => {
       const created = await authority.createRun({ seed, label: `dungeon-${seed.slice(0, 12)}` });
       bindAuthorityRunTransition(created.run.id);
       elements.seed.value = created.run.seed;
-      buildDungeon(created.run.seed);
+      await buildDungeon(created.run.seed);
       runTransitionPending = false;
       await refreshRunSelect();
       setStatus(`New run ${created.activeRunId}`);
@@ -3351,7 +3556,7 @@ elements.runSelect.addEventListener("change", () => {
         const d = hydrated.state;
         applyDungeonDomainToForm(d);
         elements.seed.value = hydrated.seed;
-        buildDungeon(hydrated.seed, {
+        await buildDungeon(hydrated.seed, {
           persistBuild: false,
           restore: planRunResumeRestore(d),
         });
@@ -3428,7 +3633,7 @@ elements.welcomeContinue.addEventListener("click", () => {
       const restore = planRunResumeRestore(state, recovery?.resume ?? validSave?.resume);
       forcedPlayMoodId = parseDungeonMoodId(restore.generation.campaignBiomeId);
       elements.seed.value = restore.generation.seed;
-      buildDungeon(restore.generation.seed, {
+      await buildDungeon(restore.generation.seed, {
         persistBuild: true,
         restore,
       });
@@ -3458,7 +3663,7 @@ elements.welcomeCustom.addEventListener("click", () => {
       const freshSeed = makeSeed();
       queueNewProceduralSeed();
       elements.seed.value = freshSeed;
-      buildDungeon(freshSeed);
+      await buildDungeon(freshSeed);
       setWelcomeTransitionBusy(false);
       setWelcomeOpen(false);
       setEngineMode("editor", { hydrate: false });
@@ -3628,11 +3833,11 @@ elements.crtToggle.addEventListener("click", () => {
   setStatus(crtEnabled ? "CRT on." : "CRT off.");
 });
 elements.retry.addEventListener("click", () => {
-  buildDungeon();
+  void rebuildDungeonCovered(() => buildDungeon());
 });
 elements.newDungeon.addEventListener("click", () => {
   elements.seed.value = makeSeed();
-  buildDungeon();
+  void rebuildDungeonCovered(() => buildDungeon());
 });
 elements.endNextBiome.addEventListener("click", () => {
   if (elements.endNextBiome.disabled) return;
@@ -3676,7 +3881,7 @@ document.addEventListener("keydown", (event) => {
   if (event.code === "KeyR" && (engineMode !== "play" || optionsOpen)) {
     event.preventDefault();
     if (engineMode === "play" && optionsOpen) restartCurrentMap();
-    else buildDungeon();
+    else void rebuildDungeonCovered(() => buildDungeon());
   }
   if (event.code === "Digit1") setEngineMode("editor");
   if (event.code === "Digit2") setEngineMode("debug");
@@ -3755,12 +3960,15 @@ async function transitionCampaignFloor(
   try {
     await setSceneFadeOpaque(true, { durationMs: 180 });
     const params = readEditorParams();
-    activateDungeon(
+    await activateDungeon(
       targetDungeon,
       `Floor ${targetFloor + 1} of ${campaignFloorSet.count}.`,
       params,
       { restore },
     );
+    // Hold the loader until the new floor's first real frame is compiled so
+    // the reveal never catches a half-built layout or shader pop-in.
+    await waitForRendererWarmup(10_000);
     showObjectiveBanner(
       playRuntime.state().quest.portalOpen && targetFloor === campaignFloorSet.count - 1
         ? COPY.objective.openPortal
@@ -3804,7 +4012,7 @@ async function transitionCampaignFloor(
   if (transitionFailed) throw transitionError;
 }
 
-function descendFloor(): DungeonRuntimeState {
+async function descendFloor(): Promise<DungeonRuntimeState> {
   const result = domainBridge.descend();
   if (!result.ok) {
     setStatus(result.error.message);
@@ -3840,13 +4048,13 @@ export interface DungeonEngineApi {
   readonly id: string;
   readonly ready: boolean;
   getState(): DungeonRuntimeState;
-  reset(seed?: string): DungeonRuntimeState;
+  reset(seed?: string): Promise<DungeonRuntimeState>;
   primaryAction(): DungeonRuntimeState;
   toggleMap(forceExpanded?: boolean): void;
   setMode(mode: EngineMode): void;
   getDomain(): ReturnType<DomainBridge["getDungeon"]>;
   projectDomain(): ReturnType<DomainBridge["project"]>;
-  descendFloor(): DungeonRuntimeState;
+  descendFloor(): Promise<DungeonRuntimeState>;
 }
 
 window.__BLACK_FLAG_DUNGEON_ENGINE__ = api;
@@ -4037,7 +4245,10 @@ function frame(now: number): void {
   exhaustionTrauma = simulationActive ? decayExhaustionTrauma(exhaustionTrauma, delta) : 0;
   updateStaminaHud(result.stamina, result.staminaExhausted, simulationActive && player.sprinting);
   if (simulationActive && result.footstep) {
-    audio.playFootstep(footstepSurfaceAt(dungeon, result.cell));
+    audio.playFootstep(
+      footstepSurfaceAt(dungeon, result.cell),
+      world.mobilityBoostRemaining > 0 ? MOBILITY_BOOST_FOOTSTEP_GAIN : 1,
+    );
   }
   camera.getWorldDirection(audioForward);
   audio.setListener(camera.position, audioForward);
@@ -4065,6 +4276,8 @@ function frame(now: number): void {
       exploredCount: explorationView.exploredCount,
       totalWalkableCells: dungeon?.stats.floorCount ?? 1,
       mapRevealed: explorationView.mapRevealed,
+      // Fourth stone opens the portal and lifts the deep fog wall for the escape run.
+      allStonesBound: playRuntime.state().quest.portalOpen,
     }),
   );
 
@@ -4077,6 +4290,8 @@ function frame(now: number): void {
     threatDistance: simulationActive ? currentThreatDistance : null,
     hitTrauma: simulationActive ? hitTrauma : 0,
     exhaustionTrauma: simulationActive ? exhaustionTrauma : 0,
+    // Ease the tail out over the last ~1.5s instead of cutting the FX cold.
+    mobilityBoost: simulationActive ? Math.min(1, world.mobilityBoostRemaining / 1.5) : 0,
     reducedMotion,
   });
   const feel = povFeel.apply(feelTarget, delta);
@@ -4241,7 +4456,14 @@ async function waitForRendererWarmup(timeoutMs = 6_000, signal?: AbortSignal): P
   if (renderWarmupReady || signal?.aborted) return;
   const started = performance.now();
   while (!renderWarmupReady && !signal?.aborted && performance.now() - started < timeoutMs) {
-    await waitAnimationFrames(1, signal);
+    // Race a short timer so a stalled rAF cannot freeze the load cover forever.
+    await Promise.race([waitAnimationFrames(1, signal), waitMs(32, signal)]);
+  }
+  if (!renderWarmupReady && !signal?.aborted) {
+    // Parent covers must still be able to lift. Mark ready so Play can continue.
+    renderWarmupReady = true;
+    elements.shell.dataset.rendererReady = "timeout";
+    controller.setEnabled(canEnablePlayController());
   }
 }
 
@@ -4285,22 +4507,22 @@ if (canContinueLocalRun(localContinue)) {
 if (visualQaState) {
   // Deterministic visual-QA URLs intentionally own a live world at boot.
   setBootProgress(0.55, "Warming the renderer…");
-  buildDungeon(urlSeed, { persistBuild: false });
-  runHasStarted = false;
-  setWelcomeOpen(false);
-  setEngineMode("play", { hydrate: false, persist: false });
-  const qaState = playRuntime.loadFixture(visualQaState);
-  lastPortalBanner = qaState.quest.portalOpen;
-  questHudStonesFound = -1;
-  questHudPortalOpen = false;
-  updateResolve();
-  elements.shell.dataset.resolve = String(qaState.resolve);
-  elements.shell.dataset.relic = String(qaState.quest.portalOpen);
-  elements.shell.dataset.stones = String(qaState.quest.stonesFound);
-  syncQuestHud();
-  if (qaState.runMode !== "playing") showEndOverlay(qaState.runMode);
-  setStatus(`Visual QA state · ${visualQaState}`);
   void (async () => {
+    await buildDungeon(urlSeed, { persistBuild: false });
+    runHasStarted = false;
+    setWelcomeOpen(false);
+    setEngineMode("play", { hydrate: false, persist: false });
+    const qaState = playRuntime.loadFixture(visualQaState);
+    lastPortalBanner = qaState.quest.portalOpen;
+    questHudStonesFound = -1;
+    questHudPortalOpen = false;
+    updateResolve();
+    elements.shell.dataset.resolve = String(qaState.resolve);
+    elements.shell.dataset.relic = String(qaState.quest.portalOpen);
+    elements.shell.dataset.stones = String(qaState.quest.stonesFound);
+    syncQuestHud();
+    if (qaState.runMode !== "playing") showEndOverlay(qaState.runMode);
+    setStatus(`Visual QA state · ${visualQaState}`);
     setBootProgress(0.8, "Loading type…");
     await Promise.all([
       document.fonts.ready.catch(() => undefined),

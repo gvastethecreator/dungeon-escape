@@ -38,7 +38,14 @@
     <main class="app-shell">
       <canvas id="scene" tabindex="0" aria-label="First-person grimdark dungeon"></canvas>
       <div class="view-falloff" aria-hidden="true"></div>
-      <div id="scene-fade" class="scene-fade" hidden aria-hidden="true"></div>
+      <div id="scene-fade" class="scene-fade" hidden aria-hidden="true">
+        <div id="scene-loader" class="scene-loader" hidden aria-hidden="true">
+          <div class="scene-loader__track">
+            <div class="scene-loader__bar"></div>
+          </div>
+          <p class="scene-loader__text">Loading dungeon</p>
+        </div>
+      </div>
       <p id="run-intro-status" class="run-intro-status" role="status" aria-live="polite" hidden></p>
 
       <section
@@ -298,15 +305,11 @@
             <span class="annihilation-pulse-status__label">PULSE ACTIVE</span>
             <time id="annihilation-pulse-value" datetime="PT0S">26.0s</time>
           </div>
-          <div
-            id="biome-event-status"
-            class="biome-event-status"
-            role="status"
-            aria-live="polite"
-            hidden
-          >
-            <span id="biome-event-label" class="biome-event-status__label">DUSTFALL</span>
-            <time id="biome-event-value" datetime="PT0S">9.0s</time>
+          <!-- Biome atmosphere pulses (dustfall, whiteout, …) are environment VFX
+               via data-biome-event on the shell — not character-status chips. -->
+          <div id="biome-event-status" class="biome-event-status" hidden aria-hidden="true">
+            <span id="biome-event-label" class="biome-event-status__label"></span>
+            <time id="biome-event-value" datetime="PT0S"></time>
           </div>
           <time id="run-timer" class="run-timer" datetime="PT0S" aria-label="Run time 00:00"
             >00:00</time
@@ -909,23 +912,25 @@
         aria-labelledby="end-title"
         data-end="dead"
       >
-        <img
-          class="end-art"
-          src="/assets/ui/biome-screens/ancient-ending.webp"
-          data-biome-id="ancient"
-          alt=""
-          width="1672"
-          height="941"
-          decoding="async"
-          loading="lazy"
-        />
-        <canvas
-          id="end-particles"
-          class="biome-screen-particles"
-          data-biome-id="ancient"
-          data-particle-state="paused"
-          aria-hidden="true"
-        ></canvas>
+        <div class="end-stage" aria-hidden="true">
+          <img
+            class="end-art"
+            src="/assets/ui/biome-screens/ancient-ending.webp"
+            data-biome-id="ancient"
+            alt=""
+            width="1672"
+            height="941"
+            decoding="async"
+            loading="lazy"
+          />
+          <canvas
+            id="end-particles"
+            class="biome-screen-particles"
+            data-biome-id="ancient"
+            data-particle-state="paused"
+            aria-hidden="true"
+          ></canvas>
+        </div>
         <div class="end-card">
           <small id="end-kicker">Run interrupted</small>
           <h1 id="end-title">The ash claims you</h1>
@@ -1003,9 +1008,11 @@
             <p id="leaderboard-submit-status" role="status" aria-live="polite"></p>
           </form>
           <div class="end-actions">
-            <button id="end-next-biome" type="button" disabled>Next run</button>
-            <button id="retry" type="button">Try again</button>
-            <button id="new-dungeon" type="button">New dungeon</button>
+            <button id="end-next-biome" type="button" disabled>Next level</button>
+            <div class="end-actions__secondary">
+              <button id="retry" type="button">Try again</button>
+              <button id="new-dungeon" type="button">New dungeon</button>
+            </div>
           </div>
         </div>
       </section>

@@ -74,9 +74,13 @@ Sources live in `scripts/enemy-audio-map.ps1` (personal library under `F:\# AUDI
 | `door-open` / `door-close` | Dungeon doors |
 | `chest-open` / `chest-reward` | Chest lid + shimmer |
 | `damage` | Player hit |
-| `lose` | Death end |
+| `lose` | Death end SFX (sting) |
 | `win` | Escape end |
 | `portal-open` | Portal unlock / spawn |
+| `music-biome-*` | Exploration bed per biome (see `docs/BIOME-MUSIC.md`) |
+| `music-biome-*-portal` | Escalated bed after four stones bind |
+| `music-lose` | Melancholic death bed (`Last Lantern`) |
+| `music-win` / `music-menu` | End-screen win / welcome menu beds |
 
 ## Spatial behavior
 

@@ -1,5 +1,10 @@
 import type { BiomeId } from "./BiomeIdentity";
 
+/**
+ * Scheduled world-atmosphere pulses per biome (not player buffs).
+ * Fall-style events (dustfall, cinderfall, spore-bloom, …) intensify the
+ * biome's existing ceiling precipitation particles — never full-screen streaks.
+ */
 export type BiomeEventId =
   | "dustfall"
   | "ember-surge"
@@ -18,6 +23,7 @@ export interface BiomeEventProfile {
   label: string;
   intervalSeconds: number;
   durationSeconds: number;
+  /** World locomotion drag while the pulse is active (1 = no change). */
   movementScale: number;
   hazardDamageScale: number;
   enemyPressureScale: number;
@@ -37,6 +43,7 @@ export interface BiomeEventSnapshot {
 
 export const BIOME_EVENT_PROFILES: Readonly<Record<BiomeId, BiomeEventProfile>> = {
   ancient: {
+    // Ceiling grit / mortar dust — screen falloff only; no movement drag.
     id: "dustfall",
     label: "Dustfall",
     intervalSeconds: 52,

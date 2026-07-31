@@ -207,6 +207,63 @@ body.is-booting .app-shell {
   display: none;
 }
 
+/* Indeterminate map-load indicator. Rides the black scene fade so a build or
+   renderer warmup never reveals the world mid-swap. */
+.scene-loader {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  background:
+    radial-gradient(ellipse 70% 55% at 50% 48%, rgb(40 32 18 / 55%) 0%, transparent 72%),
+    rgb(0 0 0 / 35%);
+}
+
+.scene-loader[hidden] {
+  display: none;
+}
+
+.scene-loader__track {
+  width: min(280px, 68vw);
+  height: 10px;
+  border: 1px solid rgb(240 213 154 / 28%);
+  background: rgb(0 0 0 / 55%);
+  box-shadow:
+    inset 0 0 0 1px rgb(0 0 0 / 50%),
+    0 0 18px rgb(227 196 125 / 12%);
+  overflow: hidden;
+}
+
+.scene-loader__bar {
+  width: 42%;
+  height: 100%;
+  background: linear-gradient(90deg, #6e5220 0%, #e3c47d 55%, #f0d59a 100%);
+  box-shadow: 0 0 14px rgb(227 196 125 / 42%);
+  animation: scene-loader-sweep 1.05s ease-in-out infinite;
+}
+
+@keyframes scene-loader-sweep {
+  0% {
+    transform: translateX(-110%);
+  }
+  100% {
+    transform: translateX(280%);
+  }
+}
+
+.scene-loader__text {
+  margin: 0;
+  color: #e8d8a8;
+  font-family: var(--font-pixel);
+  font-size: 13px;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  text-shadow: 0 0 18px rgb(240 213 154 / 35%);
+}
+
 /* Generation screen is map-only. Status stays for assistive tech, not eyes. */
 .run-intro-status {
   position: absolute;
@@ -241,6 +298,11 @@ body.is-booting .app-shell {
 @media (prefers-reduced-motion: reduce) {
   .scene-fade {
     transition: none;
+  }
+
+  .scene-loader__bar {
+    width: 100%;
+    animation: none;
   }
 }
 
@@ -375,20 +437,11 @@ kbd {
   opacity: 1;
 }
 
-.app-shell[data-biome-event="dustfall"] .view-falloff,
-.app-shell[data-biome-event="cinderfall"] .view-falloff,
-.app-shell[data-biome-event="spore-bloom"] .view-falloff {
-  background:
-    repeating-linear-gradient(
-      104deg,
-      transparent 0 8%,
-      rgb(214 195 154 / 5%) 8.2% 8.45%,
-      transparent 8.7% 16%
-    ),
-    radial-gradient(ellipse at 50% 52%, transparent 42%, rgb(14 9 5 / 58%) 100%);
-  animation: biome-fall 1.8s cubic-bezier(0.4, 0, 0.2, 1) infinite alternate;
-}
-
+/*
+ * Precipitation biome pulses (dustfall, cinderfall, spore-bloom, …) are world
+ * particles falling from the ceiling via AtmosphereSystem — never diagonal
+ * screen streaks. Soft tint / flicker only for non-fall atmosphere events.
+ */
 .app-shell[data-biome-event="whiteout"] .view-falloff,
 .app-shell[data-biome-event="high-tide"] .view-falloff {
   background:
@@ -405,14 +458,6 @@ kbd {
 .app-shell[data-biome-event="black-sun"] .view-falloff,
 .app-shell[data-biome-event="light-loop"] .view-falloff {
   animation: biome-light-loop 1.15s steps(3, end) infinite;
-}
-
-@keyframes biome-fall {
-  to {
-    background-position:
-      0 22px,
-      0 0;
-  }
 }
 
 @keyframes biome-light-loop {
@@ -3480,35 +3525,10 @@ kbd {
   animation: annihilation-pulse-status-pulse 420ms steps(2, end) infinite;
 }
 
-.biome-event-status {
-  display: grid;
-  gap: 3px;
-  min-width: 10ch;
-  padding: 5px 8px 5px 10px;
-  border-right: 2px solid rgb(222 188 111 / 82%);
-  background: linear-gradient(90deg, transparent, rgb(35 27 12 / 90%) 26%);
-  color: #f1d59a;
-  font-family: var(--font-pixel);
-  font-size: 11px;
-  letter-spacing: 0.12em;
-  line-height: 1;
-  text-align: right;
-  text-shadow: 0 0 10px rgb(222 188 111 / 52%);
-}
-
+/* Legacy chip kept in the DOM for element refs; biome pulses are environment-only. */
+.biome-event-status,
 .biome-event-status[hidden] {
   display: none;
-}
-
-.biome-event-status__label {
-  color: rgb(241 213 154 / 74%);
-  font-size: 9px;
-}
-
-.biome-event-status time {
-  font-size: 15px;
-  font-variant-numeric: tabular-nums;
-  letter-spacing: 0.08em;
 }
 
 @keyframes annihilation-pulse-status-pulse {
@@ -3530,19 +3550,29 @@ kbd {
 }
 .end-overlay[data-end="won"] .end-card {
   width: min(540px, 100%);
+  max-height: calc(100dvh - 36px);
+  overflow: auto;
   border-top-color: rgb(201 197 184 / 8%);
   background: rgb(7 8 9 / 88%);
   backdrop-filter: blur(5px);
+  overscroll-behavior: contain;
+}
+
+/* Victory stage keeps the full escape art uncropped next to the results card. */
+.end-stage {
+  display: none;
+  position: relative;
+  z-index: 0;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .end-art {
-  position: absolute;
-  z-index: 0;
-  inset: 0;
   display: none;
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
   object-position: center;
   image-rendering: pixelated;
 }
@@ -3552,18 +3582,25 @@ kbd {
 }
 
 .end-overlay[data-end="won"] {
-  justify-items: end;
-  padding-right: max(clamp(22px, 7vw, 128px), env(safe-area-inset-right));
+  grid-template-columns: minmax(0, 1fr) minmax(280px, min(540px, 42%));
+  grid-template-rows: minmax(0, 1fr);
+  align-items: stretch;
+  justify-items: stretch;
+  gap: clamp(12px, 2.4vw, 28px);
+  padding: max(clamp(14px, 2.4vw, 28px), env(safe-area-inset-top))
+    max(clamp(14px, 3vw, 48px), env(safe-area-inset-right))
+    max(clamp(14px, 2.4vw, 28px), env(safe-area-inset-bottom))
+    max(clamp(14px, 2.4vw, 28px), env(safe-area-inset-left));
   background: #050505;
+  overflow: hidden;
 }
 
-.end-overlay[data-end="won"]::before {
-  position: absolute;
-  z-index: 2;
-  inset: 0;
-  background: linear-gradient(90deg, transparent 24%, rgb(3 4 4 / 38%) 53%, rgb(3 4 4 / 88%) 100%);
-  content: "";
-  pointer-events: none;
+.end-overlay[data-end="won"] .end-stage {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
 }
 
 .end-overlay[data-end="won"] .end-art {
@@ -3572,6 +3609,15 @@ kbd {
 
 .end-overlay[data-end="won"] .biome-screen-particles {
   display: block;
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.end-overlay[data-end="won"] .end-card {
+  align-self: center;
+  justify-self: end;
 }
 
 .end-card small {
@@ -3761,6 +3807,15 @@ kbd {
 
 .end-actions {
   display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: center;
+  gap: 12px;
+  width: 100%;
+}
+
+.end-actions__secondary {
+  display: flex;
   justify-content: center;
   gap: 10px;
   flex-wrap: wrap;
@@ -3784,15 +3839,64 @@ kbd {
 }
 
 .end-card #end-next-biome {
-  min-width: 200px;
+  order: -1;
+  width: 100%;
+  min-width: 0;
   border-color: #c9a227;
   background: #e8d48a;
   color: var(--ink);
 }
 
-.end-card #end-next-biome:hover:not(:disabled) {
-  background: #f0e6b8;
-  color: var(--ink);
+/* Primary CTA: full-width, oversized, and impossible to miss after a clear. */
+.end-actions #end-next-biome:not(:disabled) {
+  flex: 0 0 auto;
+  width: 100%;
+  min-height: 72px;
+  padding: 16px 20px;
+  border: 3px solid #ffe7a8;
+  background: linear-gradient(180deg, #fff0c2 0%, #f0d059 42%, #c8921f 100%);
+  color: #14110a;
+  font-size: 18px;
+  font-weight: 800;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  text-shadow: 0 1px 0 rgb(255 248 220 / 55%);
+  box-shadow:
+    0 0 0 1px rgb(255 236 170 / 40%),
+    0 0 28px rgb(255 210 90 / 55%),
+    0 0 72px rgb(255 190 60 / 28%),
+    0 10px 28px rgb(0 0 0 / 45%);
+  animation: end-next-glow 1.25s ease-in-out infinite;
+  transform: translateZ(0);
+}
+
+.end-actions #end-next-biome:hover:not(:disabled) {
+  background: linear-gradient(180deg, #fff8d8 0%, #f6dc70 45%, #d8a028 100%);
+  color: #14110a;
+  filter: brightness(1.04);
+}
+
+.end-actions #end-next-biome:focus-visible:not(:disabled) {
+  outline: 3px solid #fff4c8;
+  outline-offset: 3px;
+}
+
+@keyframes end-next-glow {
+  0%,
+  100% {
+    box-shadow:
+      0 0 0 1px rgb(255 236 170 / 30%),
+      0 0 18px rgb(255 210 90 / 40%),
+      0 0 48px rgb(255 190 60 / 18%),
+      0 8px 22px rgb(0 0 0 / 40%);
+  }
+  50% {
+    box-shadow:
+      0 0 0 2px rgb(255 245 200 / 55%),
+      0 0 36px rgb(255 220 110 / 72%),
+      0 0 88px rgb(255 200 70 / 38%),
+      0 12px 30px rgb(0 0 0 / 48%);
+  }
 }
 
 .end-card #end-next-biome:disabled {
@@ -3824,6 +3928,12 @@ kbd {
 @media (prefers-reduced-motion: reduce) {
   .end-overlay {
     animation: none;
+  }
+
+  .end-actions #end-next-biome:not(:disabled) {
+    animation: none;
+    min-height: 64px;
+    font-size: 16px;
   }
 
   .biome-screen-particles {
@@ -4134,22 +4244,24 @@ kbd {
   }
 
   .end-overlay[data-end="won"] {
-    align-items: end;
-    justify-items: center;
-    padding: 16px;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr) auto;
+    align-items: stretch;
+    justify-items: stretch;
+    gap: 12px;
+    padding: max(12px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right))
+      max(12px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
   }
 
-  .end-overlay[data-end="won"]::before {
-    background: linear-gradient(0deg, rgb(3 4 4 / 96%) 0%, rgb(3 4 4 / 62%) 58%, transparent 100%);
-  }
-
-  .end-overlay[data-end="won"] .end-art {
-    object-position: 28% center;
+  .end-overlay[data-end="won"] .end-stage {
+    /* Reserve a stable stage so the escape hero stays fully framed. */
+    min-height: min(38dvh, 320px);
   }
 
   .end-overlay[data-end="won"] .end-card {
-    max-height: calc(100dvh - 32px);
-    overflow: auto;
+    width: min(540px, 100%);
+    max-height: min(54dvh, calc(100dvh - min(38dvh, 320px) - 36px));
+    justify-self: center;
   }
 
   .end-leaderboard-form__row {
@@ -4200,6 +4312,29 @@ kbd {
 
   .play-progress {
     right: max(6px, env(safe-area-inset-right));
+  }
+}
+
+@media (max-height: 560px) and (min-width: 901px) {
+  .end-overlay[data-end="won"] {
+    grid-template-columns: minmax(0, 1.15fr) minmax(240px, min(420px, 38%));
+    gap: 10px;
+    padding: 10px;
+  }
+
+  .end-overlay[data-end="won"] .end-card {
+    max-height: calc(100dvh - 20px);
+  }
+}
+
+/* Keep stacked victory layout also for short landscape phones. */
+@media (max-height: 520px) and (max-width: 900px) {
+  .end-overlay[data-end="won"] .end-stage {
+    min-height: min(46dvh, 220px);
+  }
+
+  .end-overlay[data-end="won"] .end-card {
+    max-height: min(48dvh, calc(100dvh - min(46dvh, 220px) - 24px));
   }
 }
 

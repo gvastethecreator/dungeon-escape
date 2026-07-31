@@ -21,14 +21,20 @@ describe("new-game map theater intro", () => {
     expect(source).not.toContain("buildPlayWorldForIntro");
     expect(director).toContain("exportPlayDungeonToForgePresentation");
     expect(director).toContain("startPresentation");
+    expect(director).toContain("clearLoader");
+    expect(director).toContain("showLoader: false");
+    expect(source).toContain("setSceneLoaderVisible");
     expect(source).toContain("generateCompletableDungeon");
     expect(forge).toContain("black-flag:forge-presentation");
     expect(forge).toContain("hostDungeon");
     expect(forge).toContain("buildScene(hostDungeon)");
+    expect(forge).toContain("disposeLevel()");
+    expect(forge).toContain("presentationMode || activePresentationId");
     expect(forge).toContain("resolveForgeRoomPresentationRect");
     expect(forge).toContain("dataset.forgeRoomGeometry");
     expect(forge).toContain("editorDungeonBeforePresentation");
     expect(forge).toContain("restoreEditorDungeonAfterPresentation");
+    expect(source).toContain("runIntroInputGate");
 
     const presentationHandlerAt = forge.indexOf(
       'event.data?.type === "black-flag:forge-presentation"',
@@ -67,5 +73,6 @@ describe("new-game map theater intro", () => {
     expect(shellCss).toMatch(
       /\.app-shell\[data-run-intro="true"\]\s*>\s*\*:not\(#editor-workspace\):not\(#scene-fade\):not\(#run-intro-status\)/,
     );
+    expect(editorCss).toContain('data-intro-reveal="true"');
   });
 });

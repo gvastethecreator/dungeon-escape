@@ -626,6 +626,11 @@ function createBiomeParticleMaterial(
   });
 }
 
+/** How hard a biome-event pulse ramps ceiling precipitation opacity. */
+export const CEILING_EVENT_OPACITY_BOOST = 2.35;
+/** Extra fall speed while a biome-event pulse is active. */
+export const CEILING_EVENT_SPEED_BOOST = 1.7;
+
 export class AtmosphereSystem {
   readonly stats = { mistBanks: 0, motes: 0, groundFogTiles: 0 };
   private readonly group = new THREE.Group();
@@ -639,6 +644,10 @@ export class AtmosphereSystem {
   private supportParticleMaterial: THREE.ShaderMaterial | null = null;
   private signatureParticleMaterial: THREE.ShaderMaterial | null = null;
   private ceilingParticleMaterial: THREE.ShaderMaterial | null = null;
+  private ceilingBaseOpacity = 0;
+  private ceilingBaseSpeed = 0;
+  /** 0..1 — biome event pulse (dustfall, cinderfall, …) intensifies ceiling fallers. */
+  private eventPulse = 0;
   private elapsed = 0;
   private readonly wallHeight: number;
   private readonly viewer = new THREE.Vector3();
@@ -653,9 +662,19 @@ export class AtmosphereSystem {
     scene.add(this.group);
   }
 
+  /**
+   * Intensifies biome ceiling precipitation (grit, ash, spores, drips).
+   * Environment-only: no screen streaks — particles fall from the slab.
+   */
+  setEventPulse(amount: number): void {
+    this.eventPulse = THREE.MathUtils.clamp(amount, 0, 1);
+    this.applyCeilingEventPulse();
+  }
+
   setDungeon(dungeon: DungeonData, mood: DungeonMood = getDungeonMood("ash")): void {
     this.clear();
     this.elapsed = 0;
+    this.eventPulse = 0;
     const random = createSeededRandom(`${dungeon.seed}:atmosphere`);
     const rooms = [...dungeon.rooms].sort((a, b) => b.width * b.height - a.width * a.height);
 
@@ -721,6 +740,9 @@ export class AtmosphereSystem {
     this.supportParticleMaterial = support.material;
     this.signatureParticleMaterial = signature.material;
     this.ceilingParticleMaterial = ceiling.material;
+    this.ceilingBaseOpacity = profile.ceiling.opacity;
+    this.ceilingBaseSpeed = profile.ceiling.speed;
+    this.applyCeilingEventPulse();
     this.group.add(this.supportParticles, this.signatureParticles, this.ceilingParticles);
     this.stats.mistBanks = this.mistBanks.length;
     this.stats.motes = support.count + signature.count + ceiling.count;
@@ -770,6 +792,17 @@ export class AtmosphereSystem {
     this.mistTexture.dispose();
     this.dustTexture.dispose();
     this.scene.remove(this.group);
+  }
+
+  private applyCeilingEventPulse(): void {
+    if (!this.ceilingParticleMaterial) return;
+    const pulse = this.eventPulse;
+    this.ceilingParticleMaterial.uniforms.uOpacity.value = Math.min(
+      1,
+      this.ceilingBaseOpacity * (1 + pulse * (CEILING_EVENT_OPACITY_BOOST - 1)),
+    );
+    this.ceilingParticleMaterial.uniforms.uSpeed.value =
+      this.ceilingBaseSpeed * (1 + pulse * (CEILING_EVENT_SPEED_BOOST - 1));
   }
 
   private addSoftGroundFog(
@@ -897,6 +930,9 @@ export class AtmosphereSystem {
     this.supportParticleMaterial = null;
     this.signatureParticleMaterial = null;
     this.ceilingParticleMaterial = null;
+    this.ceilingBaseOpacity = 0;
+    this.ceilingBaseSpeed = 0;
+    this.eventPulse = 0;
 
     this.stats.mistBanks = 0;
     this.stats.motes = 0;

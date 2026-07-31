@@ -4,6 +4,8 @@ import {
   computePovFeel,
   decayExhaustionTrauma,
   decayHitTrauma,
+  POV_BOOST_CHROMATIC,
+  POV_BOOST_CURVATURE,
   POV_CHROMATIC_MAX,
   POV_CURVATURE_BASE,
   POV_CURVATURE_MIN,
@@ -115,6 +117,37 @@ describe("pov feel curves", () => {
     expect(decayExhaustionTrauma(1, POV_EXHAUST_TRAUMA_SECONDS * 0.5)).toBeCloseTo(0.5, 5);
   });
 
+  test("mobility boost adds a strong chromatic fringe, warp, and speed shake", () => {
+    const calm = computePovFeel({
+      sprinting: false,
+      speedRatio: 0,
+      threatDistance: null,
+      mobilityBoost: 0,
+    });
+    const boostedIdle = computePovFeel({
+      sprinting: false,
+      speedRatio: 0,
+      threatDistance: null,
+      mobilityBoost: 1,
+    });
+    const boostedRun = computePovFeel({
+      sprinting: true,
+      speedRatio: 1,
+      threatDistance: null,
+      mobilityBoost: 1,
+    });
+    expect(calm.chromatic).toBe(0);
+    // Soft fringe only — strong radial CA draws four hard corner diagonals.
+    expect(boostedIdle.chromatic).toBeGreaterThan(0);
+    expect(boostedRun.chromatic).toBeCloseTo(POV_BOOST_CHROMATIC, 5);
+    expect(POV_BOOST_CHROMATIC).toBeGreaterThan(POV_CHROMATIC_MAX * 0.5);
+    expect(POV_BOOST_CHROMATIC).toBeLessThan(0.004);
+    expect(boostedIdle.curvature).toBeCloseTo(POV_CURVATURE_BASE + POV_BOOST_CURVATURE * 0.5, 4);
+    expect(boostedIdle.curvature).toBeGreaterThan(calm.curvature);
+    expect(boostedRun.shake).toBeGreaterThan(boostedIdle.shake);
+    expect(boostedRun.shake).toBeGreaterThan(0.15);
+  });
+
   test("reduced motion keeps the POV static despite sprint, threat, and trauma", () => {
     const reduced = computePovFeel({
       sprinting: true,
@@ -122,6 +155,7 @@ describe("pov feel curves", () => {
       threatDistance: 1.5,
       hitTrauma: 1,
       exhaustionTrauma: 1,
+      mobilityBoost: 1,
       reducedMotion: true,
     });
     expect(reduced.curvature).toBe(POV_CURVATURE_MIN);

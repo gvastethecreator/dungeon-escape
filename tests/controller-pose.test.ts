@@ -80,8 +80,8 @@ describe("controller pose restore boundary", () => {
 
   test("host restores world pressure from the controller's validated seat", () => {
     const source = readFileSync("src/main.ts", "utf8");
-    const start = source.indexOf("function activateDungeon(");
-    const end = source.indexOf("\nfunction buildDungeon(", start);
+    const start = source.indexOf("async function activateDungeon(");
+    const end = source.indexOf("\nasync function buildDungeon(", start);
     const activation = source.slice(start, end);
 
     const applyPose = activation.indexOf("applyRunResumePlan(options.restore);");

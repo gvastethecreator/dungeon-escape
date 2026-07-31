@@ -20,7 +20,12 @@ import {
   stepStamina,
   type StaminaState,
 } from "./Stamina";
-import { MOBILITY_BOOST_SPEED_MULTIPLIER } from "../game/MobilityBoost";
+import {
+  MOBILITY_BOOST_CAMERA_BOB_SCALE,
+  MOBILITY_BOOST_FOV_KICK,
+  MOBILITY_BOOST_SPEED_MULTIPLIER,
+  MOBILITY_BOOST_STRIDE_RATE,
+} from "../game/MobilityBoost";
 import {
   createVerticalMotionState,
   resetVerticalMotion,
@@ -179,12 +184,18 @@ interface ControllerOptions {
   sprintMultiplier?: number;
   acceleration?: number;
   deceleration?: number;
+  /** Horizontal steer response while airborne with input held. */
+  airAcceleration?: number;
+  /** Horizontal coast decay while airborne with no input. */
+  airDeceleration?: number;
   mouseSensitivity?: number;
   cameraMotion?: number;
   lookResponse?: number;
   ceilingHeight?: number;
   jumpSpeed?: number;
   gravity?: number;
+  /** Extra jumps after leaving the ground (1 = double jump). */
+  maxAirJumps?: number;
   onLockChange?: (locked: boolean, message: string) => void;
 }
 
@@ -207,6 +218,8 @@ export class FirstPersonController {
   private readonly sprintMultiplier: number;
   private readonly acceleration: number;
   private readonly deceleration: number;
+  private readonly airAcceleration: number;
+  private readonly airDeceleration: number;
   private readonly onLockChange: (locked: boolean, message: string) => void;
   private mouseSensitivity: number;
   private cameraMotion: number;
@@ -308,6 +321,9 @@ export class FirstPersonController {
     this.sprintMultiplier = options.sprintMultiplier ?? 1.55;
     this.acceleration = options.acceleration ?? 18;
     this.deceleration = options.deceleration ?? 14;
+    // Air steer is intentional: redirect quickly toward held WASD, coast when released.
+    this.airAcceleration = options.airAcceleration ?? 22;
+    this.airDeceleration = options.airDeceleration ?? 2.4;
     this.mouseSensitivity = options.mouseSensitivity ?? 0.0018;
     this.cameraMotion = options.cameraMotion ?? 0.72;
     // Higher look response = snappier camera (less floaty lag on pointer move).
@@ -318,8 +334,12 @@ export class FirstPersonController {
       headClearance: 0.18,
       gravity: options.gravity ?? 17,
       jumpSpeed: options.jumpSpeed ?? 5.8,
+      maxAirJumps: options.maxAirJumps ?? 1,
     };
-    this.verticalState = createVerticalMotionState(this.eyeHeight);
+    this.verticalState = createVerticalMotionState(
+      this.eyeHeight,
+      this.verticalConfig.maxAirJumps,
+    );
     this.onLockChange = options.onLockChange ?? (() => undefined);
     document.addEventListener("mousemove", this.handleMouseMove);
     document.addEventListener("keydown", this.handleKeyDown);
@@ -342,7 +362,7 @@ export class FirstPersonController {
     this.surfaceTraction = 1;
     this.mobilityBoostActive = false;
     this.vaultedColliderIds.clear();
-    resetVerticalMotion(this.verticalState, this.eyeHeight);
+    resetVerticalMotion(this.verticalState, this.eyeHeight, this.verticalConfig.maxAirJumps);
     resetStamina(this.staminaState, STAMINA_MAX);
     this.landingDip = 0;
     this.distanceTravelled = 0;
@@ -383,7 +403,7 @@ export class FirstPersonController {
     this.velocity.set(0, 0);
     this.knockVel.set(0, 0);
     this.vaultedColliderIds.clear();
-    resetVerticalMotion(this.verticalState, restored.y);
+    resetVerticalMotion(this.verticalState, restored.y, this.verticalConfig.maxAirJumps);
     this.landingDip = 0;
     this.distanceTravelled = restored.distanceTravelled;
     this.lookYaw = restored.yaw;
@@ -606,8 +626,17 @@ export class FirstPersonController {
           (this.mobilityBoostActive ? MOBILITY_BOOST_SPEED_MULTIPLIER : 1) *
           (stamina.sprinting ? this.sprintMultiplier : 1)
         : 0;
-    const response =
-      (targetSpeed > 0 ? this.acceleration : this.deceleration) * this.surfaceTraction;
+    // While airborne, steer toward the held direction so double-jumps can
+    // re-commit horizontally; without input, keep air momentum (light coast).
+    const airborne = !this.verticalState.grounded;
+    const baseResponse = airborne
+      ? targetSpeed > 0
+        ? this.airAcceleration
+        : this.airDeceleration
+      : targetSpeed > 0
+        ? this.acceleration
+        : this.deceleration;
+    const response = baseResponse * this.surfaceTraction;
     this.velocity.x = THREE.MathUtils.damp(
       this.velocity.x,
       this.desired.x * targetSpeed,
@@ -665,7 +694,8 @@ export class FirstPersonController {
       }
     }
 
-    const strideLength = sprinting ? 0.92 : 0.76;
+    const strideLength =
+      (sprinting ? 0.92 : 0.76) * (this.mobilityBoostActive ? MOBILITY_BOOST_STRIDE_RATE : 1);
     const groundedTravel = this.verticalState.grounded && !landed ? movedDistance : 0;
     const previousStep = Math.floor(this.strideDistance / strideLength);
     this.strideDistance += groundedTravel;
@@ -812,7 +842,7 @@ export class FirstPersonController {
     this.onLockChange(
       this.locked,
       this.locked
-        ? "Pointer active. WASD moves. SHIFT sprints. SPACE jumps. E interacts."
+        ? "Pointer active. WASD moves. SHIFT sprints. SPACE double-jumps. E interacts."
         : "Pointer released. The run is paused.",
     );
   };
@@ -858,8 +888,10 @@ export class FirstPersonController {
       1,
     );
     const stride = moved ? speedRatio : 0;
-    const bobX = Math.sin(this.stridePhase) * 0.024 * stride * motionScale;
-    const bobY = (Math.abs(Math.sin(this.stridePhase)) * 0.05 - 0.009) * stride * motionScale;
+    const bobScale = this.mobilityBoostActive ? MOBILITY_BOOST_CAMERA_BOB_SCALE : 1;
+    const bobX = Math.sin(this.stridePhase) * 0.024 * stride * motionScale * bobScale;
+    const bobY =
+      (Math.abs(Math.sin(this.stridePhase)) * 0.05 - 0.009) * stride * motionScale * bobScale;
     const breath = Math.sin(this.elapsed * 1.65) * 0.0035 * (1 - stride) * motionScale;
     this.landingDip = THREE.MathUtils.damp(this.landingDip, 0, 13, delta);
     this.camera.position.copy(this.position).addScaledVector(this.right, bobX);
@@ -884,7 +916,9 @@ export class FirstPersonController {
     this.euler.set(this.lookPitch, this.lookYaw, this.strafeLean, "YXZ");
     this.camera.quaternion.setFromEuler(this.euler);
 
-    const targetFov = this.baseFov + (sprinting ? 3.2 : stride * 0.8) * motionScale;
+    const boostFovKick = this.mobilityBoostActive ? MOBILITY_BOOST_FOV_KICK * stride : 0;
+    const targetFov =
+      this.baseFov + ((sprinting ? 3.2 : stride * 0.8) + boostFovKick) * motionScale;
     const nextFov = THREE.MathUtils.damp(this.camera.fov, targetFov, 7.5, delta);
     if (Math.abs(nextFov - this.camera.fov) > 0.001) {
       this.camera.fov = nextFov;

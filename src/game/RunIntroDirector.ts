@@ -63,9 +63,16 @@ export interface RunIntroPort {
   refreshProcedural(): void;
   fade(
     target: "opaque" | "clear",
-    options: { readonly instant?: boolean; readonly durationMs?: number },
+    options: {
+      readonly instant?: boolean;
+      readonly durationMs?: number;
+      /** When covering, show the map-build spinner. Default true. */
+      readonly showLoader?: boolean;
+    },
     signal: AbortSignal,
   ): Promise<void>;
+  /** Drop the "Loading dungeon" spinner without lifting the black fade. */
+  clearLoader(): void;
   enterTheater(): void;
   setTheaterStatus(status: "entering-play"): void;
   leaveTheater(): void;
@@ -189,7 +196,9 @@ export class RunIntroDirector {
     if (request.refreshProcedural) this.#port.refreshProcedural();
     if (request.skip) return this.#runSkipped(operation);
 
-    await this.#port.fade("opaque", { instant: true }, signal);
+    // Build under a black cover + spinner. The spinner is cleared as soon as the
+    // isometric theater is ready so players never read "Loading dungeon" over the map.
+    await this.#port.fade("opaque", { instant: true, showLoader: true }, signal);
     if (signal.aborted) return this.#cancelled(operation);
     this.#port.enterTheater();
     await this.#port.waitFrames(2, signal);
@@ -226,17 +235,23 @@ export class RunIntroDirector {
       return this.#cancelled(operation);
     }
 
+    // Drop the spinner under the black veil. Keep the fade opaque a few frames
+    // so Forge can dispose any leftover Creation layout and build the host map
+    // before the first painted reveal (avoids a two-map pop-in).
+    this.#port.clearLoader();
+
     let path: RunIntroPath;
     let animation: ForgeAnimationResult | undefined;
     let forgeReason: "load-timeout" | "post-failed" | "disposed" | undefined;
     if (presentation.ok) {
       path = "forge";
       operation.session = presentation.session;
-      await this.#port.waitFrames(2, signal);
+      // One frame for the postMessage build, one for camera fit + first draw.
+      await this.#port.waitFrames(3, signal);
       if (signal.aborted) return this.#cancelled(operation);
       await this.#port.fade(
         "clear",
-        { instant: request.reducedMotion, durationMs: FADE_TO_CLEAR_MS },
+        { instant: request.reducedMotion, durationMs: FADE_TO_CLEAR_MS, showLoader: false },
         signal,
       );
       if (signal.aborted) return this.#cancelled(operation);
@@ -255,7 +270,7 @@ export class RunIntroDirector {
       forgeReason = presentation.reason;
       await this.#port.fade(
         "clear",
-        { instant: request.reducedMotion, durationMs: FADE_TO_CLEAR_MS },
+        { instant: request.reducedMotion, durationMs: FADE_TO_CLEAR_MS, showLoader: false },
         signal,
       );
       if (signal.aborted) return this.#cancelled(operation);
@@ -266,10 +281,11 @@ export class RunIntroDirector {
       if (signal.aborted) return this.#cancelled(operation);
     }
 
+    // Clean black bookend into FPS — no map-build spinner on this veil.
     this.#port.setTheaterStatus("entering-play");
     await this.#port.fade(
       "opaque",
-      { instant: request.reducedMotion, durationMs: FADE_TO_BLACK_MS },
+      { instant: request.reducedMotion, durationMs: FADE_TO_BLACK_MS, showLoader: false },
       signal,
     );
     if (signal.aborted) return this.#cancelled(operation);
@@ -282,7 +298,7 @@ export class RunIntroDirector {
     if (signal.aborted) return this.#cancelled(operation);
     await this.#port.fade(
       "clear",
-      { instant: request.reducedMotion, durationMs: FADE_TO_CLEAR_MS },
+      { instant: request.reducedMotion, durationMs: FADE_TO_CLEAR_MS, showLoader: false },
       signal,
     );
     if (signal.aborted) return this.#cancelled(operation);
@@ -301,6 +317,18 @@ export class RunIntroDirector {
   async #runSkipped(operation: RunOperation): Promise<RunIntroResult> {
     const signal = operation.controller.signal;
     operation.failureStage = "build";
+    // The theater covers this swap on the Forge path; without it the previous
+    // world stays on screen and the new layout pops in mid-frame.
+    await this.#port.fade(
+      "opaque",
+      {
+        instant: operation.request.reducedMotion,
+        durationMs: FADE_TO_BLACK_MS,
+        showLoader: true,
+      },
+      signal,
+    );
+    if (signal.aborted) return this.#cancelled(operation);
     const build = await this.#port.buildWorld(operation.request.seed, signal);
     if (signal.aborted) return this.#cancelled(operation);
     if (!build.ok || !build.dungeon) {
@@ -310,8 +338,19 @@ export class RunIntroDirector {
       );
     }
     operation.failureStage = "enter-play";
+    this.#port.clearLoader();
     this.#port.activatePlayMode();
     const warmup = await this.#port.waitForWorldReady(PLAY_WARMUP_MS, signal);
+    if (signal.aborted) return this.#cancelled(operation);
+    await this.#port.fade(
+      "clear",
+      {
+        instant: operation.request.reducedMotion,
+        durationMs: FADE_TO_CLEAR_MS,
+        showLoader: false,
+      },
+      signal,
+    );
     if (signal.aborted) return this.#cancelled(operation);
     await this.#port.restorePlayInputAndFocus(signal);
     if (signal.aborted) return this.#cancelled(operation);
@@ -327,9 +366,14 @@ export class RunIntroDirector {
     const signal = operation.controller.signal;
     this.#stopSession(operation);
     this.#safeLeaveTheater();
+    this.#port.clearLoader();
     await this.#port.fade(
       "clear",
-      { instant: operation.request.reducedMotion, durationMs: FADE_TO_CLEAR_MS },
+      {
+        instant: operation.request.reducedMotion,
+        durationMs: FADE_TO_CLEAR_MS,
+        showLoader: false,
+      },
       signal,
     );
     if (signal.aborted) return this.#cancelled(operation);

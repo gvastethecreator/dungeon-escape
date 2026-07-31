@@ -97,17 +97,28 @@ describe("Play HUD structure (Ash Binding)", () => {
   test("victory has generated art and real run result fields", async () => {
     const host = await Bun.file(new URL("../index.html", import.meta.url)).text();
     const source = await Bun.file(new URL("../src/main.ts", import.meta.url)).text();
+    const css = await Bun.file(new URL("../src/styles.css", import.meta.url)).text();
     const art = Bun.file(
       new URL("../public/assets/ui/biome-screens/ancient-ending.webp", import.meta.url),
     );
     expect(host).toContain("/assets/ui/biome-screens/ancient-ending.webp");
     expect(host).toContain('data-biome-id="ancient"');
+    expect(host).toContain('class="end-stage"');
+    expect(host.indexOf('class="end-stage"')).toBeLessThan(host.indexOf('class="end-art"'));
+    expect(host.indexOf('class="end-art"')).toBeLessThan(host.indexOf('id="end-particles"'));
     expect(await art.exists()).toBe(true);
     expect(art.size).toBeLessThan(400_000);
     for (const id of ["end-time", "end-stones", "end-distance", "end-biome", "end-seed"])
       expect(host).toContain(`id="${id}"`);
     expect(source).toContain("elements.endTime.textContent");
     expect(source).toContain("elements.endBiome.textContent");
+    // Victory art must stay fully framed (contain) and never under the results card.
+    expect(css).toMatch(/\.end-art\s*\{[\s\S]*object-fit:\s*contain/);
+    expect(css).toMatch(
+      /\.end-overlay\[data-end="won"\]\s*\{[\s\S]*grid-template-columns:\s*minmax\(0,\s*1fr\)/,
+    );
+    expect(css).toMatch(/\.end-overlay\[data-end="won"\]\s+\.end-stage\s*\{[\s\S]*display:\s*flex/);
+    expect(css).not.toMatch(/\.end-overlay\[data-end="won"\]\s+\.end-art\s*\{[\s\S]*object-fit:\s*cover/);
   });
 
   test("styles define layered health orb, socket fill, objective fade, faint reticle", async () => {
