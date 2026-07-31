@@ -186,7 +186,7 @@ export class LightingRig {
     // Threat closes the fog slightly and boosts the lantern — readable panic, not a full blackout.
     this.fog.density = THREE.MathUtils.damp(
       this.fog.density,
-      this.baseFogDensity * THREE.MathUtils.clamp(explorationFogMultiplier, 1, 2.2) +
+      this.baseFogDensity * THREE.MathUtils.clamp(explorationFogMultiplier, 1, 5.6) +
         threat * 0.0035,
       1.7,
       delta,

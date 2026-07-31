@@ -36,10 +36,12 @@ describe("biome screen particles", () => {
 
     expect(host).toContain('id="welcome-particles"');
     expect(host).toContain('id="end-particles"');
+    expect(host).toContain('class="end-stage"');
     expect(host.match(/class="biome-screen-particles"/g)).toHaveLength(2);
     expect(host.match(/aria-hidden="true"/g)?.length ?? 0).toBeGreaterThanOrEqual(2);
     expect(css).toMatch(/\.biome-screen-particles\s*\{[\s\S]*pointer-events:\s*none/);
     expect(css).toContain('.end-overlay[data-end="won"] .biome-screen-particles');
+    expect(css).toMatch(/\.end-overlay\[data-end="won"\]\s+\.end-stage\s*\{[\s\S]*display:\s*flex/);
     expect(main).toContain("welcomeScreenParticles.setBiome(biomeId)");
     expect(main).toContain("endScreenParticles.setBiome(endingBiomeId)");
     expect(main).toContain('endScreenParticles.setActive(mode === "won")');

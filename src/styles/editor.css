@@ -690,12 +690,19 @@
   right: 0;
   bottom: 0;
   left: 0;
+  /* Below scene-fade (55) while building; raised when data-intro-reveal is set. */
   z-index: 40;
   border: 0;
   box-shadow: none;
   background: #000;
   visibility: visible !important;
   pointer-events: auto !important;
+}
+
+/* Isometric map is ready: keep Forge above the global black fade so a mid
+   transition or residual opaque veil cannot hide the theater forever. */
+.app-shell[data-run-intro="true"][data-intro-reveal="true"] .editor-workspace {
+  z-index: 70;
 }
 
 .app-shell[data-run-intro="true"] .editor-toolbar,

@@ -20,6 +20,11 @@ export interface PovFeelInput {
    * and decays over a few seconds as a weaker, wobblier shake.
    */
   exhaustionTrauma?: number;
+  /**
+   * Mobility potion intensity 0..1. Adds a strong chromatic fringe and extra
+   * lens warp so the speed window reads on the lens, not only on the HUD.
+   */
+  mobilityBoost?: number;
   /** System preference: cut motion intensity hard. */
   reducedMotion?: boolean;
 }
@@ -61,6 +66,16 @@ export const POV_EXHAUST_SHAKE = 0.78;
 export const POV_EXHAUST_CHROMATIC = 0.0009;
 /** How long full exhaustion trauma takes to decay to zero (seconds). */
 export const POV_EXHAUST_TRAUMA_SECONDS = 2.8;
+/**
+ * Soft chromatic fringe at full mobility boost.
+ * Kept modest: high radial CA reads as four hard diagonal corner streaks.
+ * The draught mote field carries the visible fantasy, not post-process lines.
+ */
+export const POV_BOOST_CHROMATIC = 0.0026;
+/** Extra outward warp at full mobility boost and full stride. */
+export const POV_BOOST_CURVATURE = 0.016;
+/** Light continuous camera shake while the mobility draught is active. */
+export const POV_BOOST_SHAKE = 0.24;
 
 export function threatProximity(distance: number | null): number {
   if (distance === null || !Number.isFinite(distance)) return 0;
@@ -89,6 +104,7 @@ export function computePovFeel(input: PovFeelInput): PovFeelTarget {
   const threat = threatProximity(input.threatDistance);
   const hit = clamp01(input.hitTrauma ?? 0);
   const exhaust = clamp01(input.exhaustionTrauma ?? 0);
+  const boost = clamp01(input.mobilityBoost ?? 0);
   // Ease-out so the last second of trauma still reads without a hard cut.
   const hitFeel = hit * hit * (3 - 2 * hit);
   const exhaustFeel = exhaust * exhaust * (3 - 2 * exhaust);
@@ -96,21 +112,24 @@ export function computePovFeel(input: PovFeelInput): PovFeelTarget {
   let curvature = POV_CURVATURE_BASE + POV_CURVATURE_SPRINT * sprintBlend * (0.45 + 0.55 * speed);
   curvature = Math.max(POV_CURVATURE_MIN, curvature);
   curvature += hitFeel * 0.012 + exhaustFeel * 0.008;
+  curvature += POV_BOOST_CURVATURE * boost * (0.5 + 0.5 * speed);
 
   const threatShake = POV_SHAKE_MAX * smoothstep(0.1, 1, threat);
   const hitShake = POV_HIT_SHAKE * hitFeel;
   const exhaustShake = POV_EXHAUST_SHAKE * exhaustFeel;
   // Threat is subtle; hits own the stronger band. Exhaustion is a mid wobble.
   const traumaShake = Math.max(hitShake, exhaustShake);
+  const boostShake = POV_BOOST_SHAKE * boost * (0.35 + 0.65 * speed);
   let shake = Math.min(
     1,
-    Math.max(threatShake, traumaShake * 0.55) + traumaShake * 0.45,
+    Math.max(threatShake, traumaShake * 0.55) + traumaShake * 0.45 + boostShake,
   );
 
   let chromatic =
     POV_CHROMATIC_MAX * smoothstep(0.08, 1, threat) +
     POV_HIT_CHROMATIC * hitFeel +
-    POV_EXHAUST_CHROMATIC * exhaustFeel;
+    POV_EXHAUST_CHROMATIC * exhaustFeel +
+    POV_BOOST_CHROMATIC * boost * (0.55 + 0.45 * Math.max(speed, sprintBlend));
 
   return {
     curvature: Number(curvature.toFixed(5)),

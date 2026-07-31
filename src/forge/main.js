@@ -2921,6 +2921,9 @@ function tick() {
 addEventListener("message", (event) => {
   if (event.origin !== location.origin || event.source !== window.parent) return;
   if (event.data?.type === "black-flag:forge-new-seed") {
+    // Never rebuild a cosmetic Creation layout during host map theater — that
+    // second isometric map is a visible pop-in and a wasted full rebuild.
+    if (presentationMode || activePresentationId !== null) return;
     const requested = Number(event.data.seed);
     if (Number.isFinite(requested)) {
       el.seed.value = nextProceduralSeed(requested, Number(el.seed.value) || 0);
@@ -2948,6 +2951,14 @@ addEventListener("message", (event) => {
     // Preserve Creation for every presentation route, including a legacy host
     // that only supplies seed/theme and asks Forge to generate the theater map.
     if (!editorDungeonBeforePresentation && D) editorDungeonBeforePresentation = D;
+    // Drop the previous Creation/procedural mesh immediately so the host reveal
+    // never composites two isometric layouts for a frame.
+    disposeLevel();
+    D = null;
+    animating = false;
+    animT = Infinity;
+    renderer.setClearColor(0x000000, 1);
+    renderer.clear();
     // Host may ship the real play layout (isometric of that topology). Prefer it
     // over re-rolling a cosmetic Creation seed.
     const hostDungeon = event.data.dungeon;
@@ -2969,6 +2980,7 @@ addEventListener("message", (event) => {
           for (const k in meshes) meshes[k].userData.settled = false;
           setFxRamp(0);
         } else finishAnim();
+        if (presentationMode && D) fitCameraToDungeon(D.W, D.H);
         requestAnimationFrame(() => {
           if (presentationMode && D) fitCameraToDungeon(D.W, D.H);
         });

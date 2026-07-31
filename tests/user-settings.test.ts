@@ -44,6 +44,9 @@ describe("persistent user settings", () => {
     const scene = new THREE.Scene();
     const texture = new THREE.Texture();
     const shaderTexture = new THREE.Texture();
+    // Synthetic image so the smoother can touch fully-ready textures only.
+    texture.image = { width: 4, height: 4 };
+    shaderTexture.image = { width: 4, height: 4 };
     texture.generateMipmaps = true;
     scene.add(
       new THREE.Mesh(new THREE.PlaneGeometry(), new THREE.MeshBasicMaterial({ map: texture })),
@@ -56,10 +59,17 @@ describe("persistent user settings", () => {
     );
     expect(applyTextureSmoothing(scene, false)).toBe(2);
     expect(texture.magFilter).toBe(THREE.NearestFilter);
-    expect(texture.minFilter).toBe(THREE.NearestMipmapNearestFilter);
+    // Non-mip nearest avoids black uploads on atlases still decoding.
+    expect(texture.minFilter).toBe(THREE.NearestFilter);
     expect(shaderTexture.magFilter).toBe(THREE.NearestFilter);
     expect(applyTextureSmoothing(scene, true)).toBe(2);
     expect(texture.magFilter).toBe(THREE.LinearFilter);
     expect(texture.minFilter).toBe(THREE.LinearMipmapLinearFilter);
+    // Re-applying the same policy must not bump texture versions (no GPU re-upload).
+    const versionBefore = texture.version;
+    const shaderVersionBefore = shaderTexture.version;
+    expect(applyTextureSmoothing(scene, true)).toBe(2);
+    expect(texture.version).toBe(versionBefore);
+    expect(shaderTexture.version).toBe(shaderVersionBefore);
   });
 });

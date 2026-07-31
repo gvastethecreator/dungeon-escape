@@ -94,6 +94,7 @@ import {
   isMobilityBoostActive,
   tickMobilityBoost,
 } from "../game/MobilityBoost";
+import { MobilityBoostVfx } from "./MobilityBoostVfx";
 import {
   canCollectPickup,
   canInteractWithChest,
@@ -267,6 +268,7 @@ export class DungeonWorld {
   private timeFreezeVfx: TimeFreezeVfx | null = null;
   private enemyMotionTrailVfx: EnemyMotionTrailVfx | null = null;
   private luminousWardVfx: LuminousWardVfx | null = null;
+  private mobilityBoostVfx: MobilityBoostVfx | null = null;
   private annihilationPulseVfx: AnnihilationPulseVfx | null = null;
   private readonly pickupBurstWarmupPosition = new THREE.Vector3();
   private dungeon: DungeonData | null = null;
@@ -443,8 +445,31 @@ export class DungeonWorld {
     this.staticHandles.hazardTiles = value;
   }
 
+  /**
+   * Replace the active floor. Sync path for tests and callers that already
+   * own their own frame scheduling.
+   */
   setDungeon(dungeon: DungeonData, mood: DungeonMood = getDungeonMood("ash")): void {
     this.clear();
+    this.populateDungeon(dungeon, mood);
+  }
+
+  /**
+   * Same as `setDungeon`, but yields after disposing the previous floor so the
+   * browser can paint the load cover and reclaim GPU memory before the next
+   * architecture + actor build. Used by successive map loads in a long session.
+   */
+  async setDungeonWithYield(
+    dungeon: DungeonData,
+    mood: DungeonMood,
+    yieldToMain: () => Promise<void>,
+  ): Promise<void> {
+    this.clear();
+    await yieldToMain();
+    this.populateDungeon(dungeon, mood);
+  }
+
+  private populateDungeon(dungeon: DungeonData, mood: DungeonMood): void {
     this.dungeon = dungeon;
     this.activeMood = mood;
     this.collectedStones.clear();
@@ -1152,6 +1177,12 @@ export class DungeonWorld {
       viewerPosition ?? { x: 0, y: 1.5, z: 0 },
       delta,
     );
+    this.mobilityBoostVfx?.update(
+      this.mobilityBoostSeconds,
+      this.elapsed,
+      viewerPosition ?? { x: 0, y: 1.5, z: 0 },
+      delta,
+    );
     this.annihilationPulseVfx?.update(
       this.annihilationPulseClock.remaining,
       this.elapsed,
@@ -1251,6 +1282,11 @@ export class DungeonWorld {
     this.pickupBurstPool?.setWarmupVisible(visible, this.pickupBurstWarmupPosition);
     this.timeFreezeVfx?.setWarmupVisible(visible);
     this.annihilationPulseVfx?.setWarmupVisible(visible);
+    this.mobilityBoostVfx?.setWarmupVisible(visible, {
+      x: this.pickupBurstWarmupPosition.x,
+      y: 1.5,
+      z: this.pickupBurstWarmupPosition.z,
+    });
     // Chest rewards stay visible (tiny scale when dormant) so compile sees them.
     for (const pickup of this.pickups) pickup.object.visible = true;
     // Portal open materials are usually hidden until the fourth stone.
@@ -1778,6 +1814,8 @@ export class DungeonWorld {
     this.luminousWardVfx = new LuminousWardVfx();
     this.group.add(this.luminousWardVfx.root);
     this.stats.lights += 1;
+    this.mobilityBoostVfx = new MobilityBoostVfx();
+    this.group.add(this.mobilityBoostVfx.root);
     this.annihilationPulseVfx = new AnnihilationPulseVfx();
     this.group.add(this.annihilationPulseVfx.root);
     this.stats.lights += 1;
@@ -1825,6 +1863,11 @@ export class DungeonWorld {
       this.group.remove(this.luminousWardVfx.root);
       this.luminousWardVfx.dispose();
       this.luminousWardVfx = null;
+    }
+    if (this.mobilityBoostVfx) {
+      this.group.remove(this.mobilityBoostVfx.root);
+      this.mobilityBoostVfx.dispose();
+      this.mobilityBoostVfx = null;
     }
     if (this.annihilationPulseVfx) {
       this.group.remove(this.annihilationPulseVfx.root);

@@ -13,4 +13,13 @@ describe("play view falloff", () => {
     );
     expect(css).not.toMatch(/data-engine-mode="editor"[^}]*\.view-falloff/);
   });
+
+  test("precipitation biome events do not paint diagonal screen streaks", async () => {
+    const css = await Bun.file(new URL("../src/styles.css", import.meta.url)).text();
+    // Fall pulses use world ceiling particles; no repeating diagonal gradients.
+    expect(css).not.toMatch(/data-biome-event="dustfall"[\s\S]{0,400}repeating-linear-gradient/);
+    expect(css).not.toMatch(/data-biome-event="cinderfall"[\s\S]{0,400}repeating-linear-gradient/);
+    expect(css).not.toMatch(/data-biome-event="spore-bloom"[\s\S]{0,400}repeating-linear-gradient/);
+    expect(css).not.toContain("@keyframes biome-fall");
+  });
 });

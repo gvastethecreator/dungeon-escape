@@ -11,6 +11,7 @@ const BEAM_VERTEX_SHADER = /* glsl */ `
   varying vec3 vWorldPos;
   varying vec3 vWorldNormal;
   varying vec3 vLocalPos;
+  varying vec3 vBeamAxis;
   varying vec2 vBeamUv;
 
 #if defined(AMBIENT_STRATA_PROFILE) || defined(OBJECTIVE_STRATA_PROFILE)
@@ -26,6 +27,7 @@ const BEAM_VERTEX_SHADER = /* glsl */ `
     vec4 world = modelMatrix * vec4(position, 1.0);
     vWorldPos = world.xyz;
     vWorldNormal = normalize(mat3(modelMatrix) * normal);
+    vBeamAxis = (modelMatrix * vec4(0.0, 0.0, 0.0, 1.0)).xyz;
 
 #if defined(AMBIENT_STRATA_PROFILE) || defined(OBJECTIVE_STRATA_PROFILE)
     vBeamLayer = aBeamLayer;
@@ -52,6 +54,7 @@ const BEAM_FRAGMENT_SHADER = /* glsl */ `
   varying vec3 vWorldPos;
   varying vec3 vWorldNormal;
   varying vec3 vLocalPos;
+  varying vec3 vBeamAxis;
   varying vec2 vBeamUv;
 
 #if defined(AMBIENT_STRATA_PROFILE) || defined(OBJECTIVE_STRATA_PROFILE)
@@ -132,6 +135,15 @@ const BEAM_FRAGMENT_SHADER = /* glsl */ `
     vec3 toCamera = normalize(cameraPosition - vWorldPos);
     float facing = abs(dot(normalize(vWorldNormal), toCamera));
 
+    // Crossed open planes read as hard diagonal white streaks when edge-on or
+    // when the camera walks through the shaft. Kill those silhouettes early:
+    // wider proximity fade + a hard edge-on gate (four strata ⇒ four lines).
+    float cameraRange = length(cameraPosition.xz - vBeamAxis.xz);
+    float proximityFade = smoothstep(1.85, 3.4, cameraRange);
+    float edgeOnFade = smoothstep(0.12, 0.38, facing);
+    float beamVisibility = proximityFade * edgeOnFade;
+    if (beamVisibility < 0.01) discard;
+
 #ifdef AMBIENT_STRATA_PROFILE
     // Six open world-space planes overlap into a volume without enclosing the
     // camera in a visible cone. Three broad strata establish the shaft while
@@ -158,7 +170,7 @@ const BEAM_FRAGMENT_SHADER = /* glsl */ `
 
     float alpha = clamp(
       uStrength * 1.9 * viewDensity * layerDensity * densityBand * flowDensity *
-        sourceFade * floorFade * edgeMask,
+        sourceFade * floorFade * edgeMask * beamVisibility,
       0.0,
       0.24
     );
@@ -189,7 +201,7 @@ const BEAM_FRAGMENT_SHADER = /* glsl */ `
     float layerDensity = mix(0.7, 1.12, vBeamLayer);
     float alpha = clamp(
       uStrength * 2.35 * viewDensity * layerDensity * steppedGap * sourceFade *
-        pickupFade * edgeMask,
+        pickupFade * edgeMask * beamVisibility,
       0.0,
       0.32
     );
@@ -199,7 +211,7 @@ const BEAM_FRAGMENT_SHADER = /* glsl */ `
 #else
     // Signal beams retain the smoother portal/stone vocabulary. This avoids
     // applying the ambient PSone profile to authored gameplay indicators.
-    float volumeFacing = smoothstep(0.04, 0.78, facing);
+    float volumeFacing = smoothstep(0.12, 0.78, facing);
 
     // Stronger at the ceiling opening, with a quiet fade before the floor so
     // the shaft does not read as a solid cone pasted onto the tiles.
@@ -214,7 +226,7 @@ const BEAM_FRAGMENT_SHADER = /* glsl */ `
     density *= mix(0.9, 1.08, detailNoise);
 
     float opticalDepth = uStrength * 3.2 * volumeFacing * sourceFade * floorFade * density;
-    float alpha = 1.0 - exp(-max(opticalDepth, 0.0));
+    float alpha = (1.0 - exp(-max(opticalDepth, 0.0))) * beamVisibility;
     if (alpha < 0.002) discard;
 
     vec3 col = uColor * mix(0.84, 1.08, broadNoise);

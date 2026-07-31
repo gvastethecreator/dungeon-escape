@@ -131,6 +131,29 @@ describe("soft ground fog", () => {
     atmosphere.dispose();
   });
 
+  test("biome event pulse intensifies ceiling fallers without screen overlays", () => {
+    const scene = new THREE.Scene();
+    const atmosphere = new AtmosphereSystem(scene, 2.4, SOFT_FOG_DEFAULT_WALL_HEIGHT);
+    atmosphere.setDungeon(generateDungeon("CEIL-PULSE", { roomTarget: 10 }), getDungeonMood("ancient"));
+    const profile = getBiomeParticleProfile("ancient");
+    const ceiling = scene.getObjectByName(
+      `Biome particles: ${profile.ceiling.name}`,
+    ) as THREE.Points;
+    const material = ceiling.material as THREE.ShaderMaterial;
+    const baseOpacity = material.uniforms.uOpacity.value as number;
+    const baseSpeed = material.uniforms.uSpeed.value as number;
+
+    atmosphere.setEventPulse(1);
+    expect(material.uniforms.uOpacity.value).toBeGreaterThan(baseOpacity);
+    expect(material.uniforms.uSpeed.value).toBeGreaterThan(baseSpeed);
+    expect(material.uniforms.uOpacity.value).toBeLessThanOrEqual(1);
+
+    atmosphere.setEventPulse(0);
+    expect(material.uniforms.uOpacity.value).toBeCloseTo(baseOpacity, 5);
+    expect(material.uniforms.uSpeed.value).toBeCloseTo(baseSpeed, 5);
+    atmosphere.dispose();
+  });
+
   test("particle layers vary size and carry phase, tint, time, and viewer wake", () => {
     const scene = new THREE.Scene();
     const atmosphere = new AtmosphereSystem(scene, 2.4);

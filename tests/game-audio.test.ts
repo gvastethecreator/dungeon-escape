@@ -99,8 +99,9 @@ describe("GameAudio dungeon soundscape", () => {
     expect(source).toContain("lose.opus");
     expect(source).toContain("music-menu.opus");
     expect(source).toContain("music-win.opus");
-    expect(source).toContain("music-lose.opus");
+    expect(source).toContain("music-lose.ogg");
     expect(source).toContain("music-biome-backrooms.ogg");
+    expect(source).toContain("music-biome-backrooms-portal.ogg");
     expect(source).toContain("ui-click.opus");
     expect(source).toContain("ui-tick.opus");
     expect(source).toContain("ui-hover.opus");
@@ -118,16 +119,29 @@ describe("GameAudio dungeon soundscape", () => {
     expect(source).toContain("enemy-${kind}-attack-${tone}.opus");
   });
 
-  test("every biome owns a valid original exploration track", async () => {
+  test("every biome owns valid exploration and portal tracks", async () => {
     for (const biome of listBiomeIds()) {
       expect(musicTrackForBiome(biome)).toBe(`biome-${biome}`);
-      const asset = Bun.file(
-        new URL(`../public/assets/audio/dungeon/music-biome-${biome}.ogg`, import.meta.url),
-      );
-      expect(await asset.exists()).toBe(true);
-      expect(asset.size).toBeGreaterThan(150_000);
+      expect(musicTrackForBiome(biome, { portalOpen: true })).toBe(`biome-${biome}-portal`);
+      for (const suffix of ["", "-portal"] as const) {
+        const asset = Bun.file(
+          new URL(
+            `../public/assets/audio/dungeon/music-biome-${biome}${suffix}.ogg`,
+            import.meta.url,
+          ),
+        );
+        expect(await asset.exists()).toBe(true);
+        expect(asset.size).toBeGreaterThan(150_000);
+      }
     }
     expect(musicTrackForBiome("unknown")).toBe("biome-ancient");
+    expect(musicTrackForBiome("unknown", { portalOpen: true })).toBe("biome-ancient-portal");
+  });
+
+  test("lose bed is a melancholic Neo-SPC ogg asset", async () => {
+    const asset = Bun.file(new URL("../public/assets/audio/dungeon/music-lose.ogg", import.meta.url));
+    expect(await asset.exists()).toBe(true);
+    expect(asset.size).toBeGreaterThan(150_000);
   });
 
   test("mood maps to creature tone families", () => {
@@ -182,6 +196,8 @@ describe("GameAudio dungeon soundscape", () => {
     expect(main).toContain('setMusicBed("win")');
     expect(main).toContain('setMusicBed("lose")');
     expect(main).toContain("musicTrackForBiome");
+    expect(main).toContain("portalOpen");
+    expect(main).toContain("setActiveBiomeMusic");
     expect(main).toContain("audio.setMusicTrack");
     expect(main).toContain("setMusicMutedPreference");
     expect(main).toContain("welcomeMusicToggle");

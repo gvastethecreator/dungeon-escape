@@ -64,7 +64,7 @@ describe("multi-floor dungeon generation", () => {
   test("floor-transition host keeps one save owner and explicit failure recovery branches", () => {
     const source = readFileSync("src/main.ts", "utf8");
     const start = source.indexOf("async function transitionCampaignFloor(");
-    const end = source.indexOf("\nfunction descendFloor", start);
+    const end = source.indexOf("\nasync function descendFloor", start);
     const transition = source.slice(start, end);
 
     expect(start).toBeGreaterThanOrEqual(0);

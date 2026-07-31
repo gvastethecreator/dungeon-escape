@@ -1,11 +1,16 @@
 import { describe, expect, test } from "bun:test";
 import * as THREE from "three";
 
-import { resolveExplorationFogMultiplier } from "../src/systems/ExplorationFog";
+import {
+  EXPLORATION_FOG_CLEAR,
+  EXPLORATION_FOG_HIDDEN_MAX,
+  EXPLORATION_FOG_REVEALED,
+  resolveExplorationFogMultiplier,
+} from "../src/systems/ExplorationFog";
 import { LightingRig } from "../src/systems/LightingRig";
 
 describe("exploration-aware first-person fog", () => {
-  test("starts dense, clears with exploration, and clears immediately for a revealed map", () => {
+  test("starts deep, softens with exploration, and keeps a soft haze for a revealed map", () => {
     const hidden = resolveExplorationFogMultiplier({
       exploredCount: 0,
       totalWalkableCells: 400,
@@ -16,8 +21,13 @@ describe("exploration-aware first-person fog", () => {
       totalWalkableCells: 400,
       mapRevealed: false,
     });
-    expect(hidden).toBeCloseTo(2.2);
-    expect(traversed).toBeGreaterThan(1);
+    expect(hidden).toBeCloseTo(EXPLORATION_FOG_HIDDEN_MAX);
+    // Unmapped floors stay near-blind (a few metres); revealed floors keep the
+    // previous soft mid haze rather than opening to crystal clarity.
+    expect(EXPLORATION_FOG_HIDDEN_MAX).toBeGreaterThan(8);
+    expect(EXPLORATION_FOG_REVEALED).toBeGreaterThan(4);
+    expect(EXPLORATION_FOG_HIDDEN_MAX).toBeGreaterThan(EXPLORATION_FOG_REVEALED);
+    expect(traversed).toBeGreaterThan(EXPLORATION_FOG_REVEALED);
     expect(traversed).toBeLessThan(hidden);
     expect(
       resolveExplorationFogMultiplier({
@@ -25,14 +35,37 @@ describe("exploration-aware first-person fog", () => {
         totalWalkableCells: 400,
         mapRevealed: true,
       }),
-    ).toBe(1);
+    ).toBe(EXPLORATION_FOG_REVEALED);
+    expect(EXPLORATION_FOG_REVEALED).toBeGreaterThan(1);
     expect(
       resolveExplorationFogMultiplier({
         exploredCount: 180,
         totalWalkableCells: 400,
         mapRevealed: false,
       }),
-    ).toBe(1);
+    ).toBe(EXPLORATION_FOG_REVEALED);
+  });
+
+  test("clears the deep fog wall once all four stones are bound", () => {
+    expect(
+      resolveExplorationFogMultiplier({
+        exploredCount: 0,
+        totalWalkableCells: 400,
+        mapRevealed: false,
+        allStonesBound: true,
+      }),
+    ).toBe(EXPLORATION_FOG_CLEAR);
+    // Bound stones beat both the dark wall and a mid map-reveal haze.
+    expect(
+      resolveExplorationFogMultiplier({
+        exploredCount: 0,
+        totalWalkableCells: 400,
+        mapRevealed: true,
+        allStonesBound: true,
+      }),
+    ).toBe(EXPLORATION_FOG_CLEAR);
+    expect(EXPLORATION_FOG_CLEAR).toBe(1);
+    expect(EXPLORATION_FOG_CLEAR).toBeLessThan(EXPLORATION_FOG_REVEALED);
   });
 
   test("feeds the multiplier into the existing biome and threat fog owner", () => {
