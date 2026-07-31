@@ -28,6 +28,7 @@ describe("four-stone quest", () => {
 
   test("magic stone kit builds four distinct action-ready pickups", () => {
     const materials = createDungeonMaterials();
+    const effectColors = new Set<number>();
     for (const id of STONE_ORDER) {
       const stone = createMagicStone(id, materials);
       const size = new THREE.Box3().setFromObject(stone.root).getSize(new THREE.Vector3());
@@ -36,7 +37,11 @@ describe("four-stone quest", () => {
       expect(size.y).toBeGreaterThan(0.5);
       expect(size.y).toBeLessThan(1.7);
       expect(stone.light.isPointLight).toBe(true);
+      expect(stone.crystalAssembly.isGroup).toBe(true);
+      expect(stone.glow.name).toBe(`${id} ritual ground light`);
+      effectColors.add(stone.effectColor);
     }
+    expect(effectColors.size).toBe(4);
   });
 
   test("restores collected stone identity without replaying pickup events", () => {

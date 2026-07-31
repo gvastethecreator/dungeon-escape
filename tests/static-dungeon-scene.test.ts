@@ -277,12 +277,13 @@ describe("StaticDungeonScene", () => {
       expect(ambientMaterial.fog).toBe(true);
       expect(ambientMaterial.toneMapped).toBe(true);
       expect(classic.ambientBeams[0]!.userData.screenSpace).toBe(false);
-      expect(classic.ambientBeams[0]!.userData.profile).toBe("retro-faceted");
-      expect(classic.ambientBeams[0]!.geometry.userData.triangles).toBe(64);
+      expect(classic.ambientBeams[0]!.userData.profile).toBe("retro-crossed-strata");
+      expect(classic.ambientBeams[0]!.geometry.userData.closedVolume).toBe(false);
+      expect(classic.ambientBeams[0]!.geometry.userData.triangles).toBe(36);
       expect(ambientMaterial.fragmentShader).toContain("#include <tonemapping_fragment>");
       expect(ambientMaterial.fragmentShader).toContain("#include <colorspace_fragment>");
       expect(classic.portalBeam?.userData.profile).toBe("signal-smooth");
-      expect(classic.stoneBeams.every((beam) => beam.userData.profile === "signal-smooth")).toBe(
+      expect(classic.stoneBeams.every((beam) => beam.userData.profile === "objective-strata")).toBe(
         true,
       );
       expect(classic.solidCells.size).toBe(22);

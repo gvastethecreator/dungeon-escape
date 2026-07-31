@@ -167,6 +167,8 @@ interface PickupActor {
     light: THREE.PointLight;
     glow: THREE.Mesh;
     crown: THREE.Mesh;
+    crystalAssembly: THREE.Group;
+    effectColor: number;
     baseLightIntensity: number;
     baseGlowOpacity: number;
   };
@@ -997,10 +999,19 @@ export class DungeonWorld {
       if (!pickup.available) continue;
       const powerPickup =
         pickup.timeFreezeSignal || pickup.luminousWardSignal || pickup.annihilationPulseSignal;
-      const motionScale = pickup.stoneSignal ? 1 : powerPickup ? 0.56 : 0.68;
-      pickup.object.position.y =
-        pickup.baseY + Math.sin(this.elapsed * 2 + pickup.object.id) * 0.08 * motionScale;
-      pickup.object.rotation.y += delta * (pickup.stoneSignal ? 0.72 : 0.46);
+      const motionScale = powerPickup ? 0.56 : 0.68;
+      if (pickup.stoneSignal) {
+        const phase = this.elapsed * 1.65 + pickup.object.id;
+        pickup.object.position.y = pickup.baseY;
+        pickup.stoneSignal.crystalAssembly.position.y = Math.sin(phase) * 0.035;
+        pickup.stoneSignal.crystalAssembly.rotation.y += delta * 0.56;
+        pickup.stoneSignal.crown.rotation.y -= delta * 0.92;
+        pickup.stoneSignal.glow.rotation.y -= delta * 0.12;
+      } else {
+        pickup.object.position.y =
+          pickup.baseY + Math.sin(this.elapsed * 2 + pickup.object.id) * 0.08 * motionScale;
+        pickup.object.rotation.y += delta * 0.46;
+      }
       if (pickup.timeFreezeSignal) {
         const pulse = 0.95 + Math.sin(this.elapsed * 2.35 + pickup.object.id) * 0.05;
         pickup.timeFreezeSignal.light.intensity = pickup.timeFreezeSignal.baseIntensity * pulse;
@@ -1024,13 +1035,13 @@ export class DungeonWorld {
         }
       }
       if (pickup.stoneSignal) {
-        const pulse = 0.88 + Math.sin(this.elapsed * 2.9 + pickup.object.id) * 0.12;
+        const pulse = 0.92 + Math.sin(this.elapsed * 2.35 + pickup.object.id) * 0.08;
         pickup.stoneSignal.light.intensity = pickup.stoneSignal.baseLightIntensity * pulse;
         const glowMaterial = pickup.stoneSignal.glow.material;
         if (glowMaterial instanceof THREE.MeshBasicMaterial) {
-          glowMaterial.opacity = pickup.stoneSignal.baseGlowOpacity * (0.86 + pulse * 0.2);
+          glowMaterial.opacity = pickup.stoneSignal.baseGlowOpacity * (0.82 + pulse * 0.18);
         }
-        pickup.stoneSignal.crown.scale.setScalar(0.96 + pulse * 0.08);
+        pickup.stoneSignal.crown.scale.setScalar(0.68 * (0.97 + pulse * 0.055));
       }
       if (
         !canCollectPickup(
@@ -1042,7 +1053,11 @@ export class DungeonWorld {
         continue;
       pickup.collected = true;
       pickup.collectTime = 0;
-      this.pickupBurstPool?.trigger(pickup.object.position, pickup.kind);
+      this.pickupBurstPool?.trigger(
+        pickup.object.position,
+        pickup.kind,
+        pickup.stoneSignal?.effectColor,
+      );
       collectedPickup = {
         kind: pickup.kind,
         position: {

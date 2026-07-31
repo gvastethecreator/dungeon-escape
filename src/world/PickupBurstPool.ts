@@ -16,6 +16,8 @@ interface PickupBurstSlot {
   active: boolean;
   age: number;
   duration: number;
+  ringPeakOpacity: number;
+  sparkPeakOpacity: number;
 }
 
 const BURST_COLORS: Readonly<Record<PickupBurstKind, number>> = {
@@ -74,7 +76,16 @@ function createSlot(index: number): PickupBurstSlot {
   sparks.name = "Pickup rising sparks";
   sparks.frustumCulled = false;
   root.add(ring, sparks);
-  return { root, ring, sparks, active: false, age: 0, duration: 0.56 };
+  return {
+    root,
+    ring,
+    sparks,
+    active: false,
+    age: 0,
+    duration: 0.56,
+    ringPeakOpacity: 0.72,
+    sparkPeakOpacity: 0.88,
+  };
 }
 
 export class PickupBurstPool {
@@ -91,17 +102,20 @@ export class PickupBurstPool {
     return this.slots.filter((slot) => slot.active).length;
   }
 
-  trigger(position: THREE.Vector3Like, kind: PickupBurstKind): void {
+  trigger(position: THREE.Vector3Like, kind: PickupBurstKind, colorOverride?: number): void {
     const slot = this.slots.find((candidate) => !candidate.active) ?? this.slots[0]!;
-    const color = BURST_COLORS[kind];
+    const color = colorOverride ?? BURST_COLORS[kind];
     slot.active = true;
     slot.age = 0;
+    slot.duration = kind === "stone" ? 0.7 : 0.56;
+    slot.ringPeakOpacity = kind === "stone" ? 0.8 : 0.72;
+    slot.sparkPeakOpacity = kind === "stone" ? 0.94 : 0.88;
     slot.root.visible = true;
     slot.root.position.copy(position);
     slot.root.rotation.y = position.x * 0.17 + position.z * 0.11;
     slot.root.scale.setScalar(0.72);
     slot.ring.material.color.setHex(color);
-    slot.ring.material.opacity = 0.72;
+    slot.ring.material.opacity = slot.ringPeakOpacity;
     slot.sparks.material.color.setHex(color);
     slot.sparks.material.size =
       kind === "resolve"
@@ -112,8 +126,10 @@ export class PickupBurstPool {
             kind === "map" ||
             kind === "mobility"
           ? 0.09
-          : 0.06;
-    slot.sparks.material.opacity = 0.88;
+          : kind === "stone"
+            ? 0.075
+            : 0.06;
+    slot.sparks.material.opacity = slot.sparkPeakOpacity;
   }
 
   update(delta: number): void {
@@ -124,8 +140,8 @@ export class PickupBurstPool {
       const eased = 1 - Math.pow(1 - progress, 2);
       slot.root.scale.setScalar(0.72 + eased * 1.9);
       slot.root.position.y += delta * (0.34 + progress * 0.26);
-      slot.ring.material.opacity = (1 - progress) * 0.72;
-      slot.sparks.material.opacity = (1 - progress) * 0.88;
+      slot.ring.material.opacity = (1 - progress) * slot.ringPeakOpacity;
+      slot.sparks.material.opacity = (1 - progress) * slot.sparkPeakOpacity;
       if (progress < 1) continue;
       slot.active = false;
       slot.root.visible = false;
