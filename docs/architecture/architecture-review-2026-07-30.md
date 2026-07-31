@@ -284,3 +284,154 @@ experience lifecycle ownership.
   recorded separately from the eliminated invalid-program polling warnings.
 - Repository-wide formatting debt remains outside this batch; `git diff --check` and Oxlint are green.
 - The unrelated `.vscode/tasks.json` remains untracked and untouched.
+
+## VFX follow-up batch — 2026-07-30
+
+Mode: Execution
+
+Status: Completed — exactly ten improvements
+
+### Summary
+
+The godray and collectible-stone recovery now has explicit geometry, material, animation, event, pooling, and fixed-scene ownership. Nine improvements were implemented through the visual recovery cut `81e7497`; the architecture pass then removed the five drifting actor interfaces duplicated by `DungeonWorld`.
+
+### VFX-ARCH-01. Own open ambient topology
+
+**Ticket / status:** `.scratch/dungeon-vfx-architecture-batch/issues/01-open-ambient-topology.md`; completed.
+
+**Initial evidence:** a closed cone could contain the camera and turn into a screen wash.
+
+**Implemented / before-after:** scattered shell assumptions became one deep geometry module inside the beam factory: six open strata, one draw, 36 triangles.
+
+**Verification:** ambient topology tests and two-angle Play proof.
+
+**Documentation / residual:** `ambient-godrays.md`; no geometry risk observed inside the tested profile.
+
+### VFX-ARCH-02. Own ambient shader response
+
+**Ticket / status:** `.scratch/dungeon-vfx-architecture-batch/issues/02-ambient-shader-response.md`; completed.
+
+**Initial evidence:** shell material policy produced flat overlays and camera-dependent failure.
+
+**Implemented / before-after:** the material module now absorbs local Bayer flow, stepped density, fog, tone mapping, and normal blending behind one profile selection.
+
+**Verification:** shader contract tests and browser-error-free Play capture.
+
+**Documentation / residual:** local UV prevents screen swim; low-end GPU coverage remains field work.
+
+### VFX-ARCH-03. Isolate portal and objective profiles
+
+**Ticket / status:** `.scratch/dungeon-vfx-architecture-batch/issues/03-profile-isolation.md`; completed.
+
+**Initial evidence:** environment, stone, and portal signals had incompatible visual needs.
+
+**Implemented / before-after:** one factory now selects ambient strata, objective strata, or smooth signal implementation while the portal caller retains its interface.
+
+**Verification:** profile isolation tests prove the portal remains smooth.
+
+**Documentation / residual:** no observed cross-profile regression.
+
+### VFX-ARCH-04. Hide beam time uniforms behind one seam
+
+**Ticket / status:** `.scratch/dungeon-vfx-architecture-batch/issues/04-beam-time-seam.md`; completed.
+
+**Initial evidence:** frame callers must not depend on shader uniform layout.
+
+**Implemented / before-after:** `tickVolumetricBeamTime` remains the single time interface for all three material adapters.
+
+**Verification:** production call-site inspection and beam tests.
+
+**Documentation / residual:** malformed third-party materials are safely ignored.
+
+### VFX-ARCH-05. Separate planted and animated stone nodes
+
+**Ticket / status:** `.scratch/dungeon-vfx-architecture-batch/issues/05-stone-node-ownership.md`; completed.
+
+**Initial evidence:** world animation moved the pedestal, cage, light, and contact signal as one loose icon.
+
+**Implemented / before-after:** the stone factory exposes one crystal assembly; the world animates it while structural nodes stay planted.
+
+**Verification:** hierarchy tests and final Ember Play proof.
+
+**Documentation / residual:** animation still intentionally lives in the Play facade.
+
+### VFX-ARCH-06. Own ritual ground-contact geometry
+
+**Ticket / status:** `.scratch/dungeon-vfx-architecture-batch/issues/06-ground-contact-owner.md`; completed.
+
+**Initial evidence:** a generic closed aura leaked visual policy into every stone.
+
+**Implemented / before-after:** one factory implementation generates open rings and stone-specific ticks behind the existing glow handle.
+
+**Verification:** all-four geometry contracts.
+
+**Documentation / residual:** none observed.
+
+### VFX-ARCH-07. Bound stone practical lighting in the factory
+
+**Ticket / status:** `.scratch/dungeon-vfx-architecture-batch/issues/07-stone-practical-light.md`; completed.
+
+**Initial evidence:** a room-scale practical flattened the crystal and floor.
+
+**Implemented / before-after:** intensity, inverse-square decay, short reach, emissive response, and crown response have one locality in `MagicStoneKit`.
+
+**Verification:** bounded-light tests and Play proof.
+
+**Documentation / residual:** other biome palettes have structural rather than per-biome screenshot proof.
+
+### VFX-ARCH-08. Carry stone identity through pickup events
+
+**Ticket / status:** `.scratch/dungeon-vfx-architecture-batch/issues/08-stone-effect-identity.md`; completed.
+
+**Initial evidence:** collection dropped each stone's authored palette at the static-scene seam.
+
+**Implemented / before-after:** `effectColor` now travels from factory to fixed scene, Play world, and burst trigger.
+
+**Verification:** four distinct colors plus call-site tests.
+
+**Documentation / residual:** none observed.
+
+### VFX-ARCH-09. Recolor pooled bursts without allocations
+
+**Ticket / status:** `.scratch/dungeon-vfx-architecture-batch/issues/09-pooled-burst-color.md`; completed.
+
+**Initial evidence:** authored color could have required per-event materials or geometry.
+
+**Implemented / before-after:** the fixed pool mutates existing color and peak-opacity state while preserving object identity.
+
+**Verification:** repeated four-stone trigger test keeps all materials and geometries stable.
+
+**Documentation / residual:** pool capacity remains the intentional upper bound.
+
+### VFX-ARCH-10. Reuse fixed-scene actor contracts
+
+**Ticket / status:** `.scratch/dungeon-vfx-architecture-batch/issues/10-fixed-scene-contracts.md`; completed.
+
+**Initial evidence:** `DungeonWorld` repeated five interfaces exported by `StaticDungeonScene`; stone-signal additions had to be edited twice.
+
+**Implemented / before-after:** roughly 80 lines of duplicate shape knowledge were deleted; the Play facade consumes the five canonical fixed-scene contracts.
+
+**Verification:** 11 focused world tests, 774 full tests, all three TypeScript configs, lint, targeted format, and code-verification build pass.
+
+**Documentation / residual:** `StaticDungeonScene` remains the contract owner under ADR 0002; no new domain term or ADR was needed.
+
+### Follow-up integration verification
+
+| Check              | Result                                                                            |
+| ------------------ | --------------------------------------------------------------------------------- |
+| Exact ticket count | 10 completed under `.scratch/dungeon-vfx-architecture-batch/`                     |
+| Full tests         | 774 passed, 154,392 assertions, 0 failed                                          |
+| Types              | client, server, and worker passed                                                 |
+| Lint               | passed                                                                            |
+| Build              | code-verification passed; 154 modules transformed                                 |
+| Runtime            | final godray and Ember captures; 0 browser and 0 network errors                   |
+| Renderer snapshot  | 189 calls, 290,421 triangles, 636 geometries, 348 materials                       |
+| Format             | all touched files pass; repository-wide baseline still reports 47 unrelated files |
+| Independent review | unavailable; internal adversarial review only                                     |
+
+### Follow-up decisions and residual risks
+
+- Kept the portal's smooth signal profile and `DungeonWorld` as the Play facade.
+- Rejected extra post-processing, closed volumes, generic sphere auras, and a broad static-scene move.
+- A9 static-scene planning remains deferred; this batch only removed duplicate contract knowledge.
+- Visual proof covers one live stone representative plus structural coverage for all four palettes.

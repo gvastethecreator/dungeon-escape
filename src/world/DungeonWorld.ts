@@ -98,9 +98,14 @@ import {
   canCollectPickup,
   canInteractWithChest,
   StaticDungeonScene,
+  type StaticChestActor,
+  type StaticDoorActor,
   type StaticDungeonSceneHandles,
   type StaticDungeonSceneStats,
+  type StaticFireEffect,
+  type StaticPickupActor,
   type StaticPickupKind,
+  type StaticStairActor,
 } from "./StaticDungeonScene";
 
 export { knockbackAwayFrom } from "./knockback";
@@ -141,88 +146,6 @@ interface EnemyAnimationBatch {
   animation: EnemyAnimationDefinition;
   frame: number;
   phaseOffset: number;
-}
-
-interface DoorActor {
-  root: THREE.Group;
-  left: THREE.Group;
-  right: THREE.Group;
-  openness: number;
-  targetOpen: boolean;
-}
-
-interface PickupActor {
-  kind: StaticPickupKind;
-  stoneId?: StoneId;
-  object: THREE.Object3D;
-  collected: boolean;
-  collectTime: number;
-  available: boolean;
-  revealTime: number;
-  baseY: number;
-  baseScale: THREE.Vector3;
-  /** Chest rewards that activate after their reveal without a proximity check. */
-  autoCollect?: boolean;
-  stoneSignal?: {
-    light: THREE.PointLight;
-    glow: THREE.Mesh;
-    crown: THREE.Mesh;
-    crystalAssembly: THREE.Group;
-    effectColor: number;
-    baseLightIntensity: number;
-    baseGlowOpacity: number;
-  };
-  timeFreezeSignal?: {
-    light: THREE.PointLight;
-    baseIntensity: number;
-  };
-  luminousWardSignal?: {
-    light: THREE.PointLight;
-    glow: THREE.Mesh;
-    baseIntensity: number;
-    baseGlowOpacity: number;
-  };
-  annihilationPulseSignal?: {
-    light: THREE.PointLight;
-    glow: THREE.Mesh;
-    baseIntensity: number;
-    baseGlowOpacity: number;
-  };
-}
-
-interface ChestActor {
-  id: string;
-  root: THREE.Group;
-  lid: THREE.Group;
-  reward: PickupActor;
-  opened: boolean;
-  openness: number;
-}
-
-interface StairActor {
-  root: THREE.Group;
-  direction: "up" | "down";
-  targetFloor: number;
-  cell: GridCell;
-}
-
-interface FireEffect {
-  root: THREE.Group;
-  flame: THREE.Mesh;
-  flameDetails: THREE.Object3D[];
-  halos: THREE.Object3D[];
-  light: THREE.PointLight | null;
-  baseIntensity: number;
-  baseY: number;
-  baseFlameScaleY: number;
-  currentLightFactor: number;
-  cutoffDistance: number;
-  phase: number;
-  /** Cached line-of-sight; refreshed on a throttle to cut grid ray cost. */
-  losOpen: boolean;
-  losAge: number;
-  /** Fluorescent fixtures share light LOD without emitting fire crackle. */
-  audio?: boolean;
 }
 
 export interface WorldUpdate {
@@ -420,23 +343,23 @@ export class DungeonWorld {
     this.staticHandles = StaticDungeonScene.emptyHandles();
   }
 
-  private get doors(): DoorActor[] {
+  private get doors(): StaticDoorActor[] {
     return this.staticHandles.doors;
   }
 
-  private get pickups(): PickupActor[] {
+  private get pickups(): StaticPickupActor[] {
     return this.staticHandles.pickups;
   }
 
-  private get chests(): ChestActor[] {
+  private get chests(): StaticChestActor[] {
     return this.staticHandles.chests;
   }
 
-  private get staircases(): StairActor[] {
+  private get staircases(): StaticStairActor[] {
     return this.staticHandles.staircases;
   }
 
-  private get fireEffects(): FireEffect[] {
+  private get fireEffects(): StaticFireEffect[] {
     return this.staticHandles.fireEffects;
   }
 
@@ -884,7 +807,7 @@ export class DungeonWorld {
       door.root.userData.closed = door.openness < 0.08;
     }
 
-    let nearestChest: ChestActor | null = null;
+    let nearestChest: StaticChestActor | null = null;
     let nearestChestDistance = Number.POSITIVE_INFINITY;
     for (const chest of this.chests) {
       const distance = horizontalDistance(chest.root.position, player);
@@ -953,7 +876,7 @@ export class DungeonWorld {
     }
 
     if (!nearestChest) {
-      let nearestStair: StairActor | null = null;
+      let nearestStair: StaticStairActor | null = null;
       let nearestStairDistance = Number.POSITIVE_INFINITY;
       for (const stair of this.staircases) {
         const distance = horizontalDistance(stair.root.position, player);
@@ -1445,7 +1368,7 @@ export class DungeonWorld {
       .map((enemy) => ({ cell: toCell(enemy.position), tier: enemy.tier }));
     const stones = this.pickups
       .filter(
-        (pickup): pickup is PickupActor & { kind: "stone"; stoneId: StoneId } =>
+        (pickup): pickup is StaticPickupActor & { kind: "stone"; stoneId: StoneId } =>
           pickup.kind === "stone" && pickup.stoneId !== undefined,
       )
       .map((pickup) => ({

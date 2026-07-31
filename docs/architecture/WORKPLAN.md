@@ -75,3 +75,24 @@ and production paths. Adversarial hardening is in `f845974`, `93401bc`, `1d784a4
 Imported Forge maps now fail closed as session-only under
 [ADR 0005](../adr/0005-forge-imports-are-session-only.md). A7 and A8 were accepted afterward; see
 [ADR 0006](../adr/0006-runtime-assets-and-lazy-campaign.md). A9 remains deferred and requires explicit owner acceptance.
+
+## Completed VFX architecture follow-up — 2026-07-30
+
+Exactly ten improvements were completed and integrated. Canonical outcomes are in the
+[architecture report](architecture-review-2026-07-30.md#vfx-follow-up-batch--2026-07-30); local lifecycle tickets are under `.scratch/dungeon-vfx-architecture-batch/`.
+
+| ID          | Owner / seam     | Result                                                              |
+| ----------- | ---------------- | ------------------------------------------------------------------- |
+| VFX-ARCH-01 | Ambient topology | Open crossed strata remove camera-enclosing geometry                |
+| VFX-ARCH-02 | Ambient material | World-local stepped response owns fog and output transforms         |
+| VFX-ARCH-03 | Beam profiles    | Ambient, objective, and portal signal implementations stay isolated |
+| VFX-ARCH-04 | Beam time        | Frame callers use one uniform-agnostic interface                    |
+| VFX-ARCH-05 | Stone hierarchy  | Planted structure and animated crystal have separate owners         |
+| VFX-ARCH-06 | Ground contact   | Open ritual geometry replaces a generic closed aura                 |
+| VFX-ARCH-07 | Practical light  | Stone factory owns bounded local response                           |
+| VFX-ARCH-08 | Effect identity  | Stone palette crosses the fixed-scene seam intact                   |
+| VFX-ARCH-09 | Burst pool       | Per-stone color reuses fixed resources                              |
+| VFX-ARCH-10 | Fixed actors     | Play facade consumes the canonical static-scene contracts           |
+
+Final gate: 774 tests / 154,392 assertions, all TypeScript configs, lint, targeted format,
+code-verification build, two-angle godray proof, and final Ember proof.
