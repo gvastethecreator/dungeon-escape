@@ -38,8 +38,9 @@ describe("pickup frame stability", () => {
       root.children.map((child) => (child as THREE.Mesh).material),
     );
 
+    const stoneColors = [0xff5b32, 0xc8c0b0, 0x58b8d0, 0x68a878];
     for (let index = 0; index < 4; index += 1)
-      pool.trigger({ x: index, y: 0.4, z: -index }, "stone");
+      pool.trigger({ x: index, y: 0.4, z: -index }, "stone", stoneColors[index]);
     pool.update(0.2);
 
     expect(pool.activeCount).toBe(4);
@@ -50,6 +51,14 @@ describe("pickup frame stability", () => {
     expect(
       children.flatMap((root) => root.children.map((child) => (child as THREE.Mesh).material)),
     ).toEqual(materials);
+    expect(
+      children.map((root) =>
+        (
+          (root.getObjectByName("Pickup expanding ring") as THREE.Mesh)
+            .material as THREE.MeshBasicMaterial
+        ).color.getHex(),
+      ),
+    ).toEqual(stoneColors);
     pool.update(1);
     expect(pool.activeCount).toBe(0);
   });

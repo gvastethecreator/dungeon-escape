@@ -7,12 +7,14 @@ import type { DungeonMaterials } from "./MaterialLibrary";
 
 export interface MagicStoneVisual {
   root: THREE.Group;
+  crystalAssembly: THREE.Group;
   glow: THREE.Mesh;
   crown: THREE.Mesh;
   light: THREE.PointLight;
   stoneId: StoneId;
   baseColor: number;
   emissive: number;
+  effectColor: number;
   baseLightIntensity: number;
   baseGlowOpacity: number;
 }
@@ -211,6 +213,29 @@ function mergeParts(parts: THREE.BufferGeometry[], name: string): THREE.BufferGe
   return merged;
 }
 
+function ritualGroundLightGeometry(stoneId: StoneId, radius: number): THREE.BufferGeometry {
+  const parts: THREE.BufferGeometry[] = [
+    new THREE.RingGeometry(radius * 0.7, radius * 0.82, 8).rotateX(-Math.PI / 2),
+    new THREE.RingGeometry(radius * 0.34, radius * 0.4, 8).rotateX(-Math.PI / 2),
+  ];
+  const tickCount = stoneId === "ember" ? 6 : stoneId === "ash" ? 5 : 4;
+  const phase = stoneId === "crypt" ? Math.PI / 4 : stoneId === "verdant" ? Math.PI / 8 : 0;
+  for (let index = 0; index < tickCount; index += 1) {
+    const angle = phase + (index / tickCount) * Math.PI * 2;
+    const transform = new THREE.Matrix4().compose(
+      new THREE.Vector3(Math.sin(angle) * radius * 0.56, 0, Math.cos(angle) * radius * 0.56),
+      new THREE.Quaternion().setFromEuler(new THREE.Euler(0, angle, 0)),
+      new THREE.Vector3(1, 1, 1),
+    );
+    parts.push(new THREE.BoxGeometry(radius * 0.075, 0.012, radius * 0.19).applyMatrix4(transform));
+  }
+  const geometry = mergeParts(parts, `${stoneId} open ritual ground light geometry`);
+  geometry.userData.closedDisc = false;
+  geometry.userData.role = "ground-contact-signal";
+  geometry.userData.tickCount = tickCount;
+  return geometry;
+}
+
 /**
  * Procedural rebuild of Imagine white-background multi-view stone refs.
  * Faceted crystal core + iron cage + rune pedestal — action-ready pickup.
@@ -245,6 +270,12 @@ export function createMagicStone(
     sockets: ["pickup", "vfx", "light"],
     pivots: { pickup: [0, sculpt.pedestalHeight, 0], vfx: [0, sculpt.cageY, 0] },
     destructionGroups: ["base", "cage", "crystal"],
+  };
+  root.userData.lightingProfile = {
+    grounded: true,
+    plantedBase: true,
+    animatedPart: "crystal-assembly",
+    practicalRange: "short",
   };
 
   const pedestalParts: THREE.BufferGeometry[] = [];
@@ -385,9 +416,10 @@ export function createMagicStone(
   const bodyMat = materials.crystal?.clone() ?? new THREE.MeshStandardMaterial();
   bodyMat.color.setHex(look.body);
   bodyMat.emissive.setHex(look.emissive);
-  bodyMat.emissiveIntensity = 0.32;
-  bodyMat.roughness = 0.52;
-  bodyMat.metalness = 0.1;
+  bodyMat.emissiveIntensity = 0.04;
+  bodyMat.roughness = 0.72;
+  bodyMat.metalness = 0;
+  bodyMat.envMapIntensity = 0.22;
   bodyMat.flatShading = true;
   let coreGeometry: THREE.BufferGeometry;
   if (stoneId === "ember") {
@@ -507,19 +539,21 @@ export function createMagicStone(
   );
 
   const glow = mesh(
-    new THREE.SphereGeometry(sculpt.pedestalRadius * 1.08, 10, 8),
+    ritualGroundLightGeometry(stoneId, sculpt.pedestalRadius * 1.55),
     new THREE.MeshBasicMaterial({
-      color: look.emissive,
+      color: look.crystal,
       transparent: true,
-      opacity: 0.075,
+      opacity: 0.22,
       depthWrite: false,
       blending: THREE.AdditiveBlending,
       toneMapped: false,
     }),
-    `${stoneId} stone glow`,
+    `${stoneId} ritual ground light`,
   );
-  glow.position.y = sculpt.cageY + 0.12;
-  glow.renderOrder = 2;
+  glow.position.y = 0.018;
+  glow.castShadow = false;
+  glow.receiveShadow = false;
+  glow.renderOrder = 1;
 
   const crownParts: THREE.BufferGeometry[] = [];
   if (stoneId === "ember") {
@@ -565,21 +599,24 @@ export function createMagicStone(
     new THREE.MeshBasicMaterial({
       color: look.crystal,
       transparent: true,
-      opacity: 0.54,
+      opacity: 0.14,
       depthWrite: false,
-      blending: THREE.AdditiveBlending,
-      toneMapped: false,
+      blending: THREE.NormalBlending,
+      toneMapped: true,
     }),
     `${stoneId} distant beacon crown`,
   );
   crown.castShadow = false;
   crown.receiveShadow = false;
-  crown.position.y = sculpt.crownY;
+  crown.position.y = Math.min(sculpt.crownY, 1.38);
+  crown.rotation.x = stoneId === "crypt" ? 0.44 : stoneId === "ash" ? 0.42 : 0.48;
+  crown.rotation.z = stoneId === "verdant" ? -0.2 : 0.16;
+  crown.scale.setScalar(0.68);
   crown.renderOrder = 3;
 
-  const baseLightIntensity = 22;
-  const baseGlowOpacity = 0.13;
-  const light = new THREE.PointLight(look.light, baseLightIntensity, 13.5, 1.85);
+  const baseLightIntensity = 3.6;
+  const baseGlowOpacity = 0.22;
+  const light = new THREE.PointLight(look.light, baseLightIntensity, 4.2, 2);
   light.name = `${stoneId} stone point light`;
   light.position.set(0, sculpt.cageY + 0.18, 0);
 
@@ -632,6 +669,11 @@ export function createMagicStone(
   );
   runeRing.userData.pattern = `${stoneId} front plinth rune system`;
 
+  const crystalAssembly = new THREE.Group();
+  crystalAssembly.name = `${stoneId} floating crystal assembly`;
+  crystalAssembly.userData.motionRole = "stone-crystal-idle";
+  crystalAssembly.add(core, shardCluster, crown);
+
   // Creation keeps the core, cage and pedestal on compact screens while it
   // drops these small additive/detail passes. Play always uses the full kit.
   for (const detail of [shardCluster, glow, crown, runeRing]) {
@@ -651,10 +693,8 @@ export function createMagicStone(
   root.add(
     pedestal,
     cage,
-    core,
-    shardCluster,
+    crystalAssembly,
     glow,
-    crown,
     runeRing,
     light,
     pickupSocket,
@@ -663,12 +703,14 @@ export function createMagicStone(
   );
   return {
     root,
+    crystalAssembly,
     glow,
     crown,
     light,
     stoneId,
     baseColor: look.body,
     emissive: look.emissive,
+    effectColor: look.crystal,
     baseLightIntensity,
     baseGlowOpacity,
   };

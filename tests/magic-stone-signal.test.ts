@@ -6,8 +6,8 @@ import { createMagicStone } from "../src/world/MagicStoneKit";
 import { selectMagicStonePlacements } from "../src/world/MagicStonePlacement";
 import { generateDungeon } from "../src/dungeon/generateDungeon";
 
-describe("magic stone long-range signal", () => {
-  test("keeps illumination attached to the pickup and gives it useful reach", () => {
+describe("magic stone world signal", () => {
+  test("keeps a bounded practical attached to the pickup", () => {
     const materials = createDungeonMaterials();
     const stone = createMagicStone("ember", materials);
     stone.root.position.set(12, 0, -7);
@@ -17,11 +17,15 @@ describe("magic stone long-range signal", () => {
     expect(stone.light.parent).toBe(stone.root);
     expect(lightWorld.x).toBeCloseTo(12);
     expect(lightWorld.z).toBeCloseTo(-7);
-    expect(stone.light.intensity).toBeGreaterThanOrEqual(18);
-    expect(stone.light.distance).toBeGreaterThanOrEqual(11);
+    expect(stone.light.intensity).toBeGreaterThanOrEqual(3);
+    expect(stone.light.intensity).toBeLessThanOrEqual(5);
+    expect(stone.light.distance).toBeGreaterThanOrEqual(4);
+    expect(stone.light.distance).toBeLessThanOrEqual(5);
     expect(stone.root.getObjectByName("ember distant beacon crown")).toBeDefined();
     expect(stone.root.getObjectByName("ember crystal shard cluster")).toBeDefined();
     expect(stone.root.getObjectByName("ember rim rune ring")).toBeDefined();
+    expect(stone.crown.scale.x).toBeLessThanOrEqual(0.7);
+    expect(stone.glow.geometry.userData.closedDisc).toBe(false);
     expect(
       (
         stone.root.getObjectByName("ember crystal core") as THREE.Mesh<
@@ -30,10 +34,13 @@ describe("magic stone long-range signal", () => {
         >
       ).material.map,
     ).toBe(materials.crystal.map);
-    expect(
-      stone.root.children.filter((child) => child.userData.compactPreviewOptional).length,
-    ).toBe(4);
-    const renderableParts = stone.root.children.filter((child) => child instanceof THREE.Mesh);
+    const optionalDetails: THREE.Object3D[] = [];
+    const renderableParts: THREE.Mesh[] = [];
+    stone.root.traverse((child) => {
+      if (child.userData.compactPreviewOptional) optionalDetails.push(child);
+      if (child instanceof THREE.Mesh) renderableParts.push(child);
+    });
+    expect(optionalDetails).toHaveLength(4);
     expect(renderableParts.length).toBeLessThanOrEqual(7);
   });
 

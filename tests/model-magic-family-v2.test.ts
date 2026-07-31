@@ -406,9 +406,6 @@ describe("image-sculpted magic family v2", () => {
 
     for (const stoneId of magicStoneIds()) {
       const visual = createMagicStone(stoneId, materials);
-      const rootMeshes = visual.root.children.filter(
-        (object): object is THREE.Mesh => object instanceof THREE.Mesh,
-      );
       const core = visual.root.getObjectByName(`${stoneId} crystal core`) as THREE.Mesh;
       const shardCluster = visual.root.getObjectByName(
         `${stoneId} crystal shard cluster`,
@@ -416,6 +413,12 @@ describe("image-sculpted magic family v2", () => {
       const cage = visual.root.getObjectByName(`${stoneId} iron cage ring`) as THREE.Mesh;
       const pedestal = visual.root.getObjectByName(`${stoneId} stone pedestal`) as THREE.Mesh;
       const runeSystem = visual.root.getObjectByName(`${stoneId} rim rune ring`) as THREE.Mesh;
+      const crystalAssembly = visual.root.getObjectByName(
+        `${stoneId} floating crystal assembly`,
+      ) as THREE.Group;
+      const groundGlow = visual.root.getObjectByName(
+        `${stoneId} ritual ground light`,
+      ) as THREE.Mesh;
       const coreBounds = boundsSize(core);
       const positionCount = core.geometry.getAttribute("position").count;
       cageSignatures.add(cage.geometry.getAttribute("position").count);
@@ -437,11 +440,37 @@ describe("image-sculpted magic family v2", () => {
       expect(visual.root.getObjectByName(`${stoneId} stone pedestal`)).toBeDefined();
       expect(visual.root.getObjectByName(`${stoneId} pickup socket`)).toBeDefined();
       expect(runeSystem.userData.pattern).toBe(`${stoneId} front plinth rune system`);
-      expect(rootMeshes).toHaveLength(7);
-      expect(rootMeshes.filter((part) => part.userData.compactPreviewOptional)).toHaveLength(4);
+      const allMeshes: THREE.Mesh[] = [];
+      visual.root.traverse((object) => {
+        if (object instanceof THREE.Mesh) allMeshes.push(object);
+      });
+      expect(allMeshes).toHaveLength(7);
+      expect(allMeshes.filter((part) => part.userData.compactPreviewOptional)).toHaveLength(4);
       expect(triangleCount(visual.root)).toBeLessThanOrEqual(1_800);
       expect(materialCount(visual.root)).toBeLessThanOrEqual(6);
       expect((core.material as THREE.MeshStandardMaterial).map).toBe(materials.crystal.map);
+      expect((core.material as THREE.MeshStandardMaterial).emissiveIntensity).toBeLessThanOrEqual(
+        0.2,
+      );
+      expect(crystalAssembly).toBe(visual.crystalAssembly);
+      expect(core.parent).toBe(crystalAssembly);
+      expect(shardCluster.parent).toBe(crystalAssembly);
+      expect(groundGlow).toBe(visual.glow);
+      expect(groundGlow.geometry).toBeInstanceOf(THREE.BufferGeometry);
+      expect(groundGlow.geometry.userData.closedDisc).toBe(false);
+      expect(visual.light.intensity).toBeLessThanOrEqual(10);
+      expect(visual.light.distance).toBeLessThanOrEqual(7);
+      expect((visual.crown.material as THREE.MeshBasicMaterial).blending).toBe(
+        THREE.NormalBlending,
+      );
+      expect((visual.crown.material as THREE.MeshBasicMaterial).toneMapped).toBe(true);
+      expect((visual.crown.material as THREE.MeshBasicMaterial).opacity).toBeLessThanOrEqual(0.16);
+      expect(Math.abs(visual.crown.rotation.x)).toBeGreaterThan(0.4);
+      expect(visual.root.userData.lightingProfile).toMatchObject({
+        grounded: true,
+        plantedBase: true,
+        animatedPart: "crystal-assembly",
+      });
       expectUsefulUv(core);
       expectUsefulUv(shardCluster);
     }
