@@ -15,13 +15,23 @@ describe("mobility boost draught vfx", () => {
       expect(vfx.root.children).toHaveLength(1);
       const points = vfx.root.children[0] as THREE.Points;
       expect(points.isPoints).toBe(true);
-      expect((points.geometry.getAttribute("position")?.count ?? 0)).toBe(MOBILITY_DUST_COUNT);
+      expect(points.geometry.getAttribute("position")?.count ?? 0).toBe(MOBILITY_DUST_COUNT);
 
       vfx.update(0, 1, { x: 0, y: 1.5, z: 0 }, 0.016);
       expect((points.material as THREE.PointsMaterial).opacity).toBe(0);
 
       vfx.update(MOBILITY_BOOST_DURATION_SECONDS, 0.8, { x: 2, y: 1.6, z: -1 }, 0.016);
       const material = points.material as THREE.PointsMaterial;
+      const entryOpacity = material.opacity;
+      for (let frame = 1; frame <= 30; frame += 1) {
+        vfx.update(
+          MOBILITY_BOOST_DURATION_SECONDS - frame / 60,
+          0.8 + frame / 60,
+          { x: 2, y: 1.6, z: -1 },
+          1 / 60,
+        );
+      }
+      expect(entryOpacity).toBeLessThan(0.05);
       expect(material.opacity).toBeGreaterThan(0.15);
       expect(material.map).toBeTruthy();
       expect(material.blending).toBe(THREE.AdditiveBlending);

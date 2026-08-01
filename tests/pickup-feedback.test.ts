@@ -82,5 +82,14 @@ describe("PickupFeedback", () => {
       }),
     ).toMatchObject({ kind: "map", kickerKey: "map" });
   });
-});
 
+  test("styles utilities and each curse with a distinct marker silhouette", async () => {
+    const css = await Bun.file(new URL("../src/styles.css", import.meta.url)).text();
+    expect(css).toContain('.pickup-feedback[data-kind="map"] .pickup-mark::before');
+    expect(css).toContain('.pickup-feedback[data-kind="mobility"] .pickup-mark');
+    expect(css).toContain('.pickup-feedback[data-kind="swarm-curse"] .pickup-mark');
+    expect(css).toContain('.pickup-feedback[data-kind="slow-curse"] .pickup-mark');
+    expect(css).toContain('.pickup-feedback[data-kind="frenzy-curse"] .pickup-mark');
+    expect(css).toContain('.pickup-feedback[data-kind="gloom-curse"] .pickup-mark');
+  });
+});

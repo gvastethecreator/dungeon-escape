@@ -63,6 +63,59 @@ describe("pickup frame stability", () => {
     expect(pool.activeCount).toBe(0);
   });
 
+  test("gives power, utility, and curse pickups different pooled choreography", () => {
+    const pool = new PickupBurstPool(8);
+    const kinds = [
+      "time-freeze",
+      "luminous-ward",
+      "annihilation-pulse",
+      "map",
+      "swarm-curse",
+      "slow-curse",
+      "frenzy-curse",
+      "gloom-curse",
+    ] as const;
+    for (let index = 0; index < kinds.length; index += 1) {
+      pool.trigger({ x: index * 2, y: 0.4, z: 0 }, kinds[index]);
+    }
+
+    const roots = pool.root.children as THREE.Group[];
+    const motions = roots.map((root) => root.userData.pickupBurstMotion as string);
+    const shapes = roots.map((root) => root.userData.pickupSparkShape as string);
+    expect(new Set(motions).size).toBe(kinds.length);
+    expect(new Set(shapes).size).toBe(kinds.length);
+    expect(
+      roots.every(
+        (root) => root.getObjectByName("Pickup secondary echo ring") instanceof THREE.Mesh,
+      ),
+    ).toBe(true);
+
+    const meanRadius = (root: THREE.Group): number => {
+      const points = root.getObjectByName("Pickup rising sparks") as THREE.Points;
+      const positions = points.geometry.getAttribute("position") as THREE.BufferAttribute;
+      let total = 0;
+      for (let index = 0; index < positions.count; index += 1) {
+        total += Math.hypot(positions.getX(index), positions.getZ(index));
+      }
+      return total / positions.count;
+    };
+    const annihilationBefore = meanRadius(roots[2]!);
+    const gloomBefore = meanRadius(roots[7]!);
+    pool.update(0.3);
+    expect(meanRadius(roots[2]!)).toBeGreaterThan(annihilationBefore);
+    expect(meanRadius(roots[7]!)).toBeLessThan(gloomBefore);
+
+    const shapeIds = roots.map((root) => {
+      const points = root.getObjectByName("Pickup rising sparks") as THREE.Points<
+        THREE.BufferGeometry,
+        THREE.ShaderMaterial
+      >;
+      return points.material.uniforms.uShape.value as number;
+    });
+    expect(new Set(shapeIds).size).toBe(kinds.length);
+    pool.dispose();
+  });
+
   test("dormant power pickups stay visible so their PointLights keep the light count", () => {
     const materials = createDungeonMaterials();
     const freeze = createTimeFreezeRelic(materials);

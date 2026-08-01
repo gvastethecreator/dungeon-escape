@@ -63,7 +63,6 @@ describe("annihilation pulse", () => {
     ).toBe(false);
   });
 
-
   test("maps every dungeon biome to blood or a biome material", () => {
     expect(getAnnihilationBurstProfile("ancient").material).toBe("blood");
     expect(getAnnihilationBurstProfile("grim").material).toBe("blood");
@@ -77,6 +76,13 @@ describe("annihilation pulse", () => {
     expect(getAnnihilationBurstProfile("obsidian").material).toBe("obsidian");
     expect(getAnnihilationBurstProfile("backrooms").material).toBe("dust");
     expect(getAnnihilationBurstProfile("future-biome").material).toBe("dust");
+    expect(
+      new Set(
+        ["ancient", "molten", "frost", "verdant", "sunken", "fungal", "obsidian", "backrooms"].map(
+          (id) => getAnnihilationBurstProfile(id).shape,
+        ),
+      ).size,
+    ).toBe(8);
   });
 
   test("builds a bounded relic with runtime sockets and a trigger collider", () => {
@@ -107,6 +113,12 @@ describe("annihilation pulse", () => {
     expect(vfx.root.children).toHaveLength(4 + 4);
     expect(vfx.activeBurstCount).toBe(1);
     expect(vfx.root.getObjectByName("Annihilation expanding kill ring")).toBeDefined();
+    const particles = vfx.root.getObjectByName(
+      "Biome annihilation enemy particles",
+    ) as THREE.Points<THREE.BufferGeometry, THREE.ShaderMaterial>;
+    expect(particles.geometry.getAttribute("aShape")).toBeDefined();
+    expect(particles.geometry.getAttribute("aSpin")).toBeDefined();
+    expect(particles.material.blending).toBe(THREE.NormalBlending);
 
     vfx.update(4, 1, { x: 1, y: 1, z: -2 }, 1, "frost");
     expect(vfx.activeBurstCount).toBe(0);

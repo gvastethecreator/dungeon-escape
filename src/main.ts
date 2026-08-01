@@ -107,6 +107,7 @@ import {
   type PlayerProfile,
 } from "./game/PlayerProfile";
 import { loadLeaderboard, submitLeaderboardEntry } from "./leaderboard/client";
+import { compareLeaderboardScore } from "./leaderboard/comparison";
 import {
   computeLeaderboardScore,
   emptyPlayerBiomeStars,
@@ -268,6 +269,9 @@ const elements = {
   endResults: requireElement<HTMLElement>("#end-results"),
   endTime: requireElement<HTMLElement>("#end-time"),
   endScore: requireElement<HTMLElement>("#end-score"),
+  endLeaderboardComparison: requireElement<HTMLElement>("#end-leaderboard-comparison"),
+  endLeaderboardRank: requireElement<HTMLElement>("#end-leaderboard-rank"),
+  endLeaderboardDelta: requireElement<HTMLElement>("#end-leaderboard-delta"),
   endStones: requireElement<HTMLElement>("#end-stones"),
   endDistance: requireElement<HTMLElement>("#end-distance"),
   endBiome: requireElement<HTMLElement>("#end-biome"),
@@ -556,6 +560,9 @@ let playerProfile: PlayerProfile | null = readPlayerProfile();
 let profileAvatarDraft = playerProfile?.avatarIndex ?? 0;
 let campaignClearRecordedForRun = false;
 let leaderboardLoadSequence = 0;
+let endLeaderboardComparisonSequence = 0;
+let endLeaderboardSavedRank: number | null = null;
+let endLeaderboardTopScore: number | null = null;
 let pendingLeaderboardSubmission: Omit<LeaderboardSubmissionInput, "playerName"> | null = null;
 let leaderboardSubmissionPending = false;
 /**
@@ -1519,6 +1526,99 @@ function createLeaderboardRunId(): string {
   return `run_${unique}`;
 }
 
+const END_LEADERBOARD_LIMIT = 50;
+
+function renderEndLeaderboardComparison(
+  state: "loading" | "ranked" | "empty" | "outside" | "unavailable" | "custom",
+  rank: string,
+  detail: string,
+): void {
+  elements.endLeaderboardComparison.dataset.state = state;
+  elements.endLeaderboardRank.textContent = rank;
+  elements.endLeaderboardDelta.textContent = detail;
+}
+
+function leaderboardScoreGap(score: number, leaderScore: number): string {
+  const difference = score - leaderScore;
+  if (difference > 0) return COPY.leaderboard.comparisonAhead(difference);
+  if (difference === 0) return COPY.leaderboard.comparisonTied;
+  return COPY.leaderboard.comparisonBehind(Math.abs(difference), leaderScore);
+}
+
+function renderSavedLeaderboardRank(rank: number, score: number): void {
+  const detail =
+    rank === 1
+      ? COPY.leaderboard.comparisonLeader
+      : endLeaderboardTopScore === null
+        ? COPY.leaderboard.comparisonSavedDetail
+        : leaderboardScoreGap(score, endLeaderboardTopScore);
+  renderEndLeaderboardComparison(
+    "ranked",
+    COPY.leaderboard.comparisonSavedRank(rank),
+    detail,
+  );
+}
+
+async function refreshEndLeaderboardComparison(score: number): Promise<void> {
+  const sequence = ++endLeaderboardComparisonSequence;
+  renderEndLeaderboardComparison(
+    "loading",
+    COPY.leaderboard.comparisonLoadingTitle,
+    COPY.leaderboard.comparisonLoading,
+  );
+  try {
+    let response: Awaited<ReturnType<typeof loadLeaderboard>>;
+    try {
+      response = await loadLeaderboard(END_LEADERBOARD_LIMIT);
+    } catch (error) {
+      if (!(error instanceof Error) || error.message !== "Leaderboard request timed out.") {
+        throw error;
+      }
+      if (sequence !== endLeaderboardComparisonSequence) return;
+      // A renderer warmup can block the first response callback on low-end
+      // devices. Retry once after that one-time stall instead of losing the comparison.
+      response = await loadLeaderboard(END_LEADERBOARD_LIMIT);
+    }
+    if (sequence !== endLeaderboardComparisonSequence) return;
+    const comparison = compareLeaderboardScore(score, response.entries, END_LEADERBOARD_LIMIT);
+    endLeaderboardTopScore =
+      comparison.kind === "empty" ? null : comparison.leaderScore;
+    if (endLeaderboardSavedRank !== null) {
+      renderSavedLeaderboardRank(endLeaderboardSavedRank, score);
+      return;
+    }
+    if (comparison.kind === "empty") {
+      renderEndLeaderboardComparison(
+        "empty",
+        COPY.leaderboard.comparisonEmptyTitle,
+        COPY.leaderboard.comparisonEmpty,
+      );
+      return;
+    }
+    if (comparison.kind === "outside") {
+      renderEndLeaderboardComparison(
+        "outside",
+        COPY.leaderboard.comparisonOutside(comparison.limit),
+        leaderboardScoreGap(score, comparison.leaderScore),
+      );
+      return;
+    }
+    renderEndLeaderboardComparison(
+      "ranked",
+      COPY.leaderboard.comparisonProjected(comparison.projectedRank),
+      leaderboardScoreGap(score, comparison.leaderScore),
+    );
+  } catch {
+    if (sequence !== endLeaderboardComparisonSequence) return;
+    endLeaderboardTopScore = null;
+    renderEndLeaderboardComparison(
+      "unavailable",
+      COPY.leaderboard.comparisonUnavailableTitle,
+      COPY.leaderboard.comparisonUnavailable,
+    );
+  }
+}
+
 function prepareLeaderboardSubmission(
   runSeconds: number,
   distanceM: number,
@@ -1530,15 +1630,25 @@ function prepareLeaderboardSubmission(
   const difficultyValue = getEnemyDensity();
   const score = computeLeaderboardScore({ durationMs, difficultyValue, roomCount });
   elements.endScore.textContent = score.toLocaleString("en-US");
+  endLeaderboardSavedRank = null;
+  endLeaderboardTopScore = null;
 
   // Custom Run / Forge / Map Tools: show the local score, never open Hall submit.
   if (!isLeaderboardEligible(runSource) || Boolean(dungeon?.forge)) {
+    endLeaderboardComparisonSequence += 1;
+    renderEndLeaderboardComparison(
+      "custom",
+      COPY.leaderboard.comparisonCustomTitle,
+      COPY.leaderboard.customExcluded,
+    );
     pendingLeaderboardSubmission = null;
     elements.endLeaderboardForm.hidden = true;
-    elements.endLeaderboardNote.hidden = false;
-    elements.endLeaderboardNote.textContent = COPY.leaderboard.customExcluded;
+    elements.endLeaderboardNote.hidden = true;
+    elements.endLeaderboardNote.textContent = "";
     return;
   }
+
+  void refreshEndLeaderboardComparison(score);
 
   pendingLeaderboardSubmission = {
     runId: createLeaderboardRunId(),
@@ -2559,6 +2669,9 @@ function closeEndOverlay(): void {
   hideEndNextBiome();
   pendingLeaderboardSubmission = null;
   leaderboardSubmissionPending = false;
+  endLeaderboardComparisonSequence += 1;
+  endLeaderboardSavedRank = null;
+  endLeaderboardTopScore = null;
   elements.shell.dataset.mode = "playing";
   controller.setEnabled(canEnablePlayController());
   if (!welcomeOpen) setActiveBiomeMusic();
@@ -3434,6 +3547,8 @@ async function submitPreparedLeaderboardEntry(): Promise<void> {
     elements.leaderboardSubmit.textContent = "Saved";
     updateLeaderboardPortraitPreview(entry.playerName);
     elements.leaderboardSubmitStatus.textContent = COPY.leaderboard.saved(entry.rank, entry.score);
+    endLeaderboardSavedRank = entry.rank;
+    renderSavedLeaderboardRank(entry.rank, entry.score);
     // Keep progression UI in sync when an older restored win is submitted.
     revealEndNextBiomeAfterSave();
     void refreshLeaderboard();

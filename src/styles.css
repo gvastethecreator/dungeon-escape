@@ -3197,11 +3197,19 @@ kbd {
 }
 
 .pickup-mark {
+  position: relative;
   width: 12px;
   height: 12px;
   flex: 0 0 auto;
   border: var(--edge-w) solid rgb(201 197 184 / 1%);
   background: transparent;
+}
+
+.pickup-mark::before,
+.pickup-mark::after {
+  position: absolute;
+  content: "";
+  pointer-events: none;
 }
 
 .pickup-feedback[data-stone="ember"] {
@@ -3233,7 +3241,55 @@ kbd {
   background: color-mix(in srgb, var(--stone-verdant) 40%, transparent);
 }
 .pickup-feedback[data-kind="flask"] {
-  border-left-color: var(--bone);
+  border-left-color: #c94c5b;
+}
+
+.pickup-feedback[data-kind="flask"] .pickup-mark {
+  width: 11px;
+  height: 11px;
+  border-color: #f1a2aa;
+  border-radius: 60% 40% 62% 38%;
+  background: rgb(181 42 61 / 58%);
+  transform: rotate(45deg);
+}
+
+.pickup-feedback[data-kind="map"] {
+  border-left-color: #d5bd7a;
+  box-shadow:
+    6px 6px 0 rgb(0 0 0 / 48%),
+    0 0 20px rgb(213 189 122 / 20%);
+}
+
+.pickup-feedback[data-kind="map"] .pickup-mark {
+  border-color: #f2dfa4;
+  border-radius: 50%;
+  background: transparent;
+  transform: rotate(45deg);
+}
+
+.pickup-feedback[data-kind="map"] .pickup-mark::before,
+.pickup-feedback[data-kind="map"] .pickup-mark::after {
+  inset: 4px -3px;
+  background: #f2dfa4;
+}
+
+.pickup-feedback[data-kind="map"] .pickup-mark::after {
+  transform: rotate(90deg);
+}
+
+.pickup-feedback[data-kind="mobility"] {
+  border-left-color: #72d45f;
+  box-shadow:
+    6px 6px 0 rgb(0 0 0 / 48%),
+    0 0 22px rgb(114 212 95 / 22%);
+}
+
+.pickup-feedback[data-kind="mobility"] .pickup-mark {
+  width: 15px;
+  border: 0;
+  background: #a8e07a;
+  clip-path: polygon(0 37%, 56% 37%, 56% 0, 100% 50%, 56% 100%, 56% 63%, 0 63%);
+  filter: drop-shadow(0 0 4px rgb(114 212 95 / 72%));
 }
 
 .pickup-feedback[data-kind="time-freeze"] {
@@ -3285,8 +3341,19 @@ kbd {
 
 .pickup-feedback[data-kind="clarity"] .pickup-mark {
   border-color: #d2eefc;
-  background: rgb(168 216 239 / 42%);
+  border-radius: 50%;
+  background: rgb(168 216 239 / 18%);
   box-shadow: 0 0 10px rgb(120 190 220 / 62%);
+}
+
+.pickup-feedback[data-kind="clarity"] .pickup-mark::after {
+  right: -4px;
+  bottom: -3px;
+  width: 5px;
+  height: 2px;
+  background: #d2eefc;
+  transform: rotate(48deg);
+  transform-origin: left center;
 }
 
 .pickup-feedback[data-kind="swarm-curse"],
@@ -3306,12 +3373,51 @@ kbd {
   box-shadow: 0 0 10px rgb(140 40 40 / 55%);
 }
 
+.pickup-feedback[data-kind="swarm-curse"] {
+  border-color: rgb(139 30 30 / 78%);
+}
+
+.pickup-feedback[data-kind="swarm-curse"] .pickup-mark {
+  border: 0;
+  background: #a52a2a;
+  clip-path: polygon(50% 0, 62% 34%, 100% 24%, 72% 50%, 100% 76%, 62% 66%, 50% 100%, 38% 66%, 0 76%, 28% 50%, 0 24%, 38% 34%);
+}
+
+.pickup-feedback[data-kind="slow-curse"] {
+  border-color: rgb(106 106 138 / 78%);
+  box-shadow: 0 0 18px rgb(72 72 112 / 30%);
+}
+
+.pickup-feedback[data-kind="slow-curse"] .pickup-mark {
+  border-color: #a5a5c8;
+  background: #57576f;
+  clip-path: polygon(0 0, 100% 0, 68% 50%, 100% 100%, 0 100%, 32% 50%);
+  box-shadow: none;
+}
+
 .pickup-feedback[data-kind="frenzy-curse"] {
   border-color: rgb(196 90 26 / 62%);
 }
 
+.pickup-feedback[data-kind="frenzy-curse"] .pickup-mark {
+  border: 0;
+  border-radius: 52% 48% 45% 55%;
+  background: #e47122;
+  clip-path: polygon(50% 0, 72% 36%, 100% 62%, 76% 100%, 48% 76%, 18% 100%, 0 58%);
+  filter: drop-shadow(0 0 4px rgb(228 113 34 / 70%));
+}
+
 .pickup-feedback[data-kind="gloom-curse"] {
   border-color: rgb(70 70 90 / 70%);
+}
+
+.pickup-feedback[data-kind="gloom-curse"] .pickup-mark {
+  border-color: #8a879b;
+  border-radius: 50%;
+  background: #111118;
+  box-shadow:
+    inset 0 0 0 3px #2a2a38,
+    0 0 8px rgb(42 42 56 / 70%);
 }
 
 .pickup-copy {
@@ -3694,13 +3800,36 @@ kbd {
   }
 }
 .end-overlay[data-end="won"] .end-card {
-  width: min(540px, 100%);
+  width: min(680px, 100%);
   max-height: calc(100dvh - 36px);
   overflow: auto;
-  border-top-color: rgb(201 197 184 / 8%);
-  background: rgb(7 8 9 / 88%);
-  backdrop-filter: blur(5px);
+  scrollbar-width: thin;
+  scrollbar-color: rgb(217 184 91 / 52%) rgb(255 255 255 / 5%);
+  border-color: rgb(217 184 91 / 38%);
+  border-top-width: 3px;
+  background: rgb(7 8 9 / 96%);
+  box-shadow:
+    0 0 0 1px rgb(255 255 255 / 4%),
+    16px 20px 0 rgb(0 0 0 / 38%);
   overscroll-behavior: contain;
+}
+
+.end-overlay[data-end="won"] .end-card::-webkit-scrollbar {
+  width: 8px;
+}
+
+.end-overlay[data-end="won"] .end-card::-webkit-scrollbar-track {
+  background: rgb(255 255 255 / 5%);
+}
+
+.end-overlay[data-end="won"] .end-card::-webkit-scrollbar-thumb {
+  border: 2px solid rgb(7 8 9 / 96%);
+  border-radius: 999px;
+  background: rgb(217 184 91 / 52%);
+}
+
+.end-overlay[data-end="won"] .end-card::-webkit-scrollbar-thumb:hover {
+  background: rgb(234 205 116 / 72%);
 }
 
 /* Victory stage keeps the full escape art uncropped next to the results card. */
@@ -3727,7 +3856,7 @@ kbd {
 }
 
 .end-overlay[data-end="won"] {
-  grid-template-columns: minmax(0, 1fr) minmax(280px, min(540px, 42%));
+  grid-template-columns: minmax(0, 1fr) minmax(520px, min(680px, 48%));
   grid-template-rows: minmax(0, 1fr);
   align-items: stretch;
   justify-items: stretch;
@@ -3763,6 +3892,8 @@ kbd {
 .end-overlay[data-end="won"] .end-card {
   align-self: center;
   justify-self: end;
+  padding: clamp(26px, 3vw, 42px);
+  text-align: left;
 }
 
 .end-card small {
@@ -3807,11 +3938,130 @@ kbd {
   line-height: 1.5;
 }
 
+.end-overlay[data-end="won"] .end-summary {
+  position: relative;
+  padding-left: 18px;
+  border-left: 3px solid #d9b85b;
+}
+
+.end-overlay[data-end="won"] .end-card small {
+  display: block;
+  color: #d9b85b;
+  font-family: var(--font-pixel);
+  font-size: 11px;
+  letter-spacing: 0.2em;
+  line-height: 1.2;
+  text-transform: uppercase;
+}
+
+.end-overlay[data-end="won"] .end-card h1 {
+  max-width: none;
+  margin: 10px 0 8px;
+  font-size: clamp(42px, 3.6vw, 54px);
+  line-height: 0.96;
+  text-wrap: balance;
+}
+
+.end-overlay[data-end="won"] .end-card .end-summary p {
+  max-width: 48ch;
+  margin: 0;
+  color: rgb(214 209 194 / 76%);
+  font-size: 11px;
+  text-align: left;
+}
+
+.end-scoreboard {
+  display: grid;
+  grid-template-columns: minmax(0, 1.22fr) minmax(210px, 0.78fr);
+  grid-template-rows: auto auto;
+  gap: 1px;
+  margin: 24px 0 0;
+  padding: 1px;
+  background: rgb(217 184 91 / 26%);
+}
+
+.end-scoreboard > div {
+  min-width: 0;
+  padding: 16px 18px;
+  background: #0b0c0d;
+}
+
+.end-scoreboard__score {
+  grid-row: 1 / 3;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  border-left: 3px solid #d9b85b;
+}
+
+.end-scoreboard dt,
+.end-results dt {
+  color: rgb(214 209 194 / 58%);
+  font-family: var(--font-pixel);
+  font-size: 9px;
+  letter-spacing: 0.16em;
+  line-height: 1.3;
+  text-transform: uppercase;
+}
+
+.end-scoreboard dd {
+  margin: 7px 0 0;
+  color: var(--bone);
+  font-family: var(--font-pixel);
+  font-variant-numeric: tabular-nums;
+}
+
+.end-scoreboard__score dd {
+  overflow-wrap: anywhere;
+  color: #f4df9a;
+  font-size: clamp(46px, 5.4vw, 76px);
+  font-weight: 800;
+  letter-spacing: -0.06em;
+  line-height: 0.96;
+  text-shadow: 0 0 24px rgb(217 184 91 / 16%);
+}
+
+.end-scoreboard__time dd {
+  font-size: clamp(22px, 2.5vw, 34px);
+  letter-spacing: 0.02em;
+  line-height: 1;
+}
+
+.end-scoreboard__rank dd {
+  color: #d9b85b;
+  font-size: clamp(16px, 1.7vw, 24px);
+  font-weight: 700;
+  line-height: 1.05;
+}
+
+.end-scoreboard__rank[data-state="unavailable"] dd,
+.end-scoreboard__rank[data-state="outside"] dd,
+.end-scoreboard__rank[data-state="custom"] dd {
+  color: rgb(214 209 194 / 72%);
+  font-size: clamp(14px, 1.35vw, 18px);
+  line-height: 1.15;
+}
+
+.end-scoreboard__rank p {
+  margin: 7px 0 0;
+  max-width: 32ch;
+  color: rgb(214 209 194 / 58%);
+  font-family: var(--font-pixel);
+  font-size: 9px;
+  line-height: 1.4;
+}
+
+.end-overlay[data-end="dead"] .end-scoreboard {
+  display: none;
+}
+
 .end-results {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
-  margin: 0 0 22px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0;
+  margin: 12px 0 18px;
+  border-top: 1px solid rgb(201 197 184 / 15%);
+  border-bottom: 1px solid rgb(201 197 184 / 15%);
   text-align: left;
 }
 
@@ -3822,21 +4072,21 @@ kbd {
 
 .end-results > div {
   min-width: 0;
-  padding: 10px 12px;
-  border: 1px solid rgb(201 197 184 / 16%);
-  background: rgb(0 0 0 / 28%);
+  padding: 12px 14px;
+  border-right: 1px solid rgb(201 197 184 / 12%);
 }
 
 .end-results .end-results__seed {
   grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr);
+  align-items: baseline;
+  border-top: 1px solid rgb(201 197 184 / 12%);
+  border-right: 0;
 }
 
 .end-results dt {
-  color: var(--ash);
-  font-family: var(--font-pixel);
-  font-size: 9px;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
+  color: rgb(214 209 194 / 48%);
 }
 
 .end-results dd {
@@ -3844,9 +4094,14 @@ kbd {
   overflow: hidden;
   color: var(--bone);
   font-family: var(--font-pixel);
-  font-size: 13px;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.end-results .end-results__seed dd {
+  margin-top: 0;
 }
 
 .end-leaderboard-note {
@@ -3864,10 +4119,14 @@ kbd {
 }
 
 .end-leaderboard-form {
-  margin: -4px 0 18px;
-  padding: 12px;
-  border: 1px solid rgb(201 197 184 / 16%);
-  background: rgb(0 0 0 / 30%);
+  display: grid;
+  grid-template-columns: 74px minmax(0, 1fr);
+  column-gap: 16px;
+  align-items: center;
+  margin: 0 0 18px;
+  padding: 14px 16px;
+  border: 1px solid rgb(201 197 184 / 14%);
+  background: rgb(0 0 0 / 24%);
   text-align: left;
 }
 
@@ -3877,12 +4136,13 @@ kbd {
 
 .end-leaderboard-preview {
   display: flex;
+  grid-row: 1 / 4;
   justify-content: center;
-  margin-bottom: 14px;
+  margin: 0;
 }
 
 .end-leaderboard-preview__face {
-  --leaderboard-face: 88px;
+  --leaderboard-face: 72px;
   width: var(--leaderboard-face);
   height: var(--leaderboard-face);
   cursor: pointer;
@@ -3944,6 +4204,7 @@ kbd {
 }
 
 .end-leaderboard-form p {
+  grid-column: 2;
   min-height: 15px;
   margin: 7px 0 0;
   color: var(--ash);
@@ -4394,20 +4655,57 @@ kbd {
     grid-template-rows: minmax(0, 1fr) auto;
     align-items: stretch;
     justify-items: stretch;
-    gap: 12px;
+    gap: 8px;
     padding: max(12px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right))
       max(12px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
   }
 
   .end-overlay[data-end="won"] .end-stage {
     /* Reserve a stable stage so the escape hero stays fully framed. */
-    min-height: min(38dvh, 320px);
+    min-height: min(24dvh, 220px);
   }
 
   .end-overlay[data-end="won"] .end-card {
-    width: min(540px, 100%);
-    max-height: min(54dvh, calc(100dvh - min(38dvh, 320px) - 36px));
+    width: min(680px, 100%);
+    max-height: calc(100dvh - min(24dvh, 220px) - 32px);
+    padding: 22px 18px;
     justify-self: center;
+  }
+
+  .end-overlay[data-end="won"] .end-card h1 {
+    font-size: clamp(36px, 11vw, 48px);
+  }
+
+  .end-scoreboard {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    margin-top: 18px;
+  }
+
+  .end-scoreboard__score {
+    grid-row: auto;
+    grid-column: 1 / -1;
+  }
+
+  .end-scoreboard__score dd {
+    font-size: clamp(46px, 15vw, 64px);
+  }
+
+  .end-scoreboard > div {
+    padding: 14px;
+  }
+
+  .end-scoreboard__time dd {
+    font-size: clamp(20px, 6.7vw, 28px);
+  }
+
+  .end-results > div {
+    padding: 10px;
+  }
+
+  .end-leaderboard-form {
+    grid-template-columns: 60px minmax(0, 1fr);
+    column-gap: 12px;
+    padding: 12px;
   }
 
   .end-leaderboard-form__row {
@@ -4419,7 +4717,7 @@ kbd {
   }
 
   .end-leaderboard-preview__face {
-    --leaderboard-face: 72px;
+    --leaderboard-face: 60px;
   }
 
   .map-panel {
@@ -4463,7 +4761,7 @@ kbd {
 
 @media (max-height: 560px) and (min-width: 901px) {
   .end-overlay[data-end="won"] {
-    grid-template-columns: minmax(0, 1.15fr) minmax(240px, min(420px, 38%));
+    grid-template-columns: minmax(0, 1fr) minmax(500px, min(620px, 48%));
     gap: 10px;
     padding: 10px;
   }
@@ -4476,11 +4774,11 @@ kbd {
 /* Keep stacked victory layout also for short landscape phones. */
 @media (max-height: 520px) and (max-width: 900px) {
   .end-overlay[data-end="won"] .end-stage {
-    min-height: min(46dvh, 220px);
+    min-height: min(28dvh, 150px);
   }
 
   .end-overlay[data-end="won"] .end-card {
-    max-height: min(48dvh, calc(100dvh - min(46dvh, 220px) - 24px));
+    max-height: calc(100dvh - min(28dvh, 150px) - 22px);
   }
 }
 

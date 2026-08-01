@@ -86,7 +86,7 @@ export const COPY = {
     serverProbe: (detail: string) => `Server: online · ${detail}`,
   },
   end: {
-    winKicker: "Portal escape",
+    winKicker: "Round complete",
     winTitle: "You escaped the dungeon",
     winLead: "All four stones are bound. The exit is open.",
     winCopy: (totalSec: number, stones: string) =>
@@ -115,6 +115,23 @@ export const COPY = {
     saving: "Saving…",
     saved: (rank: number, score: number) =>
       `Saved at rank ${rank}. Score ${score.toLocaleString("en-US")}.`,
+    comparisonLoadingTitle: "CHECKING THE HALL",
+    comparisonLoading: "Comparing this run with the leaderboard.",
+    comparisonEmptyTitle: "FIRST ESCAPE",
+    comparisonEmpty: "No Hall scores yet. Save this run to set the pace.",
+    comparisonUnavailableTitle: "HALL UNAVAILABLE",
+    comparisonUnavailable: "The run result stays visible. You can still retry the save.",
+    comparisonProjected: (rank: number) => `#${rank} PROJECTED`,
+    comparisonSavedRank: (rank: number) => `#${rank} IN THE HALL`,
+    comparisonOutside: (limit: number) => `OUTSIDE TOP ${limit}`,
+    comparisonAhead: (points: number) =>
+      `${points.toLocaleString("en-US")} pts above the current #1.`,
+    comparisonBehind: (points: number, leaderScore: number) =>
+      `${points.toLocaleString("en-US")} pts behind #1 · ${leaderScore.toLocaleString("en-US")} pts`,
+    comparisonTied: "Tied with the current #1 score.",
+    comparisonLeader: "New Hall leader.",
+    comparisonSavedDetail: "The Hall accepted this run.",
+    comparisonCustomTitle: "PRACTICE RUN",
     playSeed: (seed: string) => `Play seed ${seed}`,
     rankLabel: (rank: number) => `Rank ${rank}`,
     /** End-screen note when the escape used Custom Run / Forge / Map Tools. */

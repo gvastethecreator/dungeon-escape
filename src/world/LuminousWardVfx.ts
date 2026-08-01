@@ -214,8 +214,6 @@ export class LuminousWardVfx {
   private readonly groundDisc: THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>;
   private readonly innerRing: THREE.Mesh<THREE.RingGeometry, THREE.MeshBasicMaterial>;
   private readonly outerRing: THREE.Mesh<THREE.TorusGeometry, THREE.MeshBasicMaterial>;
-  private readonly midRing: THREE.Mesh<THREE.TorusGeometry, THREE.MeshBasicMaterial>;
-  private readonly verticalHalo: THREE.Mesh<THREE.TorusGeometry, THREE.MeshBasicMaterial>;
   private readonly shield: THREE.Mesh<THREE.SphereGeometry, THREE.ShaderMaterial>;
   private readonly motes: THREE.Points<THREE.BufferGeometry, THREE.PointsMaterial>;
   private readonly trails: THREE.Points<THREE.BufferGeometry, THREE.ShaderMaterial>;
@@ -255,10 +253,6 @@ export class LuminousWardVfx {
     });
     const outerMaterial = ringMaterial.clone();
     outerMaterial.color.setHex(WARD_COLOR_OUTER);
-    const midMaterial = ringMaterial.clone();
-    midMaterial.color.setHex(WARD_COLOR_CORE);
-    const haloMaterial = ringMaterial.clone();
-    haloMaterial.color.setHex(WARD_COLOR_CORE);
 
     this.groundDisc = new THREE.Mesh(
       new THREE.PlaneGeometry(7.4, 7.4),
@@ -289,18 +283,6 @@ export class LuminousWardVfx {
     this.outerRing.rotation.x = -Math.PI / 2;
     this.outerRing.position.y = 0.07;
     this.outerRing.renderOrder = 3;
-
-    this.midRing = new THREE.Mesh(new THREE.TorusGeometry(2.85, 0.02, 5, 40), midMaterial);
-    this.midRing.name = "Luminous ward mid ring";
-    this.midRing.rotation.x = -Math.PI / 2;
-    this.midRing.position.y = 0.55;
-    this.midRing.renderOrder = 3;
-
-    this.verticalHalo = new THREE.Mesh(new THREE.TorusGeometry(2.65, 0.022, 6, 36), haloMaterial);
-    this.verticalHalo.name = "Luminous ward vertical halo";
-    this.verticalHalo.rotation.z = Math.PI / 2;
-    this.verticalHalo.position.y = 1.15;
-    this.verticalHalo.renderOrder = 3;
 
     this.shield = new THREE.Mesh(
       new THREE.SphereGeometry(3.15, 28, 18, 0, Math.PI * 2, 0, Math.PI * 0.58),
@@ -420,8 +402,6 @@ export class LuminousWardVfx {
       this.groundDisc,
       this.innerRing,
       this.outerRing,
-      this.midRing,
-      this.verticalHalo,
       this.shield,
       this.trails,
       this.motes,
@@ -453,34 +433,29 @@ export class LuminousWardVfx {
     this.light.distance = this.baseLightRange;
     this.light.color.setHex(life < 0.18 ? 0xd4ff8a : 0xb9e879);
 
-    this.groundDisc.material.opacity = 0.24 * fade * breath;
-    this.innerRing.material.opacity = 0.11 * fade * pulse;
-    this.outerRing.material.opacity = 0.2 * fade * pulse * urgency;
-    this.midRing.material.opacity = 0.09 * fade * breath;
-    this.verticalHalo.material.opacity = 0.12 * fade * pulse;
+    // First-person priority: anchor the protected radius on the floor and let
+    // the Fresnel shell carry height without drawing rings across enemy silhouettes.
+    this.groundDisc.material.opacity = 0.14 * fade * breath;
+    this.innerRing.material.opacity = 0.06 * fade * pulse;
+    this.outerRing.material.opacity = 0.11 * fade * pulse * urgency;
 
     const shieldMat = this.shield.material;
-    shieldMat.uniforms.uOpacity.value = 0.28 * fade;
+    shieldMat.uniforms.uOpacity.value = 0.14 * fade;
     shieldMat.uniforms.uPulse.value = pulse * breath * urgency;
     shieldMat.uniforms.uTime.value = elapsed;
     // Slight warm shift as the ward runs out.
     (shieldMat.uniforms.uColor.value as THREE.Color).setHex(life < 0.18 ? 0xd8ff90 : WARD_COLOR);
 
-    this.motes.material.opacity = 0.5 * fade;
-    this.trails.material.uniforms.uOpacity.value = 0.34 * fade;
+    this.motes.material.opacity = 0.38 * fade;
+    this.trails.material.uniforms.uOpacity.value = 0.2 * fade;
 
     this.outerRing.rotation.z = elapsed * 0.25;
-    this.midRing.rotation.z = -elapsed * 0.34;
-    this.verticalHalo.rotation.y = -elapsed * 0.38;
-    this.verticalHalo.rotation.x = Math.sin(elapsed * 0.45) * 0.12;
     this.shield.rotation.y = elapsed * 0.11;
 
     this.scale.setScalar(0.96 + pulse * 0.06);
     this.groundDisc.scale.setScalar(0.98 + breath * 0.04);
     this.innerRing.scale.copy(this.scale);
     this.outerRing.scale.copy(this.scale);
-    this.midRing.scale.setScalar(0.94 + pulse * 0.08);
-    this.verticalHalo.scale.set(1, 0.9 + life * 0.1, 1);
     this.shield.scale.setScalar((0.98 + breath * 0.05) * (0.96 + life * 0.05));
 
     const nextParticlesActive = active && fade > 0.001;
@@ -608,10 +583,6 @@ export class LuminousWardVfx {
     this.innerRing.material.dispose();
     this.outerRing.geometry.dispose();
     this.outerRing.material.dispose();
-    this.midRing.geometry.dispose();
-    this.midRing.material.dispose();
-    this.verticalHalo.geometry.dispose();
-    this.verticalHalo.material.dispose();
     this.shield.geometry.dispose();
     this.shield.material.dispose();
     this.motes.geometry.dispose();

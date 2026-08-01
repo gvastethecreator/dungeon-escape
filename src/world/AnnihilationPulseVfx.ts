@@ -15,29 +15,137 @@ export type AnnihilationBurstMaterial =
   | "obsidian"
   | "dust";
 
+export type AnnihilationBurstShape =
+  | "splatter"
+  | "ember"
+  | "crystal"
+  | "droplet"
+  | "bubble"
+  | "spore"
+  | "shard"
+  | "crumb";
+
 export interface AnnihilationBurstProfile {
   material: AnnihilationBurstMaterial;
   primary: number;
   secondary: number;
   gravity: number;
   speed: number;
+  shape: AnnihilationBurstShape;
+  lifeMin: number;
+  lifeMax: number;
+  sizeMin: number;
+  sizeMax: number;
 }
 
 const BURST_PROFILES: Readonly<Record<AnnihilationBurstMaterial, AnnihilationBurstProfile>> = {
-  blood: { material: "blood", primary: 0xa4162b, secondary: 0xf06b4e, gravity: 3.4, speed: 2.8 },
-  slag: { material: "slag", primary: 0xf04b16, secondary: 0xffc05b, gravity: 1.8, speed: 2.6 },
-  ice: { material: "ice", primary: 0x86ecff, secondary: 0xe2ffff, gravity: 1.4, speed: 2.4 },
-  sap: { material: "sap", primary: 0x4cae58, secondary: 0xc8e36b, gravity: 2.5, speed: 2.35 },
-  water: { material: "water", primary: 0x39bac2, secondary: 0xb6fff0, gravity: 2.1, speed: 2.25 },
-  spore: { material: "spore", primary: 0xa05bd0, secondary: 0x68e2bc, gravity: 0.9, speed: 1.9 },
+  blood: {
+    material: "blood",
+    primary: 0xa4162b,
+    secondary: 0xf06b4e,
+    gravity: 3.4,
+    speed: 2.8,
+    shape: "splatter",
+    lifeMin: 0.42,
+    lifeMax: 0.78,
+    sizeMin: 0.065,
+    sizeMax: 0.115,
+  },
+  slag: {
+    material: "slag",
+    primary: 0xf04b16,
+    secondary: 0xffc05b,
+    gravity: 1.8,
+    speed: 2.6,
+    shape: "ember",
+    lifeMin: 0.48,
+    lifeMax: 0.82,
+    sizeMin: 0.06,
+    sizeMax: 0.105,
+  },
+  ice: {
+    material: "ice",
+    primary: 0x86ecff,
+    secondary: 0xe2ffff,
+    gravity: 1.4,
+    speed: 2.4,
+    shape: "crystal",
+    lifeMin: 0.58,
+    lifeMax: 0.96,
+    sizeMin: 0.075,
+    sizeMax: 0.13,
+  },
+  sap: {
+    material: "sap",
+    primary: 0x4cae58,
+    secondary: 0xc8e36b,
+    gravity: 2.5,
+    speed: 2.35,
+    shape: "droplet",
+    lifeMin: 0.52,
+    lifeMax: 0.88,
+    sizeMin: 0.07,
+    sizeMax: 0.12,
+  },
+  water: {
+    material: "water",
+    primary: 0x39bac2,
+    secondary: 0xb6fff0,
+    gravity: 2.1,
+    speed: 2.25,
+    shape: "bubble",
+    lifeMin: 0.62,
+    lifeMax: 1,
+    sizeMin: 0.08,
+    sizeMax: 0.135,
+  },
+  spore: {
+    material: "spore",
+    primary: 0xa05bd0,
+    secondary: 0x68e2bc,
+    gravity: 0.9,
+    speed: 1.9,
+    shape: "spore",
+    lifeMin: 0.82,
+    lifeMax: 1.28,
+    sizeMin: 0.085,
+    sizeMax: 0.145,
+  },
   obsidian: {
     material: "obsidian",
     primary: 0x6f3d93,
     secondary: 0xd28bd7,
     gravity: 2.2,
     speed: 2.7,
+    shape: "shard",
+    lifeMin: 0.5,
+    lifeMax: 0.86,
+    sizeMin: 0.075,
+    sizeMax: 0.13,
   },
-  dust: { material: "dust", primary: 0xbba56a, secondary: 0xf2dd9a, gravity: 2.9, speed: 2.1 },
+  dust: {
+    material: "dust",
+    primary: 0xbba56a,
+    secondary: 0xf2dd9a,
+    gravity: 2.9,
+    speed: 2.1,
+    shape: "crumb",
+    lifeMin: 0.56,
+    lifeMax: 0.96,
+    sizeMin: 0.065,
+    sizeMax: 0.12,
+  },
+};
+
+const BURST_SHAPE_ID: Readonly<Record<AnnihilationBurstShape, number>> = {
+  splatter: 0,
+  ember: 1,
+  crystal: 2,
+  droplet: 3,
+  bubble: 4,
+  spore: 5,
+  shard: 6,
+  crumb: 7,
 };
 
 const BLOOD_BIOMES = new Set(["ancient", "grim", "ash", "iron"]);
@@ -103,31 +211,84 @@ function createBurstMaterial(): THREE.ShaderMaterial {
     vertexShader: `
       attribute float aAlpha;
       attribute float aSize;
+      attribute float aShape;
+      attribute float aSpin;
       varying vec3 vColor;
       varying float vAlpha;
+      varying float vShape;
+      varying float vSpin;
       void main() {
         vColor = color;
         vAlpha = aAlpha;
+        vShape = aShape;
+        vSpin = aSpin;
         vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
-        gl_PointSize = aSize * (220.0 / max(1.0, -mvPosition.z));
+        gl_PointSize = clamp(aSize * (250.0 / max(0.8, -mvPosition.z)), 1.0, 20.0);
         gl_Position = projectionMatrix * mvPosition;
       }
     `,
     fragmentShader: `
       varying vec3 vColor;
       varying float vAlpha;
+      varying float vShape;
+      varying float vSpin;
       void main() {
-        vec2 point = gl_PointCoord - vec2(0.5);
-        float distanceToCenter = length(point);
-        if (distanceToCenter > 0.5) discard;
-        float edge = 1.0 - smoothstep(0.2, 0.5, distanceToCenter);
-        gl_FragColor = vec4(vColor, vAlpha * edge);
+        vec2 uv = gl_PointCoord - vec2(0.5);
+        float cs = cos(vSpin);
+        float sn = sin(vSpin);
+        uv = mat2(cs, -sn, sn, cs) * uv;
+        float d = length(uv);
+        float mask = 0.0;
+
+        if (vShape < 0.5) {
+          float angle = atan(uv.y, uv.x);
+          float edge = 0.3 + sin(angle * 5.0 + vSpin) * 0.08;
+          float body = smoothstep(edge + 0.08, edge - 0.09, d);
+          float tail = smoothstep(0.18, 0.02, length(vec2(uv.x * 2.5, uv.y + 0.28)));
+          mask = max(body, tail);
+        } else if (vShape < 1.5) {
+          float diamond = abs(uv.x) * 1.1 + abs(uv.y) * 1.45;
+          float ember = 1.0 - smoothstep(0.25, 0.48, diamond);
+          float hot = smoothstep(0.2, 0.03, d);
+          mask = max(ember, hot);
+        } else if (vShape < 2.5) {
+          float crystal = abs(uv.x) * 2.7 + abs(uv.y) * 0.7;
+          float body = 1.0 - smoothstep(0.28, 0.48, crystal);
+          float glint = 1.0 - smoothstep(0.02, 0.06, min(abs(uv.x), abs(uv.y)));
+          mask = max(body, glint * smoothstep(0.45, 0.12, d));
+        } else if (vShape < 3.5) {
+          vec2 drop = vec2(uv.x * 1.7, uv.y * 0.8 + 0.09);
+          float body = smoothstep(0.43, 0.08, length(drop));
+          float tip = smoothstep(0.2, 0.02, length(vec2(uv.x * 2.6, uv.y + 0.3)));
+          mask = max(body, tip) * smoothstep(0.5, 0.13, abs(uv.x));
+        } else if (vShape < 4.5) {
+          float ring = 1.0 - smoothstep(0.025, 0.075, abs(d - 0.31));
+          float glint = smoothstep(0.11, 0.015, length(uv - vec2(-0.13, 0.13)));
+          mask = max(ring * 0.9, glint);
+        } else if (vShape < 5.5) {
+          float core = smoothstep(0.34, 0.08, d);
+          float dotA = smoothstep(0.09, 0.02, length(uv - vec2(0.2, 0.08)));
+          float dotB = smoothstep(0.075, 0.02, length(uv - vec2(-0.17, -0.14)));
+          mask = max(core * 0.72, max(dotA, dotB));
+        } else if (vShape < 6.5) {
+          float shard = length(vec2(uv.x * 3.6, uv.y * 0.74));
+          float fracture = 1.0 - smoothstep(0.02, 0.06, abs(uv.x + uv.y * 0.28));
+          mask = max(smoothstep(0.48, 0.08, shard), fracture * smoothstep(0.36, 0.08, d));
+        } else {
+          float angle = atan(uv.y, uv.x);
+          float rough = 0.29 + sin(angle * 4.0 + vSpin * 1.7) * 0.085;
+          mask = smoothstep(rough + 0.08, rough - 0.1, d);
+        }
+
+        float alpha = mask * vAlpha;
+        if (alpha < 0.015) discard;
+        gl_FragColor = vec4(vColor, alpha);
       }
     `,
     vertexColors: true,
     transparent: true,
     depthWrite: false,
-    blending: THREE.AdditiveBlending,
+    blending: THREE.NormalBlending,
     toneMapped: false,
     fog: false,
   });
@@ -143,6 +304,8 @@ export class AnnihilationPulseVfx {
   private readonly colors = new Float32Array(MAX_BURST_PARTICLES * 3);
   private readonly alphas = new Float32Array(MAX_BURST_PARTICLES);
   private readonly sizes = new Float32Array(MAX_BURST_PARTICLES);
+  private readonly shapes = new Float32Array(MAX_BURST_PARTICLES);
+  private readonly spins = new Float32Array(MAX_BURST_PARTICLES);
   private readonly ages = new Float32Array(MAX_BURST_PARTICLES);
   private readonly lives = new Float32Array(MAX_BURST_PARTICLES);
   private readonly velocityX = new Float32Array(MAX_BURST_PARTICLES);
@@ -165,6 +328,8 @@ export class AnnihilationPulseVfx {
     this.geometry.setAttribute("color", new THREE.BufferAttribute(this.colors, 3));
     this.geometry.setAttribute("aAlpha", new THREE.BufferAttribute(this.alphas, 1));
     this.geometry.setAttribute("aSize", new THREE.BufferAttribute(this.sizes, 1));
+    this.geometry.setAttribute("aShape", new THREE.BufferAttribute(this.shapes, 1));
+    this.geometry.setAttribute("aSpin", new THREE.BufferAttribute(this.spins, 1));
     this.particles = new THREE.Points(this.geometry, createBurstMaterial());
     this.particles.name = "Biome annihilation enemy particles";
     this.particles.frustumCulled = false;
@@ -250,9 +415,10 @@ export class AnnihilationPulseVfx {
       this.velocityY[index] = speed * (0.34 + lift * 0.48);
       this.velocityZ[index] = Math.sin(angle) * speed;
       this.ages[index] = 0;
-      this.lives[index] = 0.38 + randomTwo * 0.38;
-      this.sizes[index] =
-        profile.material === "blood" ? 0.045 + random * 0.04 : 0.04 + random * 0.035;
+      this.lives[index] = profile.lifeMin + randomTwo * (profile.lifeMax - profile.lifeMin);
+      this.sizes[index] = profile.sizeMin + random * (profile.sizeMax - profile.sizeMin);
+      this.shapes[index] = BURST_SHAPE_ID[profile.shape];
+      this.spins[index] = angle + randomTwo * Math.PI;
       this.alphas[index] = 0.96;
       const color = particle % 3 === 0 ? secondary : primary;
       this.colors[offset] = color[0];
@@ -265,6 +431,8 @@ export class AnnihilationPulseVfx {
     this.geometry.getAttribute("color").needsUpdate = true;
     this.geometry.getAttribute("aAlpha").needsUpdate = true;
     this.geometry.getAttribute("aSize").needsUpdate = true;
+    this.geometry.getAttribute("aShape").needsUpdate = true;
+    this.geometry.getAttribute("aSpin").needsUpdate = true;
   }
 
   update(
@@ -362,10 +530,14 @@ export class AnnihilationPulseVfx {
     this.positions.fill(0);
     this.colors.fill(0);
     this.alphas.fill(0);
-    this.sizes.fill(0.04);
+    this.sizes.fill(0.065);
+    this.shapes.fill(BURST_SHAPE_ID.crumb);
+    this.spins.fill(0);
     this.geometry.getAttribute("position").needsUpdate = true;
     this.geometry.getAttribute("color").needsUpdate = true;
     this.geometry.getAttribute("aAlpha").needsUpdate = true;
     this.geometry.getAttribute("aSize").needsUpdate = true;
+    this.geometry.getAttribute("aShape").needsUpdate = true;
+    this.geometry.getAttribute("aSpin").needsUpdate = true;
   }
 }

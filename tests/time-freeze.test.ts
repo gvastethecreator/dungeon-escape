@@ -69,6 +69,8 @@ describe("time-freeze power", () => {
     const motes = vfx.root.getObjectByName("Time freeze body motes") as THREE.Points;
     const moteMaterial = motes.material as THREE.PointsMaterial;
     expect(motes).toBeInstanceOf(THREE.Points);
+    expect(moteMaterial.map?.name).toBe("Time freeze crystal point texture");
+    expect(moteMaterial.alphaTest).toBeGreaterThan(0);
     expect(vfx.root.getObjectByName("Time freeze orbit rings")).toBeUndefined();
     expect(vfx.root.getObjectByName("Time freeze vertical halos")).toBeUndefined();
     expect(vfx.root.getObjectByName("Time freeze suspended shards")).toBeUndefined();

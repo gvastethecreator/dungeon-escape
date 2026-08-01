@@ -983,18 +983,32 @@
           ></canvas>
         </div>
         <div class="end-card">
-          <small id="end-kicker">Run interrupted</small>
-          <h1 id="end-title">The ash claims you</h1>
-          <p id="end-copy">The stones remain unbound.</p>
-          <dl id="end-results" class="end-results" aria-label="Run results">
-            <div>
-              <dt>Time</dt>
-              <dd id="end-time">00:00</dd>
-            </div>
-            <div>
-              <dt>Score</dt>
+          <header class="end-summary">
+            <small id="end-kicker">Run interrupted</small>
+            <h1 id="end-title">The ash claims you</h1>
+            <p id="end-copy">The stones remain unbound.</p>
+          </header>
+          <dl class="end-scoreboard" aria-label="Final result">
+            <div class="end-scoreboard__score">
+              <dt>Final score</dt>
               <dd id="end-score">0</dd>
             </div>
+            <div class="end-scoreboard__time">
+              <dt>Escape time</dt>
+              <dd id="end-time">00:00</dd>
+            </div>
+            <div
+              id="end-leaderboard-comparison"
+              class="end-scoreboard__rank"
+              data-state="loading"
+              aria-live="polite"
+            >
+              <dt>Hall standing</dt>
+              <dd id="end-leaderboard-rank">Checking…</dd>
+              <p id="end-leaderboard-delta">Comparing this run with the leaderboard.</p>
+            </div>
+          </dl>
+          <dl id="end-results" class="end-results" aria-label="Run details">
             <div>
               <dt>Stones</dt>
               <dd id="end-stones">4 / 4</dd>

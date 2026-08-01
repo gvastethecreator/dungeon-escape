@@ -12,6 +12,39 @@ export interface TimeFreezeVfxTarget {
 
 const PARTICLES_PER_ENEMY = 10;
 
+/** Small authored ice glint shared by all frozen-enemy motes. */
+export function createTimeFreezeCrystalTexture(size = 32): THREE.DataTexture {
+  const resolution = Math.max(8, Math.trunc(size));
+  const data = new Uint8Array(resolution * resolution * 4);
+  const half = (resolution - 1) * 0.5;
+  for (let y = 0; y < resolution; y += 1) {
+    for (let x = 0; x < resolution; x += 1) {
+      const nx = (x - half) / half;
+      const ny = (y - half) / half;
+      const diamond = Math.abs(nx) * 1.8 + Math.abs(ny) * 0.72;
+      const body = THREE.MathUtils.clamp((1 - diamond) * 2.4, 0, 1);
+      const crossDistance = Math.min(Math.abs(nx), Math.abs(ny));
+      const cross =
+        THREE.MathUtils.clamp((0.13 - crossDistance) / 0.13, 0, 1) *
+        THREE.MathUtils.clamp((0.92 - Math.hypot(nx, ny)) / 0.28, 0, 1);
+      const alpha = Math.max(body, cross * 0.78);
+      const offset = (y * resolution + x) * 4;
+      data[offset] = 214;
+      data[offset + 1] = 249;
+      data[offset + 2] = 255;
+      data[offset + 3] = Math.round(alpha * 255);
+    }
+  }
+  const texture = new THREE.DataTexture(data, resolution, resolution, THREE.RGBAFormat);
+  texture.name = "Time freeze crystal point texture";
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.minFilter = THREE.LinearFilter;
+  texture.magFilter = THREE.LinearFilter;
+  texture.generateMipmaps = false;
+  texture.needsUpdate = true;
+  return texture;
+}
+
 /**
  * Body frost for frozen enemies: soft rising motes leave the sprite itself.
  * No orbit rings or crystal shards — freeze is read from desaturation plus
@@ -24,6 +57,7 @@ export class TimeFreezeVfx {
   private readonly particleCount: number;
   private readonly positions: Float32Array;
   private readonly seeds: Float32Array;
+  private readonly crystalTexture = createTimeFreezeCrystalTexture();
   private buffersActive = false;
 
   constructor(capacity: number) {
@@ -47,6 +81,7 @@ export class TimeFreezeVfx {
     this.motes = new THREE.Points(
       geometry,
       new THREE.PointsMaterial({
+        map: this.crystalTexture,
         color: 0xb7f4ff,
         size: 0.055,
         transparent: true,
@@ -54,6 +89,7 @@ export class TimeFreezeVfx {
         depthWrite: false,
         blending: THREE.AdditiveBlending,
         sizeAttenuation: true,
+        alphaTest: 0.025,
         toneMapped: false,
       }),
     );
@@ -146,6 +182,7 @@ export class TimeFreezeVfx {
   dispose(): void {
     this.motes.geometry.dispose();
     this.motes.material.dispose();
+    this.crystalTexture.dispose();
     this.root.clear();
   }
 }
