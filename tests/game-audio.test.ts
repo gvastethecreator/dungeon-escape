@@ -3,6 +3,8 @@ import {
   CREATURE_TONES,
   CREATURE_VOICES,
   GameAudio,
+  applyAudioListenerPose,
+  applyPannerPosition,
   creatureToneForMood,
   musicTrackForBiome,
   type AudioCue,
@@ -117,6 +119,99 @@ describe("GameAudio dungeon soundscape", () => {
     expect(source).toContain("buildEnemyThreatAssets");
     expect(source).toContain("enemy-${kind}-v${take}.opus");
     expect(source).toContain("enemy-${kind}-attack-${tone}.opus");
+    // Firefox AudioListener lacks positionX; pose must fall back to setPosition.
+    expect(source).toContain("applyAudioListenerPose");
+    expect(source).toContain("applyPannerPosition");
+    expect(source).toContain("setPosition");
+    expect(source).toContain("setOrientation");
+  });
+
+  test("listener pose uses AudioParam axes when present", () => {
+    const calls: string[] = [];
+    const param = (name: string) => ({
+      setValueAtTime(value: number, startTime: number) {
+        calls.push(`${name}:${value}@${startTime}`);
+      },
+    });
+    const path = applyAudioListenerPose(
+      {
+        positionX: param("px"),
+        positionY: param("py"),
+        positionZ: param("pz"),
+        forwardX: param("fx"),
+        forwardY: param("fy"),
+        forwardZ: param("fz"),
+        setPosition() {
+          calls.push("legacy-position");
+        },
+      },
+      { x: 1, y: 2, z: 3 },
+      { x: 0, y: 0, z: -1 },
+      0.5,
+    );
+    expect(path).toBe("modern");
+    expect(calls).toEqual(["px:1@0.5", "py:2@0.5", "pz:3@0.5", "fx:0@0.5", "fy:0@0.5", "fz:-1@0.5"]);
+  });
+
+  test("listener pose falls back to legacy Cartesian helpers for Firefox", () => {
+    const calls: string[] = [];
+    const path = applyAudioListenerPose(
+      {
+        setPosition(x, y, z) {
+          calls.push(`pos:${x},${y},${z}`);
+        },
+        setOrientation(fx, fy, fz, ux, uy, uz) {
+          calls.push(`ori:${fx},${fy},${fz},${ux},${uy},${uz}`);
+        },
+      },
+      { x: 4, y: 5, z: 6 },
+      { x: 0, y: 0, z: -1 },
+      1,
+    );
+    expect(path).toBe("legacy");
+    expect(calls).toEqual(["pos:4,5,6", "ori:0,0,-1,0,1,0"]);
+  });
+
+  test("panner pose prefers AudioParam axes and falls back to setPosition", () => {
+    const modernCalls: string[] = [];
+    expect(
+      applyPannerPosition(
+        {
+          positionX: {
+            setValueAtTime(value, startTime) {
+              modernCalls.push(`x:${value}@${startTime}`);
+            },
+          },
+          positionY: {
+            setValueAtTime(value, startTime) {
+              modernCalls.push(`y:${value}@${startTime}`);
+            },
+          },
+          positionZ: {
+            setValueAtTime(value, startTime) {
+              modernCalls.push(`z:${value}@${startTime}`);
+            },
+          },
+        },
+        { x: 1, y: 2, z: 3 },
+        0.25,
+      ),
+    ).toBe("modern");
+    expect(modernCalls).toEqual(["x:1@0.25", "y:2@0.25", "z:3@0.25"]);
+
+    const legacyCalls: string[] = [];
+    expect(
+      applyPannerPosition(
+        {
+          setPosition(x, y, z) {
+            legacyCalls.push(`${x},${y},${z}`);
+          },
+        },
+        { x: 7, y: 8, z: 9 },
+        0,
+      ),
+    ).toBe("legacy");
+    expect(legacyCalls).toEqual(["7,8,9"]);
   });
 
   test("every biome owns valid exploration and portal tracks", async () => {
