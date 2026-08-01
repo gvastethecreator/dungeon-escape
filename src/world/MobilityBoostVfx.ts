@@ -89,6 +89,8 @@ export class MobilityBoostVfx {
   private readonly positions: Float32Array;
   private readonly seeds: DustSeed[];
   private buffersActive = false;
+  private wasActive = false;
+  private activationAge = 0;
   private readonly hotColor = new THREE.Color(DUST_COLOR_HOT);
 
   constructor(count = MOBILITY_DUST_COUNT) {
@@ -141,17 +143,21 @@ export class MobilityBoostVfx {
     this.update(0, 0, { x: 0, y: 1.5, z: 0 }, 0);
   }
 
-  update(
-    remaining: number,
-    elapsed: number,
-    viewer: MobilityBoostViewer,
-    _delta: number,
-  ): void {
+  update(remaining: number, elapsed: number, viewer: MobilityBoostViewer, delta: number): void {
     const active = remaining > 0.0001;
+    const safeDelta = Math.max(0, Number.isFinite(delta) ? delta : 0);
+    if (active) {
+      if (!this.wasActive) this.activationAge = 0;
+      this.activationAge += safeDelta;
+    } else {
+      this.activationAge = 0;
+    }
+    this.wasActive = active;
     const life = THREE.MathUtils.clamp(remaining / MOBILITY_BOOST_DURATION_SECONDS, 0, 1);
-    // Soft enter/exit: first second blooms, last second settles.
-    const enter = THREE.MathUtils.smoothstep(life, 0, 0.12);
-    const exit = THREE.MathUtils.smoothstep(life, 0, 0.18);
+    // The pickup now grows into the field instead of appearing at full density
+    // on its first frame. The final second still settles before expiration.
+    const enter = THREE.MathUtils.smoothstep(this.activationAge, 0, 0.48);
+    const exit = THREE.MathUtils.smoothstep(life, 0, 0.12);
     const intensity = enter * exit;
 
     if (!active && !this.buffersActive) {
@@ -193,7 +199,6 @@ export class MobilityBoostVfx {
 
     const positionAttr = this.dust.geometry.getAttribute("position");
     if (positionAttr) positionAttr.needsUpdate = true;
-    this.dust.geometry.computeBoundingSphere();
 
     this.dust.material.opacity = THREE.MathUtils.clamp(0.42 * intensity * pulse, 0, 0.72);
     this.dust.material.size = 0.055 + 0.05 * intensity;
