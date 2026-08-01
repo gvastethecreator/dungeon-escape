@@ -52,3 +52,52 @@ export function tickAnnihilationPulse(clock: AnnihilationPulseClock, delta: numb
 export function isAnnihilationPulseActive(clock: AnnihilationPulseClock): boolean {
   return Number.isFinite(clock.remaining) && clock.remaining > 0.0001;
 }
+
+/** Enemies below this phase visibility do not take a pulse hit. */
+export const ANNIHILATION_PULSE_MIN_PHASE_VISIBILITY = 0.04;
+/** Floor for enemy body reach when scale is very small. */
+export const ANNIHILATION_PULSE_ENEMY_REACH_MIN = 0.28;
+/** Scale factor applied to the smaller of scaleX/scaleY for body reach. */
+export const ANNIHILATION_PULSE_ENEMY_REACH_SCALE = 0.2;
+
+export interface AnnihilationPulseEnemyPose {
+  defeated: boolean;
+  scaleX: number;
+  scaleY: number;
+  phaseVisibility: number;
+  position: { x: number; z: number };
+  /** Base sprite scale used for body reach (falls back to live scale). */
+  baseScaleX?: number;
+  baseScaleY?: number;
+}
+
+/**
+ * Horizontal body reach added to the kill ring radius for one enemy pose.
+ */
+export function annihilationPulseEnemyReach(enemy: AnnihilationPulseEnemyPose): number {
+  const scaleX = enemy.baseScaleX ?? enemy.scaleX;
+  const scaleY = enemy.baseScaleY ?? enemy.scaleY;
+  const body = Math.min(scaleX, scaleY) * ANNIHILATION_PULSE_ENEMY_REACH_SCALE;
+  return Math.max(ANNIHILATION_PULSE_ENEMY_REACH_MIN, body);
+}
+
+/**
+ * True when the pulse origin kills this enemy pose.
+ * Skips defeated, near-zero scale, and spectral low-visibility seats.
+ */
+export function annihilationPulseHitsEnemy(
+  origin: { x: number; z: number },
+  enemy: AnnihilationPulseEnemyPose,
+  radius: number = ANNIHILATION_PULSE_RADIUS,
+): boolean {
+  if (
+    enemy.defeated ||
+    enemy.scaleX <= 0.001 ||
+    enemy.scaleY <= 0.001 ||
+    enemy.phaseVisibility < ANNIHILATION_PULSE_MIN_PHASE_VISIBILITY
+  ) {
+    return false;
+  }
+  const distance = Math.hypot(enemy.position.x - origin.x, enemy.position.z - origin.z);
+  return distance <= radius + annihilationPulseEnemyReach(enemy);
+}
