@@ -42,6 +42,18 @@ describe("projectMinimapFeatures", () => {
           collected: true,
           cell: { x: 9, y: 9 },
         },
+        {
+          kind: "swarm-curse",
+          available: true,
+          collected: false,
+          cell: { x: 11, y: 11 },
+        },
+        {
+          kind: "gloom-curse",
+          available: true,
+          collected: true,
+          cell: { x: 12, y: 12 },
+        },
       ],
       stairs: [{ cell: { x: 10, y: 10 }, direction: "up" }],
       spawn: { x: 0, y: 0 },
@@ -53,6 +65,8 @@ describe("projectMinimapFeatures", () => {
     ]);
     expect(features.pickups).toEqual([{ x: 6, y: 6 }]);
     expect(features.map).toEqual({ x: 8, y: 8 });
+    expect(features.swarmCurse).toEqual({ x: 11, y: 11 });
+    expect(features.gloomCurse).toBeUndefined();
     expect(features.stairs).toEqual([{ cell: { x: 10, y: 10 }, direction: "up" }]);
     expect(features.spawn).toEqual({ x: 0, y: 0 });
   });

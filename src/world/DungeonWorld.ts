@@ -120,6 +120,25 @@ import {
 import { MobilityBoostVfx } from "./MobilityBoostVfx";
 import { activateFogClear, isFogClearActive, tickFogClear } from "../game/FogClear";
 import {
+  activateSlowCurse,
+  isSlowCurseActive,
+  tickSlowCurse,
+} from "../game/SlowCurse";
+import {
+  activateFrenzyCurse,
+  FRENZY_CURSE_ATTACK_RATE_MULTIPLIER,
+  FRENZY_CURSE_DETECTION_MULTIPLIER,
+  FRENZY_CURSE_SPEED_MULTIPLIER,
+  isFrenzyCurseActive,
+  tickFrenzyCurse,
+} from "../game/FrenzyCurse";
+import {
+  activateGloomCurse,
+  isGloomCurseActive,
+  tickGloomCurse,
+} from "../game/GloomCurse";
+import { activateSwarmCurse, isSwarmCurseActive, swarmTargetEnemies } from "../game/SwarmCurse";
+import {
   StaticDungeonScene,
   type StaticChestActor,
   type StaticDoorActor,
@@ -194,6 +213,14 @@ export interface WorldUpdate {
   mobilityBoostRemaining: number;
   /** Temporary fog-clear / clarity window (seconds). */
   fogClearRemaining: number;
+  /** Timed player slowdown curse. */
+  slowCurseRemaining: number;
+  /** Timed enemy frenzy curse. */
+  frenzyCurseRemaining: number;
+  /** Timed darkness curse. */
+  gloomCurseRemaining: number;
+  /** Sticky floor swarm pressure (doubles active monster demand). */
+  swarmCurseActive: boolean;
   /** Pulse ring event; hits are already removed from the enemy seats. */
   annihilationPulse: {
     position: { x: number; y: number; z: number };
@@ -309,6 +336,10 @@ export class DungeonWorld {
   private luminousWardSeconds = 0;
   private mobilityBoostSeconds = 0;
   private fogClearSeconds = 0;
+  private slowCurseSeconds = 0;
+  private frenzyCurseSeconds = 0;
+  private gloomCurseSeconds = 0;
+  private swarmCurseActive = false;
   private mapRevealed = false;
   private playerAirborne = false;
   private readonly annihilationPulseClock = createAnnihilationPulseClock();
@@ -502,6 +533,10 @@ export class DungeonWorld {
     this.luminousWardSeconds = 0;
     this.mobilityBoostSeconds = 0;
     this.fogClearSeconds = 0;
+    this.slowCurseSeconds = 0;
+    this.frenzyCurseSeconds = 0;
+    this.gloomCurseSeconds = 0;
+    this.swarmCurseActive = false;
     this.mapRevealed = false;
     this.playerAirborne = false;
     this.annihilationPulseClock.remaining = 0;
@@ -570,7 +605,10 @@ export class DungeonWorld {
   ): void {
     if (!this.dungeon) return;
     this.refreshDifficultyState();
-    const target = this.difficultyState.targetEnemies;
+    const target = Math.min(
+      ENEMY_HARD_CAP,
+      swarmTargetEnemies(this.difficultyState.targetEnemies, this.swarmCurseActive),
+    );
     const safeSpawnDistance = resolveSafeSpawnDistance({
       base: this.difficultyState.safeSpawnDistance,
       wardActive: isLuminousWardActive(this.luminousWardSeconds),
@@ -649,10 +687,14 @@ export class DungeonWorld {
     this.luminousWardSeconds = tickLuminousWard(this.luminousWardSeconds, delta);
     this.mobilityBoostSeconds = tickMobilityBoost(this.mobilityBoostSeconds, delta);
     this.fogClearSeconds = tickFogClear(this.fogClearSeconds, delta);
+    this.slowCurseSeconds = tickSlowCurse(this.slowCurseSeconds, delta);
+    this.frenzyCurseSeconds = tickFrenzyCurse(this.frenzyCurseSeconds, delta);
+    this.gloomCurseSeconds = tickGloomCurse(this.gloomCurseSeconds, delta);
     const pulseCount = tickAnnihilationPulse(this.annihilationPulseClock, delta);
     const enemiesFrozen = isTimeFreezeActive(this.timeFreezeSeconds);
     const luminousWardActive = isLuminousWardActive(this.luminousWardSeconds);
     const annihilationPulseActive = isAnnihilationPulseActive(this.annihilationPulseClock);
+    const frenzyActive = isFrenzyCurseActive(this.frenzyCurseSeconds);
     if (!enemiesFrozen) {
       this.enemyAnimationElapsed += Math.max(0, delta);
       this.enemySimulationElapsed += Math.max(0, delta);
@@ -704,6 +746,9 @@ export class DungeonWorld {
             this.difficulty,
             biomeEvent.enemyPressureScale,
           ),
+          pursuitSpeedMultiplier: frenzyActive ? FRENZY_CURSE_SPEED_MULTIPLIER : 1,
+          attackRateMultiplier: frenzyActive ? FRENZY_CURSE_ATTACK_RATE_MULTIPLIER : 1,
+          detectionRangeMultiplier: frenzyActive ? FRENZY_CURSE_DETECTION_MULTIPLIER : 1,
         });
     const sampledSurfaceEffect = this.hazardTiles?.sample(delta, player, {
       airborne: this.playerAirborne,
@@ -1017,6 +1062,16 @@ export class DungeonWorld {
         this.mobilityBoostSeconds = activateMobilityBoost(this.mobilityBoostSeconds);
       } else if (pickup.kind === "clarity") {
         this.fogClearSeconds = activateFogClear(this.fogClearSeconds);
+      } else if (pickup.kind === "swarm-curse") {
+        this.swarmCurseActive = activateSwarmCurse(this.swarmCurseActive);
+        this.refreshDifficultyState();
+        this.activateEnemiesToTarget(player, "play");
+      } else if (pickup.kind === "slow-curse") {
+        this.slowCurseSeconds = activateSlowCurse(this.slowCurseSeconds);
+      } else if (pickup.kind === "frenzy-curse") {
+        this.frenzyCurseSeconds = activateFrenzyCurse(this.frenzyCurseSeconds);
+      } else if (pickup.kind === "gloom-curse") {
+        this.gloomCurseSeconds = activateGloomCurse(this.gloomCurseSeconds);
       }
     }
 
@@ -1053,6 +1108,10 @@ export class DungeonWorld {
       mapRevealed: this.mapRevealed,
       mobilityBoostRemaining: this.mobilityBoostSeconds,
       fogClearRemaining: this.fogClearSeconds,
+      slowCurseRemaining: this.slowCurseSeconds,
+      frenzyCurseRemaining: this.frenzyCurseSeconds,
+      gloomCurseRemaining: this.gloomCurseSeconds,
+      swarmCurseActive: this.swarmCurseActive,
       annihilationPulse,
       stonesFound: this.collectedStones.size,
       stonesTotal: STONE_ORDER.length,
@@ -1319,6 +1378,34 @@ export class DungeonWorld {
     return isFogClearActive(this.fogClearSeconds);
   }
 
+  get slowCurseRemaining(): number {
+    return this.slowCurseSeconds;
+  }
+
+  get isSlowCurseActive(): boolean {
+    return isSlowCurseActive(this.slowCurseSeconds);
+  }
+
+  get frenzyCurseRemaining(): number {
+    return this.frenzyCurseSeconds;
+  }
+
+  get isFrenzyCurseActive(): boolean {
+    return isFrenzyCurseActive(this.frenzyCurseSeconds);
+  }
+
+  get gloomCurseRemaining(): number {
+    return this.gloomCurseSeconds;
+  }
+
+  get isGloomCurseActive(): boolean {
+    return isGloomCurseActive(this.gloomCurseSeconds);
+  }
+
+  get isSwarmCurseActive(): boolean {
+    return isSwarmCurseActive(this.swarmCurseActive);
+  }
+
   restoreSession(foundStoneIds: readonly StoneId[]): void {
     const restored = new Set(foundStoneIds.filter((id) => STONE_ORDER.includes(id)));
     this.collectedStones.clear();
@@ -1354,6 +1441,10 @@ export class DungeonWorld {
       mapRevealed?: boolean;
       mobilityBoostRemaining?: number;
       fogClearRemaining?: number;
+      slowCurseRemaining?: number;
+      frenzyCurseRemaining?: number;
+      gloomCurseRemaining?: number;
+      swarmCurseActive?: boolean;
     },
     player: { x: number; z: number },
   ): void {
@@ -1365,6 +1456,10 @@ export class DungeonWorld {
     this.mapRevealed = progress.mapRevealed === true;
     this.mobilityBoostSeconds = Math.max(0, progress.mobilityBoostRemaining ?? 0);
     this.fogClearSeconds = Math.max(0, progress.fogClearRemaining ?? 0);
+    this.slowCurseSeconds = Math.max(0, progress.slowCurseRemaining ?? 0);
+    this.frenzyCurseSeconds = Math.max(0, progress.frenzyCurseRemaining ?? 0);
+    this.gloomCurseSeconds = Math.max(0, progress.gloomCurseRemaining ?? 0);
+    this.swarmCurseActive = progress.swarmCurseActive === true;
     this.annihilationPulseClock.timeSincePulse = 0;
     this.refreshDifficultyState();
     this.activateEnemiesToTarget(player, "resume");
@@ -1761,6 +1856,10 @@ export class DungeonWorld {
     this.luminousWardSeconds = 0;
     this.mobilityBoostSeconds = 0;
     this.fogClearSeconds = 0;
+    this.slowCurseSeconds = 0;
+    this.frenzyCurseSeconds = 0;
+    this.gloomCurseSeconds = 0;
+    this.swarmCurseActive = false;
     this.mapRevealed = false;
     this.playerAirborne = false;
     this.annihilationPulseClock.remaining = 0;

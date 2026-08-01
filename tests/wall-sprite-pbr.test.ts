@@ -56,4 +56,11 @@ describe("flat wall sprite material contract", () => {
     expect(assetSource).toContain("biomeWallDecorPbr");
     expect(assetSource).toContain("wallArtPbr");
   });
+
+  test("wall sprites couple to scene fog so distant decals dissolve", () => {
+    expect(worldSource).toContain("fog: true");
+    expect(worldSource).toContain("environment-sprite-muted-fog-v3");
+    expect(worldSource).toContain("biomePropFogPull");
+    expect(worldSource).toContain("gl_FragColor.a *= mix(1.0, fogFactor * fogFactor, 0.88)");
+  });
 });

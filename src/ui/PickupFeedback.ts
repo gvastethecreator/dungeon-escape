@@ -11,6 +11,10 @@ export type PickupFeedbackKind =
   | "annihilation-pulse"
   | "luminous-ward"
   | "time-freeze"
+  | "swarm-curse"
+  | "slow-curse"
+  | "frenzy-curse"
+  | "gloom-curse"
   | "flask"
   | "stone"
   | "notice";
@@ -24,6 +28,10 @@ export interface PickupFeedbackFlags {
   annihilationPulse?: boolean;
   luminousWard?: boolean;
   timeFreeze?: boolean;
+  swarmCurse?: boolean;
+  slowCurse?: boolean;
+  frenzyCurse?: boolean;
+  gloomCurse?: boolean;
   restoreResolve?: boolean;
   stoneId?: string;
 }
@@ -38,6 +46,10 @@ export interface PickupFeedbackProjection {
     | "annihilationPulse"
     | "luminousWard"
     | "timeFreeze"
+    | "swarmCurse"
+    | "slowCurse"
+    | "frenzyCurse"
+    | "gloomCurse"
     | "flask"
     | "small"
     | "notice";
@@ -48,7 +60,7 @@ export interface PickupFeedbackProjection {
 
 /**
  * Resolve feedback kind and kicker from the same priority order as the Play host.
- * Map and clarity win over combat relics; stone wins over generic notice.
+ * Map and clarity win over combat relics; curses outrank generic notice; stone wins next.
  */
 export function projectPickupFeedback(flags: PickupFeedbackFlags = {}): PickupFeedbackProjection {
   const restoreResolve = Boolean(flags.restoreResolve);
@@ -69,6 +81,18 @@ export function projectPickupFeedback(flags: PickupFeedbackFlags = {}): PickupFe
   }
   if (flags.timeFreeze) {
     return { kind: "time-freeze", kickerKey: "timeFreeze", restoreResolve };
+  }
+  if (flags.swarmCurse) {
+    return { kind: "swarm-curse", kickerKey: "swarmCurse", restoreResolve };
+  }
+  if (flags.slowCurse) {
+    return { kind: "slow-curse", kickerKey: "slowCurse", restoreResolve };
+  }
+  if (flags.frenzyCurse) {
+    return { kind: "frenzy-curse", kickerKey: "frenzyCurse", restoreResolve };
+  }
+  if (flags.gloomCurse) {
+    return { kind: "gloom-curse", kickerKey: "gloomCurse", restoreResolve };
   }
   if (restoreResolve) {
     return { kind: "flask", kickerKey: "flask", restoreResolve: true };

@@ -274,7 +274,11 @@
           </div>
         </section>
 
-        <section class="play-progress" aria-label="Run time and magic stones">
+        <time id="run-timer" class="run-timer" datetime="PT0S" aria-label="Run time 00:00"
+          >00:00</time
+        >
+
+        <section class="play-progress" aria-label="Magic stones and status effects">
           <div
             id="time-freeze-status"
             class="time-freeze-status"
@@ -315,15 +319,52 @@
             <span class="fog-clear-status__label">CLEAR AIR</span>
             <time id="fog-clear-value" datetime="PT0S">20.0s</time>
           </div>
+          <div
+            id="slow-curse-status"
+            class="curse-status curse-status--slow"
+            role="status"
+            aria-live="polite"
+            hidden
+          >
+            <span class="curse-status__label">HEAVY LIMBS</span>
+            <time id="slow-curse-value" datetime="PT0S">14.0s</time>
+          </div>
+          <div
+            id="frenzy-curse-status"
+            class="curse-status curse-status--frenzy"
+            role="status"
+            aria-live="polite"
+            hidden
+          >
+            <span class="curse-status__label">BLOOD FRENZY</span>
+            <time id="frenzy-curse-value" datetime="PT0S">18.0s</time>
+          </div>
+          <div
+            id="gloom-curse-status"
+            class="curse-status curse-status--gloom"
+            role="status"
+            aria-live="polite"
+            hidden
+          >
+            <span class="curse-status__label">GLOOM</span>
+            <time id="gloom-curse-value" datetime="PT0S">20.0s</time>
+          </div>
+          <div
+            id="swarm-curse-status"
+            class="curse-status curse-status--swarm"
+            role="status"
+            aria-live="polite"
+            hidden
+          >
+            <span class="curse-status__label">SWARM</span>
+            <span class="curse-status__sticky">FLOOR</span>
+          </div>
           <!-- Biome atmosphere pulses (dustfall, whiteout, …) are environment VFX
                via data-biome-event on the shell — not character-status chips. -->
           <div id="biome-event-status" class="biome-event-status" hidden aria-hidden="true">
             <span id="biome-event-label" class="biome-event-status__label"></span>
             <time id="biome-event-value" datetime="PT0S"></time>
           </div>
-          <time id="run-timer" class="run-timer" datetime="PT0S" aria-label="Run time 00:00"
-            >00:00</time
-          >
           <ul class="stone-sockets" aria-label="Magic stone sockets">
             <li class="stone-socket" data-stone="ember" title="Ember Core" aria-pressed="false">
               <span class="stone-socket__empty" aria-hidden="true"></span>
@@ -1022,6 +1063,7 @@
             <div class="end-actions__secondary">
               <button id="retry" type="button">Try again</button>
               <button id="new-dungeon" type="button">New dungeon</button>
+              <button id="end-home" type="button" title="Return to the main menu">MAIN MENU</button>
             </div>
           </div>
         </div>

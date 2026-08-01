@@ -175,6 +175,7 @@ export class LightingRig {
     nearestThreat: number | null,
     viewForward?: THREE.Vector3,
     explorationFogMultiplier = 1,
+    lanternIntensityMultiplier = 1,
   ): void {
     this.target.copy(player);
     if (viewForward) {
@@ -185,16 +186,18 @@ export class LightingRig {
     const threat = nearestThreat !== null && nearestThreat < 6 ? 1 - nearestThreat / 6 : 0;
     // Threat closes the fog slightly and boosts the lantern — readable panic, not a full blackout.
     // Multipliers below 1 come from the temporary clarity pickup (fog clear).
+    // Multipliers above 1 come from gloom curse denser air.
     this.fog.density = THREE.MathUtils.damp(
       this.fog.density,
-      this.baseFogDensity * THREE.MathUtils.clamp(explorationFogMultiplier, 0.08, 5.6) +
+      this.baseFogDensity * THREE.MathUtils.clamp(explorationFogMultiplier, 0.08, 9.5) +
         threat * 0.0035,
       1.7,
       delta,
     );
+    const lanternMul = THREE.MathUtils.clamp(lanternIntensityMultiplier, 0.2, 1.4);
     this.playerFill.intensity = THREE.MathUtils.damp(
       this.playerFill.intensity,
-      this.basePlayerLightIntensity + threat * PLAYER_LANTERN_TUNING.threatBoost,
+      (this.basePlayerLightIntensity + threat * PLAYER_LANTERN_TUNING.threatBoost) * lanternMul,
       3.2,
       delta,
     );

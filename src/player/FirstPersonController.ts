@@ -26,6 +26,7 @@ import {
   MOBILITY_BOOST_SPEED_MULTIPLIER,
   MOBILITY_BOOST_STRIDE_RATE,
 } from "../game/MobilityBoost";
+import { SLOW_CURSE_SPEED_MULTIPLIER } from "../game/SlowCurse";
 import {
   createVerticalMotionState,
   resetVerticalMotion,
@@ -227,6 +228,7 @@ export class FirstPersonController {
   private surfaceSpeedScale = 1;
   private surfaceTraction = 1;
   private mobilityBoostActive = false;
+  private slowCurseActive = false;
   private readonly lookResponse: number;
   private readonly verticalConfig: VerticalMotionConfig;
   private readonly verticalState: VerticalMotionState;
@@ -361,6 +363,7 @@ export class FirstPersonController {
     this.surfaceSpeedScale = 1;
     this.surfaceTraction = 1;
     this.mobilityBoostActive = false;
+    this.slowCurseActive = false;
     this.vaultedColliderIds.clear();
     resetVerticalMotion(this.verticalState, this.eyeHeight, this.verticalConfig.maxAirJumps);
     resetStamina(this.staminaState, STAMINA_MAX);
@@ -489,6 +492,10 @@ export class FirstPersonController {
 
   setMobilityBoost(active: boolean): void {
     this.mobilityBoostActive = active;
+  }
+
+  setSlowCurse(active: boolean): void {
+    this.slowCurseActive = active;
   }
 
   requestPointerLock(): void {
@@ -624,6 +631,7 @@ export class FirstPersonController {
         ? this.moveSpeed *
           this.surfaceSpeedScale *
           (this.mobilityBoostActive ? MOBILITY_BOOST_SPEED_MULTIPLIER : 1) *
+          (this.slowCurseActive ? SLOW_CURSE_SPEED_MULTIPLIER : 1) *
           (stamina.sprinting ? this.sprintMultiplier : 1)
         : 0;
     // While airborne, steer toward the held direction so double-jumps can

@@ -36,6 +36,26 @@ describe("PickupFeedback", () => {
       kickerKey: "timeFreeze",
       restoreResolve: false,
     });
+    expect(projectPickupFeedback({ swarmCurse: true })).toEqual({
+      kind: "swarm-curse",
+      kickerKey: "swarmCurse",
+      restoreResolve: false,
+    });
+    expect(projectPickupFeedback({ slowCurse: true })).toEqual({
+      kind: "slow-curse",
+      kickerKey: "slowCurse",
+      restoreResolve: false,
+    });
+    expect(projectPickupFeedback({ frenzyCurse: true })).toEqual({
+      kind: "frenzy-curse",
+      kickerKey: "frenzyCurse",
+      restoreResolve: false,
+    });
+    expect(projectPickupFeedback({ gloomCurse: true })).toEqual({
+      kind: "gloom-curse",
+      kickerKey: "gloomCurse",
+      restoreResolve: false,
+    });
     expect(projectPickupFeedback({ restoreResolve: true })).toEqual({
       kind: "flask",
       kickerKey: "flask",

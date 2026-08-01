@@ -65,13 +65,15 @@ describe("biome sprite decor atlas", () => {
   });
 
   test("keeps generated props muted and outside distance/frustum culling", () => {
-    expect(staticSceneSource).toContain('"biome-prop-wall-decal-muted-v3"');
-    expect(staticSceneSource).toContain("biome-prop-floor-${placement}-muted-v3");
+    expect(staticSceneSource).toContain('"biome-prop-wall-decal-muted-fog-v4"');
+    expect(staticSceneSource).toContain("biome-prop-floor-${placement}-muted-fog-v4");
     expect(staticSceneSource).toContain("diffuseColor.rgb = mix(vec3(biomePropLuma)");
+    expect(staticSceneSource).toContain("biomePropFogPull");
     expect(staticSceneSource).toContain("opacity: 0.76");
     expect(staticSceneSource).toContain('mapBlend = isFloorDecal ? "floor-contact-alpha"');
     expect(staticSceneSource).toContain("sprite.frustumCulled = false");
     expect(staticSceneSource).toContain('distanceLod: "disabled"');
+    expect(staticSceneSource).toContain("fog: true");
   });
 
   test("anchors wall props as fixed decals instead of camera sprites", () => {
@@ -125,7 +127,7 @@ describe("biome sprite decor atlas", () => {
     expect(staticSceneSource).toContain("this.reserveWallObjectCell");
     expect(staticSceneSource).toContain("seat.cell.x - seat.intoDx === wall.cell.x");
     expect(staticSceneSource).toContain(
-      'customProgramCacheKey = () => "environment-sprite-muted-v2"',
+      'customProgramCacheKey = () => "environment-sprite-muted-fog-v3"',
     );
   });
 

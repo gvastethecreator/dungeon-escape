@@ -52,6 +52,11 @@ export interface MinimapFeatures {
   mobility?: MinimapCell;
   /** Temporary fog-clear clarity phial. */
   clarity?: MinimapCell;
+  /** Rare cursed power chests (uncollected). */
+  swarmCurse?: MinimapCell;
+  slowCurse?: MinimapCell;
+  frenzyCurse?: MinimapCell;
+  gloomCurse?: MinimapCell;
   /** Connections to adjacent dungeon floors. */
   stairs?: MinimapStair[];
   /** Special objective prop (reliquary altar / boss-shrine crystal), if any. */

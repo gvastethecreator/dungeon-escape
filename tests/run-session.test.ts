@@ -183,6 +183,45 @@ describe("RunSession applyWorldUpdate", () => {
     expect(fx.flash).toBe("event");
   });
 
+  test("emits curse pickup feedback without changing health", () => {
+    const session = createRunSession(70);
+    const quest = new QuestState();
+    quest.start(0);
+
+    const swarm = applyWorldUpdate(
+      session,
+      quest,
+      emptyUpdate({ collectedPickupKind: "swarm-curse" }),
+    );
+    expect(session.resolve).toBe(70);
+    expect(swarm.pickup).toEqual({ label: COPY.pickup.swarmCurse, swarmCurse: true });
+    expect(swarm.status).toBe(COPY.status.swarmCurse);
+    expect(swarm.flash).toBe("damage");
+    expect(swarm.sessionChanged).toBe(true);
+
+    const slow = applyWorldUpdate(
+      session,
+      quest,
+      emptyUpdate({ collectedPickupKind: "slow-curse" }),
+    );
+    expect(slow.pickup).toEqual({ label: COPY.pickup.slowCurse, slowCurse: true });
+    expect(slow.flash).toBe("damage");
+
+    const frenzy = applyWorldUpdate(
+      session,
+      quest,
+      emptyUpdate({ collectedPickupKind: "frenzy-curse" }),
+    );
+    expect(frenzy.pickup).toEqual({ label: COPY.pickup.frenzyCurse, frenzyCurse: true });
+
+    const gloom = applyWorldUpdate(
+      session,
+      quest,
+      emptyUpdate({ collectedPickupKind: "gloom-curse" }),
+    );
+    expect(gloom.pickup).toEqual({ label: COPY.pickup.gloomCurse, gloomCurse: true });
+  });
+
   test("reveals the map and activates mobility as persistent utility pickups", () => {
     const session = createRunSession(64);
     const quest = new QuestState();

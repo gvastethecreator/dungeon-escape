@@ -4,6 +4,7 @@ import { createForgeChest } from "./world/ForgePropFactory";
 import { createDungeonDoor } from "./world/DoorFactory";
 import {
   createAnnihilationPulseRelic,
+  createCurseVessel,
   createLuminousWardStone,
   createResolveFlask,
   createTimeFreezeRelic,
@@ -416,6 +417,26 @@ export const MODEL_QA_CATALOG = [
     id: "annihilation-pulse",
     label: "Annihilation pulse relic",
     factory: (materials) => createAnnihilationPulseRelic(materials),
+  },
+  {
+    id: "swarm-curse",
+    label: "Swarm curse vessel",
+    factory: (materials) => createCurseVessel(materials, "swarm-curse"),
+  },
+  {
+    id: "slow-curse",
+    label: "Slow curse vessel",
+    factory: (materials) => createCurseVessel(materials, "slow-curse"),
+  },
+  {
+    id: "frenzy-curse",
+    label: "Frenzy curse vessel",
+    factory: (materials) => createCurseVessel(materials, "frenzy-curse"),
+  },
+  {
+    id: "gloom-curse",
+    label: "Gloom curse vessel",
+    factory: (materials) => createCurseVessel(materials, "gloom-curse"),
   },
 ] as const satisfies readonly ModelQaCatalogEntry[];
 

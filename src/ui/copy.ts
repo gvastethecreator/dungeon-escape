@@ -2,7 +2,10 @@
 
 import { ANNIHILATION_PULSE_DURATION_SECONDS } from "../game/AnnihilationPulse";
 import { FOG_CLEAR_DURATION_SECONDS } from "../game/FogClear";
+import { FRENZY_CURSE_DURATION_SECONDS } from "../game/FrenzyCurse";
+import { GLOOM_CURSE_DURATION_SECONDS } from "../game/GloomCurse";
 import { LUMINOUS_WARD_DURATION_SECONDS } from "../game/LuminousWard";
+import { SLOW_CURSE_DURATION_SECONDS } from "../game/SlowCurse";
 import { TIME_FREEZE_DURATION_SECONDS } from "../game/TimeFreeze";
 
 export const COPY = {
@@ -30,6 +33,10 @@ export const COPY = {
     map: "DUNGEON MAPPED",
     mobility: "WAYFINDER DRAUGHT",
     clarity: "CLEAR AIR",
+    swarmCurse: "SWARM CURSE",
+    slowCurse: "HEAVY LIMBS",
+    frenzyCurse: "BLOOD FRENZY",
+    gloomCurse: "GATHERING GLOOM",
   },
   interaction: {
     openChest: "OPEN CHEST",
@@ -58,6 +65,10 @@ export const COPY = {
     map: "Dungeon map found. Every room and route is now visible.",
     mobility: "Speed and stamina boosted. Floor traps cannot harm you for 14 seconds.",
     clarity: `Fog thins for ${FOG_CLEAR_DURATION_SECONDS} seconds.`,
+    swarmCurse: "The dungeon swarms. Monster pressure doubles on this floor.",
+    slowCurse: `Your limbs are heavy for ${SLOW_CURSE_DURATION_SECONDS} seconds.`,
+    frenzyCurse: `Enemies hunt harder for ${FRENZY_CURSE_DURATION_SECONDS} seconds.`,
+    gloomCurse: `Darkness thickens for ${GLOOM_CURSE_DURATION_SECONDS} seconds.`,
     won: "You escaped the dungeon",
     dead: "Keep distance. Shadows strike on contact.",
     hydrate: (seed: string) => `Loaded from server · seed ${seed}`,
