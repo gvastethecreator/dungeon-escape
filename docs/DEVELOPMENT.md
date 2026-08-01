@@ -4,7 +4,7 @@
 
 - Bun 1.3.14 or later
 - TypeScript 7 (installed through the project manifest)
-- A modern WebGL browser
+- A modern WebGL browser (Chrome/Edge/Firefox; Safari untested). Firefox uses a safer render path and legacy Web Audio listener pose — see `RenderCapabilities` and `GameAudio.applyAudioListenerPose`.
 
 ## Run locally
 

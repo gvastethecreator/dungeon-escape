@@ -2,6 +2,8 @@
 
 `GameAudio` loads Opus assets from `public/assets/audio/dungeon/` after a player gesture. It handles mute, pause, group gain, limiting, and spatial one-shots.
 
+Spatial pose is browser-safe: Chrome/Edge/Safari use `AudioListener`/`PannerNode` AudioParam axes (`positionX`…); Firefox still only exposes legacy `setPosition` / `setOrientation` on the listener. `applyAudioListenerPose` and `applyPannerPosition` pick the supported path so the play frame never throws after unlock.
+
 Sources are a personal sample library. Rebuild with:
 
 ```powershell

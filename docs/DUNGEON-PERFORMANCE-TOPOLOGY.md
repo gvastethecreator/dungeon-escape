@@ -14,6 +14,7 @@ Updated: 2026-07-28
 
 - Chrome/Edge desktop: full `compileAsync` warmup, CRT history on, DPR cap 1.25, `powerPreference: high-performance`.
 - Firefox (and low-end / `?safeRender=1`): skip `compileAsync` (one warmup draw only), CRT off by default, DPR cap 1, `powerPreference: default`, warmup timeout 2s.
+- Firefox Web Audio: `AudioListener` still lacks `positionX`/`forwardX` AudioParams (only `setPosition`/`setOrientation`). `GameAudio.applyAudioListenerPose` uses the legacy path so unlock no longer throws every frame and aborts the render loop. Panner nodes keep the modern axes where available.
 - Production Chrome sample (2026-07-28): renderer ready ~12s, longest long-task ~5.5s, ~112 programs — that precompile freezes Firefox hard enough to look dead.
 - Overrides: `?quality=1` forces the high path; `?crt=0` / `?crt=1` force CRT; `?safeRender=1` forces the constrained path.
 - Runtime: if smoothed frame time stays above the path budget (~28–36 ms), CRT auto-disables until frames recover (manual CRT toggle wins).

@@ -398,6 +398,98 @@ function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
 }
 
+/** Minimal AudioParam surface used by the modern listener/panner pose path. */
+interface AudioParamLike {
+  setValueAtTime(value: number, startTime: number): unknown;
+}
+
+/**
+ * Listener pose API. Chrome/Edge/Safari expose AudioParam axes; Firefox still
+ * only implements the legacy Cartesian helpers on AudioListener.
+ */
+export interface AudioListenerPoseTarget {
+  positionX?: AudioParamLike;
+  positionY?: AudioParamLike;
+  positionZ?: AudioParamLike;
+  forwardX?: AudioParamLike;
+  forwardY?: AudioParamLike;
+  forwardZ?: AudioParamLike;
+  setPosition?(x: number, y: number, z: number): void;
+  setOrientation?(
+    forwardX: number,
+    forwardY: number,
+    forwardZ: number,
+    upX: number,
+    upY: number,
+    upZ: number,
+  ): void;
+}
+
+/** Panner pose API with the same modern/legacy split as AudioListener. */
+export interface AudioPannerPoseTarget {
+  positionX?: AudioParamLike;
+  positionY?: AudioParamLike;
+  positionZ?: AudioParamLike;
+  setPosition?(x: number, y: number, z: number): void;
+}
+
+/**
+ * Apply listener position + look direction without throwing on engines that
+ * lack AudioParam axes (observed: Firefox 153 AudioListener has only
+ * setPosition/setOrientation).
+ */
+export function applyAudioListenerPose(
+  listener: AudioListenerPoseTarget,
+  position: AudioPosition,
+  forward: AudioPosition,
+  now: number,
+  up: AudioPosition = { x: 0, y: 1, z: 0 },
+): "modern" | "legacy" | "none" {
+  if (
+    listener.positionX &&
+    listener.positionY &&
+    listener.positionZ &&
+    listener.forwardX &&
+    listener.forwardY &&
+    listener.forwardZ
+  ) {
+    listener.positionX.setValueAtTime(position.x, now);
+    listener.positionY.setValueAtTime(position.y, now);
+    listener.positionZ.setValueAtTime(position.z, now);
+    listener.forwardX.setValueAtTime(forward.x, now);
+    listener.forwardY.setValueAtTime(forward.y, now);
+    listener.forwardZ.setValueAtTime(forward.z, now);
+    return "modern";
+  }
+  if (typeof listener.setPosition === "function") {
+    listener.setPosition(position.x, position.y, position.z);
+    if (typeof listener.setOrientation === "function") {
+      listener.setOrientation(forward.x, forward.y, forward.z, up.x, up.y, up.z);
+    }
+    return "legacy";
+  }
+  return "none";
+}
+
+/** Place a one-shot panner; prefer AudioParam axes, fall back to setPosition. */
+export function applyPannerPosition(
+  panner: AudioPannerPoseTarget,
+  position: AudioPosition,
+  now: number,
+): "modern" | "legacy" | "none" {
+  if (panner.positionX && panner.positionY && panner.positionZ) {
+    panner.positionX.setValueAtTime(position.x, now);
+    panner.positionY.setValueAtTime(position.y, now);
+    panner.positionZ.setValueAtTime(position.z, now);
+    return "modern";
+  }
+  if (typeof panner.setPosition === "function") {
+    panner.setPosition(position.x, position.y, position.z);
+    return "legacy";
+  }
+  return "none";
+}
+
 /**
  * Small mixer with asset loading, group gain, a limiter, and one-shot HRTF sources.
  * It owns sound presentation only; DungeonWorld remains the source of game state.
@@ -631,14 +723,10 @@ export class GameAudio {
     this.listener.z = position.z;
     const context = this.context;
     if (!context) return;
-    const now = context.currentTime;
-    const listener = context.listener;
-    listener.positionX.setValueAtTime(position.x, now);
-    listener.positionY.setValueAtTime(position.y, now);
-    listener.positionZ.setValueAtTime(position.z, now);
-    listener.forwardX.setValueAtTime(forward.x, now);
-    listener.forwardY.setValueAtTime(forward.y, now);
-    listener.forwardZ.setValueAtTime(forward.z, now);
+    // Chrome/Edge/Safari expose AudioParam axes; Firefox only has the legacy
+    // Cartesian helpers on AudioListener. Using the modern path there throws
+    // every frame after unlock and aborts the rest of the render loop.
+    applyAudioListenerPose(context.listener, position, forward, context.currentTime);
   }
 
   syncWorld(frame: DungeonAudioFrame): void {
@@ -871,9 +959,7 @@ export class GameAudio {
       panner.rolloffFactor = asset.spatial.rolloff;
       panner.coneInnerAngle = 360;
       panner.coneOuterAngle = 360;
-      panner.positionX.setValueAtTime(position.x, context.currentTime);
-      panner.positionY.setValueAtTime(position.y, context.currentTime);
-      panner.positionZ.setValueAtTime(position.z, context.currentTime);
+      applyPannerPosition(panner, position, context.currentTime);
       gain.connect(panner).connect(destination);
     } else {
       gain.connect(destination);
