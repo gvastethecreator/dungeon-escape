@@ -1576,19 +1576,27 @@ kbd {
 }
 
 .run-timer {
+  position: absolute;
+  top: calc(var(--safe-t) + 10px);
+  left: 50%;
+  z-index: 6;
   display: block;
   min-width: 6ch;
-  padding: 4px 7px 3px;
-  border-right: 2px solid rgb(201 197 184 / 32%);
-  background: linear-gradient(90deg, transparent, rgb(5 6 7 / 76%) 26%);
+  margin: 0;
+  padding: 5px 12px 4px;
+  border: 0;
+  border-bottom: 2px solid rgb(201 197 184 / 28%);
+  background: linear-gradient(180deg, rgb(5 6 7 / 78%) 0%, rgb(5 6 7 / 18%) 100%);
   color: var(--bone);
   font-family: var(--font-pixel);
   font-size: 13px;
   font-variant-numeric: tabular-nums;
   letter-spacing: 0.1em;
   line-height: 1;
-  text-align: right;
+  text-align: center;
   text-shadow: 0 1px 4px rgb(0 0 0 / 92%);
+  transform: translateX(-50%);
+  pointer-events: none;
 }
 
 /* Health orb — iron-mounted glass phial with blood-red liquid */
@@ -3281,6 +3289,31 @@ kbd {
   box-shadow: 0 0 10px rgb(120 190 220 / 62%);
 }
 
+.pickup-feedback[data-kind="swarm-curse"],
+.pickup-feedback[data-kind="slow-curse"],
+.pickup-feedback[data-kind="frenzy-curse"],
+.pickup-feedback[data-kind="gloom-curse"] {
+  border-color: rgb(160 60 60 / 62%);
+  box-shadow: 0 0 18px rgb(120 30 30 / 32%);
+}
+
+.pickup-feedback[data-kind="swarm-curse"] .pickup-mark,
+.pickup-feedback[data-kind="slow-curse"] .pickup-mark,
+.pickup-feedback[data-kind="frenzy-curse"] .pickup-mark,
+.pickup-feedback[data-kind="gloom-curse"] .pickup-mark {
+  border-color: #c45a4a;
+  background: rgb(90 22 22 / 55%);
+  box-shadow: 0 0 10px rgb(140 40 40 / 55%);
+}
+
+.pickup-feedback[data-kind="frenzy-curse"] {
+  border-color: rgb(196 90 26 / 62%);
+}
+
+.pickup-feedback[data-kind="gloom-curse"] {
+  border-color: rgb(70 70 90 / 70%);
+}
+
 .pickup-copy {
   display: grid;
   gap: 2px;
@@ -3539,6 +3572,65 @@ kbd {
 @keyframes fog-clear-pulse {
   50% {
     filter: brightness(1.35);
+  }
+}
+
+.curse-status {
+  display: grid;
+  gap: 3px;
+  min-width: 10ch;
+  padding: 5px 8px 5px 10px;
+  border-right: 2px solid rgb(160 60 60 / 78%);
+  background: linear-gradient(90deg, transparent, rgb(28 8 10 / 90%) 26%);
+  color: #f0b4a8;
+  font-family: var(--font-pixel);
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  line-height: 1;
+  text-align: right;
+  text-shadow: 0 0 10px rgb(160 40 40 / 55%);
+}
+
+.curse-status[hidden] {
+  display: none;
+}
+
+.curse-status__label {
+  color: rgb(240 180 168 / 74%);
+  font-size: 9px;
+}
+
+.curse-status time,
+.curse-status__sticky {
+  font-size: 15px;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.08em;
+}
+
+.curse-status[data-urgent] {
+  border-right-color: #ffc8bc;
+  animation: curse-status-pulse 520ms steps(2, end) infinite;
+}
+
+.curse-status--frenzy {
+  border-right-color: rgb(196 90 26 / 86%);
+  background: linear-gradient(90deg, transparent, rgb(36 14 6 / 90%) 26%);
+  color: #ffc28a;
+}
+
+.curse-status--gloom {
+  border-right-color: rgb(90 90 120 / 82%);
+  background: linear-gradient(90deg, transparent, rgb(10 10 18 / 92%) 26%);
+  color: #c8c8de;
+}
+
+.curse-status--swarm {
+  border-right-color: rgb(180 40 40 / 90%);
+}
+
+@keyframes curse-status-pulse {
+  50% {
+    filter: brightness(1.28);
   }
 }
 
@@ -3886,7 +3978,8 @@ kbd {
   letter-spacing: 0.1em;
 }
 
-.end-card #new-dungeon {
+.end-card #new-dungeon,
+.end-card #end-home {
   background: transparent;
   color: var(--bone);
 }

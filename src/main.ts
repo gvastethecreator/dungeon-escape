@@ -22,6 +22,7 @@ import type { DungeonData } from "./dungeon/types";
 import { DungeonEditorView } from "./editor/DungeonEditorView";
 import { type EngineMode, isEngineMode } from "./game/EngineMode";
 import { MOBILITY_BOOST_FOOTSTEP_GAIN } from "./game/MobilityBoost";
+import { GLOOM_CURSE_FOG_MULTIPLIER, GLOOM_CURSE_LANTERN_MULTIPLIER } from "./game/GloomCurse";
 import { createBrowserForgeFramePort, ForgeFrameClient } from "./forge/ForgeFrameClient";
 import {
   difficultyLabel,
@@ -232,6 +233,13 @@ const elements = {
   annihilationPulseValue: requireElement<HTMLTimeElement>("#annihilation-pulse-value"),
   fogClearStatus: requireElement<HTMLElement>("#fog-clear-status"),
   fogClearValue: requireElement<HTMLTimeElement>("#fog-clear-value"),
+  slowCurseStatus: requireElement<HTMLElement>("#slow-curse-status"),
+  slowCurseValue: requireElement<HTMLTimeElement>("#slow-curse-value"),
+  frenzyCurseStatus: requireElement<HTMLElement>("#frenzy-curse-status"),
+  frenzyCurseValue: requireElement<HTMLTimeElement>("#frenzy-curse-value"),
+  gloomCurseStatus: requireElement<HTMLElement>("#gloom-curse-status"),
+  gloomCurseValue: requireElement<HTMLTimeElement>("#gloom-curse-value"),
+  swarmCurseStatus: requireElement<HTMLElement>("#swarm-curse-status"),
   biomeEventStatus: requireElement<HTMLElement>("#biome-event-status"),
   biomeEventLabel: requireElement<HTMLElement>("#biome-event-label"),
   biomeEventValue: requireElement<HTMLTimeElement>("#biome-event-value"),
@@ -274,6 +282,7 @@ const elements = {
   endNextBiome: requireElement<HTMLButtonElement>("#end-next-biome"),
   retry: requireElement<HTMLButtonElement>("#retry"),
   newDungeon: requireElement<HTMLButtonElement>("#new-dungeon"),
+  endHome: requireElement<HTMLButtonElement>("#end-home"),
   optionsMenu: requireElement<HTMLElement>("#options-menu"),
   optionsCard: requireElement<HTMLElement>("#options-card"),
   optionsTitle: requireElement<HTMLElement>("#options-title"),
@@ -455,6 +464,36 @@ const fogClearChip = new TimedStatusChip({
   shellDatasetKey: "fogClear",
   ariaRemaining: "clear air remaining",
 });
+const slowCurseChip = new TimedStatusChip({
+  elements: { root: elements.slowCurseStatus, value: elements.slowCurseValue },
+  shell: elements.shell,
+  shellDatasetKey: "slowCurse",
+  ariaRemaining: "heavy limbs remaining",
+});
+const frenzyCurseChip = new TimedStatusChip({
+  elements: { root: elements.frenzyCurseStatus, value: elements.frenzyCurseValue },
+  shell: elements.shell,
+  shellDatasetKey: "frenzyCurse",
+  ariaRemaining: "blood frenzy remaining",
+});
+const gloomCurseChip = new TimedStatusChip({
+  elements: { root: elements.gloomCurseStatus, value: elements.gloomCurseValue },
+  shell: elements.shell,
+  shellDatasetKey: "gloomCurse",
+  ariaRemaining: "gloom remaining",
+});
+
+function syncSwarmCurseHud(active = world.isSwarmCurseActive): void {
+  elements.swarmCurseStatus.hidden = !active;
+  elements.shell.dataset.swarmCurse = active ? "true" : "false";
+}
+
+function resetCurseHud(): void {
+  slowCurseChip.reset();
+  frenzyCurseChip.reset();
+  gloomCurseChip.reset();
+  syncSwarmCurseHud(false);
+}
 /**
  * Cached minimap viewport (CSS size + clamped DPR). Refreshed on resize so the
  * per-frame drawMinimap call never triggers a getBoundingClientRect reflow even
@@ -681,6 +720,10 @@ function captureLocalRunResume(): LocalRunResumeState | undefined {
       mapRevealed: world.isMapRevealed,
       mobilityBoostRemaining: world.mobilityBoostRemaining,
       fogClearRemaining: world.fogClearRemaining,
+      slowCurseRemaining: world.slowCurseRemaining,
+      frenzyCurseRemaining: world.frenzyCurseRemaining,
+      gloomCurseRemaining: world.gloomCurseRemaining,
+      swarmCurseActive: world.isSwarmCurseActive,
     },
     exploration,
     campaign: {
@@ -1721,6 +1764,8 @@ function applyPersistedRunSession(plan: RunResumeActivationPlan): void {
   luminousWardChip.reset();
   annihilationPulseChip.reset();
   fogClearChip.reset();
+  resetCurseHud();
+  syncCurseHud();
   syncRunTimer();
   controller.setSolidColliders(world.getSolidColliders());
   elements.shell.dataset.mode = state.runMode;
@@ -1905,6 +1950,20 @@ function syncAnnihilationPulseHud(remaining = world.annihilationPulseRemaining):
 function syncFogClearHud(remaining = world.fogClearRemaining): void {
   fogClearChip.sync(remaining);
   atmosphere.setFogClearPulse(remaining > 0 ? 1 : 0);
+}
+
+function syncCurseHud(
+  remaining: {
+    slow?: number;
+    frenzy?: number;
+    gloom?: number;
+    swarm?: boolean;
+  } = {},
+): void {
+  slowCurseChip.sync(remaining.slow ?? world.slowCurseRemaining);
+  frenzyCurseChip.sync(remaining.frenzy ?? world.frenzyCurseRemaining);
+  gloomCurseChip.sync(remaining.gloom ?? world.gloomCurseRemaining);
+  syncSwarmCurseHud(remaining.swarm ?? world.isSwarmCurseActive);
 }
 
 /**
@@ -2720,6 +2779,7 @@ async function activateDungeon(
   luminousWardChip.reset();
   annihilationPulseChip.reset();
   fogClearChip.reset();
+  resetCurseHud();
   syncBiomeEvent();
   controller.setSurfaceMovement(1, 1);
   lastHazardKind = undefined;
@@ -2785,6 +2845,7 @@ async function activateDungeon(
   syncLuminousWardHud();
   syncAnnihilationPulseHud();
   syncFogClearHud();
+  syncCurseHud();
   updateObjective();
   // Intro objective: appears at run start, then fades so the scene stays clean.
   if (engineMode === "play" && state.runMode === "playing" && !state.quest.portalOpen) {
@@ -2969,6 +3030,7 @@ function selectEditorSpawn(cell: { x: number; y: number }): void {
   luminousWardChip.reset();
   annihilationPulseChip.reset();
   fogClearChip.reset();
+  resetCurseHud();
   lastRunTimerSecond = -1;
   atmosphere.setDungeon(dungeon, mood);
   controller.setDungeon(dungeon);
@@ -2993,6 +3055,7 @@ function selectEditorSpawn(cell: { x: number; y: number }): void {
   syncLuminousWardHud();
   syncAnnihilationPulseHud();
   syncFogClearHud();
+  syncCurseHud();
   updateReadout();
   drawMap();
   setStatus(`Spawn set to ${formatCell(cell)}. Exit was recalculated.`);
@@ -3815,6 +3878,9 @@ elements.newDungeon.addEventListener("click", () => {
   elements.seed.value = makeSeed();
   void rebuildDungeonCovered(() => buildDungeon());
 });
+elements.endHome.addEventListener("click", () => {
+  returnToMainScreen();
+});
 elements.endNextBiome.addEventListener("click", () => {
   if (elements.endNextBiome.disabled) return;
   const biomeId = parseDungeonMoodId(elements.endNextBiome.dataset.biomeId);
@@ -4075,6 +4141,7 @@ function frame(now: number): void {
   );
   controller.setCriticalMovementDrift(criticalHealth.movementDrift);
   controller.setMobilityBoost(world.mobilityBoostRemaining > 0);
+  controller.setSlowCurse(world.isSlowCurseActive);
   const result = controller.update(delta);
   const player = controller.getState();
   playerPosition.set(player.position.x, player.position.y, player.position.z);
@@ -4120,9 +4187,16 @@ function frame(now: number): void {
       syncLuminousWardHud(worldUpdate.luminousWardRemaining);
       syncAnnihilationPulseHud(worldUpdate.annihilationPulseRemaining);
       syncFogClearHud(worldUpdate.fogClearRemaining);
+      syncCurseHud({
+        slow: worldUpdate.slowCurseRemaining,
+        frenzy: worldUpdate.frenzyCurseRemaining,
+        gloom: worldUpdate.gloomCurseRemaining,
+        swarm: worldUpdate.swarmCurseActive,
+      });
       syncBiomeEvent(worldUpdate.biomeEvent);
       floorExploration.setMapRevealed(worldUpdate.mapRevealed);
       controller.setMobilityBoost(worldUpdate.mobilityBoostRemaining > 0);
+      controller.setSlowCurse(worldUpdate.slowCurseRemaining > 0);
       controller.setSurfaceMovement(
         worldUpdate.surfaceEffect.movementScale,
         worldUpdate.surfaceEffect.traction,
@@ -4211,6 +4285,7 @@ function frame(now: number): void {
   syncLuminousWardHud();
   syncAnnihilationPulseHud();
   syncFogClearHud();
+  syncCurseHud();
   syncRunTimer();
 
   damageTimer = Math.max(0, damageTimer - delta);
@@ -4246,20 +4321,28 @@ function frame(now: number): void {
   }
   camera.getWorldDirection(lanternForward);
   const explorationView = floorExploration.activeView();
+  // Clarity always wins over gloom when both windows overlap.
+  let explorationFogMul = resolveExplorationFogMultiplier({
+    exploredCount: explorationView.exploredCount,
+    totalWalkableCells: dungeon?.stats.floorCount ?? 1,
+    mapRevealed: explorationView.mapRevealed,
+    // Fourth stone opens the portal and lifts the deep fog wall for the escape run.
+    allStonesBound: playRuntime.state().quest.portalOpen,
+    // Clarity phial temporarily opens the air without revealing the minimap.
+    fogClearActive: world.isFogClearActive,
+  });
+  let lanternMul = 1;
+  if (world.isGloomCurseActive && !world.isFogClearActive) {
+    explorationFogMul *= GLOOM_CURSE_FOG_MULTIPLIER;
+    lanternMul = GLOOM_CURSE_LANTERN_MULTIPLIER;
+  }
   lighting.update(
     delta,
     playerPosition,
     currentThreatDistance,
     lanternForward,
-    resolveExplorationFogMultiplier({
-      exploredCount: explorationView.exploredCount,
-      totalWalkableCells: dungeon?.stats.floorCount ?? 1,
-      mapRevealed: explorationView.mapRevealed,
-      // Fourth stone opens the portal and lifts the deep fog wall for the escape run.
-      allStonesBound: playRuntime.state().quest.portalOpen,
-      // Clarity phial temporarily opens the air without revealing the minimap.
-      fogClearActive: world.isFogClearActive,
-    }),
+    explorationFogMul,
+    lanternMul,
   );
 
   // POV: close enemies shake a little; hits keep the lens unstable for a few seconds.

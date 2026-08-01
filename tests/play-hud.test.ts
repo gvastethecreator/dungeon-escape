@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 
 describe("Play HUD structure (Ash Binding)", () => {
-  test("keeps health left and groups timer with stone progress", async () => {
+  test("keeps health left, timer top-center, and stones bottom-right", async () => {
     const host = await Bun.file(new URL("../index.html", import.meta.url)).text();
     expect(host).toContain('id="play-objective"');
     expect(host).toContain('class="health-orb"');
@@ -19,12 +19,21 @@ describe("Play HUD structure (Ash Binding)", () => {
     expect(host).toContain('class="stone-sockets"');
     expect(host).toContain('class="play-progress"');
     expect(host).toContain('id="run-timer"');
+    // Timer is a direct play-hud child so absolute top-center is viewport-relative.
+    const timerIndex = host.indexOf('id="run-timer"');
+    const progressIndex = host.indexOf('class="play-progress"');
+    expect(timerIndex).toBeGreaterThanOrEqual(0);
+    expect(progressIndex).toBeGreaterThan(timerIndex);
     expect(host).toContain('id="time-freeze-status"');
     expect(host).toContain('id="time-freeze-value"');
     expect(host).toContain('id="luminous-ward-status"');
     expect(host).toContain('id="luminous-ward-value"');
     expect(host).toContain('id="annihilation-pulse-status"');
     expect(host).toContain('id="annihilation-pulse-value"');
+    expect(host).toContain('id="slow-curse-status"');
+    expect(host).toContain('id="frenzy-curse-status"');
+    expect(host).toContain('id="gloom-curse-status"');
+    expect(host).toContain('id="swarm-curse-status"');
     expect(host).toContain('id="hazard-status"');
     expect(host).toContain('id="hazard-overlay"');
     expect(host).toContain('datetime="PT0S"');
@@ -139,6 +148,8 @@ describe("Play HUD structure (Ash Binding)", () => {
     expect(css).not.toContain(".stamina-meter__label");
     expect(css).toContain(".play-progress");
     expect(css).toContain(".run-timer");
+    expect(css).toMatch(/\.run-timer\s*\{[\s\S]*left:\s*50%/);
+    expect(css).toMatch(/\.run-timer\s*\{[\s\S]*transform:\s*translateX\(-50%\)/);
     expect(css).toContain(".time-freeze-status");
     expect(css).toContain(".time-freeze-status[hidden]");
     expect(css).toContain("time-freeze-pulse");
@@ -147,6 +158,9 @@ describe("Play HUD structure (Ash Binding)", () => {
     expect(css).toContain("luminous-ward-pulse");
     expect(css).toContain(".annihilation-pulse-status");
     expect(css).toContain("annihilation-pulse-status-pulse");
+    expect(css).toContain(".curse-status");
+    expect(css).toContain(".curse-status--swarm");
+    expect(css).toContain('.pickup-feedback[data-kind="swarm-curse"]');
     expect(css).toContain(".map-toggle");
     expect(css).toContain(".hazard-status");
     expect(css).toContain(".play-objective.is-visible");
@@ -297,6 +311,7 @@ describe("Play HUD structure (Ash Binding)", () => {
     expect(source).toContain("function returnToMainScreen(): void");
     expect(source).toContain('elements.optionsRestart.addEventListener("click"');
     expect(source).toContain('elements.optionsHome.addEventListener("click"');
+    expect(source).toContain('elements.endHome.addEventListener("click"');
     expect(source).toContain("isPlayerFacingStatus");
     expect(source).toContain("COPY.pause.restarted");
     expect(source).toContain("COPY.pause.returnedHome");
@@ -305,5 +320,7 @@ describe("Play HUD structure (Ash Binding)", () => {
     expect(copySource).toContain('restartMap: "RESTART MAP"');
     expect(copySource).toContain('backToMain: "MAIN MENU"');
     expect(copySource).toContain("generationPlayer");
+    expect(host).toContain('id="end-home"');
+    expect(host).toContain('id="end-overlay"');
   });
 });

@@ -80,6 +80,12 @@ export interface EnemySimContext {
    * resolves through applyBiomeEnemyMods(kind, moodId, difficulty).
    */
   archetypes?: Readonly<Partial<Record<EnemyKind, EnemyArchetype>>>;
+  /** Timed frenzy curse: multiplies pursuit step speed. */
+  pursuitSpeedMultiplier?: number;
+  /** Timed frenzy curse: multiplies hit-cooldown drain. */
+  attackRateMultiplier?: number;
+  /** Timed frenzy curse: multiplies detection range used by motion. */
+  detectionRangeMultiplier?: number;
 }
 
 // Enemy simulation runs every rendered frame. Reuse its temporary vectors so
@@ -204,6 +210,9 @@ export function tickEnemySim(
   const { delta, elapsed, player, dungeon, solidColliders, tileSize } = ctx;
   const repelRadius = Math.max(0, ctx.repelRadius ?? 0);
   const repelSpeedMultiplier = Math.max(1, ctx.repelSpeedMultiplier ?? 1);
+  const pursuitSpeedMultiplier = Math.max(0.1, ctx.pursuitSpeedMultiplier ?? 1);
+  const attackRateMultiplier = Math.max(0.1, ctx.attackRateMultiplier ?? 1);
+  const detectionRangeMultiplier = Math.max(0.1, ctx.detectionRangeMultiplier ?? 1);
   const eyeHeight = ctx.playerEyeHeight ?? PLAYER_COMBAT_EYE_HEIGHT;
   for (const enemy of enemies) {
     if (enemy.defeated || enemy.scaleX <= 0.001 || enemy.scaleY <= 0.001) {
@@ -211,8 +220,8 @@ export function tickEnemySim(
       continue;
     }
     const archetype = resolveSimArchetype(enemy.kind, ctx);
-    enemy.hitCooldown = Math.max(0, enemy.hitCooldown - delta);
-    enemy.attackPulse = Math.max(0, enemy.attackPulse - delta * 3.8);
+    enemy.hitCooldown = Math.max(0, enemy.hitCooldown - delta * attackRateMultiplier);
+    enemy.attackPulse = Math.max(0, enemy.attackPulse - delta * 3.8 * attackRateMultiplier);
     const dx = enemy.position.x - player.x;
     const dz = enemy.position.z - player.z;
     let distance = Math.hypot(dx, dz);
@@ -239,7 +248,10 @@ export function tickEnemySim(
       }
     }
     let travelled = 0;
-    const motion = getEnemyMotion(enemy.kind, distance, elapsed, enemy.phase, archetype);
+    // Scale perceived distance so frenzy also widens pursuit engagement bands.
+    const motionDistance =
+      detectionRangeMultiplier > 1.001 ? distance / detectionRangeMultiplier : distance;
+    const motion = getEnemyMotion(enemy.kind, motionDistance, elapsed, enemy.phase, archetype);
     if (motion.speedMultiplier > 0 && dungeon) {
       // An active protection field reverses pursuit inside its safety radius.
       // Keep a small lateral component so several enemies do not stack on one line.
@@ -271,7 +283,11 @@ export function tickEnemySim(
         tempMove.z /= mLen;
       }
       const step =
-        archetype.speed * motion.speedMultiplier * delta * (flee ? repelSpeedMultiplier : 1);
+        archetype.speed *
+        motion.speedMultiplier *
+        delta *
+        pursuitSpeedMultiplier *
+        (flee ? repelSpeedMultiplier : 1);
       tempPos.x = enemy.position.x + tempMove.x * step;
       tempPos.y = enemy.position.y;
       tempPos.z = enemy.position.z + tempMove.z * step;

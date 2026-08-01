@@ -14,6 +14,10 @@ export interface SessionWorldUpdate {
     | "map"
     | "mobility"
     | "clarity"
+    | "swarm-curse"
+    | "slow-curse"
+    | "frenzy-curse"
+    | "gloom-curse"
     | null;
   collectedStoneId: StoneId | null;
   /** All IDs collected in one world update. Older adapters may omit this. */
@@ -57,6 +61,10 @@ export interface RunSessionEffects {
     mapReveal?: boolean;
     mobilityBoost?: boolean;
     fogClear?: boolean;
+    swarmCurse?: boolean;
+    slowCurse?: boolean;
+    frenzyCurse?: boolean;
+    gloomCurse?: boolean;
   };
   endOverlay?: "dead" | "won";
   flash?: "event" | "damage";
@@ -204,6 +212,35 @@ export function applyWorldUpdate(
     effects.playPickup = true;
     effects.flash = "event";
     effects.sessionChanged = true;
+  }
+
+  if (update.collectedPickupKind === "swarm-curse") {
+    effects.status = COPY.status.swarmCurse;
+    effects.pickup = { label: COPY.pickup.swarmCurse, swarmCurse: true };
+    effects.playPickup = true;
+    effects.flash = "damage";
+    effects.sessionChanged = true;
+  }
+
+  if (update.collectedPickupKind === "slow-curse") {
+    effects.status = COPY.status.slowCurse;
+    effects.pickup = { label: COPY.pickup.slowCurse, slowCurse: true };
+    effects.playPickup = true;
+    effects.flash = "damage";
+  }
+
+  if (update.collectedPickupKind === "frenzy-curse") {
+    effects.status = COPY.status.frenzyCurse;
+    effects.pickup = { label: COPY.pickup.frenzyCurse, frenzyCurse: true };
+    effects.playPickup = true;
+    effects.flash = "damage";
+  }
+
+  if (update.collectedPickupKind === "gloom-curse") {
+    effects.status = COPY.status.gloomCurse;
+    effects.pickup = { label: COPY.pickup.gloomCurse, gloomCurse: true };
+    effects.playPickup = true;
+    effects.flash = "damage";
   }
 
   if (update.resolveGain > 0) {

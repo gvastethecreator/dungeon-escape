@@ -40,6 +40,7 @@ import {
   createLuminousWardStone,
   createClarityPhial,
   createMobilityDraught,
+  createCurseVessel,
   createTimeFreezeRelic,
   ANNIHILATION_PULSE_PICKUP_GLOW_OPACITY,
   ANNIHILATION_PULSE_PICKUP_LIGHT_INTENSITY,
@@ -49,6 +50,7 @@ import {
   setPickupDormant,
   TIME_FREEZE_PICKUP_LIGHT_INTENSITY,
 } from "./ItemFactory";
+import { planCurseChestPlacements } from "../game/CurseChestPlan";
 import {
   createCobwebGeometry,
   createCobwebMaterial,
@@ -153,7 +155,11 @@ export type StaticPickupKind =
   | "annihilation-pulse"
   | "map"
   | "mobility"
-  | "clarity";
+  | "clarity"
+  | "swarm-curse"
+  | "slow-curse"
+  | "frenzy-curse"
+  | "gloom-curse";
 
 export interface StaticPickupActor {
   kind: StaticPickupKind;
@@ -1664,7 +1670,9 @@ export class StaticDungeonScene {
                 ? createMobilityDraught(this.materials)
                 : rewardKind === "clarity"
                   ? createClarityPhial(this.materials)
-                  : createResolveFlask(this.materials);
+                  : isCurseRewardKind(rewardKind)
+                    ? createCurseVessel(this.materials, rewardKind)
+                    : createResolveFlask(this.materials);
     preparePickupOpacity(item);
     item.name = `${rewardKind} reward from chest`;
     const rewardScale =
@@ -1676,7 +1684,9 @@ export class StaticDungeonScene {
             ? 0.58
             : rewardKind === "time-freeze" || rewardKind === "annihilation-pulse"
               ? 0.54
-              : 0.52;
+              : isCurseRewardKind(rewardKind)
+                ? 0.56
+                : 0.52;
     const baseScale = new THREE.Vector3(rewardScale, rewardScale, rewardScale);
     const baseY = anchor.y + 0.08;
     item.position.set(anchor.x, baseY - 0.34, anchor.z);
@@ -3360,6 +3370,12 @@ export class StaticDungeonScene {
     }
     placePowerChest("annihilation-pulse", 0.64, 83);
 
+    // Rare cursed chests: never early biomes, mid/late route only, hard-capped
+    // below the eight positive power rewards (see planCurseChestPlacements).
+    for (const curse of planCurseChestPlacements(dungeon.seed, this.activeMood.id)) {
+      placePowerChest(curse.kind, curse.depthFraction, curse.salt);
+    }
+
     // Place the classic bonus chests (health flasks) before enemy seats are
     // planned. Their reservations then participate in both distributed and
     // authored spawns. Cap is intentionally a bit generous so runs stay
@@ -3589,13 +3605,14 @@ function createWallSpriteMaterial(
     roughnessMap: textures.rough,
     color: new THREE.Color(mood.surfaceTint).lerp(new THREE.Color(0xffffff), 0.72),
     transparent: true,
-    opacity,
+    opacity: Math.min(opacity, 0.9),
     alphaTest: opacity < 1 ? 0.16 : 0.1,
     depthWrite: false,
     side: THREE.DoubleSide,
     roughness: THREE.MathUtils.clamp(roughness, 0.78, 1),
     metalness: 0,
     envMapIntensity: THREE.MathUtils.clamp(mood.environmentIntensity * 1.1, 0.08, 0.32),
+    fog: true,
     polygonOffset: true,
     polygonOffsetFactor: -2,
     polygonOffsetUnits: -2,
@@ -3603,22 +3620,40 @@ function createWallSpriteMaterial(
   // Keep the sprite planar. Depth remains available for later parallax work.
   material.normalScale.set(0.24, 0.24);
   material.onBeforeCompile = muteBiomePropShader;
-  material.customProgramCacheKey = () => "environment-sprite-muted-v2";
+  material.customProgramCacheKey = () => "environment-sprite-muted-fog-v3";
   material.userData.depthTexture = textures.depth;
   material.userData.wallSpritePbr = true;
-  material.userData.environmentSpriteTreatment = "muted-biome-v2";
+  material.userData.environmentSpriteTreatment = "muted-biome-fog-v3";
   return material;
 }
 
+/**
+ * Mute bright atlas cells, then dissolve wall sprites into FogExp2 so distant
+ * alpha-tested silhouettes do not punch through the exploration fog wall.
+ */
 function muteBiomePropShader(shader: { fragmentShader: string }): void {
   const mapChunk = "#include <map_fragment>";
-  if (!shader.fragmentShader.includes(mapChunk)) return;
-  shader.fragmentShader = shader.fragmentShader.replace(
-    mapChunk,
-    `${mapChunk}
+  if (shader.fragmentShader.includes(mapChunk)) {
+    shader.fragmentShader = shader.fragmentShader.replace(
+      mapChunk,
+      `${mapChunk}
       float biomePropLuma = dot(diffuseColor.rgb, vec3(0.299, 0.587, 0.114));
       diffuseColor.rgb = mix(vec3(biomePropLuma), diffuseColor.rgb, 0.38);
       diffuseColor.rgb *= 0.78;`,
+    );
+  }
+  const fogChunk = "#include <fog_fragment>";
+  if (!shader.fragmentShader.includes(fogChunk)) return;
+  // After stock fog, pull remaining color into the fog and soft-kill alpha so
+  // hard alphaTest edges do not read as floating wall stickers at range.
+  shader.fragmentShader = shader.fragmentShader.replace(
+    fogChunk,
+    `${fogChunk}
+  #ifdef USE_FOG
+    float biomePropFogPull = 1.0 - fogFactor;
+    gl_FragColor.rgb = mix(gl_FragColor.rgb, fogColor, biomePropFogPull * biomePropFogPull * 0.72);
+    gl_FragColor.a *= mix(1.0, fogFactor * fogFactor, 0.88);
+  #endif`,
   );
 }
 
@@ -3649,7 +3684,7 @@ function createBiomeWallDecalMaterial(
   });
   material.toneMapped = true;
   material.onBeforeCompile = muteBiomePropShader;
-  material.customProgramCacheKey = () => "biome-prop-wall-decal-muted-v3";
+  material.customProgramCacheKey = () => "biome-prop-wall-decal-muted-fog-v4";
   material.userData.sharedDungeonMaterial = true;
   material.userData.biomeSpriteWallDecal = true;
   material.userData.saturation = 0.38;
@@ -3685,7 +3720,7 @@ function createBiomeFloorSpriteMaterial(
   });
   material.toneMapped = true;
   material.onBeforeCompile = muteBiomePropShader;
-  material.customProgramCacheKey = () => `biome-prop-floor-${placement}-muted-v3`;
+  material.customProgramCacheKey = () => `biome-prop-floor-${placement}-muted-fog-v4`;
   material.userData.sharedDungeonMaterial = true;
   material.userData.biomeSpritePlacement = placement;
   material.userData.biomeSpriteBillboard =
@@ -3878,10 +3913,25 @@ export type ChestRewardKind =
   | "annihilation-pulse"
   | "map"
   | "mobility"
-  | "clarity";
+  | "clarity"
+  | "swarm-curse"
+  | "slow-curse"
+  | "frenzy-curse"
+  | "gloom-curse";
 
 export function chestRewardAutoActivates(kind: ChestRewardKind): boolean {
   return kind !== "resolve";
+}
+
+function isCurseRewardKind(
+  kind: ChestRewardKind,
+): kind is "swarm-curse" | "slow-curse" | "frenzy-curse" | "gloom-curse" {
+  return (
+    kind === "swarm-curse" ||
+    kind === "slow-curse" ||
+    kind === "frenzy-curse" ||
+    kind === "gloom-curse"
+  );
 }
 
 function deterministicLosAge(phase: number): number {

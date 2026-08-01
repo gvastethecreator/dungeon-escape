@@ -8,7 +8,11 @@ export type PickupBurstKind =
   | "annihilation-pulse"
   | "map"
   | "mobility"
-  | "clarity";
+  | "clarity"
+  | "swarm-curse"
+  | "slow-curse"
+  | "frenzy-curse"
+  | "gloom-curse";
 
 interface PickupBurstSlot {
   root: THREE.Group;
@@ -30,6 +34,10 @@ const BURST_COLORS: Readonly<Record<PickupBurstKind, number>> = {
   map: 0xd5bd7a,
   mobility: 0x72d45f,
   clarity: 0xa8d8ef,
+  "swarm-curse": 0x8b1e1e,
+  "slow-curse": 0x6a6a8a,
+  "frenzy-curse": 0xc45a1a,
+  "gloom-curse": 0x2a2a38,
 };
 
 const SPARK_COUNT = 22;

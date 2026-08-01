@@ -2,8 +2,11 @@ import type { DungeonDomainState } from "../domain/bridge";
 import { ANNIHILATION_PULSE_DURATION_SECONDS } from "./AnnihilationPulse";
 import { LUMINOUS_WARD_DURATION_SECONDS } from "./LuminousWard";
 import { FOG_CLEAR_DURATION_SECONDS } from "./FogClear";
+import { FRENZY_CURSE_DURATION_SECONDS } from "./FrenzyCurse";
+import { GLOOM_CURSE_DURATION_SECONDS } from "./GloomCurse";
 import { MOBILITY_BOOST_DURATION_SECONDS } from "./MobilityBoost";
 import { isRunSource, type RunSource } from "./RunSource";
+import { SLOW_CURSE_DURATION_SECONDS } from "./SlowCurse";
 import { TIME_FREEZE_DURATION_SECONDS } from "./TimeFreeze";
 import { STONE_ORDER, type StoneId } from "../ui/copy";
 
@@ -37,6 +40,14 @@ export interface LocalRunResumeState {
   mobilityBoostRemaining?: number;
   /** Temporary fog-clear window remaining. */
   fogClearRemaining?: number;
+  /** Timed cursed slowdown remaining. */
+  slowCurseRemaining?: number;
+  /** Timed enemy frenzy remaining. */
+  frenzyCurseRemaining?: number;
+  /** Timed gloom/darkness remaining. */
+  gloomCurseRemaining?: number;
+  /** Sticky floor swarm pressure after the swarm curse chest. */
+  swarmCurseActive?: boolean;
   /** Active zero-based floor in a deterministic campaign floor set. */
   activeFloor?: number;
   /** Root seed used to regenerate every sibling floor. */
@@ -192,6 +203,29 @@ function isLocalRunResumeState(value: unknown): value is LocalRunResumeState {
       value.fogClearRemaining < 0 ||
       value.fogClearRemaining > FOG_CLEAR_DURATION_SECONDS)
   )
+    return false;
+  if (
+    value.slowCurseRemaining !== undefined &&
+    (!isFiniteNumber(value.slowCurseRemaining) ||
+      value.slowCurseRemaining < 0 ||
+      value.slowCurseRemaining > SLOW_CURSE_DURATION_SECONDS)
+  )
+    return false;
+  if (
+    value.frenzyCurseRemaining !== undefined &&
+    (!isFiniteNumber(value.frenzyCurseRemaining) ||
+      value.frenzyCurseRemaining < 0 ||
+      value.frenzyCurseRemaining > FRENZY_CURSE_DURATION_SECONDS)
+  )
+    return false;
+  if (
+    value.gloomCurseRemaining !== undefined &&
+    (!isFiniteNumber(value.gloomCurseRemaining) ||
+      value.gloomCurseRemaining < 0 ||
+      value.gloomCurseRemaining > GLOOM_CURSE_DURATION_SECONDS)
+  )
+    return false;
+  if (value.swarmCurseActive !== undefined && typeof value.swarmCurseActive !== "boolean")
     return false;
   if (!Array.isArray(value.visitedCells)) return false;
   if (!value.visitedCells.every((cell) => typeof cell === "string" && /^-?\d+,-?\d+$/.test(cell))) {

@@ -76,6 +76,10 @@ describe("run resume mapping", () => {
         mapRevealed: false,
         mobilityBoostRemaining: 4,
         fogClearRemaining: 9,
+        slowCurseRemaining: 0,
+        frenzyCurseRemaining: 0,
+        gloomCurseRemaining: 0,
+        swarmCurseActive: false,
       },
       exploration,
       campaign: { rootSeed: "ROOT", biomeId: "frost" },
@@ -99,6 +103,10 @@ describe("run resume mapping", () => {
       mapRevealed: true,
       mobilityBoostRemaining: 4,
       fogClearRemaining: 9,
+      slowCurseRemaining: 0,
+      frenzyCurseRemaining: 0,
+      gloomCurseRemaining: 0,
+      swarmCurseActive: false,
       activeFloor: 1,
       campaignRootSeed: "ROOT",
       campaignBiomeId: "frost",
@@ -132,6 +140,10 @@ describe("run resume mapping", () => {
           mapRevealed: false,
           mobilityBoostRemaining: 0,
           fogClearRemaining: 0,
+          slowCurseRemaining: 0,
+          frenzyCurseRemaining: 0,
+          gloomCurseRemaining: 0,
+          swarmCurseActive: false,
         },
         exploration: {
           activeFloor: 0,
@@ -168,6 +180,10 @@ describe("run resume mapping", () => {
           mapRevealed: false,
           mobilityBoostRemaining: 3.5,
           fogClearRemaining: 8,
+          slowCurseRemaining: undefined,
+          frenzyCurseRemaining: undefined,
+          gloomCurseRemaining: undefined,
+          swarmCurseActive: undefined,
         },
         player: { x: 4, z: 7 },
       },
@@ -223,6 +239,8 @@ describe("run resume mapping", () => {
 
   test("floor transition changes only destination pose/floor and requests a switch", () => {
     const local = resume();
+    local.swarmCurseActive = true;
+    local.slowCurseRemaining = 6;
     const entryCell = { x: 8, y: 9 };
     const plan = planFloorTransition({
       domain: domain(),
@@ -246,7 +264,13 @@ describe("run resume mapping", () => {
       distanceTravelled: 84,
     });
     expect(plan.runtimeProgress).toMatchObject({
-      progress: { difficultyElapsed: 166, timeFreezeRemaining: 2.5 },
+      progress: {
+        difficultyElapsed: 166,
+        timeFreezeRemaining: 2.5,
+        // Sticky swarm is floor-local; timed curses travel with the player.
+        swarmCurseActive: false,
+        slowCurseRemaining: 6,
+      },
       player: { x: 12, z: 18 },
     });
     expect(plan.persistedSession).toMatchObject({
@@ -256,6 +280,7 @@ describe("run resume mapping", () => {
     expect(plan.exploration).toEqual({ kind: "switch-floor", entryCell: { x: 8, y: 9 } });
     expect(local.activeFloor).toBe(1);
     expect(local.player.x).toBe(4);
+    expect(local.swarmCurseActive).toBe(true);
     entryCell.x = 99;
     expect(plan.exploration).toEqual({ kind: "switch-floor", entryCell: { x: 8, y: 9 } });
   });
