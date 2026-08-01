@@ -75,6 +75,10 @@ describe("model QA lab", () => {
       "door-fungal",
       "door-backrooms",
       "annihilation-pulse",
+      "swarm-curse",
+      "slow-curse",
+      "frenzy-curse",
+      "gloom-curse",
     ]);
   });
 

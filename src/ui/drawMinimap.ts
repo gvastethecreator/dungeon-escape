@@ -29,6 +29,10 @@ export const MINIMAP_COLORS = {
   map: "#d5bd7a",
   mobility: "#72d45f",
   clarity: "#a8d8ef",
+  swarmCurse: "#8b1e1e",
+  slowCurse: "#6a6a8a",
+  frenzyCurse: "#c45a1a",
+  gloomCurse: "#3a3a48",
   stairs: "#d7d2c4",
   relic: "#8a4fb0",
   door: "#3a3d3a",
@@ -337,6 +341,10 @@ function drawFeatures(
     [features.map, COLORS.map, "square"],
     [features.mobility, COLORS.mobility, "circle"],
     [features.clarity, COLORS.clarity, "circle"],
+    [features.swarmCurse, COLORS.swarmCurse, "circle"],
+    [features.slowCurse, COLORS.slowCurse, "circle"],
+    [features.frenzyCurse, COLORS.frenzyCurse, "circle"],
+    [features.gloomCurse, COLORS.gloomCurse, "circle"],
   ] as const) {
     if (!cell || !isExplored(cell.x, cell.y)) continue;
     const [cx, cy] = cellCenter(cell);

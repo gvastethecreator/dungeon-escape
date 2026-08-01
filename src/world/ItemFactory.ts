@@ -1471,6 +1471,101 @@ export function createMobilityDraught(materials: DungeonMaterials): THREE.Group 
   return root;
 }
 
+export type CursePickupKind = "swarm-curse" | "slow-curse" | "frenzy-curse" | "gloom-curse";
+
+const CURSE_PICKUP_COLORS: Readonly<
+  Record<CursePickupKind, { glass: number; core: number; emissive: number; label: string }>
+> = {
+  "swarm-curse": {
+    glass: 0x4a2a2a,
+    core: 0x8b1e1e,
+    emissive: 0x4a0c0c,
+    label: "Swarm curse vessel",
+  },
+  "slow-curse": {
+    glass: 0x3a3a48,
+    core: 0x6a6a8a,
+    emissive: 0x222238,
+    label: "Slow curse vessel",
+  },
+  "frenzy-curse": {
+    glass: 0x4a2e18,
+    core: 0xc45a1a,
+    emissive: 0x5a2008,
+    label: "Frenzy curse vessel",
+  },
+  "gloom-curse": {
+    glass: 0x1a1a22,
+    core: 0x2a2a38,
+    emissive: 0x0c0c14,
+    label: "Gloom curse vessel",
+  },
+};
+
+/** Compact cursed phial: dark glass, cracked iron ring, colored core. */
+export function createCurseVessel(
+  materials: DungeonMaterials,
+  kind: CursePickupKind,
+): THREE.Group {
+  const palette = CURSE_PICKUP_COLORS[kind];
+  const root = new THREE.Group();
+  root.name = palette.label;
+  const glass = new THREE.MeshPhysicalMaterial({
+    color: palette.glass,
+    transparent: true,
+    opacity: 0.48,
+    roughness: 0.28,
+    metalness: 0.08,
+    clearcoat: 0.45,
+    clearcoatRoughness: 0.22,
+    side: THREE.DoubleSide,
+  });
+  const core = new THREE.MeshStandardMaterial({
+    color: palette.core,
+    emissive: palette.emissive,
+    emissiveIntensity: 0.85,
+    roughness: 0.42,
+  });
+  const iron = materials.iron.clone();
+  iron.color.setHex(0x2a2420);
+  iron.roughness = 0.92;
+
+  const bottle = mesh(
+    new THREE.CylinderGeometry(0.18, 0.24, 0.52, 9),
+    glass,
+    `${palette.label} glass`,
+  );
+  bottle.position.y = 0.42;
+  const charge = mesh(
+    new THREE.IcosahedronGeometry(0.14, 0),
+    core,
+    `${palette.label} core`,
+  );
+  charge.position.y = 0.4;
+  const neck = mesh(
+    new THREE.CylinderGeometry(0.09, 0.12, 0.16, 8),
+    glass,
+    `${palette.label} neck`,
+  );
+  neck.position.y = 0.74;
+  const stopper = mesh(
+    new THREE.CylinderGeometry(0.11, 0.09, 0.1, 7),
+    iron,
+    `${palette.label} stopper`,
+  );
+  stopper.position.y = 0.86;
+  const ring = mesh(
+    new THREE.TorusGeometry(0.22, 0.035, 6, 14),
+    iron,
+    `${palette.label} iron ring`,
+  );
+  ring.position.y = 0.48;
+  ring.rotation.x = Math.PI / 2;
+  root.add(bottle, charge, neck, stopper, ring);
+  root.userData.pickupKind = kind;
+  return root;
+}
+
 /**
  * Locks the pickup into its fade-capable shader variant before renderer warmup.
  * Runtime opacity changes can then reuse the compiled program.

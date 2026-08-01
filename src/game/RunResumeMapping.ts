@@ -30,6 +30,10 @@ export interface RunResumeCaptureInput {
     readonly mapRevealed: boolean;
     readonly mobilityBoostRemaining: number;
     readonly fogClearRemaining: number;
+    readonly slowCurseRemaining: number;
+    readonly frenzyCurseRemaining: number;
+    readonly gloomCurseRemaining: number;
+    readonly swarmCurseActive: boolean;
   };
   readonly exploration: FloorExplorationSnapshot;
   readonly campaign: {
@@ -121,6 +125,10 @@ export function captureRunResume(input: RunResumeCaptureInput): LocalRunResumeSt
     mapRevealed: input.world.mapRevealed || input.exploration.mapRevealed,
     mobilityBoostRemaining: input.world.mobilityBoostRemaining,
     fogClearRemaining: input.world.fogClearRemaining,
+    slowCurseRemaining: input.world.slowCurseRemaining,
+    frenzyCurseRemaining: input.world.frenzyCurseRemaining,
+    gloomCurseRemaining: input.world.gloomCurseRemaining,
+    swarmCurseActive: input.world.swarmCurseActive,
     activeFloor: input.exploration.activeFloor,
     campaignRootSeed: input.campaign.rootSeed,
     campaignBiomeId: input.campaign.biomeId,
@@ -161,6 +169,10 @@ export function planRunResumeRestore(
         mapRevealed: resume.mapRevealed,
         mobilityBoostRemaining: resume.mobilityBoostRemaining,
         fogClearRemaining: resume.fogClearRemaining,
+        slowCurseRemaining: resume.slowCurseRemaining,
+        frenzyCurseRemaining: resume.frenzyCurseRemaining,
+        gloomCurseRemaining: resume.gloomCurseRemaining,
+        swarmCurseActive: resume.swarmCurseActive,
       },
       player: { x: resume.player.x, z: resume.player.z },
     },
@@ -192,6 +204,8 @@ export function planFloorTransition(input: RunFloorTransitionInput): RunResumeAc
 
   const nextResume = cloneResume(input.resume);
   nextResume.activeFloor = destination.floorIndex;
+  // Swarm pressure is floor-local; do not carry doubled demand onto the next map.
+  nextResume.swarmCurseActive = false;
   nextResume.player = {
     ...nextResume.player,
     x: destination.position.x,

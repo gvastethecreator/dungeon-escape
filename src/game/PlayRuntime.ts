@@ -57,6 +57,10 @@ export interface PlayRuntimeProgress {
     mapRevealed?: boolean;
     mobilityBoostRemaining?: number;
     fogClearRemaining?: number;
+    slowCurseRemaining?: number;
+    frenzyCurseRemaining?: number;
+    gloomCurseRemaining?: number;
+    swarmCurseActive?: boolean;
   };
   player: { x: number; z: number };
 }

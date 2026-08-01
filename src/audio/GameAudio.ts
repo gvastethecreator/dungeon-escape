@@ -114,7 +114,11 @@ export interface CollectedPickupAudio {
     | "annihilation-pulse"
     | "map"
     | "mobility"
-    | "clarity";
+    | "clarity"
+    | "swarm-curse"
+    | "slow-curse"
+    | "frenzy-curse"
+    | "gloom-curse";
   position: AudioPosition;
 }
 
@@ -369,6 +373,11 @@ const PICKUP_ASSETS: Readonly<Record<CollectedPickupAudio["kind"], AudioAssetId>
   map: "pickup-stone",
   mobility: "pickup-resolve",
   clarity: "pickup-time-freeze",
+  // Curses reuse the ward sting until dedicated takes are approved.
+  "swarm-curse": "pickup-ward",
+  "slow-curse": "pickup-ward",
+  "frenzy-curse": "pickup-ward",
+  "gloom-curse": "pickup-ward",
 };
 
 const CUE_ASSETS: Readonly<Record<Exclude<AudioCue, "step" | "pickup">, AudioAssetId>> = {

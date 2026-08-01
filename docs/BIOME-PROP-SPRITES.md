@@ -17,7 +17,9 @@ geometría siga la forma del objeto:
 Todos los props generados quedan fuera del LOD y del frustum culling. Los
 props de suelo, incluidos los planos horizontales, aplican un fade suave entre
 `0.9 m` y `2.35 m` para limpiar la lectura cuando el personaje entra en su
-espacio inmediato.
+espacio inmediato. Los decals de pared usan `fog: true` y un boost de niebla
+en el fragment shader para que las siluetas `alphaTest` no se lean a distancia
+a través del muro de niebla de exploración.
 
 ## Clasificación de los frames
 
