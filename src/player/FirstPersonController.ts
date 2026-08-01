@@ -11,6 +11,12 @@ import {
   type WorldCollider,
 } from "../dungeon/gridCollision";
 import type { DungeonData, GridCell } from "../dungeon/types";
+import { PLAYER_COMBAT_EYE_HEIGHT } from "./CombatPose";
+import {
+  stepCameraMotion,
+  type CameraMotionInput,
+  type CameraMotionProjection,
+} from "./CameraMotionProjection";
 import { LookInputFilter } from "./LookInputFilter";
 import {
   createStaminaState,
@@ -20,12 +26,7 @@ import {
   stepStamina,
   type StaminaState,
 } from "./Stamina";
-import {
-  MOBILITY_BOOST_CAMERA_BOB_SCALE,
-  MOBILITY_BOOST_FOV_KICK,
-  MOBILITY_BOOST_SPEED_MULTIPLIER,
-  MOBILITY_BOOST_STRIDE_RATE,
-} from "../game/MobilityBoost";
+import { MOBILITY_BOOST_SPEED_MULTIPLIER, MOBILITY_BOOST_STRIDE_RATE } from "../game/MobilityBoost";
 import { SLOW_CURSE_SPEED_MULTIPLIER } from "../game/SlowCurse";
 import {
   createVerticalMotionState,
@@ -68,10 +69,11 @@ const MOBILITY_STAMINA_CONFIG = Object.freeze({
   regenEarlyPerSecond: 5,
   regenExhaustedPerSecond: 5,
 });
-/** Peak camera bank while fully strafing (radians). Soft enough to stay readable. */
-export const STRAFE_LEAN_MAX = 0.052;
-/** How quickly lean eases toward the current strafe (higher = snappier). */
-export const STRAFE_LEAN_RESPONSE = 8.2;
+export {
+  computeStrafeLeanTarget,
+  STRAFE_LEAN_MAX,
+  STRAFE_LEAN_RESPONSE,
+} from "./CameraMotionProjection";
 
 export interface ControllerState {
   locked: boolean;
@@ -266,6 +268,32 @@ export class FirstPersonController {
   private landingDip = 0;
   /** Smoothed camera roll while strafing (radians, Z in YXZ euler). */
   private strafeLean = 0;
+  private readonly cameraMotionInput: CameraMotionInput = {
+    delta: 0,
+    moved: false,
+    sprinting: false,
+    reducedMotion: false,
+    motionScale: 0,
+    velocityX: 0,
+    velocityZ: 0,
+    rightX: 0,
+    rightZ: 0,
+    maxSpeed: 1,
+    stridePhase: 0,
+    elapsed: 0,
+    landingDip: 0,
+    strafeLean: 0,
+    currentFov: 0,
+    baseFov: 0,
+    mobilityBoost: false,
+  };
+  private readonly cameraMotionProjection: CameraMotionProjection = {
+    rightOffset: 0,
+    verticalOffset: 0,
+    landingDip: 0,
+    roll: 0,
+    fov: 0,
+  };
   private locked = false;
   private enabled = true;
   private distanceTravelled = 0;
@@ -317,7 +345,7 @@ export class FirstPersonController {
     this.baseFov = camera.fov;
     this.domElement = domElement;
     this.tileSize = options.tileSize ?? 2.4;
-    this.eyeHeight = options.eyeHeight ?? 1.68;
+    this.eyeHeight = options.eyeHeight ?? PLAYER_COMBAT_EYE_HEIGHT;
     this.radius = options.radius ?? 0.32;
     this.moveSpeed = options.moveSpeed ?? 5.1;
     this.sprintMultiplier = options.sprintMultiplier ?? 1.55;
@@ -338,10 +366,7 @@ export class FirstPersonController {
       jumpSpeed: options.jumpSpeed ?? 5.8,
       maxAirJumps: options.maxAirJumps ?? 1,
     };
-    this.verticalState = createVerticalMotionState(
-      this.eyeHeight,
-      this.verticalConfig.maxAirJumps,
-    );
+    this.verticalState = createVerticalMotionState(this.eyeHeight, this.verticalConfig.maxAirJumps);
     this.onLockChange = options.onLockChange ?? (() => undefined);
     document.addEventListener("mousemove", this.handleMouseMove);
     document.addEventListener("keydown", this.handleKeyDown);
@@ -876,60 +901,38 @@ export class FirstPersonController {
   }
 
   private syncCameraTransform(delta: number, moved: boolean, sprinting: boolean): void {
-    if (this.reducedMotionQuery.matches) {
-      this.landingDip = 0;
-      this.strafeLean = 0;
-      this.camera.position.copy(this.position);
-      this.euler.set(this.lookPitch, this.lookYaw, 0, "YXZ");
-      this.camera.quaternion.setFromEuler(this.euler);
-      if (this.camera.fov !== this.baseFov) {
-        this.camera.fov = this.baseFov;
-        this.camera.updateProjectionMatrix();
-      }
-      return;
-    }
+    const input = this.cameraMotionInput;
+    input.delta = delta;
+    input.moved = moved;
+    input.sprinting = sprinting;
+    input.reducedMotion = this.reducedMotionQuery.matches;
+    input.motionScale = this.cameraMotion;
+    input.velocityX = this.velocity.x;
+    input.velocityZ = this.velocity.y;
+    input.rightX = this.right.x;
+    input.rightZ = this.right.z;
+    input.maxSpeed = this.moveSpeed * this.sprintMultiplier;
+    input.stridePhase = this.stridePhase;
+    input.elapsed = this.elapsed;
+    input.landingDip = this.landingDip;
+    input.strafeLean = this.strafeLean;
+    input.currentFov = this.camera.fov;
+    input.baseFov = this.baseFov;
+    input.mobilityBoost = this.mobilityBoostActive;
+    const projection = stepCameraMotion(input, this.cameraMotionProjection);
 
-    const motionScale = this.cameraMotion;
-    const speedRatio = THREE.MathUtils.clamp(
-      this.velocity.length() / (this.moveSpeed * this.sprintMultiplier),
-      0,
-      1,
-    );
-    const stride = moved ? speedRatio : 0;
-    const bobScale = this.mobilityBoostActive ? MOBILITY_BOOST_CAMERA_BOB_SCALE : 1;
-    const bobX = Math.sin(this.stridePhase) * 0.024 * stride * motionScale * bobScale;
-    const bobY =
-      (Math.abs(Math.sin(this.stridePhase)) * 0.05 - 0.009) * stride * motionScale * bobScale;
-    const breath = Math.sin(this.elapsed * 1.65) * 0.0035 * (1 - stride) * motionScale;
-    this.landingDip = THREE.MathUtils.damp(this.landingDip, 0, 13, delta);
-    this.camera.position.copy(this.position).addScaledVector(this.right, bobX);
-    this.camera.position.y += bobY + breath + this.landingDip * motionScale;
-
-    // Soft bank into lateral movement. Uses walk velocity (not knockback) so hits
-    // do not yank the horizon; cameraMotion scales the amount.
-    const leanTarget = computeStrafeLeanTarget(
-      this.velocity.x,
-      this.velocity.y,
-      this.right.x,
-      this.right.z,
-      this.moveSpeed * this.sprintMultiplier,
-      STRAFE_LEAN_MAX * motionScale,
-    );
-    this.strafeLean = THREE.MathUtils.damp(
-      this.strafeLean,
-      leanTarget,
-      STRAFE_LEAN_RESPONSE,
-      delta,
-    );
+    this.landingDip = projection.landingDip;
+    this.strafeLean = projection.roll;
+    this.camera.position.copy(this.position).addScaledVector(this.right, projection.rightOffset);
+    this.camera.position.y += projection.verticalOffset;
     this.euler.set(this.lookPitch, this.lookYaw, this.strafeLean, "YXZ");
     this.camera.quaternion.setFromEuler(this.euler);
-
-    const boostFovKick = this.mobilityBoostActive ? MOBILITY_BOOST_FOV_KICK * stride : 0;
-    const targetFov =
-      this.baseFov + ((sprinting ? 3.2 : stride * 0.8) + boostFovKick) * motionScale;
-    const nextFov = THREE.MathUtils.damp(this.camera.fov, targetFov, 7.5, delta);
-    if (Math.abs(nextFov - this.camera.fov) > 0.001) {
-      this.camera.fov = nextFov;
+    if (
+      input.reducedMotion
+        ? projection.fov !== this.camera.fov
+        : Math.abs(projection.fov - this.camera.fov) > 0.001
+    ) {
+      this.camera.fov = projection.fov;
       this.camera.updateProjectionMatrix();
     }
   }
@@ -953,20 +956,3 @@ export function clampLookPitch(value: number): number {
  * Map world-space walk velocity onto camera roll.
  * Positive lateral speed (along camera right) leans into the right (negative Z).
  */
-export function computeStrafeLeanTarget(
-  velocityX: number,
-  velocityZ: number,
-  rightX: number,
-  rightZ: number,
-  referenceSpeed: number,
-  maxLean = STRAFE_LEAN_MAX,
-): number {
-  const speed = Math.max(0.001, referenceSpeed);
-  const rightLen = Math.hypot(rightX, rightZ);
-  if (rightLen < 1e-6 || Math.abs(maxLean) < 1e-8) return 0;
-  const nx = rightX / rightLen;
-  const nz = rightZ / rightLen;
-  const lateral = velocityX * nx + velocityZ * nz;
-  const ratio = THREE.MathUtils.clamp(lateral / speed, -1, 1);
-  return -ratio * maxLean;
-}

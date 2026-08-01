@@ -23,40 +23,27 @@ import {
 } from "../systems/BiomeEventSurface";
 import { projectMinimapFeatures } from "../ui/projectMinimapFeatures";
 import { AssetLibrary } from "./AssetLibrary";
-import {
-  ENEMY_ROSTER,
-  enemyAnimationFrameIndex,
-  enemyAnimationsForMood,
-  type EnemyAnimationDefinition,
-} from "./EnemySpriteAtlas";
+import { ENEMY_ROSTER, enemyAnimationsForMood } from "./EnemySpriteAtlas";
 import {
   buildDistributedEnemySpawns,
   buildInitialRoomEnemyQuotas,
   totalEnemySeatBudget,
   selectEnemyKindsForSpawns,
 } from "./EnemySpawnPlan";
-import { tickVolumetricBeamTime } from "./VolumetricBeam";
-import { tickNoiseFlame } from "./ProceduralFlameVfx";
 import { createDungeonMaterials, disposeDungeonMaterials } from "./MaterialLibrary";
 import { createRoomSurfaceMaterials, disposeRoomSurfaceMaterials } from "./RoomSurfaceMaterials";
 import { setPickupDormant, setPickupOpacity } from "./ItemFactory";
 import { PickupBurstPool } from "./PickupBurstPool";
 import {
-  ENEMY_ARCHETYPES,
   enemyCeilingY,
   enemyGroundY,
   getEnemySpriteRenderMetrics,
-  isLowProfileEnemy,
   type EnemyKind,
 } from "./EnemyArchetypes";
-import { computeTorchLod } from "./TorchLod";
 import {
   createEnemyBillboardMaterial,
-  setEnemyFreezeAmount,
   createEnemyContactShadowMaterial,
   disposeEnemyContactShadowMaterial,
-  enemyOpaqueFeetY,
-  resolveEnemyContactShadowLayout,
   setEnemyBillboardFrame,
 } from "./EnemyBillboardMaterial";
 import type { DungeonMood } from "../systems/DungeonMood";
@@ -87,11 +74,15 @@ import type { MinimapCell, MinimapFeatures } from "../ui/minimapFeatures";
 import { tickEnemySim, type EnemySimBody } from "./EnemySim";
 import { WORLD_TILE_SIZE, WORLD_WALL_HEIGHT } from "./WorldMetrics";
 import { ThreeResourceDisposer } from "./ThreeResourceDisposer";
-import { tickLiquidSections } from "./LiquidSectionKit";
-import { clampBiomeSpriteYaw, biomeSpriteFloorDistanceFade } from "./BiomeSpriteDecorKit";
 import { activateTimeFreeze, isTimeFreezeActive, tickTimeFreeze } from "../game/TimeFreeze";
 import { TimeFreezeVfx } from "./TimeFreezeVfx";
 import { EnemyMotionTrailVfx } from "./EnemyMotionTrailVfx";
+import {
+  EnemyPresentation,
+  type EnemyAnimationBatch,
+  type EnemyPresentationActor,
+} from "./EnemyPresentation";
+import { FixedSceneEffects } from "./FixedSceneEffects";
 import {
   activateAnnihilationPulse,
   annihilationPulseHitsEnemy,
@@ -141,43 +132,7 @@ import {
 
 export { knockbackAwayFrom } from "./knockback";
 
-interface EnemyActor {
-  kind: EnemyKind;
-  position: THREE.Vector3;
-  batch: THREE.InstancedMesh;
-  shadowBatch: THREE.InstancedMesh;
-  instanceIndex: number;
-  shadowInstanceIndex: number;
-  hitCooldown: number;
-  baseY: number;
-  baseScale: THREE.Vector2;
-  phase: number;
-  attackPulse: number;
-  scaleX: number;
-  scaleY: number;
-  roll: number;
-  yaw: number;
-  phaseEpoch: number;
-  phaseVisibility: number;
-  /** Smooth reveal used when the difficulty director adds a threat. */
-  spawnReveal: number;
-  /** Part of the deterministic one-or-two enemy opening quota for its room. */
-  startsActive: boolean;
-  moving: boolean;
-  visibilityAttribute: THREE.InstancedBufferAttribute;
-  /** Threat tier 0-3; drives minimap marker size. */
-  tier: number;
-  /** Permanent run-local death; the instanced seat remains allocated at zero scale. */
-  defeated: boolean;
-}
-
-interface EnemyAnimationBatch {
-  kind: EnemyKind;
-  material: THREE.MeshStandardMaterial;
-  animation: EnemyAnimationDefinition;
-  frame: number;
-  phaseOffset: number;
-}
+type EnemyActor = EnemyPresentationActor;
 
 export interface WorldUpdate {
   /** @deprecated use collectedStoneId — kept for domain bridge “all stones” */
@@ -295,7 +250,8 @@ export class DungeonWorld {
   private readonly enemyShadowBatches = new Set<THREE.InstancedMesh>();
   private readonly enemyVisibilityAttributes = new Set<THREE.InstancedBufferAttribute>();
   private readonly enemyAnimationBatches = new Map<EnemyKind, EnemyAnimationBatch>();
-  private readonly movingEnemyKinds = new Set<EnemyKind>();
+  private readonly enemyPresentation = new EnemyPresentation();
+  private readonly fixedSceneEffects = new FixedSceneEffects();
   private readonly enemyShadowMaterial = createEnemyContactShadowMaterial();
   private pickupBurstPool: PickupBurstPool | null = null;
   private timeFreezeVfx: TimeFreezeVfx | null = null;
@@ -346,12 +302,6 @@ export class DungeonWorld {
     0,
     0,
   );
-  private readonly tempPosition = new THREE.Vector3();
-  private readonly tempScale = new THREE.Vector3();
-  private readonly tempQuaternion = new THREE.Quaternion();
-  private readonly tempEuler = new THREE.Euler(0, 0, 0, "YXZ");
-  private readonly tempMatrix = new THREE.Matrix4();
-  private readonly tempAxisX = new THREE.Vector3(1, 0, 0);
 
   constructor(
     scene: THREE.Scene,
@@ -779,38 +729,20 @@ export class DungeonWorld {
           voice: creatureVoiceForEnemy(sim.attacker.kind),
         }
       : null;
-    this.updateEnemyAnimationFrames();
-
-    for (const enemy of this.enemies) {
-      if (!enemiesFrozen) {
-        enemy.spawnReveal = Math.min(
-          1,
-          enemy.spawnReveal + delta / Math.max(0.1, this.difficultyState.revealSeconds),
-        );
-      }
-      // Keep facing the player while frozen so the freeze read stays on the
-      // billboard (desat + body frost) instead of a locked sideways pose.
-      const yaw = Math.atan2(player.x - enemy.position.x, player.z - enemy.position.z);
-      enemy.yaw = yaw;
-      this.tempEuler.set(0, yaw, enemy.roll);
-      this.tempQuaternion.setFromEuler(this.tempEuler);
-      this.tempScale.set(enemy.scaleX, enemy.scaleY, 1);
-      const visible = enemy.phaseVisibility * enemy.spawnReveal;
-      enemy.visibilityAttribute.setX(enemy.instanceIndex, visible);
-      enemy.batch.setMatrixAt(
-        enemy.instanceIndex,
-        this.tempMatrix.compose(enemy.position, this.tempQuaternion, this.tempScale),
-      );
-      this.writeEnemyContactShadow(enemy, visible);
-    }
-    for (const batch of this.enemyBatches) batch.instanceMatrix.needsUpdate = true;
-    for (const batch of this.enemyShadowBatches) batch.instanceMatrix.needsUpdate = true;
-    for (const attribute of this.enemyVisibilityAttributes) attribute.needsUpdate = true;
-    const freezeLook = enemiesFrozen ? 1 : 0;
-    for (const batch of this.enemyAnimationBatches.values()) {
-      setEnemyFreezeAmount(batch.material, freezeLook);
-    }
-    this.enemyMotionTrailVfx?.update(this.enemies, delta, enemiesFrozen, player);
+    this.enemyPresentation.update({
+      actors: this.enemies,
+      billboardBatches: this.enemyBatches,
+      shadowBatches: this.enemyShadowBatches,
+      visibilityAttributes: this.enemyVisibilityAttributes,
+      animationBatches: this.enemyAnimationBatches,
+      animationElapsed: this.enemyAnimationElapsed,
+      revealSeconds: this.difficultyState.revealSeconds,
+      frozen: enemiesFrozen,
+      player,
+      delta,
+      moodId: this.activeMood.id,
+      trail: this.enemyMotionTrailVfx,
+    });
 
     for (const door of this.doors) {
       const distance = horizontalDistance(door.root.position, player);
@@ -965,13 +897,14 @@ export class DungeonWorld {
           Math.sin(Math.min(1, progress / riseEnd) * Math.PI) *
             (pickup.stoneSignal ? 0.52 : 0.36) *
             (progress <= riseEnd ? 1 : 1 - (progress - riseEnd) / (1 - riseEnd));
-        const shrink =
-          progress <= riseEnd ? 1 : 1 - 0.55 * ((progress - riseEnd) / (1 - riseEnd));
+        const shrink = progress <= riseEnd ? 1 : 1 - 0.55 * ((progress - riseEnd) / (1 - riseEnd));
         pickup.object.scale.copy(pickup.baseScale).multiplyScalar(pop * shrink);
         pickup.object.rotation.y +=
           delta * (pickup.stoneSignal ? 3.2 + progress * 6 : 2.2 + progress * 4);
         const fade =
-          progress <= riseEnd ? 0 : THREE.MathUtils.clamp((progress - riseEnd) / (1 - riseEnd), 0, 1);
+          progress <= riseEnd
+            ? 0
+            : THREE.MathUtils.clamp((progress - riseEnd) / (1 - riseEnd), 0, 1);
         setPickupOpacity(pickup.object, 1 - fade);
         if (pickup.stoneSignal) pickup.stoneSignal.light.intensity = 0;
         if (pickup.timeFreezeSignal) pickup.timeFreezeSignal.light.intensity = 0;
@@ -1184,53 +1117,8 @@ export class DungeonWorld {
     return hits;
   }
 
-  private updateEnemyAnimationFrames(): void {
-    this.movingEnemyKinds.clear();
-    for (const enemy of this.enemies) if (enemy.moving) this.movingEnemyKinds.add(enemy.kind);
-    for (const batch of this.enemyAnimationBatches.values()) {
-      const frame = enemyAnimationFrameIndex(
-        batch.kind,
-        this.enemyAnimationElapsed,
-        batch.phaseOffset,
-        this.movingEnemyKinds.has(batch.kind),
-      );
-      if (frame !== batch.frame) {
-        setEnemyBillboardFrame(batch.material, batch.animation, frame);
-        batch.frame = frame;
-      }
-      // Afterimages lag one animation frame behind the live sprite.
-      this.enemyMotionTrailVfx?.syncAnimationFrame(batch.kind, batch.frame);
-    }
-  }
-
-  /**
-   * Flatten a radial disc under the enemy. Width shrinks with feet elevation so
-   * grounded skitterers read hard contact while floating / ceiling threats leave
-   * a softer stain on the floor they cast on.
-   */
-  private writeEnemyContactShadow(enemy: EnemyActor, visibility: number): void {
-    const archetype = ENEMY_ARCHETYPES[enemy.kind];
-    const sprite = getEnemySpriteRenderMetrics(enemy.kind, this.activeMood.id);
-    const feetY = enemyOpaqueFeetY(enemy.position.y, sprite.planeHeight, sprite.bottomPaddingRatio);
-    const layout = resolveEnemyContactShadowLayout({
-      bodyWidth: archetype.width,
-      lowProfile: isLowProfileEnemy(enemy.kind),
-      feetY,
-      visibility,
-      spectral: archetype.silhouette === "spectral",
-    });
-    this.tempPosition.set(enemy.position.x, layout.y, enemy.position.z);
-    this.tempQuaternion.setFromAxisAngle(this.tempAxisX, -Math.PI / 2);
-    this.tempScale.set(layout.width, layout.depth, 1);
-    enemy.shadowBatch.setMatrixAt(
-      enemy.shadowInstanceIndex,
-      this.tempMatrix.compose(this.tempPosition, this.tempQuaternion, this.tempScale),
-    );
-  }
-
   updateEffects(delta: number, viewerPosition?: THREE.Vector3Like): void {
     this.elapsed += delta;
-    if (viewerPosition) this.updateBiomeFloorSprites(viewerPosition);
     this.timeFreezeVfx?.update(this.timeFreezeSeconds, this.elapsed, this.enemies);
     this.luminousWardVfx?.update(
       this.luminousWardSeconds,
@@ -1252,110 +1140,19 @@ export class DungeonWorld {
       this.activeMood.id,
     );
     this.hazardTiles?.update(delta);
-    const losInterval = 0.12; // ~8 Hz LOS refresh — enough for occlusion feel, cheap on large forge maps
-    for (const effect of this.fireEffects) {
-      const distance = viewerPosition
-        ? Math.hypot(
-            effect.root.position.x - viewerPosition.x,
-            effect.root.position.z - viewerPosition.z,
-          )
-        : 0;
-      const releaseDistance = effect.cutoffDistance + 7;
-      // Far fires: skip grid LOS entirely (dominant cost when dozens of torches).
-      if (viewerPosition && this.dungeon && distance <= releaseDistance) {
-        effect.losAge += delta;
-        if (effect.losAge >= losInterval) {
-          effect.losAge = 0;
-          effect.losOpen = hasGridLineOfSight(
-            this.dungeon,
-            viewerPosition,
-            effect.root.position,
-            this.tileSize,
-          );
-        }
-      } else if (!viewerPosition || !this.dungeon) {
-        effect.losOpen = true;
-      } else {
-        effect.losOpen = false;
-      }
-      const lineOfSight = effect.losOpen;
-      const lod = computeTorchLod(distance, effect.cutoffDistance);
-      effect.root.visible = lod.rootVisible;
-      // Keep flame/halo tied to the soft light factor so they fade with the
-      // light instead of hard-toggling the same frame the point light enables.
-      const fxFactor = lineOfSight ? Math.max(lod.lightFactor, effect.currentLightFactor) : 0;
-      const showFlame = fxFactor > 0.02;
-      const showHalo = fxFactor > 0.08 && distance < Math.min(15, effect.cutoffDistance);
-      effect.flame.visible = showFlame;
-      for (const detail of effect.flameDetails) detail.visible = showFlame;
-      const fade = THREE.MathUtils.clamp(fxFactor, 0, 1);
-      for (const halo of effect.halos) {
-        halo.visible = showHalo;
-        if (!(halo instanceof THREE.Mesh)) continue;
-        const mat = halo.material;
-        if (mat instanceof THREE.ShaderMaterial && mat.uniforms.uStrength) {
-          const baseStrength =
-            (halo.userData.baseStrength as number | undefined) ??
-            (mat.uniforms.uStrength.value as number);
-          if (halo.userData.baseStrength === undefined) halo.userData.baseStrength = baseStrength;
-          mat.uniforms.uStrength.value = baseStrength * fade;
-          tickVolumetricBeamTime(halo as THREE.Mesh, this.elapsed + effect.phase);
-          continue;
-        }
-        if (mat && !Array.isArray(mat) && "opacity" in mat) {
-          const base =
-            (halo.userData.baseOpacity as number | undefined) ??
-            (mat as THREE.MeshBasicMaterial).opacity;
-          if (halo.userData.baseOpacity === undefined) halo.userData.baseOpacity = base;
-          (mat as THREE.MeshBasicMaterial).opacity = base * fade;
-        }
-      }
-      const pulse =
-        0.86 +
-        Math.sin(this.elapsed * 9 + effect.phase) *
-          Math.sin(this.elapsed * 4.7 + effect.phase * 1.7) *
-          0.14;
-      const flameMaterials = Array.isArray(effect.flame.material)
-        ? effect.flame.material
-        : [effect.flame.material];
-      const proceduralFlame = flameMaterials.some((material) =>
-        tickNoiseFlame(material, this.elapsed, fade),
-      );
-      if (proceduralFlame) {
-        // The shader anchors its teardrop at the socket and carries its own
-        // upward turbulence. A single camera-facing card matches the 2D
-        // reference without the bright seam of crossed transparent planes.
-        if (viewerPosition) {
-          effect.flame.getWorldPosition(this.tempPosition);
-          this.tempScale.set(viewerPosition.x, this.tempPosition.y, viewerPosition.z);
-          effect.flame.lookAt(this.tempScale);
-        }
-        effect.flame.scale.y = effect.baseFlameScaleY;
-        effect.flame.position.y = effect.baseY;
-      } else {
-        effect.flame.scale.y = effect.baseFlameScaleY * (0.92 + pulse * 0.08);
-        effect.flame.position.y = effect.baseY + Math.sin(this.elapsed * 7 + effect.phase) * 0.018;
-      }
-      if (effect.light) {
-        const targetFactor = lineOfSight ? lod.lightFactor : 0;
-        // Slower ramp-up softens the first lit contribution; faster decay cuts fill.
-        const lambda = targetFactor > effect.currentLightFactor ? 3.6 : 10;
-        effect.currentLightFactor = THREE.MathUtils.damp(
-          effect.currentLightFactor,
-          targetFactor,
-          lambda,
-          delta,
-        );
-        // Keep the PointLight in the scene graph. Toggling visibility changes
-        // the renderer's light count and can compile a new shader while moving.
-        effect.light.intensity = effect.baseIntensity * pulse * effect.currentLightFactor;
-      }
-    }
-    // Portal / stone beams share the same soft grit clock.
-    if (this.portalBeam) tickVolumetricBeamTime(this.portalBeam, this.elapsed);
-    for (const beam of this.stoneBeams) tickVolumetricBeamTime(beam, this.elapsed);
-    for (const beam of this.ambientBeams) tickVolumetricBeamTime(beam, this.elapsed);
-    if (this.liquidKit) tickLiquidSections(this.liquidKit.surfaces, this.elapsed);
+    this.fixedSceneEffects.update({
+      delta,
+      elapsed: this.elapsed,
+      viewerPosition,
+      dungeon: this.dungeon,
+      tileSize: this.tileSize,
+      floorSprites: this.floorBiomeSprites,
+      fires: this.fireEffects,
+      portalBeam: this.portalBeam,
+      stoneBeams: this.stoneBeams,
+      ambientBeams: this.ambientBeams,
+      liquidSurfaces: this.liquidKit?.surfaces ?? null,
+    });
   }
 
   setPickupEffectsWarmupVisible(visible: boolean): void {
@@ -1574,27 +1371,6 @@ export class DungeonWorld {
     disposeEnemyContactShadowMaterial(this.enemyShadowMaterial);
     this.assets.dispose();
     this.scene.remove(this.group);
-  }
-
-  private updateBiomeFloorSprites(player: THREE.Vector3Like): void {
-    for (const prop of this.floorBiomeSprites) {
-      const deltaX = player.x - prop.x;
-      const deltaZ = player.z - prop.z;
-      const distance = Math.hypot(deltaX, deltaZ);
-      const fade = biomeSpriteFloorDistanceFade(distance);
-      prop.material.opacity = prop.baseOpacity * fade;
-      prop.mesh.visible = fade > 0.001;
-      prop.mesh.userData.distanceFade = fade;
-      if (prop.placement === "floor-decal") continue;
-      if (Math.abs(deltaX) + Math.abs(deltaZ) < 0.0001) continue;
-      // Keep floor cards upright. Corner cards can turn toward the player only
-      // inside the open sector between their two adjacent walls.
-      const targetYaw = Math.atan2(deltaX, deltaZ);
-      prop.mesh.rotation.y =
-        prop.placement === "corner-standing"
-          ? clampBiomeSpriteYaw(prop.baseYaw, targetYaw)
-          : targetYaw;
-    }
   }
 
   /**
@@ -1829,7 +1605,7 @@ export class DungeonWorld {
         // Reserve seats stay zero-size until activation; active opening seats
         // get a full contact disc so basals read on the first rendered frame.
         if (actor.startsActive) {
-          this.writeEnemyContactShadow(actor, 1);
+          this.enemyPresentation.writeContactShadow(actor, 1, this.activeMood.id);
         } else {
           sharedShadowBatch.setMatrixAt(
             spec.shadowInstanceIndex,
@@ -1885,7 +1661,6 @@ export class DungeonWorld {
     this.enemyShadowBatches.clear();
     this.enemyVisibilityAttributes.clear();
     this.enemyAnimationBatches.clear();
-    this.movingEnemyKinds.clear();
     this.enemyAnimationElapsed = 0;
     this.enemySimulationElapsed = 0;
     this.difficultyElapsed = 0;

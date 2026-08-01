@@ -42,6 +42,7 @@ import { resolveForgeRenderQuality } from "./ForgeRenderQuality";
 import { resolveForgeRoomPresentationRect } from "./ForgePresentationGeometry";
 import { resolveEditorLightingProfile } from "../editor/EditorLightingProfiles";
 import { nextProceduralSeed } from "../game/SeedFactory";
+import { ForgePresentationSession } from "./ForgePresentationSession";
 import {
   BIOME_PARTICLE_MOTION_ID,
   BIOME_PARTICLE_SHAPE_ID,
@@ -144,9 +145,9 @@ let yaw = Math.PI / 4,
   pitch = 0.64;
 const camTarget = new THREE.Vector3(0, 0, 0);
 /** Host new-game theater: full-viewport map with no editor panel bias. */
-let presentationMode =
-  typeof document !== "undefined" && document.documentElement.dataset.forgePresentation === "true";
-let activePresentationId = null;
+const presentationSession = new ForgePresentationSession(
+  typeof document !== "undefined" && document.documentElement.dataset.forgePresentation === "true",
+);
 function updateCam() {
   const cp = Math.cos(pitch),
     sp = Math.sin(pitch);
@@ -161,12 +162,12 @@ function fitCameraToDungeon(width, height) {
   // Presentation fills the whole viewport; add a little padding so the map sits
   // in the middle without the desktop panel bias used by the editor.
   const span = Math.max(width, height) * 0.5;
-  const pad = presentationMode ? 1.14 : 1;
+  const pad = presentationSession.isPresentationMode ? 1.14 : 1;
   const fit = BASE_HALF / (span * pad);
-  cam.zoom = Math.min(presentationMode ? 2.6 : 2.2, Math.max(0.22, fit));
+  cam.zoom = Math.min(presentationSession.isPresentationMode ? 2.6 : 2.2, Math.max(0.22, fit));
   cam.updateProjectionMatrix();
   updateCam();
-  if (!presentationMode && innerWidth > 700) {
+  if (!presentationSession.isPresentationMode && innerWidth > 700) {
     const cameraRight = new THREE.Vector3().setFromMatrixColumn(cam.matrixWorld, 0).normalize();
     const panelHalfWidth = Math.min(170, innerWidth * 0.16);
     const worldPerPixel = (2 * BASE_HALF) / (cam.zoom * innerHeight);
@@ -1393,7 +1394,6 @@ function writeInstances(mesh, t) {
 
 /* -------- scene state -------- */
 let D = null;
-let editorDungeonBeforePresentation = null;
 let group = null;
 let meshes = {};
 let overlay = null;
@@ -2481,7 +2481,7 @@ function updateRects(t) {
       i * 24,
     );
   });
-  if (presentationMode) {
+  if (presentationSession.isPresentationMode) {
     document.documentElement.dataset.forgeRoomGeometry = pos.every(Number.isFinite)
       ? "finite"
       : "invalid";
@@ -2716,20 +2716,21 @@ function settleAll() {
 }
 /** Host-driven new-game theater: hide chrome and report when the reveal ends. */
 function publishAnimComplete() {
-  if (window.parent === window || activePresentationId === null) return;
+  if (window.parent === window) return;
+  const presentationId = presentationSession.completeAnimation();
+  if (presentationId === null) return;
   window.parent.postMessage(
     {
       type: "black-flag:forge-anim-complete",
       version: 1,
-      ...(activePresentationId > 0 ? { presentationId: activePresentationId } : {}),
+      ...(presentationId > 0 ? { presentationId } : {}),
     },
     location.origin,
   );
 }
 
-function setPresentationMode(enabled) {
-  presentationMode = Boolean(enabled);
-  if (presentationMode) {
+function applyPresentationMode() {
+  if (presentationSession.isPresentationMode) {
     document.documentElement.dataset.forgePresentation = "true";
   } else {
     delete document.documentElement.dataset.forgePresentation;
@@ -2738,9 +2739,7 @@ function setPresentationMode(enabled) {
   if (D) fitCameraToDungeon(D.W, D.H);
 }
 
-function restoreEditorDungeonAfterPresentation() {
-  const editorDungeon = editorDungeonBeforePresentation;
-  editorDungeonBeforePresentation = null;
+function restoreEditorDungeonAfterPresentation(editorDungeon) {
   if (!editorDungeon) return;
   buildScene(editorDungeon);
   applyObjectVis();
@@ -2923,7 +2922,7 @@ addEventListener("message", (event) => {
   if (event.data?.type === "black-flag:forge-new-seed") {
     // Never rebuild a cosmetic Creation layout during host map theater — that
     // second isometric map is a visible pop-in and a wasted full rebuild.
-    if (presentationMode || activePresentationId !== null) return;
+    if (presentationSession.isPresentationMode) return;
     const requested = Number(event.data.seed);
     if (Number.isFinite(requested)) {
       el.seed.value = nextProceduralSeed(requested, Number(el.seed.value) || 0);
@@ -2936,21 +2935,19 @@ addEventListener("message", (event) => {
     const presentationId = rawPresentationId === undefined ? 0 : Number(rawPresentationId);
     if (!Number.isSafeInteger(presentationId) || presentationId < 0) return;
     const enabled = Boolean(event.data.enabled);
-    if (!enabled && presentationId !== activePresentationId) return;
-    if (enabled) activePresentationId = presentationId;
-    // Enable presentation before forge() so fitCameraToDungeon centers the map.
-    setPresentationMode(enabled);
     if (!enabled) {
-      activePresentationId = null;
-      restoreEditorDungeonAfterPresentation();
+      const finished = presentationSession.finish(presentationId);
+      if (finished.kind === "ignored") return;
+      applyPresentationMode();
+      restoreEditorDungeonAfterPresentation(finished.editorDungeon);
       // Leave the editor free to pick themes again after the map theater.
       if (themeSel !== "random" && !THEME_KEYS.includes(themeSel)) setThemeSel("random");
       return;
     }
+    presentationSession.start(presentationId, D);
+    // Enable presentation before forge() so fitCameraToDungeon centers the map.
+    applyPresentationMode();
     hostPaused = false;
-    // Preserve Creation for every presentation route, including a legacy host
-    // that only supplies seed/theme and asks Forge to generate the theater map.
-    if (!editorDungeonBeforePresentation && D) editorDungeonBeforePresentation = D;
     // Drop the previous Creation/procedural mesh immediately so the host reveal
     // never composites two isometric layouts for a frame.
     disposeLevel();
@@ -2980,9 +2977,9 @@ addEventListener("message", (event) => {
           for (const k in meshes) meshes[k].userData.settled = false;
           setFxRamp(0);
         } else finishAnim();
-        if (presentationMode && D) fitCameraToDungeon(D.W, D.H);
+        if (presentationSession.isPresentationMode && D) fitCameraToDungeon(D.W, D.H);
         requestAnimationFrame(() => {
-          if (presentationMode && D) fitCameraToDungeon(D.W, D.H);
+          if (presentationSession.isPresentationMode && D) fitCameraToDungeon(D.W, D.H);
         });
       } catch (error) {
         console.warn("Forge host dungeon presentation failed; falling back to generator.", error);
@@ -3003,7 +3000,7 @@ addEventListener("message", (event) => {
     forge(shouldAnimate);
     // forge() already fits; re-fit after layout in case the iframe just expanded.
     requestAnimationFrame(() => {
-      if (presentationMode && D) fitCameraToDungeon(D.W, D.H);
+      if (presentationSession.isPresentationMode && D) fitCameraToDungeon(D.W, D.H);
     });
     return;
   }
@@ -3023,7 +3020,7 @@ let dragging = false,
   lastX = 0,
   lastY = 0;
 cnv.addEventListener("pointerdown", (e) => {
-  if (presentationMode) return;
+  if (presentationSession.isPresentationMode) return;
   orbiting = e.button === 2 || (e.button === 0 && e.shiftKey);
   dragging = e.button === 0 && !e.shiftKey;
   lastX = e.clientX;
@@ -3031,7 +3028,7 @@ cnv.addEventListener("pointerdown", (e) => {
   cnv.setPointerCapture(e.pointerId);
 });
 cnv.addEventListener("pointermove", (e) => {
-  if (presentationMode || (!dragging && !orbiting)) return;
+  if (presentationSession.isPresentationMode || (!dragging && !orbiting)) return;
   const dx = e.clientX - lastX,
     dy = e.clientY - lastY;
   lastX = e.clientX;
@@ -3058,7 +3055,7 @@ cnv.addEventListener("contextmenu", (e) => e.preventDefault());
 cnv.addEventListener(
   "wheel",
   (e) => {
-    if (presentationMode) return;
+    if (presentationSession.isPresentationMode) return;
     e.preventDefault();
     cam.zoom = Math.min(6, Math.max(0.12, cam.zoom * Math.exp(-e.deltaY * 0.0012)));
     cam.updateProjectionMatrix();

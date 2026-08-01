@@ -61,23 +61,26 @@ describe("multi-floor dungeon generation", () => {
     expect(campaign.floor(4)).toBeNull();
   });
 
-  test("floor-transition host keeps one save owner and explicit failure recovery branches", () => {
+  test("floor-transition host delegates one checkpointed transaction and target recovery", () => {
     const source = readFileSync("src/main.ts", "utf8");
-    const start = source.indexOf("async function transitionCampaignFloor(");
-    const end = source.indexOf("\nasync function descendFloor", start);
-    const transition = source.slice(start, end);
+    const director = readFileSync("src/game/FloorTransitionDirector.ts", "utf8");
+    const hostStart = source.indexOf(
+      "const floorTransitions = new FloorTransitionDirector<PreparedFloorTransition>",
+    );
+    const hostEnd = source.indexOf("\nasync function descendFloor", hostStart);
+    const host = source.slice(hostStart, hostEnd);
 
-    expect(start).toBeGreaterThanOrEqual(0);
-    expect(end).toBeGreaterThan(start);
-    expect(transition).toContain("transitionFailed = true;");
-    expect(transition).toContain("const floorCheckpointSaved = localRunSave.flush();");
-    expect(transition).not.toContain("writeLocalRunSave(");
-    expect(transition).toContain("if (dungeon === targetDungeon)");
-    expect(transition).toContain("setWelcomeOpen(true);");
-    expect(transition).toContain("{ resume, runSource }");
-    expect(transition).toContain('" Local save unavailable."');
-    expect(transition).toContain("floorTransitionPending = false;");
-    expect(transition).toContain("controller.setEnabled(canEnablePlayController());");
-    expect(transition).toContain("if (transitionFailed) throw transitionError;");
+    expect(hostStart).toBeGreaterThanOrEqual(0);
+    expect(hostEnd).toBeGreaterThan(hostStart);
+    expect(host).toContain("return localRunSave.flush();");
+    expect(host).not.toContain("writeLocalRunSave(");
+    expect(host).toContain("return dungeon === prepared.targetDungeon;");
+    expect(host).toContain("recoverTarget(prepared, checkpoint)");
+    expect(host).toContain("setWelcomeOpen(true);");
+    expect(host).toContain('" Local save unavailable."');
+    expect(director).toContain("checkpoint = this.port.checkpoint(prepared)");
+    expect(director).toContain("await this.port.fade(true)");
+    expect(director).toContain("await this.port.fade(false)");
+    expect(director).toContain('activeFloor: "target"');
   });
 });

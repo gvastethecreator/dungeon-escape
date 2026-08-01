@@ -84,41 +84,44 @@ describe("GameAudio dungeon soundscape", () => {
 
   test("source includes asset groups, limiting, and spatial source configuration", async () => {
     const source = await Bun.file(new URL("../src/audio/GameAudio.ts", import.meta.url)).text();
-    expect(source).toContain("ambience-cave.opus");
+    const catalog = await Bun.file(
+      new URL("../src/audio/AudioAssetCatalog.ts", import.meta.url),
+    ).text();
+    expect(catalog).toContain("ambience-cave.opus");
     expect(source).toContain("DynamicsCompressor");
     expect(source).toContain('panningModel = "HRTF"');
     expect(source).toContain("setGroupVolume");
     expect(source).toContain("syncWorld");
-    expect(source).toContain("enemyGrowl");
-    expect(source).toContain("enemyAttack");
+    expect(catalog).toContain("enemyGrowl");
+    expect(catalog).toContain("enemyAttack");
     expect(source).toContain("setThreatDistance");
-    expect(source).toContain("step-water-a.opus");
-    expect(source).toContain("door-open.opus");
-    expect(source).toContain("pickup-time-freeze.opus");
-    expect(source).toContain("pickup-ward.opus");
-    expect(source).toContain("chest-open.opus");
-    expect(source).toContain("win.opus");
-    expect(source).toContain("lose.opus");
-    expect(source).toContain("music-menu.opus");
-    expect(source).toContain("music-win.opus");
-    expect(source).toContain("music-lose.ogg");
-    expect(source).toContain("music-biome-backrooms.ogg");
-    expect(source).toContain("music-biome-backrooms-portal.ogg");
-    expect(source).toContain("ui-click.opus");
-    expect(source).toContain("ui-tick.opus");
-    expect(source).toContain("ui-hover.opus");
-    expect(source).toContain("ui-select.opus");
+    expect(catalog).toContain("step-water-a.opus");
+    expect(catalog).toContain("door-open.opus");
+    expect(catalog).toContain("pickup-time-freeze.opus");
+    expect(catalog).toContain("pickup-ward.opus");
+    expect(catalog).toContain("chest-open.opus");
+    expect(catalog).toContain("win.opus");
+    expect(catalog).toContain("lose.opus");
+    expect(catalog).toContain("music-menu.opus");
+    expect(catalog).toContain("music-win.opus");
+    expect(catalog).toContain("music-lose.ogg");
+    expect(catalog).toContain("music-biome-backrooms.ogg");
+    expect(catalog).toContain("music-biome-backrooms-portal.ogg");
+    expect(catalog).toContain("ui-click.opus");
+    expect(catalog).toContain("ui-tick.opus");
+    expect(catalog).toContain("ui-hover.opus");
+    expect(catalog).toContain("ui-select.opus");
     expect(source).toContain("setMusicTrack");
     expect(source).toContain('group === "music"');
-    expect(source).toContain("PICKUP_ASSETS");
-    expect(source).toContain("CREATURE_VOICE_TAKES");
-    expect(source).toContain("CREATURE_ATTACK_TAKES");
-    expect(source).toContain("CREATURE_VOICE_TONES");
-    expect(source).toContain("pickCreatureAsset");
+    expect(source).toContain("audioAssetForPickup");
+    expect(source).toContain("CreatureTakeSelector");
+    expect(source).toContain("creatureTakes.select");
+    expect(source).not.toContain("lastCreatureTake");
     expect(source).toContain("creatureToneForMood");
-    expect(source).toContain("buildEnemyThreatAssets");
-    expect(source).toContain("enemy-${kind}-v${take}.opus");
-    expect(source).toContain("enemy-${kind}-attack-${tone}.opus");
+    expect(catalog).toContain("buildEnemyThreatAssets");
+    expect(catalog).toContain("enemy-${kind}-v${take}.opus");
+    expect(catalog).toContain("enemy-${kind}-attack-${tone}.opus");
+    expect(source).not.toContain(".opus");
     // Firefox AudioListener lacks positionX; pose must fall back to setPosition.
     expect(source).toContain("applyAudioListenerPose");
     expect(source).toContain("applyPannerPosition");
@@ -150,7 +153,14 @@ describe("GameAudio dungeon soundscape", () => {
       0.5,
     );
     expect(path).toBe("modern");
-    expect(calls).toEqual(["px:1@0.5", "py:2@0.5", "pz:3@0.5", "fx:0@0.5", "fy:0@0.5", "fz:-1@0.5"]);
+    expect(calls).toEqual([
+      "px:1@0.5",
+      "py:2@0.5",
+      "pz:3@0.5",
+      "fx:0@0.5",
+      "fy:0@0.5",
+      "fz:-1@0.5",
+    ]);
   });
 
   test("listener pose falls back to legacy Cartesian helpers for Firefox", () => {
@@ -234,7 +244,9 @@ describe("GameAudio dungeon soundscape", () => {
   });
 
   test("lose bed is a melancholic Neo-SPC ogg asset", async () => {
-    const asset = Bun.file(new URL("../public/assets/audio/dungeon/music-lose.ogg", import.meta.url));
+    const asset = Bun.file(
+      new URL("../public/assets/audio/dungeon/music-lose.ogg", import.meta.url),
+    );
     expect(await asset.exists()).toBe(true);
     expect(asset.size).toBeGreaterThan(150_000);
   });
@@ -280,9 +292,9 @@ describe("GameAudio dungeon soundscape", () => {
   test("main wires global interface click and hover sounds", async () => {
     const main = await Bun.file(new URL("../src/main.ts", import.meta.url)).text();
     expect(main).toContain("wireInterfaceSounds()");
-    expect(main).toContain('playCue("uiHover")');
+    expect(main).toContain("resolveUiHoverCue");
     expect(main).toContain("resolveUiClickCue");
-    expect(main).toContain("uiSelect");
+    expect(main).toContain("resolveUiChangeCue");
   });
 
   test("main wires menu and end-screen music beds", async () => {

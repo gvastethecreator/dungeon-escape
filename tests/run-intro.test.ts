@@ -14,6 +14,9 @@ describe("new-game map theater intro", () => {
     const director = await Bun.file(
       new URL("../src/game/RunIntroDirector.ts", import.meta.url),
     ).text();
+    const session = await Bun.file(
+      new URL("../src/forge/ForgePresentationSession.ts", import.meta.url),
+    ).text();
     expect(source).toContain("const runIntroDirector = new RunIntroDirector");
     expect(source).toContain("return runIntroDirector.start");
     expect(source).toContain('startPlayWithSeed(entry.seed, { runSource: "campaign" })');
@@ -31,10 +34,10 @@ describe("new-game map theater intro", () => {
     expect(forge).toContain("hostDungeon");
     expect(forge).toContain("buildScene(hostDungeon)");
     expect(forge).toContain("disposeLevel()");
-    expect(forge).toContain("presentationMode || activePresentationId");
+    expect(forge).toContain("presentationSession.isPresentationMode");
     expect(forge).toContain("resolveForgeRoomPresentationRect");
     expect(forge).toContain("dataset.forgeRoomGeometry");
-    expect(forge).toContain("editorDungeonBeforePresentation");
+    expect(session).toContain("editorDungeon");
     expect(forge).toContain("restoreEditorDungeonAfterPresentation");
     expect(source).toContain("runIntroInputGate");
 
@@ -42,7 +45,7 @@ describe("new-game map theater intro", () => {
       'event.data?.type === "black-flag:forge-presentation"',
     );
     const preserveEditorAt = forge.indexOf(
-      "if (!editorDungeonBeforePresentation && D) editorDungeonBeforePresentation = D",
+      "presentationSession.start(presentationId, D)",
       presentationHandlerAt,
     );
     const inspectHostDungeonAt = forge.indexOf(
