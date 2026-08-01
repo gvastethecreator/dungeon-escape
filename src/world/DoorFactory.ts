@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 
+import { DOOR_DEFAULT_OPEN_DISTANCE } from "./DoorOpenPolicy";
 import type { DungeonMaterials } from "./MaterialLibrary";
 
 export type DungeonDoorStyle = "dungeon" | "office";
@@ -366,7 +367,7 @@ export function createDungeonArch(
   root.userData.leafBottom = leafBottom;
   root.userData.centerSeam = centerSeam;
   root.userData.transomSealed = true;
-  root.userData.openDistance = 2.65;
+  root.userData.openDistance = DOOR_DEFAULT_OPEN_DISTANCE;
   return root;
 }
 

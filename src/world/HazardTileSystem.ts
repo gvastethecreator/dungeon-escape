@@ -5,7 +5,11 @@ import { createSeededRandom } from "../core/random";
 import { gridToWorld } from "../dungeon/gridCollision";
 import type { DungeonData, DungeonRoom, GridCell } from "../dungeon/types";
 import type { DungeonMood, DungeonMoodId } from "../systems/DungeonMood";
-import { HAZARD_CONTACT_RADIUS, tickHazardTraversal } from "./HazardTraversal";
+import {
+  HAZARD_CONTACT_RADIUS,
+  spikeExposure as computeSpikeExposure,
+  tickHazardTraversal,
+} from "./HazardTraversal";
 
 export type HazardTileKind = "fire" | "ice" | "toxin" | "spikes";
 
@@ -33,6 +37,7 @@ export interface HazardTraversalState {
 export {
   HAZARD_CONTACT_RADIUS,
   HAZARD_LABELS,
+  spikeExposure,
   tickHazardTraversal,
   createHazardClockState,
   type HazardClockState,
@@ -1052,7 +1057,7 @@ export class HazardTileSystem {
     if (!this.spikeInstances) return;
     for (const visual of this.visuals) {
       if (visual.spikeStart < 0) continue;
-      const exposure = this.spikeExposure(visual.placement.phase);
+      const exposure = computeSpikeExposure(this.elapsed, visual.placement.phase);
       for (const [localIndex, layout] of SPIKE_LAYOUT.entries()) {
         const instance = visual.spikeStart + localIndex;
         const stagger = 0.92 + ((localIndex + 2) % 3) * 0.045;
@@ -1094,7 +1099,7 @@ export class HazardTileSystem {
         }
         contactKind = visual.placement.kind;
         if (contactKind === "spikes") {
-          spikeExposure = this.spikeExposure(visual.placement.phase);
+          spikeExposure = computeSpikeExposure(this.elapsed, visual.placement.phase);
         }
         break;
       }
@@ -1151,7 +1156,4 @@ export class HazardTileSystem {
     this.root.clear();
   }
 
-  private spikeExposure(phase: number): number {
-    return THREE.MathUtils.smoothstep(Math.sin(this.elapsed * 2.3 + phase), -0.25, 0.72);
-  }
 }

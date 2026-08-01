@@ -265,10 +265,10 @@ describe("StaticDungeonScene", () => {
         wallTiles: 459,
         ceilingTiles: 564,
         hazardTiles: 4,
-        pickups: 12,
+        pickups: 13,
         beams: 7,
         lights: 12,
-        props: 188,
+        props: 189,
       });
       expect(classic.ambientBeams).toHaveLength(2);
       expect(group.getObjectByName("Ambient godray 1")).toBeDefined();
@@ -286,8 +286,8 @@ describe("StaticDungeonScene", () => {
       expect(classic.stoneBeams.every((beam) => beam.userData.profile === "objective-strata")).toBe(
         true,
       );
-      expect(classic.solidCells.size).toBe(22);
-      expect(classic.solidColliders).toHaveLength(22);
+      expect(classic.solidCells.size).toBe(23);
+      expect(classic.solidColliders).toHaveLength(23);
       expect(group.getObjectByName("Escape portal gate")).toBeDefined();
       expect(group.getObjectByName("Portal aperture trim")).toBeDefined();
       expect(group.getObjectByName(MAGIC_PORTAL_NAMES.vortex)).toBeDefined();
@@ -328,13 +328,13 @@ describe("StaticDungeonScene", () => {
         wallTiles: 239,
         ceilingTiles: 584,
         hazardTiles: 4,
-        pickups: 13,
+        pickups: 14,
         beams: 7,
         lights: 13,
-        props: 172,
+        props: 173,
       });
-      expect(backrooms.solidCells.size).toBe(42);
-      expect(backrooms.solidColliders).toHaveLength(42);
+      expect(backrooms.solidCells.size).toBe(43);
+      expect(backrooms.solidColliders).toHaveLength(43);
       expect(backrooms.stonePlacements.map((placement) => placement.stoneId)).toEqual([
         ...STONE_ORDER,
       ]);
@@ -412,14 +412,14 @@ describe("StaticDungeonScene", () => {
         ceilingTiles: 564,
         enemies: 8,
         hazardTiles: 4,
-        pickups: 12,
+        pickups: 13,
         beams: 7,
         lights: 14,
-        props: 188,
-        reserveEnemies: 18,
+        props: 189,
+        reserveEnemies: 19,
       });
-      expect(world.getSolidCells()).toHaveLength(22);
-      expect(world.getSolidColliders()).toHaveLength(22);
+      expect(world.getSolidCells()).toHaveLength(23);
+      expect(world.getSolidColliders()).toHaveLength(23);
     } finally {
       world.dispose();
       restoreDocument();

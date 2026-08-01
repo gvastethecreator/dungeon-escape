@@ -50,7 +50,9 @@ import {
   type DamageWashKind,
 } from "./systems/HazardFeel";
 import { projectPlayStepDamage } from "./systems/PlayStepEffects";
+import { stepAdaptiveCrt } from "./systems/AdaptiveCrtPolicy";
 import { TimedStatusChip } from "./ui/TimedStatusChip";
+import { projectPickupFeedback } from "./ui/PickupFeedback";
 import { FrameGapProfiler, type FrameGapSnapshot } from "./systems/FrameGapProfiler";
 import type { BiomeEventSnapshot } from "./systems/BiomeEventDirector";
 import { detectRenderCapabilities } from "./systems/RenderCapabilities";
@@ -2308,51 +2310,13 @@ let pickupFeedbackAnimation: Animation | null = null;
 
 function showPickupFeedback(
   label: string,
-  restoreResolve = false,
-  stoneId?: StoneId,
-  timeFreeze = false,
-  luminousWard = false,
-  annihilationPulse = false,
-  mapReveal = false,
-  mobilityBoost = false,
-  fogClear = false,
+  flags: Parameters<typeof projectPickupFeedback>[0] = {},
 ): void {
+  const feedback = projectPickupFeedback(flags);
   elements.pickupFeedbackText.textContent = label;
-  elements.pickupFeedbackKicker.textContent = mapReveal
-    ? COPY.pickup.map
-    : fogClear
-      ? COPY.pickup.clarity
-      : mobilityBoost
-        ? COPY.pickup.mobility
-        : annihilationPulse
-          ? COPY.pickup.annihilationPulse
-          : luminousWard
-            ? COPY.pickup.luminousWard
-            : timeFreeze
-              ? COPY.pickup.timeFreeze
-              : restoreResolve
-                ? COPY.pickup.flask
-                : stoneId
-                  ? COPY.pickup.small
-                  : COPY.pickup.notice;
-  elements.pickupFeedback.dataset.kind = mapReveal
-    ? "map"
-    : fogClear
-      ? "clarity"
-      : mobilityBoost
-        ? "mobility"
-        : annihilationPulse
-          ? "annihilation-pulse"
-          : luminousWard
-            ? "luminous-ward"
-            : timeFreeze
-              ? "time-freeze"
-              : restoreResolve
-                ? "flask"
-                : stoneId
-                  ? "stone"
-                  : "notice";
-  if (stoneId) elements.pickupFeedback.dataset.stone = stoneId;
+  elements.pickupFeedbackKicker.textContent = COPY.pickup[feedback.kickerKey];
+  elements.pickupFeedback.dataset.kind = feedback.kind;
+  if (feedback.stoneId) elements.pickupFeedback.dataset.stone = feedback.stoneId;
   else delete elements.pickupFeedback.dataset.stone;
   elements.pickupFeedback.classList.add("is-active");
   pickupFeedbackAnimation?.cancel();
@@ -2374,7 +2338,7 @@ function showPickupFeedback(
     () => elements.pickupFeedback.classList.remove("is-active"),
     { once: true },
   );
-  if (restoreResolve) {
+  if (feedback.restoreResolve) {
     elements.playVitals.classList.remove("is-restored");
     void elements.playVitals.offsetWidth;
     elements.playVitals.classList.add("is-restored");
@@ -4196,17 +4160,7 @@ function frame(now: number): void {
       if (effects.playPickup && effects.pickup) {
         audio.playPickup(worldUpdate.collectedPickup);
         if (effects.questPortalOpen) audio.playPortal(world.getAudioFrame().portal);
-        showPickupFeedback(
-          effects.pickup.label,
-          Boolean(effects.pickup.restoreResolve),
-          effects.pickup.stoneId,
-          Boolean(effects.pickup.timeFreeze),
-          Boolean(effects.pickup.luminousWard),
-          Boolean(effects.pickup.annihilationPulse),
-          Boolean(effects.pickup.mapReveal),
-          Boolean(effects.pickup.mobilityBoost),
-          Boolean(effects.pickup.fogClear),
-        );
+        showPickupFeedback(effects.pickup.label, effects.pickup);
       }
       if (worldUpdate.annihilationPulse) {
         audio.playAnnihilationPulse(worldUpdate.annihilationPulse.position);
@@ -4333,23 +4287,24 @@ function frame(now: number): void {
   povPost.setEnabled(engineMode === "play");
   // Auto-drop CRT when the frame budget is missed (Firefox especially). Manual
   // toggle wins so players can force CRT back on after recovery.
-  if (!crtManualOverride && engineMode === "play") {
-    if (!crtAutoDisabled && crtEnabled && smoothedFrameMs >= renderCaps.adaptiveCrtDisableMs) {
-      crtAutoDisabled = true;
-      crtEnabled = false;
-      povPost.setCrtEnabled(false);
+  if (engineMode === "play") {
+    const previousCrtEnabled = crtEnabled;
+    const nextCrt = stepAdaptiveCrt(
+      { enabled: crtEnabled, autoDisabled: crtAutoDisabled },
+      {
+        frameMs: smoothedFrameMs,
+        disableMs: renderCaps.adaptiveCrtDisableMs,
+        manualOverride: crtManualOverride,
+        enableByDefault: renderCaps.enableCrtByDefault,
+      },
+    );
+    crtEnabled = nextCrt.enabled;
+    crtAutoDisabled = nextCrt.autoDisabled;
+    // Match pre-extraction host: only push presentation when enabled flips.
+    // Recover-to-off clears the latch without a redundant CRT toggle sync.
+    if (crtEnabled !== previousCrtEnabled) {
+      povPost.setCrtEnabled(crtEnabled);
       syncCrtToggleUi();
-    } else if (
-      crtAutoDisabled &&
-      !crtEnabled &&
-      smoothedFrameMs <= renderCaps.adaptiveCrtDisableMs - 8
-    ) {
-      crtAutoDisabled = false;
-      crtEnabled = renderCaps.enableCrtByDefault;
-      if (crtEnabled) {
-        povPost.setCrtEnabled(true);
-        syncCrtToggleUi();
-      }
     }
   }
   elements.shell.dataset.criticalHealth = String(criticalHealth.active);

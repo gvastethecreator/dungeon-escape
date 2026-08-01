@@ -2,6 +2,12 @@
 
 import type { FootstepSurface } from "./FootstepSurface";
 import { MUSIC_ASSET_IDS, type MusicTrack } from "./AudioMusicPolicy";
+import {
+  resolveThreatAmbientBark,
+  resolveThreatBandBark,
+  threatIntensityFromDistance,
+  type ThreatBand,
+} from "./AudioThreatPolicy";
 
 export type {
   BiomeMusicTrack,
@@ -9,6 +15,12 @@ export type {
   MusicTrack,
 } from "./AudioMusicPolicy";
 export { musicTrackForBiome, MUSIC_ASSET_IDS } from "./AudioMusicPolicy";
+export {
+  threatIntensityFromDistance,
+  threatBandFromIntensity,
+  resolveThreatBandBark,
+  resolveThreatAmbientBark,
+} from "./AudioThreatPolicy";
 
 export type AudioCue =
   | "ui"
@@ -515,7 +527,7 @@ export class GameAudio {
   private threatCooldown = 0;
   private torchTimer = 1.4;
   private stepVariant = 0;
-  private lastThreatBand = 0;
+  private lastThreatBand: ThreatBand = 0;
   private frame: DungeonAudioFrame = {
     fires: [],
     magicStones: [],
@@ -735,26 +747,26 @@ export class GameAudio {
 
   /** Continuous enemy proximity. Calls remain safe before unlock. */
   setThreatDistance(distance: number | null): void {
-    let intensity = 0;
-    if (distance !== null && Number.isFinite(distance)) {
-      intensity = 1 - clamp((distance - 2.2) / 12.8, 0, 1);
-      intensity *= intensity;
-    }
+    const intensity = threatIntensityFromDistance(distance);
     this.threatIntensity = intensity;
-    const band = intensity > 0.72 ? 3 : intensity > 0.42 ? 2 : intensity > 0.18 ? 1 : 0;
-    if (band > this.lastThreatBand && band >= 2 && this.threatCooldown <= 0) {
+    const decision = resolveThreatBandBark({
+      intensity,
+      previousBand: this.lastThreatBand,
+      cooldownRemaining: this.threatCooldown,
+    });
+    if (decision.playBark) {
       const threat = this.nearestEnemy();
       this.playAsset(
         threat
           ? this.pickCreatureAsset(threat.voice, "voice")
-          : band === 3
+          : decision.band === 3
             ? "enemy-attack"
             : "enemy-growl",
         threat ?? undefined,
       );
-      this.threatCooldown = band === 3 ? 1.25 : 2.4;
+      this.threatCooldown = decision.nextCooldown;
     }
-    this.lastThreatBand = band;
+    this.lastThreatBand = decision.band;
   }
 
   /** Call once per frame in the active play loop. */
@@ -767,10 +779,17 @@ export class GameAudio {
       if (fire) this.playAsset("torch-crackle", fire);
       this.torchTimer = 3.8 + Math.random() * 4.2;
     }
-    if (this.threatIntensity > 0.34 && this.threatCooldown <= 0 && Math.random() < delta * 0.25) {
+    const ambient = resolveThreatAmbientBark({
+      intensity: this.threatIntensity,
+      cooldownRemaining: this.threatCooldown,
+      delta,
+      randomUnit: Math.random(),
+      randomCooldownUnit: Math.random(),
+    });
+    if (ambient.playBark) {
       const threat = this.nearestEnemy(22);
       if (threat) this.playAsset(this.pickCreatureAsset(threat.voice, "voice"), threat);
-      this.threatCooldown = 3.6 + Math.random() * 2.8;
+      this.threatCooldown = ambient.nextCooldown;
     }
   }
 

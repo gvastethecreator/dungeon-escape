@@ -3,12 +3,39 @@ import {
   createHazardClockState,
   HAZARD_FIRE_DAMAGE,
   HAZARD_SPIKE_DAMAGE,
+  HAZARD_SPIKE_EXPOSURE_THRESHOLD,
   HAZARD_TOXIN_DAMAGE,
+  spikeExposure,
   tickHazardTraversal,
 } from "../src/world/HazardTraversal";
 
 describe("HazardTraversal", () => {
+  test("spike exposure curve is shared for damage and presentation", () => {
+    const high = spikeExposure(Math.PI / 2 / 2.3, 0);
+    expect(high).toBeGreaterThan(HAZARD_SPIKE_EXPOSURE_THRESHOLD);
+    const low = spikeExposure(0, 0);
+    expect(low).toBeLessThan(HAZARD_SPIKE_EXPOSURE_THRESHOLD);
+    expect(spikeExposure(1.25, 0.4)).toBeCloseTo(spikeExposure(1.25, 0.4), 10);
+  });
+
+  test("spike exposure matches THREE.MathUtils.smoothstep on the authored edges", async () => {
+    const THREE = await import("three");
+    const samples = [0, 0.4, 1.25, Math.PI / 2 / 2.3];
+    for (const elapsed of samples) {
+      for (const phase of [0, 0.7, 1.4]) {
+        const expected = THREE.MathUtils.smoothstep(
+          Math.sin(elapsed * 2.3 + phase),
+          -0.25,
+          0.72,
+        );
+        expect(spikeExposure(elapsed, phase)).toBeCloseTo(expected, 10);
+      }
+    }
+  });
+
+
   test("applies fire damage once then cools down", () => {
+
     const first = tickHazardTraversal(createHazardClockState(), {
       delta: 0.016,
       contactKind: "fire",

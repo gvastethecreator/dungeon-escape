@@ -11,8 +11,21 @@ import {
 import {
   filterEnemyActivationCandidates,
   preferEnemyActivationPool,
+  resolveSafeSpawnDistance,
 } from "./EnemyActivation";
-import { horizontalDistance } from "./InteractionReach";
+import {
+  canCollectPickup,
+  canInteractWithChest,
+  horizontalDistance,
+} from "./InteractionReach";
+import {
+  DOOR_DEFAULT_OPEN_DISTANCE,
+  isDoorClosed,
+  isDoorPassable,
+  resolveDoorTargetOpen,
+} from "./DoorOpenPolicy";
+import { composeDifficultyWithBiomeEvent, composeHazardWithBiomeEvent } from "../systems/BiomeEventSurface";
+import { projectMinimapFeatures } from "../ui/projectMinimapFeatures";
 import { AssetLibrary } from "./AssetLibrary";
 import {
   ENEMY_ROSTER,
@@ -84,7 +97,7 @@ import { TimeFreezeVfx } from "./TimeFreezeVfx";
 import { EnemyMotionTrailVfx } from "./EnemyMotionTrailVfx";
 import {
   activateAnnihilationPulse,
-  ANNIHILATION_PULSE_RADIUS,
+  annihilationPulseHitsEnemy,
   ANNIHILATION_PULSE_REPEL_RADIUS,
   ANNIHILATION_PULSE_REPEL_SPEED_MULTIPLIER,
   createAnnihilationPulseClock,
@@ -107,8 +120,6 @@ import {
 import { MobilityBoostVfx } from "./MobilityBoostVfx";
 import { activateFogClear, isFogClearActive, tickFogClear } from "../game/FogClear";
 import {
-  canCollectPickup,
-  canInteractWithChest,
   StaticDungeonScene,
   type StaticChestActor,
   type StaticDoorActor,
@@ -560,13 +571,13 @@ export class DungeonWorld {
     if (!this.dungeon) return;
     this.refreshDifficultyState();
     const target = this.difficultyState.targetEnemies;
-    const wardSafeSpawnDistance = isLuminousWardActive(this.luminousWardSeconds)
-      ? Math.max(this.difficultyState.safeSpawnDistance, LUMINOUS_WARD_REPEL_RADIUS + 1)
-      : this.difficultyState.safeSpawnDistance;
-    const pulseSafeSpawnDistance = isAnnihilationPulseActive(this.annihilationPulseClock)
-      ? Math.max(this.difficultyState.safeSpawnDistance, ANNIHILATION_PULSE_REPEL_RADIUS + 1)
-      : this.difficultyState.safeSpawnDistance;
-    const safeSpawnDistance = Math.max(wardSafeSpawnDistance, pulseSafeSpawnDistance);
+    const safeSpawnDistance = resolveSafeSpawnDistance({
+      base: this.difficultyState.safeSpawnDistance,
+      wardActive: isLuminousWardActive(this.luminousWardSeconds),
+      pulseActive: isAnnihilationPulseActive(this.annihilationPulseClock),
+      wardRadius: LUMINOUS_WARD_REPEL_RADIUS,
+      pulseRadius: ANNIHILATION_PULSE_REPEL_RADIUS,
+    });
     const activatedThisPulse: THREE.Vector3[] = [];
     const unlockedMaxTier = this.difficultyState.unlockedMaxTier;
     const stonesFound = this.collectedStones.size;
@@ -689,7 +700,10 @@ export class DungeonWorld {
             ? ANNIHILATION_PULSE_REPEL_SPEED_MULTIPLIER
             : 1,
           moodId: this.activeMood.id,
-          difficulty: THREE.MathUtils.clamp(this.difficulty * biomeEvent.enemyPressureScale, 0, 1),
+          difficulty: composeDifficultyWithBiomeEvent(
+            this.difficulty,
+            biomeEvent.enemyPressureScale,
+          ),
         });
     const sampledSurfaceEffect = this.hazardTiles?.sample(delta, player, {
       airborne: this.playerAirborne,
@@ -701,15 +715,10 @@ export class DungeonWorld {
       movementScale: 1,
       traction: 1,
     };
-    const surfaceEffect: HazardSurfaceEffect = {
-      ...sampledSurfaceEffect,
-      damage: sampledSurfaceEffect.damage * biomeEvent.hazardDamageScale,
-      movementScale: THREE.MathUtils.clamp(
-        sampledSurfaceEffect.movementScale * biomeEvent.movementScale,
-        0.55,
-        1.2,
-      ),
-    };
+    const surfaceEffect: HazardSurfaceEffect = composeHazardWithBiomeEvent(
+      sampledSurfaceEffect,
+      biomeEvent,
+    );
     const damage = sim.damage + surfaceEffect.damage;
     const nearestThreat = sim.nearestThreat;
     const knockX = sim.knockX;
@@ -772,12 +781,9 @@ export class DungeonWorld {
 
     for (const door of this.doors) {
       const distance = horizontalDistance(door.root.position, player);
-      const targetOpen =
-        distance < ((door.root.userData.openDistance as number) ?? 2.65)
-          ? true
-          : distance > 3.7
-            ? false
-            : door.targetOpen;
+      const openDistance =
+        (door.root.userData.openDistance as number) ?? DOOR_DEFAULT_OPEN_DISTANCE;
+      const targetOpen = resolveDoorTargetOpen(door.targetOpen, distance, openDistance);
       if (targetOpen !== door.targetOpen) {
         door.targetOpen = targetOpen;
         if (!doorSound) {
@@ -800,8 +806,8 @@ export class DungeonWorld {
       );
       door.left.rotation.y = (door.left.userData.openRotation as number) * door.openness;
       door.right.rotation.y = (door.right.userData.openRotation as number) * door.openness;
-      door.root.userData.passable = door.openness > 0.82;
-      door.root.userData.closed = door.openness < 0.08;
+      door.root.userData.passable = isDoorPassable(door.openness);
+      door.root.userData.closed = isDoorClosed(door.openness);
     }
 
     let nearestChest: StaticChestActor | null = null;
@@ -1071,16 +1077,18 @@ export class DungeonWorld {
     let hits = 0;
     for (const enemy of this.enemies) {
       if (
-        enemy.defeated ||
-        enemy.scaleX <= 0.001 ||
-        enemy.scaleY <= 0.001 ||
-        enemy.phaseVisibility < 0.04
+        !annihilationPulseHitsEnemy(origin, {
+          defeated: enemy.defeated,
+          scaleX: enemy.scaleX,
+          scaleY: enemy.scaleY,
+          phaseVisibility: enemy.phaseVisibility,
+          position: enemy.position,
+          baseScaleX: enemy.baseScale.x,
+          baseScaleY: enemy.baseScale.y,
+        })
       ) {
         continue;
       }
-      const distance = horizontalDistance(enemy.position, origin);
-      const enemyReach = Math.max(0.28, Math.min(enemy.baseScale.x, enemy.baseScale.y) * 0.2);
-      if (distance > ANNIHILATION_PULSE_RADIUS + enemyReach) continue;
 
       enemy.defeated = true;
       enemy.scaleX = 0;
@@ -1374,7 +1382,7 @@ export class DungeonWorld {
    * Read-only snapshot of placed world entities for minimap rendering.
    * Door/fire/enemy/pickup positions come from the live actors; spawn from
    * the dungeon grid so the entrance is shown even before actors populate.
-   * Stones and relic are derived from pickups + collected-stone state.
+   * Stones and optional power pickups come from live actors; spawn from the dungeon grid.
    */
   getMinimapFeatures(): MinimapFeatures {
     const dungeon = this.dungeon;
@@ -1382,54 +1390,28 @@ export class DungeonWorld {
       if (!dungeon) return { x: 0, y: 0 };
       return worldToGrid(dungeon, { x: position.x, z: position.z }, this.tileSize);
     };
-    const doors = this.doors.map((door) => toCell(door.root.position));
-    const fires = this.fireEffects.map((fire) => toCell(fire.root.position));
-    const enemies = this.enemies
-      .filter((enemy) => enemy.scaleX > 0.001 && enemy.scaleY > 0.001)
-      .map((enemy) => ({ cell: toCell(enemy.position), tier: enemy.tier }));
-    const stones = this.pickups
-      .filter(
-        (pickup): pickup is StaticPickupActor & { kind: "stone"; stoneId: StoneId } =>
-          pickup.kind === "stone" && pickup.stoneId !== undefined,
-      )
-      .map((pickup) => ({
-        cell: toCell(pickup.object.position),
+    return projectMinimapFeatures({
+      doors: this.doors.map((door) => toCell(door.root.position)),
+      fires: this.fireEffects.map((fire) => toCell(fire.root.position)),
+      enemies: this.enemies.map((enemy) => ({
+        cell: toCell(enemy.position),
+        tier: enemy.tier,
+        scaleX: enemy.scaleX,
+        scaleY: enemy.scaleY,
+      })),
+      pickups: this.pickups.map((pickup) => ({
+        kind: pickup.kind,
+        available: pickup.available,
         collected: pickup.collected,
-        id: pickup.stoneId,
-      }));
-    const pickups = this.pickups
-      .filter((pickup) => pickup.kind === "resolve" && pickup.available && !pickup.collected)
-      .map((pickup) => toCell(pickup.object.position));
-    const timeFreeze = this.pickups.find(
-      (pickup) => pickup.kind === "time-freeze" && !pickup.collected,
-    );
-    const luminousWard = this.pickups.find(
-      (pickup) => pickup.kind === "luminous-ward" && !pickup.collected,
-    );
-    const annihilationPulse = this.pickups.find(
-      (pickup) => pickup.kind === "annihilation-pulse" && !pickup.collected,
-    );
-    const map = this.pickups.find((pickup) => pickup.kind === "map" && !pickup.collected);
-    const mobility = this.pickups.find((pickup) => pickup.kind === "mobility" && !pickup.collected);
-    const clarity = this.pickups.find((pickup) => pickup.kind === "clarity" && !pickup.collected);
-    return {
-      doors,
-      fires,
-      enemies,
-      stones,
-      pickups,
-      timeFreeze: timeFreeze ? toCell(timeFreeze.object.position) : undefined,
-      luminousWard: luminousWard ? toCell(luminousWard.object.position) : undefined,
-      annihilationPulse: annihilationPulse ? toCell(annihilationPulse.object.position) : undefined,
-      map: map ? toCell(map.object.position) : undefined,
-      mobility: mobility ? toCell(mobility.object.position) : undefined,
-      clarity: clarity ? toCell(clarity.object.position) : undefined,
+        stoneId: pickup.stoneId,
+        cell: toCell(pickup.object.position),
+      })),
       stairs: this.staircases.map((stair) => ({
         cell: { ...stair.cell },
         direction: stair.direction,
       })),
       spawn: dungeon ? { x: dungeon.spawn.x, y: dungeon.spawn.y } : { x: 0, y: 0 },
-    };
+    });
   }
 
   /** Positions for HRTF sound placement; no simulation state leaves this adapter. */

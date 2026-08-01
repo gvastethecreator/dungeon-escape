@@ -22,8 +22,33 @@ export const HAZARD_TOXIN_TICK = 0.8;
 export const HAZARD_SPIKE_DAMAGE = 14;
 export const HAZARD_SPIKE_COOLDOWN = 1.4;
 export const HAZARD_SPIKE_EXPOSURE_THRESHOLD = 0.62;
+export const HAZARD_SPIKE_EXPOSURE_RATE = 2.3;
+export const HAZARD_SPIKE_EXPOSURE_EDGE0 = -0.25;
+export const HAZARD_SPIKE_EXPOSURE_EDGE1 = 0.72;
 export const HAZARD_ICE_MOVEMENT_SCALE = 0.82;
 export const HAZARD_ICE_TRACTION = 0.18;
+
+/** Hermite smoothstep used by spike lift and damage sampling. */
+export function hazardSmoothstep(value: number, edge0: number, edge1: number): number {
+  if (!Number.isFinite(value) || !Number.isFinite(edge0) || !Number.isFinite(edge1)) return 0;
+  if (edge0 === edge1) return value < edge0 ? 0 : 1;
+  const t = Math.min(1, Math.max(0, (value - edge0) / (edge1 - edge0)));
+  return t * t * (3 - 2 * t);
+}
+
+/**
+ * Spike plate exposure in 0..1 from elapsed time and placement phase.
+ * Damage and mesh lift must share this curve.
+ */
+export function spikeExposure(elapsed: number, phase: number): number {
+  const safeElapsed = Number.isFinite(elapsed) ? elapsed : 0;
+  const safePhase = Number.isFinite(phase) ? phase : 0;
+  return hazardSmoothstep(
+    Math.sin(safeElapsed * HAZARD_SPIKE_EXPOSURE_RATE + safePhase),
+    HAZARD_SPIKE_EXPOSURE_EDGE0,
+    HAZARD_SPIKE_EXPOSURE_EDGE1,
+  );
+}
 
 export interface HazardClockState {
   fireCooldown: number;
