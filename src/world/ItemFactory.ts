@@ -1598,13 +1598,26 @@ export function setPickupOpacity(object: THREE.Object3D, opacity: number): void 
 }
 
 /**
- * Collapse a pickup without removing it from the scene graph.
- * Toggling `visible` on objects that carry PointLights changes Three.js light
- * counts and forces a full mesh-standard recompile during play.
+ * Hide pickup meshes without removing the root or its PointLights. Materials
+ * remain compiled while dormant geometry stops reaching the draw list.
  */
 export const PICKUP_DORMANT_SCALE = 0.001;
 
 export function setPickupDormant(object: THREE.Object3D, dormant: boolean): void {
   object.visible = true;
+  object.userData.pickupDormant = dormant;
+  object.traverse((child) => {
+    if (!(child instanceof THREE.Mesh)) return;
+    if (dormant) {
+      if (child.userData.pickupVisibleBeforeDormant === undefined) {
+        child.userData.pickupVisibleBeforeDormant = child.visible;
+      }
+      child.visible = false;
+      return;
+    }
+    const previous = child.userData.pickupVisibleBeforeDormant;
+    child.visible = typeof previous === "boolean" ? previous : true;
+    delete child.userData.pickupVisibleBeforeDormant;
+  });
   if (dormant) object.scale.setScalar(PICKUP_DORMANT_SCALE);
 }

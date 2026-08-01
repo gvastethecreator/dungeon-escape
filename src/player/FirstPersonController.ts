@@ -7,6 +7,7 @@ import {
   moveWithCollision,
   overlapsWorldCollider,
   worldToGridInto,
+  WorldColliderSpatialIndex,
   type VerticalCollisionRange,
   type WorldCollider,
 } from "../dungeon/gridCollision";
@@ -238,12 +239,14 @@ export class FirstPersonController {
   private dungeon: DungeonData | null = null;
   private readonly blockedCells = new Set<string>();
   private solidColliders: WorldCollider[] = [];
+  private solidColliderIndex: WorldColliderSpatialIndex | null = null;
   /**
    * Prop colliders the player has already cleared with their feet while airborne.
    * Kept until the player is grounded and free of that footprint so landing on a
    * crate mid-vault does not re-trap the capsule inside the solid.
    */
   private readonly vaultedColliderIds = new Set<number>();
+  private readonly nearbyColliderIds: number[] = [];
   /** Scratch list rebuilt each move — no per-frame allocation growth beyond capacity. */
   private activeColliders: WorldCollider[] = [];
   private readonly euler = new THREE.Euler(0, 0, 0, "YXZ");
@@ -418,13 +421,16 @@ export class FirstPersonController {
    */
   restorePose(pose: ControllerPose): boolean {
     if (!this.dungeon) return false;
+    const restoreColliders = this.solidColliderIndex
+      ? this.solidColliderIndex.queryAroundInto(pose, this.radius, this.activeColliders)
+      : this.solidColliders;
     const restored = resolveRestorableControllerPose(this.dungeon, pose, {
       tileSize: this.tileSize,
       eyeHeight: this.eyeHeight,
       radius: this.radius,
       headClearance: this.verticalConfig.headClearance,
       isBlockedCell: this.isBlockedCell,
-      colliders: this.solidColliders,
+      colliders: restoreColliders,
     });
     if (!restored) return false;
     this.position.set(restored.x, restored.y, restored.z);
@@ -458,6 +464,10 @@ export class FirstPersonController {
 
   setSolidColliders(colliders: readonly WorldCollider[]): void {
     this.solidColliders = colliders.map((collider) => ({ ...collider }));
+    this.solidColliderIndex = new WorldColliderSpatialIndex(
+      this.solidColliders,
+      this.tileSize * 2,
+    );
     this.vaultedColliderIds.clear();
     this.activeColliders = [];
   }
@@ -817,7 +827,20 @@ export class FirstPersonController {
    */
   private updateVaultedColliders(feetY: number): void {
     if (!this.verticalState.grounded) {
-      for (let index = 0; index < this.solidColliders.length; index += 1) {
+      const nearby = this.nearbyColliderIds;
+      if (this.solidColliderIndex) {
+        this.solidColliderIndex.queryAabbIndicesInto(
+          this.position.x - this.tileSize,
+          this.position.x + this.tileSize,
+          this.position.z - this.tileSize,
+          this.position.z + this.tileSize,
+          nearby,
+        );
+      } else {
+        nearby.length = 0;
+        for (let index = 0; index < this.solidColliders.length; index += 1) nearby.push(index);
+      }
+      for (const index of nearby) {
         const collider = this.solidColliders[index]!;
         if (feetClearColliderTop(collider, feetY)) this.vaultedColliderIds.add(index);
       }
@@ -834,13 +857,17 @@ export class FirstPersonController {
 
   private rebuildActiveColliders(): void {
     const active = this.activeColliders;
-    active.length = 0;
-    if (this.vaultedColliderIds.size === 0) {
-      for (let index = 0; index < this.solidColliders.length; index += 1) {
-        active.push(this.solidColliders[index]!);
-      }
+    if (this.solidColliderIndex) {
+      this.solidColliderIndex.querySweepInto(
+        this.position,
+        this.movementDelta,
+        this.radius,
+        active,
+        this.vaultedColliderIds,
+      );
       return;
     }
+    active.length = 0;
     for (let index = 0; index < this.solidColliders.length; index += 1) {
       if (!this.vaultedColliderIds.has(index)) active.push(this.solidColliders[index]!);
     }

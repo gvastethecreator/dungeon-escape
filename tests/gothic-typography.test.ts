@@ -10,11 +10,30 @@ describe("Dungeon gothic typography", () => {
     }
   });
 
-  test("gothic display text uses title case and compact labels use small caps", async () => {
+  test("gothic display text keeps curated mixed case without forced caps", async () => {
     const styles = await Bun.file(new URL("../src/styles.css", import.meta.url)).text();
+    const editorStyles = await Bun.file(
+      new URL("../src/styles/editor.css", import.meta.url),
+    ).text();
+    const forgeStyles = await Bun.file(new URL("../src/forge/styles.css", import.meta.url)).text();
+    const host = await Bun.file(new URL("../index.html", import.meta.url)).text();
+    const main = await Bun.file(new URL("../src/main.ts", import.meta.url)).text();
+    const shell = await Bun.file(new URL("../src/shell.ts", import.meta.url)).text();
+
     expect(styles).toContain('--font-gothic: "Jacquard 24"');
     expect(styles).toContain('--font-gothic-compact: "Jacquard 12"');
-    expect(styles).toContain("font-variant-caps: small-caps");
-    expect(styles).toContain("text-transform: capitalize");
+    for (const css of [styles, editorStyles, forgeStyles]) {
+      const gothicBlocks = css.match(
+        /[^{}]+\{[^{}]*font-family:\s*var\(--(?:font-gothic(?:-compact)?|serif)\);[^{}]*\}/g,
+      );
+      expect(gothicBlocks?.length).toBeGreaterThan(0);
+      for (const block of gothicBlocks ?? []) {
+        expect(block).not.toMatch(/text-transform:\s*uppercase/);
+        expect(block).not.toMatch(/font-variant-caps:\s*small-caps/);
+      }
+    }
+    expect(host).toContain('id="welcome-save-title">No active descent</strong>');
+    expect(main).toContain('welcomeSaveTitle.textContent = "No active descent"');
+    expect(shell).toContain("`Floor ${save.state.floor} · ${save.state.seed}`");
   });
 });

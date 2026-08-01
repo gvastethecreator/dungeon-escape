@@ -397,7 +397,7 @@ kbd {
   letter-spacing: 0.06em;
 }
 
-/* Display / ceremony type: Jacquard stays title case; compact labels use small caps. */
+/* Jacquard is reserved for curated mixed/title-case display copy. */
 .type-gothic,
 .play-objective,
 .options-header strong,
@@ -407,14 +407,13 @@ kbd {
   font-weight: 400;
   letter-spacing: 0.04em;
   font-synthesis: none;
-  text-transform: capitalize;
+  text-transform: none;
 }
 
-.welcome-card small,
 .end-card small {
   font-family: var(--font-gothic-compact);
-  font-variant-caps: small-caps;
-  text-transform: lowercase;
+  font-variant-caps: normal;
+  text-transform: none;
 }
 
 /* —— Shell —— */
@@ -602,7 +601,7 @@ kbd {
   letter-spacing: 0.02em;
   line-height: 1;
   white-space: nowrap;
-  text-transform: capitalize;
+  text-transform: none;
   background-image: linear-gradient(
     105deg,
     #6e5220 0%,
@@ -3261,7 +3260,7 @@ kbd {
   font-weight: 400;
   letter-spacing: 0.06em;
   line-height: 1.05;
-  text-transform: capitalize;
+  text-transform: none;
   font-synthesis: none;
   text-shadow:
     0 3px 0 rgb(0 0 0 / 94%),
@@ -5349,6 +5348,11 @@ kbd {
   justify-content: center;
 }
 
+.welcome-content:not(.is-ranked) .welcome-brand {
+  width: min(590px, 100%);
+  margin-inline: auto;
+}
+
 .welcome-card,
 .welcome-leaderboard {
   border: 1px solid rgb(227 196 125 / 25%);
@@ -5509,7 +5513,7 @@ kbd {
   font-weight: 400;
   letter-spacing: 0.05em;
   line-height: 1;
-  text-transform: capitalize;
+  text-transform: none;
 }
 
 .welcome-save > p {

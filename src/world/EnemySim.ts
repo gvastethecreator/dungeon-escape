@@ -1,4 +1,8 @@
-import { canOccupy, type WorldCollider } from "../dungeon/gridCollision";
+import {
+  canOccupy,
+  WorldColliderSpatialIndex,
+  type WorldCollider,
+} from "../dungeon/gridCollision";
 import type { DungeonData } from "../dungeon/types";
 import {
   ENEMY_ARCHETYPES,
@@ -61,6 +65,7 @@ export interface EnemySimContext {
   player: { x: number; y: number; z: number };
   dungeon: DungeonData | null;
   solidColliders: readonly WorldCollider[];
+  solidColliderIndex?: WorldColliderSpatialIndex;
   tileSize: number;
   /** Horizontal safety radius enforced by a luminous ward. */
   repelRadius?: number;
@@ -94,6 +99,7 @@ const tempDir = { x: 0, z: 0 };
 const tempSide = { x: 0, z: 0 };
 const tempMove = { x: 0, z: 0 };
 const tempPos = { x: 0, y: 0, z: 0 };
+const tempSolidColliders: WorldCollider[] = [];
 
 const PHASED_ENEMIES = new Set<EnemyKind>(["ghost", "white-eyed-shadow"]);
 
@@ -161,6 +167,7 @@ function relocatePhasedEnemy(
   player: EnemySimContext["player"],
   dungeon: DungeonData,
   solidColliders: readonly WorldCollider[],
+  solidColliderIndex: WorldColliderSpatialIndex | undefined,
   tileSize: number,
   distance: number,
   epoch: number,
@@ -185,7 +192,10 @@ function relocatePhasedEnemy(
     tempPos.x = enemy.position.x + towardX * attemptAdvance + sideX * attemptLateral;
     tempPos.y = enemy.position.y;
     tempPos.z = enemy.position.z + towardZ * attemptAdvance + sideZ * attemptLateral;
-    if (!canOccupy(dungeon, tempPos, tileSize, 0.2, undefined, solidColliders)) continue;
+    const nearbyColliders = solidColliderIndex
+      ? solidColliderIndex.queryAroundInto(tempPos, 0.2, tempSolidColliders)
+      : solidColliders;
+    if (!canOccupy(dungeon, tempPos, tileSize, 0.2, undefined, nearbyColliders)) continue;
     enemy.position.x = tempPos.x;
     enemy.position.z = tempPos.z;
     return;
@@ -236,6 +246,7 @@ export function tickEnemySim(
           player,
           dungeon,
           solidColliders,
+          ctx.solidColliderIndex,
           tileSize,
           distance,
           epoch,
@@ -291,7 +302,10 @@ export function tickEnemySim(
       tempPos.x = enemy.position.x + tempMove.x * step;
       tempPos.y = enemy.position.y;
       tempPos.z = enemy.position.z + tempMove.z * step;
-      if (canOccupy(dungeon, tempPos, tileSize, 0.2, undefined, solidColliders)) {
+      const nearbyColliders = ctx.solidColliderIndex
+        ? ctx.solidColliderIndex.queryAroundInto(tempPos, 0.2, tempSolidColliders)
+        : solidColliders;
+      if (canOccupy(dungeon, tempPos, tileSize, 0.2, undefined, nearbyColliders)) {
         enemy.position.x = tempPos.x;
         enemy.position.z = tempPos.z;
         travelled = step;

@@ -48,10 +48,7 @@ describe("welcome and map flow", () => {
     const main = await Bun.file(new URL("../src/main.ts", import.meta.url)).text();
     const qaBranchAt = main.lastIndexOf("if (visualQaState)");
     const normalBranchAt = main.indexOf("} else {", qaBranchAt);
-    const bootEndAt = main.indexOf(
-      "animationFrameId = requestAnimationFrame(frame)",
-      normalBranchAt,
-    );
+    const bootEndAt = main.indexOf("syncThreeRenderLoop();", normalBranchAt);
     const normalBoot = main.slice(normalBranchAt, bootEndAt);
 
     expect(qaBranchAt).toBeGreaterThan(-1);
@@ -98,6 +95,13 @@ describe("welcome and map flow", () => {
     expect(css).toContain("--biome-hover");
     expect(await art.exists()).toBe(true);
     expect(art.size).toBeLessThan(400_000);
+  });
+
+  test("aligns the standalone logo with the centered welcome card", async () => {
+    const css = await Bun.file(new URL("../src/styles.css", import.meta.url)).text();
+    expect(css).toMatch(
+      /\.welcome-content:not\(\.is-ranked\) \.welcome-brand\s*\{[\s\S]*width:\s*min\(590px, 100%\);[\s\S]*margin-inline:\s*auto;/,
+    );
   });
 
   test("routes New Game to biome pick, Custom Run to Creation, and Continue to play", async () => {

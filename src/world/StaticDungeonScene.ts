@@ -38,7 +38,13 @@ import {
   setNoiseFlameMoodPalette,
   WARM_NOISE_FLAME_PALETTE,
 } from "./ProceduralFlameVfx";
-import { batchForgeChestForRuntime } from "./RuntimeModelBatching";
+import {
+  batchForgeChestsForRuntime,
+  batchWallFireFixturesForRuntime,
+  type RuntimeChestInstanceHandle,
+  type RuntimeWallFireFixture,
+  type RuntimeWallFireFixtureHandle,
+} from "./RuntimeModelBatching";
 import {
   createResolveFlask,
   createAnnihilationPulseRelic,
@@ -216,6 +222,7 @@ export interface StaticChestActor {
   reward: StaticPickupActor;
   opened: boolean;
   openness: number;
+  runtimeBatch: RuntimeChestInstanceHandle | null;
 }
 
 export interface StaticStairActor {
@@ -239,6 +246,7 @@ export interface StaticFireEffect {
   phase: number;
   losOpen: boolean;
   losAge: number;
+  runtimeFixture?: RuntimeWallFireFixtureHandle;
   audio?: boolean;
 }
 
@@ -353,6 +361,11 @@ export class StaticDungeonScene {
   private readonly tempQuaternion = new THREE.Quaternion();
   private readonly tempEuler = new THREE.Euler(0, 0, 0, "YXZ");
   private readonly tempMatrix = new THREE.Matrix4();
+  private readonly pendingChestKits: ReturnType<typeof createForgeChest>[] = [];
+  private readonly pendingWallFireFixtures: Array<{
+    fixture: RuntimeWallFireFixture;
+    effect: StaticFireEffect;
+  }> = [];
 
   constructor(options: StaticDungeonSceneOptions) {
     this.group = options.group;
@@ -446,11 +459,13 @@ export class StaticDungeonScene {
       }
     }
     this.addLightProps(dungeon);
+    this.commitWallFireBatches();
     this.addAtmosphereProps(dungeon);
     this.addAmbientGodrays(dungeon, mood);
     this.addMarkers(dungeon, mood);
     this.addStaircases(dungeon);
     this.addStaticObjectives(dungeon, stonePlacements);
+    this.commitChestBatches();
     const stonePickups = this.pickups.filter((pickup) => pickup.kind === "stone");
     if (stonePickups.length !== stonePlacements.length) {
       throw new Error(
@@ -518,6 +533,8 @@ export class StaticDungeonScene {
     expired.ambientBeams.length = 0;
     expired.stonePlacements.length = 0;
     this.staticContactShadowPlacements.length = 0;
+    this.pendingChestKits.length = 0;
+    this.pendingWallFireFixtures.length = 0;
     this.dynamicFireLightCount = 0;
     this.resetStats();
     this.handles = createHandles();
@@ -1608,7 +1625,6 @@ export class StaticDungeonScene {
     rewardKind: ChestRewardKind = "resolve",
   ): void {
     const kit = createForgeChest(this.materials);
-    batchForgeChestForRuntime(kit);
     kit.root.name = `${rewardKind} chest ${prop.x},${prop.y}`;
     kit.root.userData.rewardKind = rewardKind;
     kit.root.userData.autoActivatesReward = chestRewardAutoActivates(rewardKind);
@@ -1657,8 +1673,8 @@ export class StaticDungeonScene {
     // Sit clearly above the open lid so idle rewards do not clip the chest.
     const baseY = anchor.y + 0.42;
     item.position.set(anchor.x, baseY - 0.34, anchor.z);
-    // Stay in the scene graph (tiny scale) so reward PointLights keep a stable
-    // count from world build through open, collect, and dormancy.
+    // Keep the root and PointLights in the graph while dormant meshes stay out
+    // of the render list until reveal.
     setPickupDormant(item, true);
     const reward: StaticPickupActor = {
       kind: rewardKind,
@@ -1708,9 +1724,22 @@ export class StaticDungeonScene {
       reward,
       opened: false,
       openness: 0,
+      runtimeBatch: null,
     });
+    this.pendingChestKits.push(kit);
     this.add(item);
     this.stats.props += 1;
+  }
+
+  private commitChestBatches(): void {
+    if (this.pendingChestKits.length === 0) return;
+    const result = batchForgeChestsForRuntime(this.pendingChestKits, this.group);
+    this.add(result.root);
+    result.handles.forEach((handle, index) => {
+      const chest = this.chests[index];
+      if (chest) chest.runtimeBatch = handle;
+    });
+    this.pendingChestKits.length = 0;
   }
 
   private registerSolidObject(object: THREE.Object3D, cell: GridCell): void {
@@ -2086,8 +2115,9 @@ export class StaticDungeonScene {
     dynamicLight = lit,
   ): void {
     if (kind === "torch" && facing) {
+      const fixtureKind = Math.floor(phase * 10) % 4 === 0 ? "lantern" : "torch";
       const torch =
-        Math.floor(phase * 10) % 4 === 0
+        fixtureKind === "lantern"
           ? createWallLantern(position, facing, lit, this.materials)
           : createWallTorch(position, facing, lit, this.materials);
       const keepDynamicLight = dynamicLight && this.dynamicFireLightCount < MAX_DYNAMIC_FIRE_LIGHTS;
@@ -2101,7 +2131,7 @@ export class StaticDungeonScene {
       const light = keepDynamicLight
         ? this.detachFireLight(torch.root, torch.light)
         : this.removeFireLight(torch.root, torch.light, torch.halos);
-      this.fireEffects.push({
+      const effect: StaticFireEffect = {
         root: torch.root,
         flame: torch.flame,
         flameDetails: torch.flameDetails,
@@ -2115,6 +2145,11 @@ export class StaticDungeonScene {
         phase,
         losOpen: true,
         losAge: deterministicLosAge(phase),
+      };
+      this.fireEffects.push(effect);
+      this.pendingWallFireFixtures.push({
+        fixture: { kind: fixtureKind, root: torch.root },
+        effect,
       });
       return;
     }
@@ -2222,6 +2257,20 @@ export class StaticDungeonScene {
       losOpen: true,
       losAge: deterministicLosAge(phase),
     });
+  }
+
+  private commitWallFireBatches(): void {
+    if (this.pendingWallFireFixtures.length === 0) return;
+    const result = batchWallFireFixturesForRuntime(
+      this.pendingWallFireFixtures.map((entry) => entry.fixture),
+      this.group,
+    );
+    this.add(result.root);
+    result.handles.forEach((handle, index) => {
+      const entry = this.pendingWallFireFixtures[index];
+      if (entry) entry.effect.runtimeFixture = handle;
+    });
+    this.pendingWallFireFixtures.length = 0;
   }
 
   private detachFireLight(
