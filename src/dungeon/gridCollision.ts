@@ -30,6 +30,140 @@ export interface CollisionResult {
   blockedZ: boolean;
 }
 
+/** Static broadphase for authored prop/chest colliders. */
+export class WorldColliderSpatialIndex {
+  private readonly columns = new Map<number, Map<number, number[]>>();
+  private readonly marks: Uint32Array;
+  private readonly queryIndices: number[] = [];
+  private generation = 0;
+
+  constructor(
+    readonly colliders: readonly WorldCollider[],
+    private readonly bucketSize: number,
+  ) {
+    if (!(bucketSize > 0)) throw new Error("Collider bucket size must be positive.");
+    this.marks = new Uint32Array(colliders.length);
+    for (let index = 0; index < colliders.length; index += 1) {
+      const collider = colliders[index];
+      if (!collider) continue;
+      const minBucketX = Math.floor(collider.minX / bucketSize);
+      const maxBucketX = Math.floor(collider.maxX / bucketSize);
+      const minBucketZ = Math.floor(collider.minZ / bucketSize);
+      const maxBucketZ = Math.floor(collider.maxZ / bucketSize);
+      for (let bucketX = minBucketX; bucketX <= maxBucketX; bucketX += 1) {
+        let column = this.columns.get(bucketX);
+        if (!column) {
+          column = new Map();
+          this.columns.set(bucketX, column);
+        }
+        for (let bucketZ = minBucketZ; bucketZ <= maxBucketZ; bucketZ += 1) {
+          let bucket = column.get(bucketZ);
+          if (!bucket) {
+            bucket = [];
+            column.set(bucketZ, bucket);
+          }
+          bucket.push(index);
+        }
+      }
+    }
+  }
+
+  queryAabbIndicesInto(
+    minX: number,
+    maxX: number,
+    minZ: number,
+    maxZ: number,
+    out: number[],
+  ): number[] {
+    out.length = 0;
+    this.generation += 1;
+    if (this.generation === 0xffff_ffff) {
+      this.marks.fill(0);
+      this.generation = 1;
+    }
+    const generation = this.generation;
+    const minBucketX = Math.floor(minX / this.bucketSize);
+    const maxBucketX = Math.floor(maxX / this.bucketSize);
+    const minBucketZ = Math.floor(minZ / this.bucketSize);
+    const maxBucketZ = Math.floor(maxZ / this.bucketSize);
+    for (let bucketX = minBucketX; bucketX <= maxBucketX; bucketX += 1) {
+      const column = this.columns.get(bucketX);
+      if (!column) continue;
+      for (let bucketZ = minBucketZ; bucketZ <= maxBucketZ; bucketZ += 1) {
+        const bucket = column.get(bucketZ);
+        if (!bucket) continue;
+        for (const index of bucket) {
+          if (this.marks[index] === generation) continue;
+          this.marks[index] = generation;
+          const collider = this.colliders[index];
+          if (
+            !collider ||
+            collider.maxX < minX ||
+            collider.minX > maxX ||
+            collider.maxZ < minZ ||
+            collider.minZ > maxZ
+          ) {
+            continue;
+          }
+          out.push(index);
+        }
+      }
+    }
+    return out;
+  }
+
+  queryAabbInto(
+    minX: number,
+    maxX: number,
+    minZ: number,
+    maxZ: number,
+    out: WorldCollider[],
+    excluded?: ReadonlySet<number>,
+  ): WorldCollider[] {
+    this.queryAabbIndicesInto(minX, maxX, minZ, maxZ, this.queryIndices);
+    out.length = 0;
+    for (const index of this.queryIndices) {
+      if (excluded?.has(index)) continue;
+      const collider = this.colliders[index];
+      if (collider) out.push(collider);
+    }
+    return out;
+  }
+
+  queryAroundInto(
+    position: WorldPoint,
+    radius: number,
+    out: WorldCollider[],
+    excluded?: ReadonlySet<number>,
+  ): WorldCollider[] {
+    return this.queryAabbInto(
+      position.x - radius,
+      position.x + radius,
+      position.z - radius,
+      position.z + radius,
+      out,
+      excluded,
+    );
+  }
+
+  querySweepInto(
+    start: WorldPoint,
+    delta: WorldPoint,
+    radius: number,
+    out: WorldCollider[],
+    excluded?: ReadonlySet<number>,
+  ): WorldCollider[] {
+    return this.queryAabbInto(
+      Math.min(start.x, start.x + delta.x) - radius,
+      Math.max(start.x, start.x + delta.x) + radius,
+      Math.min(start.z, start.z + delta.z) - radius,
+      Math.max(start.z, start.z + delta.z) + radius,
+      out,
+      excluded,
+    );
+  }
+}
+
 // Hot-path scratch buffers. gridCollision runs for the player + every enemy each
 // frame; these must never allocate. Single-threaded JS guarantees no reentrancy.
 // Kept module-scoped so callers that hold the returned WorldPoint/GridCell briefly

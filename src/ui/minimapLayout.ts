@@ -1,3 +1,48 @@
+import type { GridCell } from "../dungeon/types";
+
+export interface MinimapDrawInvalidator {
+  shouldDraw(
+    playerCell: GridCell | null,
+    playerYaw: number,
+    exploredCount: number,
+    featureRevision: number,
+    force?: boolean,
+  ): boolean;
+}
+
+/** Keeps the canvas idle until a visible minimap input changes. */
+export function createMinimapDrawInvalidator(): MinimapDrawInvalidator {
+  let initialized = false;
+  let cellX = Number.NaN;
+  let cellY = Number.NaN;
+  let yaw = Number.NaN;
+  let explored = -1;
+  let features = -1;
+
+  return {
+    shouldDraw(playerCell, playerYaw, exploredCount, featureRevision, force = false): boolean {
+      const nextCellX = playerCell?.x ?? Number.NaN;
+      const nextCellY = playerCell?.y ?? Number.NaN;
+      const changed =
+        force ||
+        !initialized ||
+        !Object.is(cellX, nextCellX) ||
+        !Object.is(cellY, nextCellY) ||
+        yaw !== playerYaw ||
+        explored !== exploredCount ||
+        features !== featureRevision;
+      if (!changed) return false;
+      initialized = true;
+      cellX = nextCellX;
+      cellY = nextCellY;
+      yaw = playerYaw;
+      explored = exploredCount;
+      features = featureRevision;
+      return true;
+    },
+  };
+}
+
 /**
  * Coalesces minimap layout work behind one animation frame. Mode changes and
  * ResizeObserver callbacks may arrive together; measuring once after layout

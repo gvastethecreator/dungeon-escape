@@ -8,8 +8,9 @@ import {
   audioAssetForMusic,
   audioAssetForPickup,
   createAudioGroupLevels,
+  creatureBaseTakes,
+  creatureToneAsset,
   getAudioAsset,
-  listAudioAssets,
   type AudioAssetId,
   type AudioCue,
   type AudioGroup,
@@ -64,9 +65,31 @@ export interface CollectedPickupAudio {
   position: AudioPosition;
 }
 
+export interface AudioLoadDiagnostics {
+  catalogAssets: number;
+  requestedAssets: number;
+  decodedAssets: number;
+  decodedMilliseconds: number;
+  downloadedBytes: number;
+  residentBuffers: number;
+  inflightAssets: number;
+}
+
 const MUSIC_FADE_SEC = 0.55;
 
 const SILENT_GAIN = 0.0001;
+
+const STARTUP_AUDIO_ASSETS: readonly AudioAssetId[] = [
+  "ambience-cave",
+  "ui-click",
+  "ui-tick",
+  "ui-hover",
+  "ui-select",
+  "ui-back",
+  "ui-toggle",
+  "ui-deny",
+  "ui-metal",
+];
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
@@ -174,7 +197,17 @@ export class GameAudio {
   private readonly groups = new Map<AudioGroup, GainNode>();
   private readonly groupLevels = createAudioGroupLevels();
   private readonly buffers = new Map<AudioAssetId, AudioBuffer>();
-  private loadPromise: Promise<void> | null = null;
+  private readonly assetLoads = new Map<AudioAssetId, Promise<boolean>>();
+  private readonly pendingPlayback = new Map<
+    AudioAssetId,
+    { position?: AudioPosition; gainScale: number }
+  >();
+  private readonly pendingPlaybackWaiters = new Set<AudioAssetId>();
+  private prefetchedRouteKey = "";
+  private requestedAssets = 0;
+  private decodedAssets = 0;
+  private decodedMilliseconds = 0;
+  private downloadedBytes = 0;
   private ambienceSource: AudioBufferSourceNode | null = null;
   private musicSource: AudioBufferSourceNode | null = null;
   private musicGain: GainNode | null = null;
@@ -221,7 +254,19 @@ export class GameAudio {
   }
 
   get isReady(): boolean {
-    return this.buffers.size === audioAssetCount();
+    return this.startupAssetIds().every((id) => this.buffers.has(id));
+  }
+
+  getLoadDiagnostics(): AudioLoadDiagnostics {
+    return {
+      catalogAssets: audioAssetCount(),
+      requestedAssets: this.requestedAssets,
+      decodedAssets: this.decodedAssets,
+      decodedMilliseconds: Number(this.decodedMilliseconds.toFixed(2)),
+      downloadedBytes: this.downloadedBytes,
+      residentBuffers: this.buffers.size,
+      inflightAssets: this.assetLoads.size,
+    };
   }
 
   async unlock(): Promise<boolean> {
@@ -239,7 +284,7 @@ export class GameAudio {
       return false;
     }
     if (context.state !== "running") return false;
-    await this.ensureAssets();
+    await this.ensureAssets(this.startupAssetIds());
     if (context.state !== "running") return false;
     this.applyMix();
     this.startAmbience();
@@ -247,6 +292,7 @@ export class GameAudio {
     if (this.musicTrack && !this.musicSource && !this.musicMuted) {
       this.startMusic(this.musicTrack);
     }
+    this.prefetchActiveRoute();
     return true;
   }
 
@@ -316,9 +362,13 @@ export class GameAudio {
     if (this.musicTrack === track) return;
     this.musicTrack = track;
     if (!this.context || this.context.state !== "running") return;
-    void this.ensureAssets().then(() => {
+    if (!track) {
+      this.startMusic(null);
+      return;
+    }
+    void this.ensureAsset(audioAssetForMusic(track)).then(() => {
       if (this.disposed || this.musicTrack !== track) return;
-      if (this.musicMuted && track) {
+      if (this.musicMuted) {
         // Keep selection only; unmute restarts the bed.
         this.startMusic(null);
         return;
@@ -337,7 +387,8 @@ export class GameAudio {
       return;
     }
     if (this.musicTrack && !this.musicSource) {
-      void this.ensureAssets().then(() => {
+      const requestedTrack = this.musicTrack;
+      void this.ensureAsset(audioAssetForMusic(requestedTrack)).then(() => {
         if (this.disposed || this.musicMuted || !this.musicTrack || this.musicSource) return;
         this.startMusic(this.musicTrack);
       });
@@ -411,6 +462,7 @@ export class GameAudio {
 
   syncWorld(frame: DungeonAudioFrame): void {
     this.frame = frame;
+    this.prefetchActiveRoute();
   }
 
   /** Continuous enemy proximity. Calls remain safe before unlock. */
@@ -489,6 +541,9 @@ export class GameAudio {
     this.ambienceSource = null;
     this.groups.clear();
     this.buffers.clear();
+    this.assetLoads.clear();
+    this.pendingPlayback.clear();
+    this.pendingPlaybackWaiters.clear();
     void this.context?.close();
     this.context = null;
     this.master = null;
@@ -516,36 +571,67 @@ export class GameAudio {
     this.master = master;
   }
 
-  private async loadAssets(): Promise<void> {
-    const context = this.context;
-    if (!context) return;
-    const entries = listAudioAssets();
-    await Promise.all(
-      entries
-        .filter(([id]) => !this.buffers.has(id))
-        .map(async ([id, asset]) => {
-          try {
-            const response = await fetch(`/assets/audio/dungeon/${asset.file}`);
-            if (!response.ok) throw new Error(`${asset.file}: HTTP ${response.status}`);
-            const encoded = await response.arrayBuffer();
-            const decoded = await context.decodeAudioData(encoded);
-            if (!this.disposed) this.buffers.set(id, decoded);
-          } catch (error) {
-            console.warn(`[dungeon-audio] Failed to load ${asset.file}`, error);
-          }
-        }),
-    );
+  private startupAssetIds(): readonly AudioAssetId[] {
+    if (!this.musicTrack) return STARTUP_AUDIO_ASSETS;
+    return [...STARTUP_AUDIO_ASSETS, audioAssetForMusic(this.musicTrack)];
   }
 
-  /** Failed or interrupted asset fetches remain eligible for the next user gesture. */
-  private async ensureAssets(): Promise<void> {
-    if (this.isReady) return;
-    if (!this.loadPromise) {
-      this.loadPromise = this.loadAssets().finally(() => {
-        this.loadPromise = null;
-      });
+  private prefetchActiveRoute(): void {
+    const context = this.context;
+    if (!context || context.state !== "running" || this.disposed) return;
+    const tone = creatureToneForMood(this.frame.moodId);
+    const voices = [...new Set(this.frame.enemies.map((enemy) => enemy.voice))].sort();
+    const routeKey = `${tone}:${voices.join(",")}`;
+    if (routeKey === this.prefetchedRouteKey) return;
+    this.prefetchedRouteKey = routeKey;
+    const ids: AudioAssetId[] = [];
+    for (const voice of voices) {
+      ids.push(...creatureBaseTakes(voice, "voice"), ...creatureBaseTakes(voice, "attack"));
+      if (tone !== "base") {
+        ids.push(creatureToneAsset(voice, "voice", tone));
+        ids.push(creatureToneAsset(voice, "attack", tone));
+      }
     }
-    await this.loadPromise;
+    void this.ensureAssets(ids);
+  }
+
+  private async ensureAssets(ids: readonly AudioAssetId[]): Promise<void> {
+    await Promise.all(ids.map((id) => this.ensureAsset(id)));
+  }
+
+  /** Failed or interrupted fetches leave no cache entry, so the next demand retries them. */
+  private async ensureAsset(id: AudioAssetId): Promise<boolean> {
+    if (this.buffers.has(id)) return true;
+    const activeLoad = this.assetLoads.get(id);
+    if (activeLoad) return activeLoad;
+    const context = this.context;
+    if (!context || this.disposed) return false;
+    const asset = getAudioAsset(id);
+    const load = (async (): Promise<boolean> => {
+      this.requestedAssets += 1;
+      try {
+        const response = await fetch(`/assets/audio/dungeon/${asset.file}`);
+        if (!response.ok) throw new Error(`${asset.file}: HTTP ${response.status}`);
+        const encoded = await response.arrayBuffer();
+        this.downloadedBytes += encoded.byteLength;
+        const decodeStarted = performance.now();
+        const decoded = await context.decodeAudioData(encoded);
+        this.decodedMilliseconds += performance.now() - decodeStarted;
+        this.decodedAssets += 1;
+        if (this.disposed) return false;
+        this.buffers.set(id, decoded);
+        return true;
+      } catch (error) {
+        console.warn(`[dungeon-audio] Failed to load ${asset.file}`, error);
+        return false;
+      }
+    })();
+    this.assetLoads.set(id, load);
+    try {
+      return await load;
+    } finally {
+      if (this.assetLoads.get(id) === load) this.assetLoads.delete(id);
+    }
   }
 
   private startAmbience(): void {
@@ -640,11 +726,29 @@ export class GameAudio {
     const destination = this.groups.get(asset.group);
     if (
       !context ||
-      !buffer ||
+      context.state !== "running" ||
       !destination ||
       this.muted ||
       (this.paused && asset.group !== "ui")
     ) {
+      return;
+    }
+    if (!buffer) {
+      this.pendingPlayback.set(id, {
+        position: position ? { ...position } : undefined,
+        gainScale,
+      });
+      if (!this.pendingPlaybackWaiters.has(id)) {
+        this.pendingPlaybackWaiters.add(id);
+        void this.ensureAsset(id).then((loaded) => {
+          const pending = this.pendingPlayback.get(id);
+          this.pendingPlayback.delete(id);
+          this.pendingPlaybackWaiters.delete(id);
+          if (loaded && pending) {
+            this.playAsset(id, pending.position, pending.gainScale);
+          }
+        });
+      }
       return;
     }
     const source = context.createBufferSource();

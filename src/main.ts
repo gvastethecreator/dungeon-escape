@@ -74,7 +74,10 @@ import {
 import { drawMinimap } from "./ui/drawMinimap";
 import { COPY, formatTime, type StoneId } from "./ui/copy";
 import { BiomeScreenParticles } from "./ui/BiomeScreenParticles";
-import { createMinimapLayoutScheduler } from "./ui/minimapLayout";
+import {
+  createMinimapDrawInvalidator,
+  createMinimapLayoutScheduler,
+} from "./ui/minimapLayout";
 import { PlayRuntime } from "./game/PlayRuntime";
 import { shouldAdoptHydratedSeed } from "./game/hydratePolicy";
 import { nextProceduralSeed } from "./game/SeedFactory";
@@ -532,9 +535,10 @@ function resetCurseHud(): void {
  * when crossing cells rapidly. Initial values are placeholders; refreshed below.
  */
 const minimapViewport = { width: 0, height: 0, pixelRatio: 1 };
+const minimapDrawInvalidator = createMinimapDrawInvalidator();
 const minimapLayout = createMinimapLayoutScheduler({
   measure: refreshMinimapViewport,
-  draw: drawMap,
+  draw: () => drawMap(true),
   requestFrame: window.requestAnimationFrame.bind(window),
   cancelFrame: window.cancelAnimationFrame.bind(window),
 });
@@ -853,7 +857,7 @@ function syncWelcomeSaveSummary(
   presentation: ContinuePresentation = {},
 ): void {
   if (!state) {
-    elements.welcomeSaveTitle.textContent = "NO ACTIVE DESCENT";
+    elements.welcomeSaveTitle.textContent = "No active descent";
     elements.welcomeSaveDetails.textContent = "Open the gates to begin your first escape.";
     elements.welcomeSaveMeta.textContent = "CONTINUE LOCKED · NEW DESCENT AVAILABLE";
     return;
@@ -998,6 +1002,7 @@ function setWelcomeOpen(open: boolean): void {
     if (playRuntime.state().runMode === "playing") setActiveBiomeMusic();
     else setMusicBed(null);
   }
+  syncThreeRenderLoop();
 }
 
 function showWelcomeHome(): void {
@@ -2548,12 +2553,24 @@ function updateReadout(): void {
     : "CELL —";
 }
 
-function drawMap(): void {
+function drawMap(force = false): void {
   if (!dungeon) return;
   const player = controller.getState();
   const exploration = floorExploration.activeView();
+  const features = world.getMinimapFeatures();
+  if (
+    !minimapDrawInvalidator.shouldDraw(
+      player.cell,
+      player.lookYaw,
+      exploration.exploredCount,
+      world.getMinimapFeatureRevision(),
+      force,
+    )
+  ) {
+    return;
+  }
   drawMinimap(elements.minimap, dungeon, player.cell, {
-    features: world.getMinimapFeatures(),
+    features,
     viewport: minimapViewport,
     explored: exploration.explored,
     playerYaw: player.lookYaw,
@@ -3388,6 +3405,7 @@ function getRendererDiagnostics(): RendererDiagnostics {
 }
 
 function publishPerformanceDiagnostics(now: number): void {
+  if (!launchConfig.performanceAudit && engineMode !== "debug") return;
   if (now - lastPerformancePublish < 1000) return;
   const gaps = frameGapProfiler.snapshot();
   const dataset = elements.scene.dataset;
@@ -4238,6 +4256,8 @@ window.__THREE_GAME_DIAGNOSTICS__ = {
   getScene: () => scene,
   getCamera: () => camera,
   getController: () => controller,
+  getAudio: () => audio.getLoadDiagnostics(),
+  getLoop: getThreeLoopDiagnostics,
 };
 
 // Three r185+ Timer API is absent from the pinned renderer; use a local delta clock.
@@ -4247,9 +4267,38 @@ let lastPaused = "";
 let lastAudioFrameSync = Number.NEGATIVE_INFINITY;
 let appDisposed = false;
 let animationFrameId = 0;
-function frame(now: number): void {
-  if (appDisposed) return;
+let threeFrameCount = 0;
+let threeRenderCount = 0;
+
+function shouldRunThreeRenderLoop(): boolean {
+  return !appDisposed && !welcomeOpen && document.visibilityState === "visible";
+}
+
+function syncThreeRenderLoop(): void {
+  const shouldRun = shouldRunThreeRenderLoop();
+  if (!shouldRun) {
+    if (animationFrameId) cancelAnimationFrame(animationFrameId);
+    animationFrameId = 0;
+    return;
+  }
+  if (animationFrameId) return;
+  lastFrameMs = performance.now();
   animationFrameId = requestAnimationFrame(frame);
+}
+
+function getThreeLoopDiagnostics(): { running: boolean; frames: number; renders: number } {
+  return {
+    running: animationFrameId !== 0 && shouldRunThreeRenderLoop(),
+    frames: threeFrameCount,
+    renders: threeRenderCount,
+  };
+}
+
+function frame(now: number): void {
+  animationFrameId = 0;
+  if (!shouldRunThreeRenderLoop()) return;
+  animationFrameId = requestAnimationFrame(frame);
+  threeFrameCount += 1;
   renderer.info.reset();
   const rawFrameGapMs = now - lastFrameMs;
   const delta = Math.min(Math.max(0, rawFrameGapMs / 1000), 0.05);
@@ -4547,6 +4596,7 @@ function frame(now: number): void {
   if (result.changedCell) {
     updateReadout();
     drawMap();
+    lastMapDraw = now;
     localRunSave.schedule();
   } else if (now - lastMapDraw > 220) {
     drawMap();
@@ -4582,6 +4632,7 @@ function frame(now: number): void {
     renderer.setRenderTarget(null);
     renderer.clear();
   }
+  threeRenderCount += 1;
   lastRenderSnapshot.calls = renderer.info.render.calls;
   lastRenderSnapshot.triangles = renderer.info.render.triangles;
   lastRenderSnapshot.points = renderer.info.render.points;
@@ -4593,6 +4644,7 @@ window.addEventListener("pagehide", clearTouchSession);
 window.addEventListener("pagehide", () => localRunSave.flush());
 document.addEventListener("visibilitychange", clearTouchSessionWhenHidden);
 document.addEventListener("visibilitychange", flushLocalRunSaveWhenHidden);
+document.addEventListener("visibilitychange", syncThreeRenderLoop);
 window.addEventListener("beforeunload", () => {
   if (appDisposed) return;
   appDisposed = true;
@@ -4682,6 +4734,20 @@ async function dismissBootScreen(): Promise<void> {
   }, 480);
 }
 
+function consumeShellIntent(): void {
+  const intent = window.__DUNGEON_SHELL_INTENT__;
+  delete window.__DUNGEON_SHELL_INTENT__;
+  if (!intent) return;
+  if (intent.type === "profile-submit") {
+    profileAvatarDraft = intent.avatarIndex;
+    elements.welcomeProfileName.value = intent.profileName;
+    elements.welcomeProfileAvatarImage.src = portraitForIndex(profileAvatarDraft).src;
+    elements.welcomeProfileForm.requestSubmit();
+    return;
+  }
+  document.getElementById(intent.targetId)?.click();
+}
+
 resize();
 applyCameraSettings();
 setBootProgress(0.12, "Binding audio…");
@@ -4737,6 +4803,7 @@ if (visualQaState) {
     ]);
     await waitAnimationFrames(2);
     await dismissBootScreen();
+    consumeShellIntent();
   })();
 } else {
   void (async () => {
@@ -4768,6 +4835,7 @@ if (visualQaState) {
     await waitAnimationFrames(2);
     setWelcomeOpen(true);
     await dismissBootScreen();
+    consumeShellIntent();
   })();
 }
-animationFrameId = requestAnimationFrame(frame);
+syncThreeRenderLoop();

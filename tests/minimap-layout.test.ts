@@ -1,8 +1,24 @@
 import { describe, expect, test } from "bun:test";
 
-import { createMinimapLayoutScheduler } from "../src/ui/minimapLayout";
+import {
+  createMinimapDrawInvalidator,
+  createMinimapLayoutScheduler,
+} from "../src/ui/minimapLayout";
 
 describe("minimap layout scheduling", () => {
+  test("redraws only when a visible input changes", () => {
+    const invalidator = createMinimapDrawInvalidator();
+    const cell = { x: 2, y: 3 };
+
+    expect(invalidator.shouldDraw(cell, 0, 12, 4)).toBe(true);
+    expect(invalidator.shouldDraw(cell, 0, 12, 4)).toBe(false);
+    expect(invalidator.shouldDraw({ x: 3, y: 3 }, 0, 12, 4)).toBe(true);
+    expect(invalidator.shouldDraw(cell, 0.1, 12, 4)).toBe(true);
+    expect(invalidator.shouldDraw(cell, 0.1, 13, 4)).toBe(true);
+    expect(invalidator.shouldDraw(cell, 0.1, 13, 5)).toBe(true);
+    expect(invalidator.shouldDraw(cell, 0.1, 13, 5, true)).toBe(true);
+  });
+
   test("coalesces mode and size changes into one next-frame measure and draw", () => {
     const frames: FrameRequestCallback[] = [];
     const calls: string[] = [];

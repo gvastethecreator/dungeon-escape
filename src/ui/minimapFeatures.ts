@@ -27,7 +27,7 @@ export interface MinimapStair {
 
 /**
  * Read-only snapshot of world entities the minimap should render.
- * Built by `DungeonWorld.getMinimapFeatures()` each frame.
+ * Reused by `DungeonWorld.getMinimapFeatures()` until visible world state changes.
  */
 export interface MinimapFeatures {
   /** Closed/open doorways — drawn as crossed bars. */

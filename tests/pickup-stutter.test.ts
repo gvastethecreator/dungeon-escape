@@ -139,12 +139,20 @@ describe("pickup frame stability", () => {
     pool.dispose();
   });
 
-  test("dormant power pickups stay visible so their PointLights keep the light count", () => {
+  test("dormant power pickups hide meshes but keep PointLights in the graph", () => {
     const materials = createDungeonMaterials();
     const freeze = createTimeFreezeRelic(materials);
     const ward = createLuminousWardStone(materials);
     const freezeLight = freeze.getObjectByName("Time freeze pickup light") as THREE.PointLight;
     const wardLight = ward.getObjectByName("Luminous ward pickup light") as THREE.PointLight;
+    const freezeMeshes: THREE.Mesh[] = [];
+    const wardMeshes: THREE.Mesh[] = [];
+    freeze.traverse((child) => {
+      if (child instanceof THREE.Mesh) freezeMeshes.push(child);
+    });
+    ward.traverse((child) => {
+      if (child instanceof THREE.Mesh) wardMeshes.push(child);
+    });
 
     setPickupDormant(freeze, true);
     setPickupDormant(ward, true);
@@ -155,6 +163,10 @@ describe("pickup frame stability", () => {
     expect(ward.visible).toBe(true);
     expect(freeze.scale.x).toBe(PICKUP_DORMANT_SCALE);
     expect(ward.scale.x).toBe(PICKUP_DORMANT_SCALE);
+    expect(freezeMeshes.length).toBeGreaterThan(0);
+    expect(wardMeshes.length).toBeGreaterThan(0);
+    expect(freezeMeshes.every((mesh) => !mesh.visible)).toBe(true);
+    expect(wardMeshes.every((mesh) => !mesh.visible)).toBe(true);
     expect(freezeLight.parent).toBe(freeze);
     expect(wardLight.parent).toBe(ward);
     expect(freezeLight.intensity).toBe(0);
@@ -165,6 +177,13 @@ describe("pickup frame stability", () => {
     setPickupDormant(ward, true);
     expect(freeze.visible).toBe(true);
     expect(ward.visible).toBe(true);
+
+    setPickupDormant(freeze, false);
+    setPickupDormant(ward, false);
+    expect(freezeMeshes.every((mesh) => mesh.visible)).toBe(true);
+    expect(wardMeshes.every((mesh) => mesh.visible)).toBe(true);
+    expect(freezeLight.parent).toBe(freeze);
+    expect(wardLight.parent).toBe(ward);
   });
 
   test("time freeze frost points stay in the scene while inactive for shader warmup", () => {
