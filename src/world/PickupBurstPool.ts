@@ -87,193 +87,193 @@ const BURST_PROFILES: Readonly<Record<PickupBurstKind, PickupBurstProfile>> = {
   stone: {
     motion: "bind",
     shape: "diamond",
-    duration: 0.72,
-    ringStart: 0.72,
-    ringEnd: 5.6,
-    ringPeakOpacity: 0.82,
-    echoPeakOpacity: 0.46,
-    sparkPeakOpacity: 0.96,
-    pointSize: 0.074,
-    rootLift: 0.32,
+    duration: 0.92,
+    ringStart: 0.9,
+    ringEnd: 8.4,
+    ringPeakOpacity: 0.94,
+    echoPeakOpacity: 0.62,
+    sparkPeakOpacity: 1,
+    pointSize: 0.13,
+    rootLift: 2.2,
     ringTilt: 0,
     echoTilt: 0,
-    ringSpin: 0.55,
-    echoDelay: 0.16,
+    ringSpin: 0.72,
+    echoDelay: 0.14,
   },
   resolve: {
     motion: "restore",
     shape: "droplet",
-    duration: 0.68,
-    ringStart: 0.82,
-    ringEnd: 4.5,
-    ringPeakOpacity: 0.62,
-    echoPeakOpacity: 0.26,
-    sparkPeakOpacity: 0.9,
-    pointSize: 0.082,
-    rootLift: 0.48,
+    duration: 0.88,
+    ringStart: 1,
+    ringEnd: 7.2,
+    ringPeakOpacity: 0.78,
+    echoPeakOpacity: 0.4,
+    sparkPeakOpacity: 0.98,
+    pointSize: 0.14,
+    rootLift: 2.35,
     ringTilt: 0.18,
     echoTilt: -0.18,
-    ringSpin: 0.35,
-    echoDelay: 0.22,
+    ringSpin: 0.48,
+    echoDelay: 0.18,
   },
   "time-freeze": {
     motion: "freeze",
     shape: "crystal",
-    duration: 0.84,
-    ringStart: 0.62,
-    ringEnd: 2.8,
-    ringPeakOpacity: 0.42,
-    echoPeakOpacity: 0.2,
-    sparkPeakOpacity: 0.98,
-    pointSize: 0.1,
-    rootLift: 0.12,
+    duration: 1.02,
+    ringStart: 0.82,
+    ringEnd: 5.4,
+    ringPeakOpacity: 0.62,
+    echoPeakOpacity: 0.36,
+    sparkPeakOpacity: 1,
+    pointSize: 0.155,
+    rootLift: 1.9,
     ringTilt: 0.45,
     echoTilt: -0.45,
-    ringSpin: -1.25,
+    ringSpin: -1.45,
     echoDelay: 0.1,
   },
   "luminous-ward": {
     motion: "shield",
     shape: "orb",
-    duration: 0.88,
-    ringStart: 0.86,
-    ringEnd: 3.4,
-    ringPeakOpacity: 0.44,
-    echoPeakOpacity: 0.28,
-    sparkPeakOpacity: 0.92,
-    pointSize: 0.09,
-    rootLift: 0.24,
+    duration: 1.05,
+    ringStart: 1.05,
+    ringEnd: 6.2,
+    ringPeakOpacity: 0.64,
+    echoPeakOpacity: 0.42,
+    sparkPeakOpacity: 0.98,
+    pointSize: 0.145,
+    rootLift: 2.05,
     ringTilt: 0.1,
     echoTilt: -0.12,
-    ringSpin: 1.2,
-    echoDelay: 0.2,
+    ringSpin: 1.35,
+    echoDelay: 0.16,
   },
   "annihilation-pulse": {
     motion: "shockwave",
     shape: "splinter",
-    duration: 0.7,
-    ringStart: 0.58,
-    ringEnd: 6.2,
-    ringPeakOpacity: 0.86,
-    echoPeakOpacity: 0.58,
+    duration: 0.9,
+    ringStart: 0.78,
+    ringEnd: 9.6,
+    ringPeakOpacity: 0.96,
+    echoPeakOpacity: 0.72,
     sparkPeakOpacity: 1,
-    pointSize: 0.11,
-    rootLift: 0.08,
+    pointSize: 0.17,
+    rootLift: 1.85,
     ringTilt: 0,
     echoTilt: 0.12,
-    ringSpin: 2.1,
-    echoDelay: 0.12,
+    ringSpin: 2.4,
+    echoDelay: 0.1,
   },
   map: {
     motion: "reveal",
     shape: "compass",
-    duration: 0.82,
-    ringStart: 0.8,
-    ringEnd: 4.4,
-    ringPeakOpacity: 0.68,
-    echoPeakOpacity: 0.38,
-    sparkPeakOpacity: 0.94,
-    pointSize: 0.09,
-    rootLift: 0.18,
+    duration: 1,
+    ringStart: 1,
+    ringEnd: 7.4,
+    ringPeakOpacity: 0.84,
+    echoPeakOpacity: 0.52,
+    sparkPeakOpacity: 1,
+    pointSize: 0.145,
+    rootLift: 2,
     ringTilt: 0,
     echoTilt: 0,
-    ringSpin: 1.8,
-    echoDelay: 0.28,
+    ringSpin: 2.1,
+    echoDelay: 0.22,
   },
   mobility: {
     motion: "fountain",
     shape: "orb",
-    duration: 0.92,
-    ringStart: 0.74,
-    ringEnd: 4,
-    ringPeakOpacity: 0.52,
-    echoPeakOpacity: 0.34,
-    sparkPeakOpacity: 0.96,
-    pointSize: 0.105,
-    rootLift: 0.52,
+    duration: 1.08,
+    ringStart: 0.95,
+    ringEnd: 7,
+    ringPeakOpacity: 0.72,
+    echoPeakOpacity: 0.48,
+    sparkPeakOpacity: 1,
+    pointSize: 0.16,
+    rootLift: 2.55,
     ringTilt: 0.92,
     echoTilt: -0.92,
-    ringSpin: 1.7,
-    echoDelay: 0.18,
+    ringSpin: 1.95,
+    echoDelay: 0.15,
   },
   clarity: {
     motion: "reveal",
     shape: "rune",
-    duration: 0.76,
-    ringStart: 0.78,
-    ringEnd: 4.2,
-    ringPeakOpacity: 0.6,
-    echoPeakOpacity: 0.3,
-    sparkPeakOpacity: 0.9,
-    pointSize: 0.082,
-    rootLift: 0.38,
+    duration: 0.95,
+    ringStart: 0.98,
+    ringEnd: 7.1,
+    ringPeakOpacity: 0.78,
+    echoPeakOpacity: 0.46,
+    sparkPeakOpacity: 0.98,
+    pointSize: 0.14,
+    rootLift: 2.2,
     ringTilt: 0.36,
     echoTilt: -0.36,
-    ringSpin: -1.1,
-    echoDelay: 0.24,
+    ringSpin: -1.3,
+    echoDelay: 0.2,
   },
   "swarm-curse": {
     motion: "swarm",
     shape: "thorn",
-    duration: 0.9,
-    ringStart: 0.66,
-    ringEnd: 4.5,
-    ringPeakOpacity: 0.62,
-    echoPeakOpacity: 0.38,
-    sparkPeakOpacity: 0.96,
-    pointSize: 0.084,
-    rootLift: 0.18,
+    duration: 1.08,
+    ringStart: 0.88,
+    ringEnd: 7.6,
+    ringPeakOpacity: 0.8,
+    echoPeakOpacity: 0.52,
+    sparkPeakOpacity: 1,
+    pointSize: 0.145,
+    rootLift: 2,
     ringTilt: 0.5,
     echoTilt: -0.5,
-    ringSpin: 3.4,
-    echoDelay: 0.16,
+    ringSpin: 3.8,
+    echoDelay: 0.12,
   },
   "slow-curse": {
     motion: "drag",
     shape: "clock",
-    duration: 1.04,
-    ringStart: 4.8,
-    ringEnd: 0.84,
-    ringPeakOpacity: 0.58,
-    echoPeakOpacity: 0.32,
-    sparkPeakOpacity: 0.82,
-    pointSize: 0.088,
-    rootLift: -0.12,
+    duration: 1.18,
+    ringStart: 7.2,
+    ringEnd: 1.05,
+    ringPeakOpacity: 0.74,
+    echoPeakOpacity: 0.44,
+    sparkPeakOpacity: 0.94,
+    pointSize: 0.15,
+    rootLift: 1.55,
     ringTilt: 0.34,
     echoTilt: -0.34,
-    ringSpin: -0.55,
+    ringSpin: -0.7,
     echoDelay: 0.08,
   },
   "frenzy-curse": {
     motion: "eruption",
     shape: "flame",
-    duration: 0.76,
-    ringStart: 0.58,
-    ringEnd: 5.6,
-    ringPeakOpacity: 0.76,
-    echoPeakOpacity: 0.48,
+    duration: 0.95,
+    ringStart: 0.78,
+    ringEnd: 8.8,
+    ringPeakOpacity: 0.9,
+    echoPeakOpacity: 0.62,
     sparkPeakOpacity: 1,
-    pointSize: 0.104,
-    rootLift: 0.44,
+    pointSize: 0.165,
+    rootLift: 2.45,
     ringTilt: 0.42,
     echoTilt: -0.42,
-    ringSpin: 2.8,
-    echoDelay: 0.1,
+    ringSpin: 3.1,
+    echoDelay: 0.08,
   },
   "gloom-curse": {
     motion: "collapse",
     shape: "void",
-    duration: 0.98,
-    ringStart: 5.2,
-    ringEnd: 0.5,
-    ringPeakOpacity: 0.72,
-    echoPeakOpacity: 0.5,
-    sparkPeakOpacity: 0.88,
-    pointSize: 0.115,
-    rootLift: -0.3,
+    duration: 1.12,
+    ringStart: 7.8,
+    ringEnd: 0.7,
+    ringPeakOpacity: 0.86,
+    echoPeakOpacity: 0.64,
+    sparkPeakOpacity: 0.96,
+    pointSize: 0.175,
+    rootLift: 1.4,
     ringTilt: 0.68,
     echoTilt: -0.68,
-    ringSpin: -2.2,
+    ringSpin: -2.5,
     echoDelay: 0.04,
   },
 };
@@ -292,36 +292,55 @@ const SPARK_SHAPE_ID: Readonly<Record<PickupSparkShape, number>> = {
   void: 10,
 };
 
-const SPARK_COUNT = 22;
+const SPARK_COUNT = 36;
+const SPARK_CORE_LIGHT = new THREE.Color(0xffffff);
 
 function createSparkMaterial(): THREE.ShaderMaterial {
   return new THREE.ShaderMaterial({
-    uniforms: {
-      uColor: { value: new THREE.Color(BURST_COLORS.stone) },
-      uOpacity: { value: 0 },
-      uPointSize: { value: BURST_PROFILES.stone.pointSize },
-      uShape: { value: SPARK_SHAPE_ID.diamond },
-    },
+    uniforms: THREE.UniformsUtils.merge([
+      THREE.UniformsLib.fog,
+      {
+        uColor: { value: new THREE.Color(BURST_COLORS.stone) },
+        uCoreColor: { value: new THREE.Color(0xffffff) },
+        uOpacity: { value: 0 },
+        uPointSize: { value: BURST_PROFILES.stone.pointSize },
+        uShape: { value: SPARK_SHAPE_ID.diamond },
+        uTime: { value: 0 },
+        uIntensity: { value: 1.18 },
+      },
+    ]),
     vertexShader: /* glsl */ `
       attribute float aSeed;
       uniform float uPointSize;
+      uniform float uTime;
       varying float vSeed;
+      varying float vPulse;
+      #include <fog_pars_vertex>
+
       void main() {
         vSeed = aSeed;
+        float phase = aSeed * 6.2831853;
+        vPulse = 0.84 + 0.16 * sin(uTime * (1.2 + aSeed * 0.8) + phase);
         vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
         gl_PointSize = clamp(
-          uPointSize * (0.82 + aSeed * 0.46) * (230.0 / max(0.65, -mvPosition.z)),
-          1.0,
-          20.0
+          uPointSize * (0.92 + aSeed * 0.58) * (0.92 + vPulse * 0.16) *
+            (280.0 / max(0.55, -mvPosition.z)),
+          2.0,
+          42.0
         );
         gl_Position = projectionMatrix * mvPosition;
+        #include <fog_vertex>
       }
     `,
     fragmentShader: /* glsl */ `
       uniform vec3 uColor;
+      uniform vec3 uCoreColor;
       uniform float uOpacity;
       uniform float uShape;
+      uniform float uIntensity;
       varying float vSeed;
+      varying float vPulse;
+      #include <fog_pars_fragment>
 
       void main() {
         vec2 uv = gl_PointCoord - 0.5;
@@ -384,16 +403,26 @@ function createSparkMaterial(): THREE.ShaderMaterial {
         }
 
         float edge = smoothstep(0.0, 0.16, mask);
-        if (edge * uOpacity < 0.015) discard;
-        gl_FragColor = vec4(uColor, edge * uOpacity);
+        float core = (1.0 - smoothstep(0.2, 0.02, d)) * edge;
+        float halo = (1.0 - smoothstep(0.5, 0.12, d)) * edge;
+        vec3 sparkColor = mix(uColor, uCoreColor, core * 0.82);
+        sparkColor += uCoreColor * halo * (0.08 + vPulse * 0.12);
+        sparkColor *= uIntensity;
+        float alpha = edge * uOpacity * (0.84 + vPulse * 0.16);
+        if (alpha < 0.015) discard;
+        gl_FragColor = vec4(sparkColor, alpha);
+        #include <tonemapping_fragment>
+        #include <colorspace_fragment>
+        #include <fog_fragment>
+        #include <premultiplied_alpha_fragment>
       }
     `,
     transparent: true,
     depthWrite: false,
     depthTest: true,
     blending: THREE.AdditiveBlending,
-    toneMapped: false,
-    fog: false,
+    toneMapped: true,
+    fog: true,
   });
 }
 
@@ -411,7 +440,7 @@ function createSlot(index: number): PickupBurstSlot {
     side: THREE.DoubleSide,
     toneMapped: false,
   });
-  const ringGeometry = new THREE.RingGeometry(0.16, 0.21, 24);
+  const ringGeometry = new THREE.RingGeometry(0.22, 0.34, 32);
   const ring = new THREE.Mesh(ringGeometry, ringMaterial);
   ring.name = "Pickup expanding ring";
   ring.frustumCulled = false;
@@ -462,87 +491,87 @@ function writeSparkPositions(slot: PickupBurstSlot, progress: number): void {
 
     switch (motion) {
       case "bind": {
-        const radius = 0.08 + progress * (0.72 + seed * 0.42);
+        const radius = 0.12 + progress * (1.15 + seed * 0.62);
         x = Math.cos(angle + progress * 0.55) * radius;
         z = Math.sin(angle + progress * 0.55) * radius;
-        y = 0.08 + wave * (0.36 + seed * 0.28) + progress * 0.18;
+        y = 0.12 + wave * (0.62 + seed * 0.42) + progress * 0.38;
         break;
       }
       case "restore": {
-        const radius = 0.08 + wave * (0.16 + seed * 0.18);
+        const radius = 0.12 + wave * (0.28 + seed * 0.28);
         x = Math.cos(angle + progress * 1.4) * radius;
         z = Math.sin(angle + progress * 1.4) * radius;
-        y = 0.04 + progress * (0.72 + seed * 0.48);
+        y = 0.08 + progress * (1.15 + seed * 0.72);
         break;
       }
       case "freeze": {
         const staggered = THREE.MathUtils.clamp(progress * 1.12 - seed * 0.1, 0, 1);
-        const radius = 0.07 + staggered * (0.58 + seed * 0.46);
+        const radius = 0.12 + staggered * (0.95 + seed * 0.68);
         x = Math.cos(angle) * radius;
         z = Math.sin(angle) * radius;
-        y = 0.52 - staggered * (0.58 + seed * 0.32) + wobble * 0.025;
+        y = 0.85 - staggered * (0.72 + seed * 0.38) + wobble * 0.04;
         break;
       }
       case "shield": {
-        const radius = 0.16 + progress * (0.48 + seed * 0.32);
+        const radius = 0.24 + progress * (0.78 + seed * 0.48);
         const orbit = angle + progress * (2.2 + seed * 1.4);
         x = Math.cos(orbit) * radius;
         z = Math.sin(orbit) * radius;
-        y = 0.18 + progress * 0.46 + Math.sin(orbit * 2) * (0.08 + wave * 0.14);
+        y = 0.28 + progress * 0.78 + Math.sin(orbit * 2) * (0.12 + wave * 0.2);
         break;
       }
       case "shockwave": {
-        const radius = 0.06 + progress * (1.18 + seed * 0.62);
+        const radius = 0.1 + progress * (1.85 + seed * 0.9);
         x = Math.cos(angle + seed * progress) * radius;
         z = Math.sin(angle + seed * progress) * radius;
-        y = 0.08 + wave * (0.16 + seed * 0.22) - progress * 0.08;
+        y = 0.12 + wave * (0.28 + seed * 0.32) - progress * 0.06;
         break;
       }
       case "reveal": {
         const arm = particle % 4;
         const direction = arm * (Math.PI / 2);
-        const distance = 0.08 + progress * (0.72 + seed * 0.46);
-        const lateral = Math.sin(seed * 17 + progress * 4) * 0.07 * wave;
+        const distance = 0.12 + progress * (1.15 + seed * 0.7);
+        const lateral = Math.sin(seed * 17 + progress * 4) * 0.12 * wave;
         x = Math.cos(direction) * distance + Math.cos(direction + Math.PI / 2) * lateral;
         z = Math.sin(direction) * distance + Math.sin(direction + Math.PI / 2) * lateral;
-        y = 0.08 + wave * 0.2 + (particle % 3) * 0.035;
+        y = 0.12 + wave * 0.36 + (particle % 3) * 0.055;
         break;
       }
       case "fountain": {
-        const radius = 0.05 + progress * (0.32 + seed * 0.34);
+        const radius = 0.08 + progress * (0.52 + seed * 0.48);
         x = Math.cos(angle + progress * 1.8) * radius;
         z = Math.sin(angle + progress * 1.8) * radius;
-        y = 0.05 + wave * (0.92 + seed * 0.58) - progress * 0.18;
+        y = 0.08 + wave * (1.45 + seed * 0.85) - progress * 0.12;
         break;
       }
       case "swarm": {
-        const radius = 0.1 + progress * (0.48 + seed * 0.44);
+        const radius = 0.16 + progress * (0.78 + seed * 0.62);
         const orbit = angle + progress * (3.8 + seed * 3.2);
         x = Math.cos(orbit) * radius;
         z = Math.sin(orbit) * radius;
-        y = 0.16 + wave * 0.32 + wobble * (0.09 + seed * 0.08);
+        y = 0.24 + wave * 0.52 + wobble * (0.14 + seed * 0.1);
         break;
       }
       case "drag": {
-        const radius = 0.92 * (1 - progress) + 0.08 + seed * 0.14;
+        const radius = 1.45 * (1 - progress) + 0.12 + seed * 0.2;
         x = Math.cos(angle - progress * 0.45) * radius;
         z = Math.sin(angle - progress * 0.45) * radius;
-        y = 0.72 * (1 - progress) - progress * (0.18 + seed * 0.2);
+        y = 1.1 * (1 - progress) + progress * 0.35 - progress * (0.12 + seed * 0.16);
         break;
       }
       case "eruption": {
-        const radius = 0.05 + progress * (0.42 + seed * 0.46);
+        const radius = 0.08 + progress * (0.68 + seed * 0.68);
         x = Math.cos(angle + wobble * 0.16) * radius;
         z = Math.sin(angle + wobble * 0.16) * radius;
-        y = 0.04 + wave * (0.88 + seed * 0.62) + progress * 0.24;
+        y = 0.08 + wave * (1.4 + seed * 0.9) + progress * 0.4;
         break;
       }
       case "collapse": {
-        const radius = 1.05 * (1 - progress) + 0.035 + seed * 0.08;
+        const radius = 1.65 * (1 - progress) + 0.05 + seed * 0.12;
         const orbit = angle - progress * (2.4 + seed * 1.6);
         x = Math.cos(orbit) * radius;
         z = Math.sin(orbit) * radius;
-        y = 0.32 * (1 - progress) + wobble * 0.06 - progress * 0.26;
+        y = 0.55 * (1 - progress) + wobble * 0.1 + progress * 0.2;
         break;
       }
     }
@@ -593,9 +622,12 @@ export class PickupBurstPool {
     slot.echo.scale.setScalar(profile.ringStart * 0.72);
 
     slot.sparks.material.uniforms.uColor.value.setHex(color);
+    slot.sparks.material.uniforms.uCoreColor.value.setHex(color).lerp(SPARK_CORE_LIGHT, 0.72);
     slot.sparks.material.uniforms.uOpacity.value = profile.sparkPeakOpacity;
     slot.sparks.material.uniforms.uPointSize.value = profile.pointSize;
     slot.sparks.material.uniforms.uShape.value = SPARK_SHAPE_ID[profile.shape];
+    slot.sparks.material.uniforms.uTime.value = 0;
+    slot.sparks.material.uniforms.uIntensity.value = 1.18;
     writeSparkPositions(slot, 0);
   }
 
@@ -629,6 +661,7 @@ export class PickupBurstPool {
       slot.sparks.material.uniforms.uOpacity.value =
         Math.pow(1 - progress, 0.82) * profile.sparkPeakOpacity;
       slot.sparks.material.uniforms.uPointSize.value = profile.pointSize * (1 - progress * 0.22);
+      slot.sparks.material.uniforms.uTime.value = slot.age;
       writeSparkPositions(slot, progress);
 
       if (progress < 1) continue;

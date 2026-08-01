@@ -4,27 +4,23 @@ import { createSeededRandom } from "../core/random";
 import { gridToWorld, worldToGrid, type WorldCollider } from "../dungeon/gridCollision";
 import type { DungeonData, DungeonRoom, GridCell } from "../dungeon/types";
 import { isPlayerAirborneFromJumpHeight } from "../player/CombatPose";
-import {
-  creatureVoiceForEnemy,
-  projectDungeonAudioFrame,
-} from "./DungeonAudioFrame";
+import { creatureVoiceForEnemy, projectDungeonAudioFrame } from "./DungeonAudioFrame";
 import {
   filterEnemyActivationCandidates,
   preferEnemyActivationPool,
   resolveSafeSpawnDistance,
 } from "./EnemyActivation";
-import {
-  canCollectPickup,
-  canInteractWithChest,
-  horizontalDistance,
-} from "./InteractionReach";
+import { canCollectPickup, canInteractWithChest, horizontalDistance } from "./InteractionReach";
 import {
   DOOR_DEFAULT_OPEN_DISTANCE,
   isDoorClosed,
   isDoorPassable,
   resolveDoorTargetOpen,
 } from "./DoorOpenPolicy";
-import { composeDifficultyWithBiomeEvent, composeHazardWithBiomeEvent } from "../systems/BiomeEventSurface";
+import {
+  composeDifficultyWithBiomeEvent,
+  composeHazardWithBiomeEvent,
+} from "../systems/BiomeEventSurface";
 import { projectMinimapFeatures } from "../ui/projectMinimapFeatures";
 import { AssetLibrary } from "./AssetLibrary";
 import {
@@ -40,6 +36,7 @@ import {
   selectEnemyKindsForSpawns,
 } from "./EnemySpawnPlan";
 import { tickVolumetricBeamTime } from "./VolumetricBeam";
+import { tickNoiseFlame } from "./ProceduralFlameVfx";
 import { createDungeonMaterials, disposeDungeonMaterials } from "./MaterialLibrary";
 import { createRoomSurfaceMaterials, disposeRoomSurfaceMaterials } from "./RoomSurfaceMaterials";
 import { setPickupDormant, setPickupOpacity } from "./ItemFactory";
@@ -119,11 +116,7 @@ import {
 } from "../game/MobilityBoost";
 import { MobilityBoostVfx } from "./MobilityBoostVfx";
 import { activateFogClear, isFogClearActive, tickFogClear } from "../game/FogClear";
-import {
-  activateSlowCurse,
-  isSlowCurseActive,
-  tickSlowCurse,
-} from "../game/SlowCurse";
+import { activateSlowCurse, isSlowCurseActive, tickSlowCurse } from "../game/SlowCurse";
 import {
   activateFrenzyCurse,
   FRENZY_CURSE_ATTACK_RATE_MULTIPLIER,
@@ -132,11 +125,7 @@ import {
   isFrenzyCurseActive,
   tickFrenzyCurse,
 } from "../game/FrenzyCurse";
-import {
-  activateGloomCurse,
-  isGloomCurseActive,
-  tickGloomCurse,
-} from "../game/GloomCurse";
+import { activateGloomCurse, isGloomCurseActive, tickGloomCurse } from "../game/GloomCurse";
 import { activateSwarmCurse, isSwarmCurseActive, swarmTargetEnemies } from "../game/SwarmCurse";
 import {
   StaticDungeonScene,
@@ -636,8 +625,7 @@ export class DungeonWorld {
           ),
         isObjectOccupied: (position) =>
           Boolean(
-            dungeon &&
-              this.isObjectOccupiedCell(worldToGrid(dungeon, position, this.tileSize)),
+            dungeon && this.isObjectOccupiedCell(worldToGrid(dungeon, position, this.tileSize)),
           ),
         hasLineOfSight: (position) =>
           Boolean(dungeon && hasGridLineOfSight(dungeon, player, position, this.tileSize)),
@@ -949,14 +937,42 @@ export class DungeonWorld {
     for (const pickup of this.pickups) {
       if (pickup.collected) {
         pickup.collectTime += delta;
-        const progress = THREE.MathUtils.clamp(pickup.collectTime / 0.38, 0, 1);
-        const lift = 1 - Math.pow(1 - progress, 3);
-        const pop = 1 + Math.sin(progress * Math.PI) * (pickup.stoneSignal ? 0.34 : 0.18);
-        pickup.object.position.y = pickup.baseY + lift * 1.08;
-        pickup.object.scale.copy(pickup.baseScale).multiplyScalar(pop);
+        // Rise clear of the chest, then fly into the player body.
+        const duration = 0.78;
+        const riseEnd = 0.38;
+        const progress = THREE.MathUtils.clamp(pickup.collectTime / duration, 0, 1);
+        const originX = pickup.collectOriginX;
+        const originY = pickup.collectOriginY;
+        const originZ = pickup.collectOriginZ;
+        const peakY = originY + 2.85;
+        let x = originX;
+        let y = originY;
+        let z = originZ;
+        if (progress <= riseEnd) {
+          const riseT = progress / riseEnd;
+          const eased = 1 - Math.pow(1 - riseT, 3);
+          y = originY + eased * (peakY - originY);
+        } else {
+          const flyT = (progress - riseEnd) / (1 - riseEnd);
+          const eased = flyT * flyT * (3 - 2 * flyT);
+          x = THREE.MathUtils.lerp(originX, player.x, eased);
+          z = THREE.MathUtils.lerp(originZ, player.z, eased);
+          y = THREE.MathUtils.lerp(peakY, player.y - 0.12, eased);
+        }
+        pickup.object.position.set(x, y, z);
+        const pop =
+          1 +
+          Math.sin(Math.min(1, progress / riseEnd) * Math.PI) *
+            (pickup.stoneSignal ? 0.52 : 0.36) *
+            (progress <= riseEnd ? 1 : 1 - (progress - riseEnd) / (1 - riseEnd));
+        const shrink =
+          progress <= riseEnd ? 1 : 1 - 0.55 * ((progress - riseEnd) / (1 - riseEnd));
+        pickup.object.scale.copy(pickup.baseScale).multiplyScalar(pop * shrink);
         pickup.object.rotation.y +=
-          delta * (pickup.stoneSignal ? 2.8 + progress * 5 : 1.8 + progress * 3);
-        setPickupOpacity(pickup.object, 1 - progress);
+          delta * (pickup.stoneSignal ? 3.2 + progress * 6 : 2.2 + progress * 4);
+        const fade =
+          progress <= riseEnd ? 0 : THREE.MathUtils.clamp((progress - riseEnd) / (1 - riseEnd), 0, 1);
+        setPickupOpacity(pickup.object, 1 - fade);
         if (pickup.stoneSignal) pickup.stoneSignal.light.intensity = 0;
         if (pickup.timeFreezeSignal) pickup.timeFreezeSignal.light.intensity = 0;
         if (pickup.luminousWardSignal) pickup.luminousWardSignal.light.intensity = 0;
@@ -1024,6 +1040,9 @@ export class DungeonWorld {
         continue;
       pickup.collected = true;
       pickup.collectTime = 0;
+      pickup.collectOriginX = pickup.object.position.x;
+      pickup.collectOriginY = pickup.object.position.y;
+      pickup.collectOriginZ = pickup.object.position.z;
       this.pickupBurstPool?.trigger(
         pickup.object.position,
         pickup.kind,
@@ -1296,8 +1315,27 @@ export class DungeonWorld {
         Math.sin(this.elapsed * 9 + effect.phase) *
           Math.sin(this.elapsed * 4.7 + effect.phase * 1.7) *
           0.14;
-      effect.flame.scale.y = effect.baseFlameScaleY * (0.92 + pulse * 0.08);
-      effect.flame.position.y = effect.baseY + Math.sin(this.elapsed * 7 + effect.phase) * 0.018;
+      const flameMaterials = Array.isArray(effect.flame.material)
+        ? effect.flame.material
+        : [effect.flame.material];
+      const proceduralFlame = flameMaterials.some((material) =>
+        tickNoiseFlame(material, this.elapsed, fade),
+      );
+      if (proceduralFlame) {
+        // The shader anchors its teardrop at the socket and carries its own
+        // upward turbulence. A single camera-facing card matches the 2D
+        // reference without the bright seam of crossed transparent planes.
+        if (viewerPosition) {
+          effect.flame.getWorldPosition(this.tempPosition);
+          this.tempScale.set(viewerPosition.x, this.tempPosition.y, viewerPosition.z);
+          effect.flame.lookAt(this.tempScale);
+        }
+        effect.flame.scale.y = effect.baseFlameScaleY;
+        effect.flame.position.y = effect.baseY;
+      } else {
+        effect.flame.scale.y = effect.baseFlameScaleY * (0.92 + pulse * 0.08);
+        effect.flame.position.y = effect.baseY + Math.sin(this.elapsed * 7 + effect.phase) * 0.018;
+      }
       if (effect.light) {
         const targetFactor = lineOfSight ? lod.lightFactor : 0;
         // Slower ramp-up softens the first lit contribution; faster decay cuts fill.

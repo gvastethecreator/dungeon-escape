@@ -1,9 +1,10 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="96" height="96" viewBox="0 0 96 96">
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
+  <!-- Fine monochrome film grain. Low alpha so soft-light stays subtle. -->
   <filter id="noise" x="0" y="0" width="100%" height="100%">
     <feTurbulence
       type="fractalNoise"
-      baseFrequency="0.72"
-      numOctaves="2"
+      baseFrequency="1.45"
+      numOctaves="3"
       seed="17"
       stitchTiles="stitch"
       result="grain"
@@ -14,8 +15,8 @@
       values="0.333 0.333 0.333 0 0
               0.333 0.333 0.333 0 0
               0.333 0.333 0.333 0 0
-              0 0 0 0.035 0"
+              0 0 0 0.055 0"
     />
   </filter>
-  <rect width="96" height="96" filter="url(#noise)" />
+  <rect width="128" height="128" filter="url(#noise)" />
 </svg>

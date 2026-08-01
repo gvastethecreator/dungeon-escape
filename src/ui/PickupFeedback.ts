@@ -38,21 +38,8 @@ export interface PickupFeedbackFlags {
 
 export interface PickupFeedbackProjection {
   kind: PickupFeedbackKind;
-  /** Key under COPY.pickup for the kicker line. */
-  kickerKey:
-    | "map"
-    | "clarity"
-    | "mobility"
-    | "annihilationPulse"
-    | "luminousWard"
-    | "timeFreeze"
-    | "swarmCurse"
-    | "slowCurse"
-    | "frenzyCurse"
-    | "gloomCurse"
-    | "flask"
-    | "small"
-    | "notice";
+  /** Key under COPY.pickup for the small action line. */
+  kickerKey: "itemFound" | "curseFound" | "notice";
   stoneId?: string;
   /** True when the host should flash the vitals restore treatment. */
   restoreResolve: boolean;
@@ -61,46 +48,47 @@ export interface PickupFeedbackProjection {
 /**
  * Resolve feedback kind and kicker from the same priority order as the Play host.
  * Map and clarity win over combat relics; curses outrank generic notice; stone wins next.
+ * Kicker is only ITEM FOUND / CURSE FOUND (plus notice for non-loot lines).
  */
 export function projectPickupFeedback(flags: PickupFeedbackFlags = {}): PickupFeedbackProjection {
   const restoreResolve = Boolean(flags.restoreResolve);
   if (flags.mapReveal) {
-    return { kind: "map", kickerKey: "map", restoreResolve };
+    return { kind: "map", kickerKey: "itemFound", restoreResolve };
   }
   if (flags.fogClear) {
-    return { kind: "clarity", kickerKey: "clarity", restoreResolve };
+    return { kind: "clarity", kickerKey: "itemFound", restoreResolve };
   }
   if (flags.mobilityBoost) {
-    return { kind: "mobility", kickerKey: "mobility", restoreResolve };
+    return { kind: "mobility", kickerKey: "itemFound", restoreResolve };
   }
   if (flags.annihilationPulse) {
-    return { kind: "annihilation-pulse", kickerKey: "annihilationPulse", restoreResolve };
+    return { kind: "annihilation-pulse", kickerKey: "itemFound", restoreResolve };
   }
   if (flags.luminousWard) {
-    return { kind: "luminous-ward", kickerKey: "luminousWard", restoreResolve };
+    return { kind: "luminous-ward", kickerKey: "itemFound", restoreResolve };
   }
   if (flags.timeFreeze) {
-    return { kind: "time-freeze", kickerKey: "timeFreeze", restoreResolve };
+    return { kind: "time-freeze", kickerKey: "itemFound", restoreResolve };
   }
   if (flags.swarmCurse) {
-    return { kind: "swarm-curse", kickerKey: "swarmCurse", restoreResolve };
+    return { kind: "swarm-curse", kickerKey: "curseFound", restoreResolve };
   }
   if (flags.slowCurse) {
-    return { kind: "slow-curse", kickerKey: "slowCurse", restoreResolve };
+    return { kind: "slow-curse", kickerKey: "curseFound", restoreResolve };
   }
   if (flags.frenzyCurse) {
-    return { kind: "frenzy-curse", kickerKey: "frenzyCurse", restoreResolve };
+    return { kind: "frenzy-curse", kickerKey: "curseFound", restoreResolve };
   }
   if (flags.gloomCurse) {
-    return { kind: "gloom-curse", kickerKey: "gloomCurse", restoreResolve };
+    return { kind: "gloom-curse", kickerKey: "curseFound", restoreResolve };
   }
   if (restoreResolve) {
-    return { kind: "flask", kickerKey: "flask", restoreResolve: true };
+    return { kind: "flask", kickerKey: "itemFound", restoreResolve: true };
   }
   if (flags.stoneId) {
     return {
       kind: "stone",
-      kickerKey: "small",
+      kickerKey: "itemFound",
       stoneId: flags.stoneId,
       restoreResolve: false,
     };

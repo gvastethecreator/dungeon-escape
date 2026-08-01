@@ -40,7 +40,15 @@
       <div class="view-falloff" aria-hidden="true"></div>
       <div id="scene-fade" class="scene-fade" hidden aria-hidden="true">
         <div id="scene-loader" class="scene-loader" hidden aria-hidden="true">
-          <div class="scene-loader__track">
+          <div
+            id="scene-loader-enemy"
+            class="scene-loader__enemy"
+            hidden
+            aria-hidden="true"
+          >
+            <div id="scene-loader-enemy-sprite" class="scene-loader__enemy-sprite"></div>
+          </div>
+          <div class="scene-loader__track" aria-hidden="true">
             <div class="scene-loader__bar"></div>
           </div>
           <p class="scene-loader__text">Loading dungeon</p>
@@ -74,51 +82,77 @@
           aria-hidden="true"
         ></canvas>
         <div id="welcome-content" class="welcome-content">
-          <div class="welcome-card">
-            <div id="welcome-home" class="welcome-home">
-              <h1 id="welcome-title" class="welcome-title">Dungeon Escape</h1>
-              <button id="welcome-profile-edit" type="button" class="welcome-player">
-                <img
-                  id="welcome-player-avatar"
-                  src="/assets/ui/portraits/candlebat.webp"
-                  alt=""
-                  width="42"
-                  height="42"
-                />
-                <span>
-                  <small>PLAYER</small>
-                  <strong id="welcome-player-name">Wanderer</strong>
-                </span>
-                <span class="welcome-player__edit">CHANGE</span>
-              </button>
-              <nav class="welcome-menu" aria-label="Main menu">
-                <button
-                  id="welcome-new"
-                  type="button"
-                  class="welcome-menu__item welcome-menu__item--primary"
-                >
-                  NEW GAME
+          <header class="welcome-brand">
+            <h1 id="welcome-title" class="welcome-title">Dungeon Escape</h1>
+          </header>
+          <div class="welcome-layout">
+            <div class="welcome-card">
+              <div id="welcome-home" class="welcome-home">
+                <button id="welcome-profile-edit" type="button" class="welcome-player">
+                  <span class="welcome-player__portrait">
+                    <img
+                      id="welcome-player-avatar"
+                      src="/assets/ui/portraits/candlebat.webp"
+                      alt=""
+                      width="88"
+                      height="88"
+                    />
+                  </span>
+                  <span class="welcome-player__details">
+                    <small>PLAYER</small>
+                    <strong id="welcome-player-name">Wanderer</strong>
+                    <span class="welcome-player__class">WANDERER · CAMPAIGN</span>
+                  </span>
+                  <span class="welcome-player__edit">EDIT PROFILE</span>
                 </button>
-                <button
-                  id="welcome-continue"
-                  type="button"
-                  class="welcome-menu__item welcome-menu__item--primary"
-                  disabled
-                >
-                  CONTINUE
-                </button>
-                <button
-                  id="welcome-custom"
-                  type="button"
-                  class="welcome-menu__item welcome-menu__item--secondary"
-                >
-                  CUSTOM RUN
-                </button>
-              </nav>
-              <p id="welcome-status" class="welcome-status" role="status" aria-live="polite">
-                Checking saved run…
-              </p>
-            </div>
+                <section id="welcome-save" class="welcome-save" aria-label="Saved descent">
+                  <div class="welcome-save__heading">
+                    <span class="welcome-save__status">LOCAL SAVE</span>
+                  </div>
+                  <strong id="welcome-save-title">NO ACTIVE DESCENT</strong>
+                  <p id="welcome-save-details">Open the gates to begin your first escape.</p>
+                  <p id="welcome-save-meta">CONTINUE LOCKED · NEW DESCENT AVAILABLE</p>
+                </section>
+                <nav class="welcome-menu" aria-label="Main menu">
+                  <button
+                    id="welcome-continue"
+                    type="button"
+                    class="welcome-menu__item welcome-menu__item--primary"
+                    disabled
+                  >
+                    <span class="welcome-menu__mark" aria-hidden="true">◆</span>
+                    <span class="welcome-menu__copy">
+                      <strong>CONTINUE</strong>
+                      <small>Return to your last descent</small>
+                    </span>
+                  </button>
+                  <button
+                    id="welcome-new"
+                    type="button"
+                    class="welcome-menu__item welcome-menu__item--primary is-featured"
+                  >
+                    <span class="welcome-menu__mark" aria-hidden="true">◆</span>
+                    <span class="welcome-menu__copy">
+                      <strong>NEW DESCENT</strong>
+                      <small>Choose a gate and enter the dark</small>
+                    </span>
+                  </button>
+                  <button
+                    id="welcome-custom"
+                    type="button"
+                    class="welcome-menu__item welcome-menu__item--secondary"
+                  >
+                    <span class="welcome-menu__mark" aria-hidden="true">◆</span>
+                    <span class="welcome-menu__copy">
+                      <strong>CUSTOM RUN</strong>
+                      <small>Forge a private challenge</small>
+                    </span>
+                  </button>
+                </nav>
+                <p id="welcome-status" class="welcome-status" role="status" aria-live="polite">
+                  Checking saved run…
+                </p>
+              </div>
             <div
               id="welcome-profile"
               class="welcome-profile"
@@ -191,33 +225,43 @@
               </header>
               <div id="biome-picker-grid" class="biome-picker-grid" role="list"></div>
             </div>
-            <button
-              id="welcome-music-toggle"
-              type="button"
-              class="welcome-music-toggle is-active"
-              aria-pressed="false"
-              aria-label="Disable music"
-              title="Disable music"
+              <button
+                id="welcome-music-toggle"
+                type="button"
+                class="welcome-music-toggle is-active"
+                aria-pressed="false"
+                aria-label="Disable music"
+                title="Disable music"
+              >
+                <span class="welcome-music-toggle__note" aria-hidden="true">♪</span>
+                <span class="welcome-music-toggle__label">MUSIC</span>
+              </button>
+            </div>
+            <section
+              id="welcome-leaderboard"
+              class="welcome-leaderboard"
+              aria-labelledby="leaderboard-title"
+              hidden
             >
-              <span class="welcome-music-toggle__note" aria-hidden="true">♪</span>
-            </button>
+              <header>
+                <h2 id="leaderboard-title">Hall of Escapes</h2>
+                <p class="welcome-leaderboard__tag">Those who left the dark left a mark.</p>
+              </header>
+              <ol id="leaderboard-list" class="leaderboard-list" aria-live="polite"></ol>
+              <button
+                id="welcome-hall-toggle"
+                type="button"
+                class="welcome-hall-toggle"
+                aria-expanded="false"
+                hidden
+              >
+                <span>VIEW HALL</span><span aria-hidden="true">→</span>
+              </button>
+              <p id="leaderboard-status" class="leaderboard-status" role="status">
+                Reading local records…
+              </p>
+            </section>
           </div>
-          <section
-            id="welcome-leaderboard"
-            class="welcome-leaderboard"
-            aria-labelledby="leaderboard-title"
-            hidden
-          >
-            <header>
-              <small>LOCAL RECORDS</small>
-              <h2 id="leaderboard-title">Hall of Escapes</h2>
-              <p class="welcome-leaderboard__tag">Escapers carry their saved face.</p>
-            </header>
-            <ol id="leaderboard-list" class="leaderboard-list" aria-live="polite"></ol>
-            <p id="leaderboard-status" class="leaderboard-status" role="status">
-              Reading local records…
-            </p>
-          </section>
         </div>
       </section>
 
@@ -281,83 +325,188 @@
         <section class="play-progress" aria-label="Magic stones and status effects">
           <div
             id="time-freeze-status"
-            class="time-freeze-status"
+            class="status-chip time-freeze-status"
             role="status"
             aria-live="polite"
             hidden
           >
-            <span class="time-freeze-status__label">TIME FROZEN</span>
-            <time id="time-freeze-value" datetime="PT0S">20.0s</time>
+            <img
+              class="status-chip__icon"
+              src="/assets/ui/pickup-icons/time-freeze.webp"
+              alt=""
+              width="40"
+              height="40"
+              decoding="async"
+            />
+            <span class="status-chip__copy">
+              <span class="status-chip__label time-freeze-status__label">TIME FROZEN</span>
+              <time id="time-freeze-value" class="status-chip__value" datetime="PT0S">20.0s</time>
+            </span>
           </div>
           <div
             id="luminous-ward-status"
-            class="luminous-ward-status"
+            class="status-chip luminous-ward-status"
             role="status"
             aria-live="polite"
             hidden
           >
-            <span class="luminous-ward-status__label">WARD ACTIVE</span>
-            <time id="luminous-ward-value" datetime="PT0S">30.0s</time>
+            <img
+              class="status-chip__icon"
+              src="/assets/ui/pickup-icons/luminous-ward.webp"
+              alt=""
+              width="40"
+              height="40"
+              decoding="async"
+            />
+            <span class="status-chip__copy">
+              <span class="status-chip__label luminous-ward-status__label">WARD ACTIVE</span>
+              <time id="luminous-ward-value" class="status-chip__value" datetime="PT0S">30.0s</time>
+            </span>
           </div>
           <div
             id="annihilation-pulse-status"
-            class="annihilation-pulse-status"
+            class="status-chip annihilation-pulse-status"
             role="status"
             aria-live="polite"
             hidden
           >
-            <span class="annihilation-pulse-status__label">PULSE ACTIVE</span>
-            <time id="annihilation-pulse-value" datetime="PT0S">26.0s</time>
+            <img
+              class="status-chip__icon"
+              src="/assets/ui/pickup-icons/annihilation-pulse.webp"
+              alt=""
+              width="40"
+              height="40"
+              decoding="async"
+            />
+            <span class="status-chip__copy">
+              <span class="status-chip__label annihilation-pulse-status__label">PULSE ACTIVE</span>
+              <time
+                id="annihilation-pulse-value"
+                class="status-chip__value"
+                datetime="PT0S"
+                >26.0s</time
+              >
+            </span>
+          </div>
+          <div
+            id="mobility-status"
+            class="status-chip mobility-status"
+            role="status"
+            aria-live="polite"
+            hidden
+          >
+            <img
+              class="status-chip__icon"
+              src="/assets/ui/pickup-icons/mobility.webp"
+              alt=""
+              width="40"
+              height="40"
+              decoding="async"
+            />
+            <span class="status-chip__copy">
+              <span class="status-chip__label mobility-status__label">WAYFINDER</span>
+              <time id="mobility-value" class="status-chip__value" datetime="PT0S">14.0s</time>
+            </span>
           </div>
           <div
             id="fog-clear-status"
-            class="fog-clear-status"
+            class="status-chip fog-clear-status"
             role="status"
             aria-live="polite"
             hidden
           >
-            <span class="fog-clear-status__label">CLEAR AIR</span>
-            <time id="fog-clear-value" datetime="PT0S">20.0s</time>
+            <img
+              class="status-chip__icon"
+              src="/assets/ui/pickup-icons/clarity.webp"
+              alt=""
+              width="40"
+              height="40"
+              decoding="async"
+            />
+            <span class="status-chip__copy">
+              <span class="status-chip__label fog-clear-status__label">CLEAR AIR</span>
+              <time id="fog-clear-value" class="status-chip__value" datetime="PT0S">20.0s</time>
+            </span>
           </div>
           <div
             id="slow-curse-status"
-            class="curse-status curse-status--slow"
+            class="status-chip curse-status curse-status--slow"
             role="status"
             aria-live="polite"
             hidden
           >
-            <span class="curse-status__label">HEAVY LIMBS</span>
-            <time id="slow-curse-value" datetime="PT0S">14.0s</time>
+            <img
+              class="status-chip__icon"
+              src="/assets/ui/pickup-icons/slow-curse.webp"
+              alt=""
+              width="40"
+              height="40"
+              decoding="async"
+            />
+            <span class="status-chip__copy">
+              <span class="status-chip__label curse-status__label">HEAVY LIMBS</span>
+              <time id="slow-curse-value" class="status-chip__value" datetime="PT0S">14.0s</time>
+            </span>
           </div>
           <div
             id="frenzy-curse-status"
-            class="curse-status curse-status--frenzy"
+            class="status-chip curse-status curse-status--frenzy"
             role="status"
             aria-live="polite"
             hidden
           >
-            <span class="curse-status__label">BLOOD FRENZY</span>
-            <time id="frenzy-curse-value" datetime="PT0S">18.0s</time>
+            <img
+              class="status-chip__icon"
+              src="/assets/ui/pickup-icons/frenzy-curse.webp"
+              alt=""
+              width="40"
+              height="40"
+              decoding="async"
+            />
+            <span class="status-chip__copy">
+              <span class="status-chip__label curse-status__label">BLOOD FRENZY</span>
+              <time id="frenzy-curse-value" class="status-chip__value" datetime="PT0S">18.0s</time>
+            </span>
           </div>
           <div
             id="gloom-curse-status"
-            class="curse-status curse-status--gloom"
+            class="status-chip curse-status curse-status--gloom"
             role="status"
             aria-live="polite"
             hidden
           >
-            <span class="curse-status__label">GLOOM</span>
-            <time id="gloom-curse-value" datetime="PT0S">20.0s</time>
+            <img
+              class="status-chip__icon"
+              src="/assets/ui/pickup-icons/gloom-curse.webp"
+              alt=""
+              width="40"
+              height="40"
+              decoding="async"
+            />
+            <span class="status-chip__copy">
+              <span class="status-chip__label curse-status__label">GLOOM</span>
+              <time id="gloom-curse-value" class="status-chip__value" datetime="PT0S">20.0s</time>
+            </span>
           </div>
           <div
             id="swarm-curse-status"
-            class="curse-status curse-status--swarm"
+            class="status-chip curse-status curse-status--swarm"
             role="status"
             aria-live="polite"
             hidden
           >
-            <span class="curse-status__label">SWARM</span>
-            <span class="curse-status__sticky">FLOOR</span>
+            <img
+              class="status-chip__icon"
+              src="/assets/ui/pickup-icons/swarm-curse.webp"
+              alt=""
+              width="40"
+              height="40"
+              decoding="async"
+            />
+            <span class="status-chip__copy">
+              <span class="status-chip__label curse-status__label">SWARM</span>
+              <span class="status-chip__value curse-status__sticky">FLOOR</span>
+            </span>
           </div>
           <!-- Biome atmosphere pulses (dustfall, whiteout, …) are environment VFX
                via data-biome-event on the shell — not character-status chips. -->
@@ -368,15 +517,39 @@
           <ul class="stone-sockets" aria-label="Magic stone sockets">
             <li class="stone-socket" data-stone="ember" title="Ember Core" aria-pressed="false">
               <span class="stone-socket__empty" aria-hidden="true"></span>
-              <span class="stone-socket__gem" aria-hidden="true"></span>
+              <img
+                class="stone-socket__gem"
+                src="/assets/ui/stone-icons/ember.webp"
+                alt=""
+                width="48"
+                height="48"
+                decoding="async"
+                aria-hidden="true"
+              />
             </li>
             <li class="stone-socket" data-stone="ash" title="Ash Vein" aria-pressed="false">
               <span class="stone-socket__empty" aria-hidden="true"></span>
-              <span class="stone-socket__gem" aria-hidden="true"></span>
+              <img
+                class="stone-socket__gem"
+                src="/assets/ui/stone-icons/ash.webp"
+                alt=""
+                width="48"
+                height="48"
+                decoding="async"
+                aria-hidden="true"
+              />
             </li>
             <li class="stone-socket" data-stone="crypt" title="Crypt Shard" aria-pressed="false">
               <span class="stone-socket__empty" aria-hidden="true"></span>
-              <span class="stone-socket__gem" aria-hidden="true"></span>
+              <img
+                class="stone-socket__gem"
+                src="/assets/ui/stone-icons/crypt.webp"
+                alt=""
+                width="48"
+                height="48"
+                decoding="async"
+                aria-hidden="true"
+              />
             </li>
             <li
               class="stone-socket"
@@ -385,7 +558,15 @@
               aria-pressed="false"
             >
               <span class="stone-socket__empty" aria-hidden="true"></span>
-              <span class="stone-socket__gem" aria-hidden="true"></span>
+              <img
+                class="stone-socket__gem"
+                src="/assets/ui/stone-icons/verdant.webp"
+                alt=""
+                width="48"
+                height="48"
+                decoding="async"
+                aria-hidden="true"
+              />
             </li>
           </ul>
           <strong id="stone-count" class="visually-hidden">0/4</strong>
@@ -424,11 +605,8 @@
         aria-live="polite"
         data-kind="stone"
       >
-        <span class="pickup-mark" aria-hidden="true"></span>
-        <span class="pickup-copy"
-          ><small id="pickup-feedback-kicker">BOUND</small
-          ><strong id="pickup-feedback-text">Magic stone</strong></span
-        >
+        <small id="pickup-feedback-kicker">ITEM FOUND</small>
+        <strong id="pickup-feedback-text">Magic stone</strong>
       </div>
       <div class="crt-overlay" aria-hidden="true"></div>
       <div class="reticle" aria-hidden="true"><i></i></div>
@@ -455,7 +633,6 @@
         >
           <header class="options-header">
             <div>
-              <small>DUNGEON ESCAPE</small>
               <strong id="options-title">Paused</strong>
             </div>
           </header>

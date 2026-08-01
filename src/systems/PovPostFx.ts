@@ -66,7 +66,7 @@ export class PovPostFx {
         uToxinGreen: { value: 0 },
         uIceBlue: { value: 0 },
         uSpikeEdge: { value: 0 },
-        uGrain: { value: 0.011 },
+        uGrain: { value: 0.007 },
         uVignette: { value: POV_VIGNETTE_STRENGTH },
         uTime: { value: 0 },
         uResolution: { value: new THREE.Vector2(1, 1) },
@@ -210,9 +210,16 @@ export class PovPostFx {
           float persistence = smoothstep(0.012, 0.24, historyDelta) *
             uHistoryReady * uCrtEnabled * ${POV_CRT_HISTORY_WEIGHT.toFixed(2)};
           gradedColor = mix(gradedColor, max(gradedColor, decayedHistory), persistence);
-          float grainSeed = dot(floor(gl_FragCoord.xy), vec2(12.9898, 78.233)) + floor(uTime * 24.0);
-          float grain = fract(sin(grainSeed) * 43758.5453) - 0.5;
-          gradedColor += grain * uGrain;
+          // Soft temporal film grain: dual hash (less patterned than a single
+          // sin seed), bipolar, and slightly luminance-weighted so deep shadows
+          // stay cleaner and highlights don't get salt-and-pepper.
+          float grainFrame = floor(uTime * 18.0);
+          vec2 grainCoord = floor(gl_FragCoord.xy);
+          float grainA = fract(sin(dot(grainCoord + grainFrame, vec2(12.9898, 78.233))) * 43758.5453);
+          float grainB = fract(sin(dot(grainCoord * 1.37 + grainFrame * 0.71, vec2(39.346, 11.135))) * 23421.631);
+          float grain = (grainA * 0.62 + grainB * 0.38) - 0.5;
+          float grainResponse = mix(0.52, 1.0, smoothstep(0.03, 0.42, luma(gradedColor)));
+          gradedColor += grain * uGrain * grainResponse;
           float scanPhase = cos(gl_FragCoord.y * 1.5707963) * 0.5 + 0.5;
           float scanBeam = mix(0.94, 1.015, smoothstep(0.12, 0.82, luma(gradedColor)));
           gradedColor *= mix(1.0, mix(scanBeam, 1.0, scanPhase), uCrtEnabled * 0.28);
@@ -296,13 +303,14 @@ export class PovPostFx {
     curvature: number,
     chromatic: number,
     criticalRed = 0,
-    grain = 0.011,
+    grain = 0.007,
     animateGrain = true,
   ): void {
     this.material.uniforms.uCurvature.value = curvature;
     this.material.uniforms.uChromatic.value = chromatic;
     this.material.uniforms.uCriticalRed.value = THREE.MathUtils.clamp(criticalRed, 0, 1);
-    this.material.uniforms.uGrain.value = THREE.MathUtils.clamp(grain, 0, 0.018);
+    // Cap stays tight: film grain should grade the image, not read as dirt.
+    this.material.uniforms.uGrain.value = THREE.MathUtils.clamp(grain, 0, 0.014);
     this.animateGrain = animateGrain;
   }
 

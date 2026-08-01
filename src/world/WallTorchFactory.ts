@@ -1,9 +1,9 @@
 import * as THREE from "three";
 
 import { FIRE_LIGHT_TUNING } from "../systems/LightTuning";
-import { createFlameTongueGeometry } from "./FlameGeometry";
 import { createLightingPropBase } from "./LightingPropFactory";
 import { createDungeonMaterials, type DungeonMaterials } from "./MaterialLibrary";
+import { createNoiseFlame } from "./ProceduralFlameVfx";
 
 /** Keep the mount readable at corridor range without pushing it above player-scale furniture. */
 export const WALL_TORCH_MESH_SCALE = 0.78;
@@ -18,18 +18,6 @@ export interface WallTorchAssembly {
   light: THREE.PointLight | null;
   baseIntensity: number;
   baseY: number;
-}
-
-function flameMaterial(color: number, opacity: number): THREE.MeshBasicMaterial {
-  return new THREE.MeshBasicMaterial({
-    color,
-    transparent: true,
-    opacity,
-    blending: THREE.AdditiveBlending,
-    depthWrite: false,
-    toneMapped: true,
-    side: THREE.DoubleSide,
-  });
 }
 
 function haloMaterial(color: number, opacity: number): THREE.MeshBasicMaterial {
@@ -71,16 +59,19 @@ export function createWallLantern(
 
   const socketPosition = flameSocketPosition(root, "Lantern flame socket", [0, 0.03, 0.57]);
   const baseY = socketPosition.y;
-  const flame = new THREE.Mesh(
-    createFlameTongueGeometry(0.07, 0.22, 7, 0.025),
-    flameMaterial(0xffd38a, 0.8),
-  );
-  flame.name = "Lantern warm flame";
+  const flameVfx = createNoiseFlame({
+    name: "Lantern procedural noise flame",
+    width: 0.21,
+    height: 0.38,
+    phase: position.x * 0.37 + position.z * 0.19,
+    opacity: 0.95,
+    turbulence: 0.92,
+    lean: 0.035,
+    emberCount: 5,
+  });
+  const flame = flameVfx.flame;
   flame.visible = lit;
   flame.position.copy(socketPosition);
-  flame.scale.y = 1.08;
-  flame.renderOrder = 4;
-  markVfx(flame);
 
   const vfx = new THREE.Group();
   vfx.name = "Wall lantern VFX";
@@ -116,7 +107,7 @@ export function createWallLantern(
     runtimeRoot: vfx.name,
     runtimeOnly: true,
   };
-  return { root, flame, flameDetails: [], halos, light, baseIntensity, baseY };
+  return { root, flame, flameDetails: flameVfx.details, halos, light, baseIntensity, baseY };
 }
 
 export function createWallTorch(
@@ -131,24 +122,21 @@ export function createWallTorch(
   root.position.copy(position);
   root.rotation.y = Math.atan2(facing.x, facing.z);
 
-  const ember = flameMaterial(0xd7a05c, 0.78);
-  const core = flameMaterial(0xffe0a1, 0.82);
   const socketPosition = flameSocketPosition(root, "Torch flame socket", [0, 0.93, 0.64]);
   const baseY = socketPosition.y;
-  const flame = new THREE.Mesh(createFlameTongueGeometry(0.15, 0.44, 7, 0.07), ember);
-  flame.name = "Torch outer flame";
+  const flameVfx = createNoiseFlame({
+    name: "Torch procedural noise flame",
+    width: 0.5,
+    height: 0.74,
+    phase: position.x * 0.31 + position.z * 0.23,
+    opacity: 0.98,
+    turbulence: 1.15,
+    lean: 0.08,
+    emberCount: 7,
+  });
+  const flame = flameVfx.flame;
   flame.visible = lit;
   flame.position.copy(socketPosition);
-  flame.scale.set(0.88, 1.08, 0.88);
-  flame.renderOrder = 4;
-  markVfx(flame);
-  const flameCore = new THREE.Mesh(createFlameTongueGeometry(0.075, 0.27, 7, -0.025), core);
-  flameCore.name = "Torch flame core";
-  flameCore.visible = lit;
-  flameCore.position.copy(socketPosition).add(new THREE.Vector3(0, -0.015, 0.02));
-  flameCore.scale.y = 1.06;
-  flameCore.renderOrder = 5;
-  markVfx(flameCore);
 
   const glow = new THREE.Mesh(
     new THREE.CircleGeometry(1.18, 16),
@@ -170,7 +158,7 @@ export function createWallTorch(
   const vfx = new THREE.Group();
   vfx.name = "Wall torch VFX";
   markVfx(vfx);
-  vfx.add(glow, flame, flameCore);
+  vfx.add(glow, flame);
   root.add(vfx);
 
   const baseIntensity = 44;
@@ -208,5 +196,13 @@ export function createWallTorch(
     runtimeRoot: vfx.name,
     runtimeOnly: true,
   };
-  return { root, flame, flameDetails: [flameCore], halos, light, baseIntensity, baseY };
+  return {
+    root,
+    flame,
+    flameDetails: flameVfx.details,
+    halos,
+    light,
+    baseIntensity,
+    baseY,
+  };
 }

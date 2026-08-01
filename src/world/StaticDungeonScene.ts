@@ -31,7 +31,13 @@ import {
 } from "./RoomSurfaceMaterials";
 import { createForgeChest, createForgeProp, getForgePropScale } from "./ForgePropFactory";
 import { createLightingPropBase } from "./LightingPropFactory";
-import { createFlameTongueGeometry } from "./FlameGeometry";
+import {
+  createNoiseFlame,
+  FROST_NOISE_FLAME_PALETTE,
+  isNoiseFlameMaterial,
+  setNoiseFlameMoodPalette,
+  WARM_NOISE_FLAME_PALETTE,
+} from "./ProceduralFlameVfx";
 import { batchForgeChestForRuntime } from "./RuntimeModelBatching";
 import {
   createResolveFlask,
@@ -167,6 +173,10 @@ export interface StaticPickupActor {
   object: THREE.Object3D;
   collected: boolean;
   collectTime: number;
+  /** World origin captured when the collect flourish starts. */
+  collectOriginX: number;
+  collectOriginY: number;
+  collectOriginZ: number;
   available: boolean;
   revealTime: number;
   baseY: number;
@@ -300,50 +310,6 @@ function createHandles(): StaticDungeonSceneHandles {
     hazardTiles: null,
     stonePlacements: [],
   };
-}
-
-function createCurvedBrazierFlameGeometry(
-  radius: number,
-  height: number,
-  sides: number,
-  lean: number,
-  depthCurve: number,
-  twist: number,
-  depthScale: number,
-): THREE.BufferGeometry {
-  const geometry = createFlameTongueGeometry(radius, height, sides, lean);
-  const positions = geometry.getAttribute("position") as THREE.BufferAttribute;
-  const colors = new Float32Array(positions.count * 3);
-  for (let index = 0; index < positions.count; index += 1) {
-    const y = positions.getY(index);
-    const t = THREE.MathUtils.clamp(y / height + 0.5, 0, 1);
-    const sourceX = positions.getX(index);
-    const sourceZ = positions.getZ(index) * depthScale;
-    const angle = twist * t;
-    const cos = Math.cos(angle);
-    const sin = Math.sin(angle);
-    const curl = lean * Math.sin(Math.PI * t) * 0.44 + radius * Math.sin(t * 4.4 + twist) * 0.08;
-    const x = sourceX * cos - sourceZ * sin + curl;
-    const z = sourceX * sin + sourceZ * cos + depthCurve * t * t;
-    positions.setXYZ(index, x, y + height * 0.5, z);
-
-    const bodyLight = 0.58 + Math.pow(Math.sin(Math.PI * t), 0.62) * 0.42;
-    const sideLight = 0.82 + 0.18 * THREE.MathUtils.clamp(x / Math.max(radius, 0.001), -1, 1);
-    const value = THREE.MathUtils.clamp(bodyLight * sideLight, 0.48, 1);
-    colors[index * 3] = value;
-    colors[index * 3 + 1] = value;
-    colors[index * 3 + 2] = value;
-  }
-  positions.needsUpdate = true;
-  geometry.setAttribute("color", new THREE.BufferAttribute(colors, 3));
-  geometry.name = "Curved three-dimensional low-poly brazier flame tongue";
-  geometry.userData.sourceGeometry = "createFlameTongueGeometry";
-  geometry.userData.curvedSilhouette = true;
-  geometry.userData.depthCurve = depthCurve;
-  geometry.computeVertexNormals();
-  geometry.computeBoundingBox();
-  geometry.computeBoundingSphere();
-  return geometry;
 }
 
 export class StaticDungeonScene {
@@ -1688,7 +1654,8 @@ export class StaticDungeonScene {
                 ? 0.56
                 : 0.52;
     const baseScale = new THREE.Vector3(rewardScale, rewardScale, rewardScale);
-    const baseY = anchor.y + 0.08;
+    // Sit clearly above the open lid so idle rewards do not clip the chest.
+    const baseY = anchor.y + 0.42;
     item.position.set(anchor.x, baseY - 0.34, anchor.z);
     // Stay in the scene graph (tiny scale) so reward PointLights keep a stable
     // count from world build through open, collect, and dormancy.
@@ -1698,6 +1665,9 @@ export class StaticDungeonScene {
       object: item,
       collected: false,
       collectTime: 0,
+      collectOriginX: anchor.x,
+      collectOriginY: baseY,
+      collectOriginZ: anchor.z,
       available: false,
       revealTime: 0,
       baseY,
@@ -2190,79 +2160,22 @@ export class StaticDungeonScene {
       }
       emberNodes.scale.set(0.72, 0.58, 0.72);
     }
-    const outerGeometry = createCurvedBrazierFlameGeometry(
-      0.058,
-      0.27,
-      7,
-      -0.13,
-      0.032,
-      0.52,
-      0.62,
-    );
-    const flame = new THREE.Mesh(
-      outerGeometry,
-      new THREE.MeshBasicMaterial({
-        color: coldFlame ? 0x75a6bf : 0xe27c35,
-        vertexColors: true,
-        transparent: true,
-        opacity: coldFlame ? 0.27 : 0.42,
-        blending: THREE.NormalBlending,
-        depthWrite: false,
-      }),
-    );
-    flame.name = "Brazier runtime outer flame";
-    flame.position.copy(flamePosition).add(new THREE.Vector3(-0.038, 0.004, 0.016));
-    flame.rotation.set(0, 0.38, -0.1);
+    const flameVfx = createNoiseFlame({
+      name: "Brazier runtime procedural noise flame",
+      width: 0.56,
+      height: 0.76,
+      phase,
+      palette: coldFlame ? FROST_NOISE_FLAME_PALETTE : WARM_NOISE_FLAME_PALETTE,
+      opacity: coldFlame ? 0.92 : 0.98,
+      turbulence: 1.18,
+      lean: -0.07,
+      emberCount: 8,
+    });
+    const flame = flameVfx.flame;
+    flame.position.copy(flamePosition);
+    flame.rotation.y = phase * 0.17;
     flame.visible = lit;
-    flame.renderOrder = 4;
     flame.userData.decorativeVfx = true;
-
-    const coreGeometry = createCurvedBrazierFlameGeometry(
-      0.034,
-      0.16,
-      7,
-      0.018,
-      -0.015,
-      -0.38,
-      0.78,
-    );
-    const core = new THREE.Mesh(
-      coreGeometry,
-      new THREE.MeshBasicMaterial({
-        color: coldFlame ? 0xf2ac65 : 0xffc667,
-        vertexColors: true,
-        transparent: true,
-        opacity: coldFlame ? 0.44 : 0.62,
-        blending: THREE.NormalBlending,
-        depthWrite: false,
-      }),
-    );
-    core.name = "Brazier runtime flame core";
-    core.position.copy(flamePosition).add(new THREE.Vector3(0.006, 0.004, -0.006));
-    core.rotation.set(0, -0.55, 0.015);
-    core.visible = lit;
-    core.renderOrder = 5;
-    core.userData.decorativeVfx = true;
-    core.userData.preserveWarmCore = true;
-
-    const leanGeometry = createCurvedBrazierFlameGeometry(0.043, 0.205, 6, 0.045, 0.03, 0.55, 0.66);
-    const lean = new THREE.Mesh(
-      leanGeometry,
-      new THREE.MeshBasicMaterial({
-        color: coldFlame ? 0x5d8da8 : 0xef8b3e,
-        vertexColors: true,
-        transparent: true,
-        opacity: coldFlame ? 0.22 : 0.34,
-        blending: THREE.NormalBlending,
-        depthWrite: false,
-      }),
-    );
-    lean.name = "Brazier runtime leaning flame tongue";
-    lean.position.copy(flamePosition).add(new THREE.Vector3(0.058, 0.002, -0.024));
-    lean.rotation.set(0, 0.76, 0.13);
-    lean.visible = lit;
-    lean.renderOrder = 4;
-    lean.userData.decorativeVfx = true;
 
     const halo = new THREE.Mesh(
       new THREE.CircleGeometry(0.28, 14),
@@ -2280,7 +2193,7 @@ export class StaticDungeonScene {
     halo.visible = lit;
     halo.renderOrder = 3;
     halo.userData.decorativeVfx = true;
-    root.add(flame, core, lean, halo);
+    root.add(flame, halo);
     const baseIntensity = coldFlame ? 6.5 : 18;
     const lightRange = coldFlame ? 5.5 : 8;
     const keepDynamicLight =
@@ -2297,7 +2210,7 @@ export class StaticDungeonScene {
     this.fireEffects.push({
       root,
       flame,
-      flameDetails: [core, lean],
+      flameDetails: flameVfx.details,
       halos: [halo],
       light: detachedLight,
       baseIntensity,
@@ -2436,15 +2349,22 @@ export class StaticDungeonScene {
     });
     for (const effect of this.fireEffects) {
       effect.light?.color.copy(lantern);
-      const flameMaterial = Array.isArray(effect.flame.material)
-        ? effect.flame.material
-        : [effect.flame.material];
-      for (const material of flameMaterial) tintMaterial(material, lantern, 1);
-      for (const detail of effect.flameDetails) {
-        if (!(detail instanceof THREE.Mesh)) continue;
-        const materials = Array.isArray(detail.material) ? detail.material : [detail.material];
-        const tintStrength = detail.userData.preserveWarmCore ? 0.12 : 0.86;
-        for (const material of materials) tintMaterial(material, core, tintStrength);
+      const tintedFlameMaterials = new Set<THREE.Material>();
+      const flameObjects: THREE.Object3D[] = [effect.flame, ...effect.flameDetails];
+      for (const object of flameObjects) {
+        if (!(object instanceof THREE.Mesh)) continue;
+        const materials = Array.isArray(object.material) ? object.material : [object.material];
+        for (const material of materials) {
+          if (tintedFlameMaterials.has(material)) continue;
+          tintedFlameMaterials.add(material);
+          if (isNoiseFlameMaterial(material)) {
+            setNoiseFlameMoodPalette(material, lantern, core);
+            continue;
+          }
+          const tintStrength =
+            object === effect.flame ? 1 : object.userData.preserveWarmCore ? 0.12 : 0.86;
+          tintMaterial(material, object === effect.flame ? lantern : core, tintStrength);
+        }
       }
       for (const halo of effect.halos) {
         if (!(halo instanceof THREE.Mesh)) continue;
@@ -3264,6 +3184,9 @@ export class StaticDungeonScene {
         object: stone.root,
         collected: false,
         collectTime: 0,
+        collectOriginX: stone.root.position.x,
+        collectOriginY: 0,
+        collectOriginZ: stone.root.position.z,
         available: true,
         revealTime: 1,
         baseY: 0,

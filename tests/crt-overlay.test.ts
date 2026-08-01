@@ -41,7 +41,10 @@ describe("minimal full-shell CRT", () => {
     expect(css).toMatch(/@keyframes\s+crt-noise-shift/);
     expect(css).toMatch(/@keyframes\s+crt-jitter/);
     expect(css).toMatch(/translate3d\(0\.12px, 0, 0\)/);
-    expect(css).toContain("animation: crt-noise-shift 1.2s steps(1, end) infinite");
+    // Subtle living grain: soft-light grade + fast tile shifts, not opaque dirt.
+    expect(css).toMatch(/\.crt-overlay\s*\{[^}]*mix-blend-mode:\s*soft-light;/s);
+    expect(css).toMatch(/\.crt-overlay\s*\{[^}]*opacity:\s*0\.3[0-9];/s);
+    expect(css).toContain("animation: crt-noise-shift 0.32s steps(1, end) infinite");
     expect(css).toMatch(
       /@media \(prefers-reduced-motion: reduce\)[\s\S]*\.crt-overlay\s*\{\s*animation: none;/,
     );

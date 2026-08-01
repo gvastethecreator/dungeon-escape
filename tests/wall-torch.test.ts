@@ -25,6 +25,7 @@ describe("wall torch assembly", () => {
     // glow card + 2 spherical halos (no forward light cone)
     expect(torch.halos).toHaveLength(3);
     expect(torch.flameDetails).toHaveLength(1);
+    expect(torch.flameDetails[0]).toBeInstanceOf(THREE.Points);
     expect(torch.root.getObjectByName("Wall torch light volume")).toBeUndefined();
     expect(torch.root.getObjectByName("Torch projected volume")).toBeUndefined();
   });

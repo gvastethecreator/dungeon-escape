@@ -111,4 +111,25 @@ describe("persistent leaderboard UI", () => {
     expect(css).toMatch(/@media \(max-width: 900px\)[\s\S]*\.welcome-content/);
     expect(css).toMatch(/@media \(max-width: 560px\)[\s\S]*\.end-leaderboard-form__row/);
   });
+
+  test("home presents a saved descent and keeps the full hall behind an explicit reveal", async () => {
+    const host = await Bun.file(new URL("../index.html", import.meta.url)).text();
+    const source = await Bun.file(new URL("../src/main.ts", import.meta.url)).text();
+    const css = await Bun.file(new URL("../src/styles.css", import.meta.url)).text();
+    expect(host).toContain('id="welcome-save-title"');
+    expect(host).toContain('id="welcome-save-details"');
+    expect(host).toContain('id="welcome-hall-toggle"');
+    expect(host).toContain("VIEW HALL");
+    expect(host).not.toContain("THE GATE");
+    expect(host).not.toContain("THE LEDGER · TOP THREE");
+    expect(host).not.toContain("LAST DESCENT");
+    expect(host).not.toContain("ASH REMEMBERS EVERY FAILURE");
+    expect(host).not.toContain("CONTINUE READY");
+    expect(source).toContain("continueDomainState");
+    expect(source).toContain("elements.welcomeContinue");
+    expect(source).toContain("elements.welcomeNew");
+    expect(source).toContain('elements.welcomeHallToggle.setAttribute("aria-expanded"');
+    expect(css).toContain(".leaderboard-list > :nth-child(n + 4)");
+    expect(css).toContain(".welcome-leaderboard.is-expanded .leaderboard-list > :nth-child(n + 4)");
+  });
 });

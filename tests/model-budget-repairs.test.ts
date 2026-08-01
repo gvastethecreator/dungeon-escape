@@ -129,7 +129,7 @@ describe("model budget repairs", () => {
     expect(portal.interior.root.visible).toBe(false);
   });
 
-  test("floor campfire keeps its stone ring and three logs in three solid batches", () => {
+  test("floor campfire keeps three solid batches and one procedural flame", () => {
     const materials = createDungeonMaterials({ compact: true });
     const campfire = createFloorCampfire(new THREE.Vector3(), false, materials, 2);
     const metrics = modelMetrics(campfire.root, true);
@@ -137,7 +137,7 @@ describe("model budget repairs", () => {
     const runtime = campfire.root.userData.sculptRuntime;
 
     expect(metrics).toEqual({ triangles: 616, drawCalls: 3, materials: 3 });
-    expect(fullAssemblyMetrics).toEqual({ triangles: 790, drawCalls: 7, materials: 7 });
+    expect(fullAssemblyMetrics).toEqual({ triangles: 632, drawCalls: 5, materials: 5 });
     expect(metrics.triangles).toBeLessThanOrEqual(1_500);
     expect(runtime.geometry).toMatchObject({
       materialBatches: 3,

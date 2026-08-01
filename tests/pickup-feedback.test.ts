@@ -9,61 +9,61 @@ describe("PickupFeedback", () => {
         stoneId: "ember",
         restoreResolve: true,
       }),
-    ).toEqual({ kind: "map", kickerKey: "map", restoreResolve: true });
+    ).toEqual({ kind: "map", kickerKey: "itemFound", restoreResolve: true });
 
     expect(projectPickupFeedback({ fogClear: true, mobilityBoost: true })).toEqual({
       kind: "clarity",
-      kickerKey: "clarity",
+      kickerKey: "itemFound",
       restoreResolve: false,
     });
     expect(projectPickupFeedback({ mobilityBoost: true })).toEqual({
       kind: "mobility",
-      kickerKey: "mobility",
+      kickerKey: "itemFound",
       restoreResolve: false,
     });
     expect(projectPickupFeedback({ annihilationPulse: true })).toEqual({
       kind: "annihilation-pulse",
-      kickerKey: "annihilationPulse",
+      kickerKey: "itemFound",
       restoreResolve: false,
     });
     expect(projectPickupFeedback({ luminousWard: true })).toEqual({
       kind: "luminous-ward",
-      kickerKey: "luminousWard",
+      kickerKey: "itemFound",
       restoreResolve: false,
     });
     expect(projectPickupFeedback({ timeFreeze: true })).toEqual({
       kind: "time-freeze",
-      kickerKey: "timeFreeze",
+      kickerKey: "itemFound",
       restoreResolve: false,
     });
     expect(projectPickupFeedback({ swarmCurse: true })).toEqual({
       kind: "swarm-curse",
-      kickerKey: "swarmCurse",
+      kickerKey: "curseFound",
       restoreResolve: false,
     });
     expect(projectPickupFeedback({ slowCurse: true })).toEqual({
       kind: "slow-curse",
-      kickerKey: "slowCurse",
+      kickerKey: "curseFound",
       restoreResolve: false,
     });
     expect(projectPickupFeedback({ frenzyCurse: true })).toEqual({
       kind: "frenzy-curse",
-      kickerKey: "frenzyCurse",
+      kickerKey: "curseFound",
       restoreResolve: false,
     });
     expect(projectPickupFeedback({ gloomCurse: true })).toEqual({
       kind: "gloom-curse",
-      kickerKey: "gloomCurse",
+      kickerKey: "curseFound",
       restoreResolve: false,
     });
     expect(projectPickupFeedback({ restoreResolve: true })).toEqual({
       kind: "flask",
-      kickerKey: "flask",
+      kickerKey: "itemFound",
       restoreResolve: true,
     });
     expect(projectPickupFeedback({ stoneId: "ash" })).toEqual({
       kind: "stone",
-      kickerKey: "small",
+      kickerKey: "itemFound",
       stoneId: "ash",
       restoreResolve: false,
     });
@@ -77,19 +77,30 @@ describe("PickupFeedback", () => {
   test("accepts the RunSession effects.pickup flag bag", () => {
     expect(
       projectPickupFeedback({
-        label: "DUNGEON MAPPED",
+        label: "DUNGEON MAP",
         mapReveal: true,
       }),
-    ).toMatchObject({ kind: "map", kickerKey: "map" });
+    ).toMatchObject({ kind: "map", kickerKey: "itemFound" });
   });
 
-  test("styles utilities and each curse with a distinct marker silhouette", async () => {
-    const css = await Bun.file(new URL("../src/styles.css", import.meta.url)).text();
-    expect(css).toContain('.pickup-feedback[data-kind="map"] .pickup-mark::before');
-    expect(css).toContain('.pickup-feedback[data-kind="mobility"] .pickup-mark');
-    expect(css).toContain('.pickup-feedback[data-kind="swarm-curse"] .pickup-mark');
-    expect(css).toContain('.pickup-feedback[data-kind="slow-curse"] .pickup-mark');
-    expect(css).toContain('.pickup-feedback[data-kind="frenzy-curse"] .pickup-mark');
-    expect(css).toContain('.pickup-feedback[data-kind="gloom-curse"] .pickup-mark');
+  test("pickup HUD is free text with pixel type and kind colors", async () => {
+    const [css, host] = await Promise.all([
+      Bun.file(new URL("../src/styles.css", import.meta.url)).text(),
+      Bun.file(new URL("../index.html", import.meta.url)).text(),
+    ]);
+    expect(host).toContain('id="pickup-feedback-kicker"');
+    expect(host).toContain('id="pickup-feedback-text"');
+    expect(host).not.toContain("pickup-mark");
+    expect(host).not.toContain("pickup-copy");
+    expect(css).toContain(".pickup-feedback strong");
+    expect(css).toMatch(/\.pickup-feedback strong\s*\{[\s\S]*font-family:\s*var\(--font-gothic\)/);
+    expect(css).toMatch(/\.pickup-feedback strong\s*\{[\s\S]*text-transform:\s*capitalize/);
+    expect(css).toContain('.pickup-feedback[data-kind="map"] strong');
+    expect(css).toContain('.pickup-feedback[data-kind="mobility"] strong');
+    expect(css).toContain('.pickup-feedback[data-kind="swarm-curse"] strong');
+    expect(css).toContain('.pickup-feedback[data-kind="slow-curse"] strong');
+    expect(css).toContain('.pickup-feedback[data-kind="frenzy-curse"] strong');
+    expect(css).toContain('.pickup-feedback[data-kind="gloom-curse"] strong');
+    expect(css).not.toContain(".pickup-mark");
   });
 });

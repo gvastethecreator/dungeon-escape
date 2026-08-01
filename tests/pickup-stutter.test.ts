@@ -89,6 +89,20 @@ describe("pickup frame stability", () => {
         (root) => root.getObjectByName("Pickup secondary echo ring") instanceof THREE.Mesh,
       ),
     ).toBe(true);
+    expect(
+      roots.every((root) => {
+        const points = root.getObjectByName("Pickup rising sparks") as THREE.Points<
+          THREE.BufferGeometry,
+          THREE.ShaderMaterial
+        >;
+        return (
+          points.material.fog === true &&
+          points.material.toneMapped === true &&
+          points.material.uniforms.uTime.value === 0 &&
+          points.material.uniforms.uCoreColor.value instanceof THREE.Color
+        );
+      }),
+    ).toBe(true);
 
     const meanRadius = (root: THREE.Group): number => {
       const points = root.getObjectByName("Pickup rising sparks") as THREE.Points;
@@ -102,6 +116,15 @@ describe("pickup frame stability", () => {
     const annihilationBefore = meanRadius(roots[2]!);
     const gloomBefore = meanRadius(roots[7]!);
     pool.update(0.3);
+    expect(
+      roots.every((root) => {
+        const points = root.getObjectByName("Pickup rising sparks") as THREE.Points<
+          THREE.BufferGeometry,
+          THREE.ShaderMaterial
+        >;
+        return points.material.uniforms.uTime.value === 0.3;
+      }),
+    ).toBe(true);
     expect(meanRadius(roots[2]!)).toBeGreaterThan(annihilationBefore);
     expect(meanRadius(roots[7]!)).toBeLessThan(gloomBefore);
 
