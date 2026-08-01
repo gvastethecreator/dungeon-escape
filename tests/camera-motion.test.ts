@@ -1,11 +1,12 @@
 import { describe, expect, test } from "bun:test";
 
+import { clampLookPitch, dampAngle } from "../src/player/FirstPersonController";
 import {
-  clampLookPitch,
   computeStrafeLeanTarget,
-  dampAngle,
+  stepCameraMotion,
   STRAFE_LEAN_MAX,
-} from "../src/player/FirstPersonController";
+  type CameraMotionInput,
+} from "../src/player/CameraMotionProjection";
 import { LookInputFilter } from "../src/player/LookInputFilter";
 
 describe("camera angle smoothing", () => {
@@ -71,27 +72,69 @@ describe("strafe camera lean", () => {
 });
 
 describe("reduced-motion camera route", () => {
-  test("clears bob, lean, landing bounce, and FOV motion in the controller", async () => {
-    const source = await Bun.file(
-      new URL("../src/player/FirstPersonController.ts", import.meta.url),
-    ).text();
-    const transformStart = source.indexOf("private syncCameraTransform");
-    const transformSource = source.slice(transformStart);
-    const reducedStart = transformSource.indexOf("if (this.reducedMotionQuery.matches) {");
-    const reducedEnd = transformSource.indexOf("\n    }\n\n    const motionScale", reducedStart);
-    const reducedBranch = transformSource.slice(reducedStart, reducedEnd);
+  const activeInput: CameraMotionInput = {
+    delta: 1 / 60,
+    moved: true,
+    sprinting: true,
+    reducedMotion: false,
+    motionScale: 1,
+    velocityX: 7,
+    velocityZ: 0,
+    rightX: 1,
+    rightZ: 0,
+    maxSpeed: 7,
+    stridePhase: Math.PI / 2,
+    elapsed: 1,
+    landingDip: -0.08,
+    strafeLean: 0,
+    currentFov: 75,
+    baseFov: 75,
+    mobilityBoost: true,
+  };
 
-    expect(transformStart).toBeGreaterThanOrEqual(0);
-    expect(source).toContain("private readonly baseFov: number;");
-    expect(transformSource).toContain("if (this.reducedMotionQuery.matches) {");
-    expect(transformSource).toContain("this.landingDip = 0;");
-    expect(transformSource).toContain("this.strafeLean = 0;");
-    expect(transformSource).toContain("this.camera.position.copy(this.position);");
-    expect(transformSource).toContain('this.euler.set(this.lookPitch, this.lookYaw, 0, "YXZ");');
-    expect(transformSource).toContain("this.camera.fov = this.baseFov;");
-    expect(transformSource).not.toContain("reducedMotion ? 0.16 : 1");
-    expect(reducedEnd).toBeGreaterThan(reducedStart);
-    expect(reducedBranch).toContain("return;");
-    expect(source).not.toContain("[...this.vaultedColliderIds]");
+  test("returns a neutral pose when reduced motion is active", () => {
+    const projection = stepCameraMotion({ ...activeInput, reducedMotion: true });
+
+    expect(projection).toEqual({
+      rightOffset: 0,
+      verticalOffset: 0,
+      landingDip: 0,
+      roll: 0,
+      fov: 75,
+    });
+  });
+
+  test("projects bob, landing recovery, strafe lean, boost, and FOV in normal mode", () => {
+    const projection = stepCameraMotion(activeInput);
+
+    expect(projection.rightOffset).toBeGreaterThan(0);
+    expect(projection.verticalOffset).not.toBe(0);
+    expect(projection.landingDip).toBeGreaterThan(activeInput.landingDip);
+    expect(projection.landingDip).toBeLessThan(0);
+    expect(projection.roll).toBeLessThan(0);
+    expect(projection.fov).toBeGreaterThan(activeInput.baseFov);
+  });
+
+  test("keeps idle breathing without inventing stride bob", () => {
+    const projection = stepCameraMotion({
+      ...activeInput,
+      moved: false,
+      sprinting: false,
+      velocityX: 0,
+      elapsed: Math.PI / (2 * 1.65),
+      landingDip: 0,
+      mobilityBoost: false,
+    });
+
+    expect(projection.rightOffset).toBe(0);
+    expect(projection.verticalOffset).toBeCloseTo(0.0035, 6);
+    expect(projection.roll).toBe(0);
+  });
+
+  test("can reuse an output record on the render path", () => {
+    const output = { rightOffset: 9, verticalOffset: 9, landingDip: 9, roll: 9, fov: 9 };
+
+    expect(stepCameraMotion(activeInput, output)).toBe(output);
+    expect(output.rightOffset).not.toBe(9);
   });
 });

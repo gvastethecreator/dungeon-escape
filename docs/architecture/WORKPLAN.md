@@ -95,6 +95,30 @@ exposure curve, biome-event surface composition, safe spawn distance composition
 minimap feature projection, pickup HUD feedback projection, and adaptive CRT hysteresis.
 A9 remains deferred.
 
+## Completed responsibility batch B — 2026-08-01
+
+Exactly ten accepted responsibility moves are complete under
+[architecture-review-2026-08-01-b.md](architecture-review-2026-08-01-b.md)
+and `.scratch/dungeon-architecture-batch-2026-08-01-b/`.
+
+| ID | Módulo / interfaz | Resultado |
+| --- | --- | --- |
+| ARC-B01 | Audio asset catalog | Asset paths, groups, gains, spatial profiles, and mappings left `GameAudio` |
+| ARC-B02 | Creature take selector | Weighted themed selection and no-repeat state have one deterministic owner |
+| ARC-B03 | UI sound policy | Selector priority and disabled-control cues left the browser event adapter |
+| ARC-B04 | Player combat eye height | Controller defaults and floor destinations share one canonical value |
+| ARC-B05 | Enemy presentation | Simulation no longer owns billboard, shadow, animation, freeze, or trail writes |
+| ARC-B06 | Fixed scene effects | Fires, beams, liquids, and biome floor sprites left `DungeonWorld` |
+| ARC-B07 | Round results controller | Hall retries, stale requests, saved rank, and result states have one owner |
+| ARC-B08 | Floor transition transaction | Checkpoint, cover, activation, warmup, recovery, and input release are serial |
+| ARC-B09 | Forge presentation session | Iframe presentation identity and editor restoration reject late completion |
+| ARC-B10 | Camera motion projection | Camera feel and reduced motion are a pure reusable frame step |
+
+Final proof: 889 tests pass and the same 2 baseline tests fail; client/server/worker types,
+lint, and the production build pass. The baseline failures are an asset-provenance gap and
+a stale static-scene count contract; neither was rewritten without its missing owner evidence.
+A9 remains deferred.
+
 ## Completed VFX architecture follow-up — 2026-07-30
 
 Exactly ten improvements were completed and integrated. Canonical outcomes are in the
