@@ -30,6 +30,10 @@ describe("Play HUD structure (Ash Binding)", () => {
     expect(host).toContain('id="luminous-ward-value"');
     expect(host).toContain('id="annihilation-pulse-status"');
     expect(host).toContain('id="annihilation-pulse-value"');
+    expect(host).toContain('id="mobility-status"');
+    expect(host).toContain('id="mobility-value"');
+    expect(host).toContain("/assets/ui/pickup-icons/mobility.webp");
+    expect(host).toContain("/assets/ui/stone-icons/ember.webp");
     expect(host).toContain('id="slow-curse-status"');
     expect(host).toContain('id="frenzy-curse-status"');
     expect(host).toContain('id="gloom-curse-status"');
@@ -74,13 +78,14 @@ describe("Play HUD structure (Ash Binding)", () => {
     expect(COPY.objective.intro).toBe("Find the four magic stones");
     expect(COPY.hud.mapExpand).toBe("EXPAND");
     expect(COPY.hud.mapShrink).toBe("SHRINK");
-    expect(COPY.pickup.small).toBe("BOUND");
-    expect(COPY.pickup.flask).toBe("HEALTH RESTORED");
-    expect(COPY.pickup.timeFreeze).toBe("TIME FROZEN");
+    expect(COPY.pickup.itemFound).toBe("ITEM FOUND");
+    expect(COPY.pickup.curseFound).toBe("CURSE FOUND");
+    expect(COPY.pickup.flask).toBe("Health Restored");
+    expect(COPY.pickup.timeFreeze).toBe("Time Freeze");
     expect(COPY.status.timeFreeze).toContain("10 seconds");
-    expect(COPY.pickup.luminousWard).toBe("WARD STONE");
+    expect(COPY.pickup.luminousWard).toBe("Ward Stone");
     expect(COPY.status.luminousWard).toContain("15 seconds");
-    expect(COPY.pickup.annihilationPulse).toBe("PULSE RELIC");
+    expect(COPY.pickup.annihilationPulse).toBe("Pulse Relic");
     expect(COPY.status.annihilationPulse).toContain("13 seconds");
     expect(COPY.end.loseTitle).toBe("You Died");
     expect(COPY.end.winTitle).toBe("You escaped the dungeon");
@@ -150,17 +155,21 @@ describe("Play HUD structure (Ash Binding)", () => {
     expect(css).toContain(".run-timer");
     expect(css).toMatch(/\.run-timer\s*\{[\s\S]*left:\s*50%/);
     expect(css).toMatch(/\.run-timer\s*\{[\s\S]*transform:\s*translateX\(-50%\)/);
+    expect(css).toContain(".status-chip");
+    expect(css).toContain(".status-chip__icon");
+    expect(css).toContain(".status-chip__value");
     expect(css).toContain(".time-freeze-status");
-    expect(css).toContain(".time-freeze-status[hidden]");
+    expect(css).toContain(".status-chip[hidden]");
     expect(css).toContain("time-freeze-pulse");
     expect(css).toContain(".luminous-ward-status");
-    expect(css).toContain(".luminous-ward-status[hidden]");
     expect(css).toContain("luminous-ward-pulse");
     expect(css).toContain(".annihilation-pulse-status");
     expect(css).toContain("annihilation-pulse-status-pulse");
+    expect(css).toContain(".mobility-status");
     expect(css).toContain(".curse-status");
     expect(css).toContain(".curse-status--swarm");
     expect(css).toContain('.pickup-feedback[data-kind="swarm-curse"]');
+    expect(css).toMatch(/\.stone-socket\.is-bound \.stone-socket__gem\s*\{[\s\S]*opacity:\s*1/);
     expect(css).toContain(".map-toggle");
     expect(css).toContain(".hazard-status");
     expect(css).toContain(".play-objective.is-visible");
@@ -208,7 +217,7 @@ describe("Play HUD structure (Ash Binding)", () => {
       /\.touch-controls button\s*\{[^}]*min-width:\s*48px;[^}]*min-height:\s*48px;/s,
     );
     expect(css).toMatch(
-      /\.play-vitals\s*\{[^}]*bottom:\s*max\(112px,\s*calc\(env\(safe-area-inset-bottom\) \+ 106px\)\);/s,
+      /\.play-vitals\s*\{[^}]*bottom:\s*max\(120px,\s*calc\(env\(safe-area-inset-bottom\) \+ 112px\)\);/s,
     );
     expect(css).not.toContain("repeat(2, 46px)");
   });

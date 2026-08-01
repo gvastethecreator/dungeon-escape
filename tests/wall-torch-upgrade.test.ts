@@ -19,13 +19,17 @@ describe("authored wall torch", () => {
 
     expect(torch.root.getObjectByName("Torch forged shield plate")).toBeDefined();
     expect(torch.root.getObjectByName("Torch scroll bracket")).toBeDefined();
-    expect(torch.flame.geometry.name).toBe("Authored low-poly flame tongue");
-    expect(torch.flame.geometry).not.toBeInstanceOf(THREE.OctahedronGeometry);
-    expect(torch.flameDetails.length).toBeGreaterThanOrEqual(1);
+    expect(torch.flame.geometry.name).toBe("Procedural teardrop noise flame card");
+    expect(torch.flame.geometry.userData.referenceTechnique).toBe(
+      "teardrop-noise-offset-threshold-palette",
+    );
+    expect(torch.flameDetails).toHaveLength(1);
+    expect(torch.flameDetails[0]).toBeInstanceOf(THREE.Points);
     expect(torch.root.scale.x).toBeGreaterThanOrEqual(0.76);
     expect(torch.baseIntensity).toBeGreaterThanOrEqual(40);
     expect(torch.baseIntensity).toBeLessThanOrEqual(48);
-    expect((torch.flame.material as THREE.MeshBasicMaterial).toneMapped).toBe(true);
+    expect(torch.flame.material).toBeInstanceOf(THREE.ShaderMaterial);
+    expect((torch.flame.material as THREE.ShaderMaterial).toneMapped).toBe(true);
     expect(torch.light?.distance).toBeGreaterThanOrEqual(12);
   });
 
@@ -38,7 +42,8 @@ describe("authored wall torch", () => {
     );
     expect(lantern.baseIntensity).toBe(WALL_LANTERN_LIGHT_INTENSITY);
     expect(lantern.root.getObjectsByProperty("type", "PointLight")).toHaveLength(1);
-    expect((lantern.flame.material as THREE.MeshBasicMaterial).toneMapped).toBe(true);
+    expect(lantern.flame.material).toBeInstanceOf(THREE.ShaderMaterial);
+    expect((lantern.flame.material as THREE.ShaderMaterial).toneMapped).toBe(true);
     expect(lantern.light?.distance).toBeGreaterThanOrEqual(12);
     expect(lantern.root.scale.x).toBeGreaterThanOrEqual(0.74);
   });

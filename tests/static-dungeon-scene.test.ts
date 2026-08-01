@@ -157,40 +157,36 @@ describe("StaticDungeonScene", () => {
 
       const root = group.getObjectByName("brazier fire prop") as THREE.Group;
       const socket = root.getObjectByName("Brazier flame socket")!;
-      const flame = root.getObjectByName("Brazier runtime outer flame") as THREE.Mesh;
-      const core = root.getObjectByName("Brazier runtime flame core") as THREE.Mesh;
-      const lean = root.getObjectByName("Brazier runtime leaning flame tongue") as THREE.Mesh;
+      const flame = root.getObjectByName("Brazier runtime procedural noise flame") as THREE.Mesh;
       const halo = root.getObjectByName("Brazier restrained flame halo") as THREE.Mesh;
       expect(root.userData.propFamily).toBe("brazier");
       expect(root.getObjectByName("Brazier broad octagonal lower foot")).toBeDefined();
       expect(root.getObjectByName("Brazier shallow octagonal iron bowl")).toBeDefined();
       expect(root.getObjectByName("Brazier recessed charcoal bed")).toBeDefined();
       expect(root.getObjectByName("Brazier restrained ember nodes")).toBeDefined();
-      expect(flame.position.y).toBeCloseTo(socket.position.y + 0.004);
+      expect(flame.position.y).toBeCloseTo(socket.position.y);
       expect(
         Math.hypot(flame.position.x - socket.position.x, flame.position.z - socket.position.z),
       ).toBeLessThan(0.07);
-      expect(flame.geometry.name).toBe("Curved three-dimensional low-poly brazier flame tongue");
-      expect(flame.geometry.userData.sourceGeometry).toBe("createFlameTongueGeometry");
-      expect(flame.geometry.userData.curvedSilhouette).toBe(true);
-      expect(flame.geometry.getAttribute("color")).toBeDefined();
-      expect(flame.geometry).not.toBeInstanceOf(THREE.OctahedronGeometry);
-      expect((flame.material as THREE.MeshBasicMaterial).blending).toBe(THREE.NormalBlending);
-      expect((flame.material as THREE.MeshBasicMaterial).vertexColors).toBe(true);
-      expect((flame.material as THREE.MeshBasicMaterial).opacity).toBeLessThanOrEqual(0.42);
-      expect(flame.rotation.y).not.toBe(core.rotation.y);
-      expect(core.rotation.y).not.toBe(lean.rotation.y);
+      expect(flame.geometry.name).toBe("Procedural teardrop noise flame card");
+      expect(flame.geometry.userData.sourceGeometry).toBe("createNoiseFlameGeometry");
+      expect(flame.geometry.userData.referenceTechnique).toBe(
+        "teardrop-noise-offset-threshold-palette",
+      );
+      expect(flame.geometry.getAttribute("position").count).toBe(4);
+      expect(flame.material).toBeInstanceOf(THREE.ShaderMaterial);
+      expect((flame.material as THREE.ShaderMaterial).blending).toBe(THREE.NormalBlending);
+      expect((flame.material as THREE.ShaderMaterial).uniforms.uOpacity.value).toBeLessThanOrEqual(
+        0.98,
+      );
       const flameHeight = new THREE.Box3().setFromObject(flame).getSize(new THREE.Vector3()).y;
-      const coreHeight = new THREE.Box3().setFromObject(core).getSize(new THREE.Vector3()).y;
-      const leanHeight = new THREE.Box3().setFromObject(lean).getSize(new THREE.Vector3()).y;
-      expect(flameHeight).toBeLessThan(0.29);
-      expect(coreHeight).toBeLessThan(0.2);
-      expect(leanHeight).toBeLessThan(0.25);
+      expect(flameHeight).toBeCloseTo(0.76);
       const effect = staticScene.currentHandles.fireEffects[0]!;
       expect(effect.baseY).toBe(socket.position.y);
       expect(effect.baseIntensity).toBe(18);
       expect(effect.cutoffDistance).toBe(8);
-      expect(effect.flameDetails).toEqual([core, lean]);
+      expect(effect.flameDetails).toHaveLength(1);
+      expect(effect.flameDetails[0]).toBeInstanceOf(THREE.Points);
       expect(effect.halos).toEqual([halo]);
       expect((halo.material as THREE.MeshBasicMaterial).opacity).toBeLessThanOrEqual(0.035);
       expect(root.position.toArray()).toEqual([3, 0, 4]);
@@ -220,19 +216,16 @@ describe("StaticDungeonScene", () => {
       sceneInternals.addFireProp("brazier", new THREE.Vector3(), true, 0.6, undefined, true);
 
       const effect = staticScene.currentHandles.fireEffects[0]!;
-      const material = effect.flame.material as THREE.MeshBasicMaterial;
-      expect(material.color.getHex()).toBe(0x75a6bf);
-      expect(material.opacity).toBe(0.27);
+      const material = effect.flame.material as THREE.ShaderMaterial;
+      expect((material.uniforms.uOuterColor.value as THREE.Color).getHex()).toBe(0x287ed8);
+      expect(material.uniforms.uOpacity.value).toBe(0.92);
       expect(material.blending).toBe(THREE.NormalBlending);
       expect(effect.baseIntensity).toBe(6.5);
       expect(effect.cutoffDistance).toBe(5.5);
       expect(effect.light?.intensity).toBe(6.5);
       expect(effect.light?.distance).toBe(5.5);
-      expect(effect.flameDetails).toHaveLength(2);
-      expect(
-        ((effect.flameDetails[0] as THREE.Mesh).material as THREE.MeshBasicMaterial).color.getHex(),
-      ).toBe(0xf2ac65);
-      expect(effect.flameDetails[0]?.userData.preserveWarmCore).toBe(true);
+      expect(effect.flameDetails).toHaveLength(1);
+      expect(effect.flameDetails[0]).toBeInstanceOf(THREE.Points);
       expect(effect.halos).toHaveLength(1);
       const emberNodes = effect.root.getObjectByName(
         "Brazier restrained ember nodes",

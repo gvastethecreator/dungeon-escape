@@ -44,9 +44,10 @@ describe("water and post-process finish", () => {
 
   test("the existing POV pass carries bounded subtle grain", async () => {
     const source = await Bun.file(new URL("../src/systems/PovPostFx.ts", import.meta.url)).text();
-    expect(source).toContain("grain * uGrain");
-    expect(source).toContain("THREE.MathUtils.clamp(grain, 0, 0.018)");
-    expect(source).toContain("floor(uTime * 24.0)");
+    expect(source).toContain("grain * uGrain * grainResponse");
+    expect(source).toContain("THREE.MathUtils.clamp(grain, 0, 0.014)");
+    expect(source).toContain("floor(uTime * 18.0)");
+    expect(source).toContain("grainResponse");
   });
 
   test("the POV vignette only shades the outer field of view", async () => {
