@@ -85,6 +85,16 @@ vertical vault, combat pose constants, music track policy, creature voice / audi
 projection, hazard traversal damage policy, enemy activation filters, play-step damage
 intent, and interaction reach helpers. A9 remains deferred.
 
+## Completed pure-module batch — 2026-08-01
+
+Exactly ten pure-module deepenings landed under
+[architecture-review-2026-08-01.md](architecture-review-2026-08-01.md)
+and `.scratch/dungeon-arch-batch-2026-08-01/`. Covers audio threat policy, door open
+hysteresis, interaction reach ownership, annihilation pulse hit eligibility, spike
+exposure curve, biome-event surface composition, safe spawn distance composition,
+minimap feature projection, pickup HUD feedback projection, and adaptive CRT hysteresis.
+A9 remains deferred.
+
 ## Completed VFX architecture follow-up — 2026-07-30
 
 Exactly ten improvements were completed and integrated. Canonical outcomes are in the

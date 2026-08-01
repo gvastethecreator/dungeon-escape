@@ -33,6 +33,36 @@ export function enemyActivationDistance(
   return Math.hypot(a.x - b.x, a.z - b.z);
 }
 
+/** Extra pad beyond ward/pulse repel radii for activation exclusion. */
+export const ENEMY_ACTIVATION_FIELD_PAD = 1;
+
+export interface SafeSpawnDistanceInput {
+  base: number;
+  wardActive?: boolean;
+  pulseActive?: boolean;
+  wardRadius?: number;
+  pulseRadius?: number;
+  pad?: number;
+}
+
+/**
+ * Raise the play-mode safe spawn floor when a ward or pulse field is active.
+ * Inactive fields leave the difficulty base distance unchanged.
+ */
+export function resolveSafeSpawnDistance(input: SafeSpawnDistanceInput): number {
+  const base = Number.isFinite(input.base) ? input.base : 0;
+  const pad =
+    input.pad === undefined ? ENEMY_ACTIVATION_FIELD_PAD : Math.max(0, input.pad);
+  let safe = base;
+  if (input.wardActive && input.wardRadius !== undefined && Number.isFinite(input.wardRadius)) {
+    safe = Math.max(safe, input.wardRadius + pad);
+  }
+  if (input.pulseActive && input.pulseRadius !== undefined && Number.isFinite(input.pulseRadius)) {
+    safe = Math.max(safe, input.pulseRadius + pad);
+  }
+  return safe;
+}
+
 /**
  * Indices into `reserve` that may activate under the current mode and pressure gates.
  */

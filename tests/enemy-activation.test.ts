@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import {
   filterEnemyActivationCandidates,
   preferEnemyActivationPool,
+  resolveSafeSpawnDistance,
   type EnemyActivationSeat,
 } from "../src/world/EnemyActivation";
 
@@ -16,6 +17,36 @@ function seat(
 }
 
 describe("EnemyActivation", () => {
+  test("raises safe spawn distance for active ward and pulse fields", () => {
+    expect(
+      resolveSafeSpawnDistance({
+        base: 6,
+        wardActive: false,
+        pulseActive: false,
+        wardRadius: 8,
+        pulseRadius: 11.5,
+      }),
+    ).toBe(6);
+    expect(
+      resolveSafeSpawnDistance({
+        base: 6,
+        wardActive: true,
+        pulseActive: false,
+        wardRadius: 8,
+        pulseRadius: 11.5,
+      }),
+    ).toBe(9);
+    expect(
+      resolveSafeSpawnDistance({
+        base: 6,
+        wardActive: true,
+        pulseActive: true,
+        wardRadius: 8,
+        pulseRadius: 11.5,
+      }),
+    ).toBe(12.5);
+  });
+
   test("filters by mode, tier, distance, and LOS", () => {
     const reserve = [
       seat("ratling", 0, 10, 0, true),

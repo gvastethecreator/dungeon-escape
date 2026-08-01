@@ -60,7 +60,7 @@ import type { DungeonMood } from "../systems/DungeonMood";
 import { getDungeonMood } from "../systems/DungeonMood";
 import { FIRE_LIGHT_TUNING, MAX_DYNAMIC_FIRE_LIGHTS } from "../systems/LightTuning";
 import { HazardTileSystem } from "./HazardTileSystem";
-import { inInteractionRange } from "./InteractionReach";
+
 import {
   collectRoomCornerSeats,
   collectRoomInteriorSeats,
@@ -3860,11 +3860,17 @@ function roomDistance(dungeon: DungeonData, room: DungeonRoom): number {
   return dungeon.distances[room.center.y * dungeon.width + room.center.x] ?? -1;
 }
 
-export const CHEST_INTERACTION_DISTANCE = 1.9;
-/** Default pickup grab radius (health flasks, power rewards). */
-export const PICKUP_COLLECTION_DISTANCE = 1.18;
-/** Magic stones get a wider grab so dense props near the seat cannot softlock a run. */
-export const STONE_COLLECTION_DISTANCE = 1.55;
+/** Expand-contract re-exports: ownership lives in InteractionReach. */
+export {
+  canCollectPickup,
+  canCollectPickupAt,
+  canInteractWithChest,
+  canInteractWithChestAt,
+  CHEST_INTERACTION_DISTANCE,
+  PICKUP_COLLECTION_DISTANCE,
+  STONE_COLLECTION_DISTANCE,
+} from "./InteractionReach";
+
 export type ChestRewardKind =
   | "resolve"
   | "time-freeze"
@@ -3874,43 +3880,8 @@ export type ChestRewardKind =
   | "mobility"
   | "clarity";
 
-export function canInteractWithChest(distance: number, opened: boolean): boolean {
-  return !opened && Number.isFinite(distance) && distance <= CHEST_INTERACTION_DISTANCE;
-}
-
-/** Point-form of chest reach for callers that still have world positions. */
-export function canInteractWithChestAt(
-  player: { x: number; z: number },
-  chest: { x: number; z: number },
-  opened: boolean,
-): boolean {
-  return !opened && inInteractionRange(player, chest, CHEST_INTERACTION_DISTANCE);
-}
-
 export function chestRewardAutoActivates(kind: ChestRewardKind): boolean {
   return kind !== "resolve";
-}
-
-export function canCollectPickup(
-  distance: number,
-  autoCollect = false,
-  kind: StaticPickupKind | "other" = "other",
-): boolean {
-  if (autoCollect) return true;
-  if (!Number.isFinite(distance)) return false;
-  const limit = kind === "stone" ? STONE_COLLECTION_DISTANCE : PICKUP_COLLECTION_DISTANCE;
-  return distance <= limit;
-}
-
-export function canCollectPickupAt(
-  player: { x: number; z: number },
-  pickup: { x: number; z: number },
-  autoCollect = false,
-  kind: StaticPickupKind | "other" = "other",
-): boolean {
-  if (autoCollect) return true;
-  const limit = kind === "stone" ? STONE_COLLECTION_DISTANCE : PICKUP_COLLECTION_DISTANCE;
-  return inInteractionRange(player, pickup, limit);
 }
 
 function deterministicLosAge(phase: number): number {

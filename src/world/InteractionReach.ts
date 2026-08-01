@@ -1,7 +1,16 @@
 /**
  * Shared horizontal reach checks for doors, chests, stairs, and pickups.
- * Keeps Play interaction distance policy out of ad-hoc Math.hypot copies.
+ * Owns Play grab radii; presentation modules only re-export for expand-contract.
  */
+
+/** Chest open prompt and interact radius. */
+export const CHEST_INTERACTION_DISTANCE = 1.9;
+/** Default pickup grab radius (health flasks, power rewards). */
+export const PICKUP_COLLECTION_DISTANCE = 1.18;
+/** Magic stones get a wider grab so dense props near the seat cannot softlock a run. */
+export const STONE_COLLECTION_DISTANCE = 1.55;
+
+export type PickupReachKind = "stone" | "other" | string;
 
 export function horizontalDistance2(
   ax: number,
@@ -43,4 +52,39 @@ export function nearestInRangeIndex(
     bestIndex = index;
   }
   return bestIndex;
+}
+
+export function canInteractWithChest(distance: number, opened: boolean): boolean {
+  return !opened && Number.isFinite(distance) && distance <= CHEST_INTERACTION_DISTANCE;
+}
+
+/** Point-form of chest reach for callers that still have world positions. */
+export function canInteractWithChestAt(
+  player: { x: number; z: number },
+  chest: { x: number; z: number },
+  opened: boolean,
+): boolean {
+  return !opened && inInteractionRange(player, chest, CHEST_INTERACTION_DISTANCE);
+}
+
+export function canCollectPickup(
+  distance: number,
+  autoCollect = false,
+  kind: PickupReachKind = "other",
+): boolean {
+  if (autoCollect) return true;
+  if (!Number.isFinite(distance)) return false;
+  const limit = kind === "stone" ? STONE_COLLECTION_DISTANCE : PICKUP_COLLECTION_DISTANCE;
+  return distance <= limit;
+}
+
+export function canCollectPickupAt(
+  player: { x: number; z: number },
+  pickup: { x: number; z: number },
+  autoCollect = false,
+  kind: PickupReachKind = "other",
+): boolean {
+  if (autoCollect) return true;
+  const limit = kind === "stone" ? STONE_COLLECTION_DISTANCE : PICKUP_COLLECTION_DISTANCE;
+  return inInteractionRange(player, pickup, limit);
 }

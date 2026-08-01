@@ -1,13 +1,18 @@
 import { describe, expect, test } from "bun:test";
 import {
-  inInteractionRange,
-  nearestInRangeIndex,
-} from "../src/world/InteractionReach";
-import {
+  canCollectPickup,
   canCollectPickupAt,
+  canInteractWithChest,
   canInteractWithChestAt,
   CHEST_INTERACTION_DISTANCE,
+  inInteractionRange,
+  nearestInRangeIndex,
   PICKUP_COLLECTION_DISTANCE,
+  STONE_COLLECTION_DISTANCE,
+} from "../src/world/InteractionReach";
+import {
+  canCollectPickupAt as canCollectPickupAtScene,
+  CHEST_INTERACTION_DISTANCE as SCENE_CHEST_DISTANCE,
 } from "../src/world/StaticDungeonScene";
 
 describe("InteractionReach", () => {
@@ -21,6 +26,16 @@ describe("InteractionReach", () => {
     ).toBe(false);
     expect(canCollectPickupAt(player, { x: PICKUP_COLLECTION_DISTANCE, z: 0 })).toBe(true);
     expect(canCollectPickupAt(player, { x: 2, z: 0 })).toBe(false);
+    expect(canCollectPickup(STONE_COLLECTION_DISTANCE, false, "stone")).toBe(true);
+    expect(canCollectPickup(STONE_COLLECTION_DISTANCE + 0.01, false, "stone")).toBe(false);
+    expect(canInteractWithChest(CHEST_INTERACTION_DISTANCE, true)).toBe(false);
+  });
+
+  test("StaticDungeonScene re-exports stay aligned", () => {
+    expect(SCENE_CHEST_DISTANCE).toBe(CHEST_INTERACTION_DISTANCE);
+    expect(canCollectPickupAtScene({ x: 0, z: 0 }, { x: PICKUP_COLLECTION_DISTANCE, z: 0 })).toBe(
+      true,
+    );
   });
 
   test("picks the nearest in-range target", () => {
@@ -30,3 +45,4 @@ describe("InteractionReach", () => {
     expect(nearestInRangeIndex({ x: 0, z: 0 }, [{ x: 3, z: 0 }], 1)).toBeNull();
   });
 });
+

@@ -3,6 +3,8 @@ import * as THREE from "three";
 
 import {
   activateAnnihilationPulse,
+  annihilationPulseEnemyReach,
+  annihilationPulseHitsEnemy,
   ANNIHILATION_PULSE_DURATION_SECONDS,
   ANNIHILATION_PULSE_INTERVAL_SECONDS,
   ANNIHILATION_PULSE_RADIUS,
@@ -38,6 +40,29 @@ describe("annihilation pulse", () => {
     expect(ANNIHILATION_PULSE_REPEL_RADIUS).toBeGreaterThan(ANNIHILATION_PULSE_RADIUS);
     expect(ANNIHILATION_PULSE_REPEL_RADIUS).toBeGreaterThan(11);
   });
+
+  test("hit eligibility skips defeated spectral seats and honors body reach", () => {
+    const origin = { x: 0, z: 0 };
+    const live = {
+      defeated: false,
+      scaleX: 1,
+      scaleY: 1,
+      phaseVisibility: 1,
+      position: { x: ANNIHILATION_PULSE_RADIUS, z: 0 },
+      baseScaleX: 1,
+      baseScaleY: 1,
+    };
+    expect(annihilationPulseHitsEnemy(origin, live)).toBe(true);
+    expect(annihilationPulseHitsEnemy(origin, { ...live, defeated: true })).toBe(false);
+    expect(annihilationPulseHitsEnemy(origin, { ...live, phaseVisibility: 0.03 })).toBe(false);
+    expect(
+      annihilationPulseHitsEnemy(origin, {
+        ...live,
+        position: { x: ANNIHILATION_PULSE_RADIUS + annihilationPulseEnemyReach(live) + 0.01, z: 0 },
+      }),
+    ).toBe(false);
+  });
+
 
   test("maps every dungeon biome to blood or a biome material", () => {
     expect(getAnnihilationBurstProfile("ancient").material).toBe("blood");
