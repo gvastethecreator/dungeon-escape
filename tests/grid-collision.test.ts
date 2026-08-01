@@ -2,11 +2,13 @@ import { describe, expect, test } from "bun:test";
 
 import { FLOOR, WALL } from "../src/dungeon/generateDungeon";
 import {
+  canOccupy,
   feetClearColliderTop,
   gridToWorld,
   moveWithCollision,
   overlapsColliderHeight,
   overlapsWorldCollider,
+  WorldColliderSpatialIndex,
   worldToGrid,
 } from "../src/dungeon/gridCollision";
 
@@ -21,6 +23,53 @@ function makeDungeon(rows: number[][]) {
 }
 
 describe("grid collision", () => {
+  test("spatial buckets preserve full-list occupancy and swept movement", () => {
+    const dungeon = makeDungeon(
+      Array.from({ length: 31 }, () => Array.from({ length: 31 }, () => FLOOR)),
+    );
+    const colliders = Array.from({ length: 225 }, (_, index) => {
+      const x = (index % 15) * 2 - 14;
+      const z = Math.floor(index / 15) * 2 - 14;
+      return {
+        minX: x - 0.32,
+        maxX: x + 0.32,
+        minY: 0,
+        maxY: index % 3 === 0 ? 0.7 : 1.5,
+        minZ: z - 0.32,
+        maxZ: z + 0.32,
+      };
+    });
+    const index = new WorldColliderSpatialIndex(colliders, 4);
+    const nearby: typeof colliders = [];
+    let largestQuery = 0;
+
+    for (let z = -13; z <= 13; z += 1.3) {
+      for (let x = -13; x <= 13; x += 1.3) {
+        const position = { x, z };
+        index.queryAroundInto(position, 0.28, nearby);
+        largestQuery = Math.max(largestQuery, nearby.length);
+        for (const verticalRange of [
+          { minY: 0.08, maxY: 1.86 },
+          { minY: 0.8, maxY: 2.6 },
+        ]) {
+          expect(
+            canOccupy(dungeon, position, TILE_SIZE, 0.28, undefined, nearby, verticalRange),
+          ).toBe(
+            canOccupy(dungeon, position, TILE_SIZE, 0.28, undefined, colliders, verticalRange),
+          );
+        }
+      }
+    }
+    expect(largestQuery).toBeLessThan(8);
+
+    const start = { x: -3, z: -3 };
+    const delta = { x: 6.4, z: 5.7 };
+    index.querySweepInto(start, delta, 0.28, nearby);
+    expect(moveWithCollision(dungeon, start, delta, TILE_SIZE, 0.28, undefined, nearby)).toEqual(
+      moveWithCollision(dungeon, start, delta, TILE_SIZE, 0.28, undefined, colliders),
+    );
+  });
+
   test("stops a large move at a generated wall", () => {
     const dungeon = makeDungeon([
       [WALL, WALL, WALL, WALL, WALL],

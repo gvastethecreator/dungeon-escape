@@ -344,9 +344,122 @@ describe("GameAudio dungeon soundscape", () => {
       'document.addEventListener("keydown", unlockAudioFromGesture, { capture: true })',
     );
     expect(audio).toContain(
-      "Failed or interrupted asset fetches remain eligible for the next user gesture.",
+      "Failed or interrupted fetches leave no cache entry, so the next demand retries them.",
     );
-    expect(audio).toContain("this.loadPromise = null;");
+    expect(audio).toContain("this.assetLoads.delete(id)");
+    expect(audio).toContain("await this.ensureAssets(this.startupAssetIds())");
+    expect(audio).not.toContain("listAudioAssets()");
+  });
+
+  test("startup loads only critical assets and retries a partial failure", async () => {
+    const OriginalAudioContext = globalThis.AudioContext;
+    const originalFetch = globalThis.fetch;
+    const originalWarn = console.warn;
+    const parameter = () => ({
+      value: 0,
+      setTargetAtTime() {},
+      setValueAtTime() {},
+      linearRampToValueAtTime() {},
+      cancelScheduledValues() {},
+    });
+    class FakeAudioContext {
+      state: AudioContextState = "suspended";
+      currentTime = 0;
+      destination = {};
+      listener = {};
+      createGain() {
+        return {
+          gain: parameter(),
+          connect<T>(destination: T): T {
+            return destination;
+          },
+          disconnect() {},
+        };
+      }
+      createDynamicsCompressor() {
+        return {
+          threshold: parameter(),
+          knee: parameter(),
+          ratio: parameter(),
+          attack: parameter(),
+          release: parameter(),
+          connect<T>(destination: T): T {
+            return destination;
+          },
+        };
+      }
+      createBufferSource() {
+        return {
+          buffer: null,
+          loop: false,
+          onended: null,
+          connect<T>(destination: T): T {
+            return destination;
+          },
+          disconnect() {},
+          start() {},
+          stop() {},
+        };
+      }
+      async decodeAudioData() {
+        return {};
+      }
+      async resume() {
+        this.state = "running";
+      }
+      async close() {
+        this.state = "closed";
+      }
+    }
+
+    let failedClickOnce = false;
+    Object.defineProperty(globalThis, "AudioContext", {
+      configurable: true,
+      value: FakeAudioContext,
+    });
+    globalThis.fetch = (async (input) => {
+      const url = String(input);
+      if (url.endsWith("/ui-click.opus") && !failedClickOnce) {
+        failedClickOnce = true;
+        return { ok: false, status: 503 } as Response;
+      }
+      return {
+        ok: true,
+        status: 200,
+        arrayBuffer: async () => new ArrayBuffer(4),
+      } as Response;
+    }) as typeof fetch;
+    console.warn = () => {};
+
+    const audio = new GameAudio();
+    try {
+      expect(await audio.unlock()).toBe(true);
+      expect(audio.isReady).toBe(false);
+      expect(audio.getLoadDiagnostics()).toMatchObject({
+        catalogAssets: 207,
+        requestedAssets: 9,
+        decodedAssets: 8,
+        residentBuffers: 8,
+        inflightAssets: 0,
+      });
+
+      expect(await audio.unlock()).toBe(true);
+      expect(audio.isReady).toBe(true);
+      expect(audio.getLoadDiagnostics()).toMatchObject({
+        requestedAssets: 10,
+        decodedAssets: 9,
+        residentBuffers: 9,
+        inflightAssets: 0,
+      });
+    } finally {
+      audio.dispose();
+      globalThis.fetch = originalFetch;
+      console.warn = originalWarn;
+      Object.defineProperty(globalThis, "AudioContext", {
+        configurable: true,
+        value: OriginalAudioContext,
+      });
+    }
   });
 
   test("touch play stays active when the browser rejects pointer lock", async () => {

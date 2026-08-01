@@ -1,7 +1,13 @@
 import * as THREE from "three";
 import type { CreatureVoice, DungeonAudioFrame } from "../audio/GameAudio";
 import { createSeededRandom } from "../core/random";
-import { gridToWorld, worldToGrid, type WorldCollider } from "../dungeon/gridCollision";
+import {
+  gridToWorld,
+  worldToGrid,
+  worldToGridInto,
+  WorldColliderSpatialIndex,
+  type WorldCollider,
+} from "../dungeon/gridCollision";
 import type { DungeonData, DungeonRoom, GridCell } from "../dungeon/types";
 import { isPlayerAirborneFromJumpHeight } from "../player/CombatPose";
 import { creatureVoiceForEnemy, projectDungeonAudioFrame } from "./DungeonAudioFrame";
@@ -243,6 +249,7 @@ export class DungeonWorld {
     },
   });
   private readonly staticScene: StaticDungeonScene;
+  private solidColliderIndex: WorldColliderSpatialIndex | undefined;
   private staticHandles: StaticDungeonSceneHandles = StaticDungeonScene.emptyHandles();
   private readonly enemies: EnemyActor[] = [];
   private readonly enemyReserve: EnemyActor[] = [];
@@ -261,6 +268,16 @@ export class DungeonWorld {
   private annihilationPulseVfx: AnnihilationPulseVfx | null = null;
   private readonly pickupBurstWarmupPosition = new THREE.Vector3();
   private dungeon: DungeonData | null = null;
+  private minimapFeatures: MinimapFeatures = {
+    doors: [],
+    fires: [],
+    enemies: [],
+    stones: [],
+    pickups: [],
+    spawn: { x: 0, y: 0 },
+  };
+  private minimapPickupStates: number[] = [];
+  private minimapFeatureRevision = 0;
   private readonly collectedStones = new Set<StoneId>();
   private portalOpen = false;
   private readonly audioFrame: DungeonAudioFrame = {
@@ -484,7 +501,12 @@ export class DungeonWorld {
     this.ensureStoneTextures();
     const staticHandles = this.staticScene.build(dungeon, mood, this.decorDensity);
     this.borrowStaticHandles(staticHandles);
+    this.solidColliderIndex = new WorldColliderSpatialIndex(
+      this.solidColliders,
+      this.tileSize * 2,
+    );
     this.addActors(dungeon, staticHandles.stonePlacements);
+    this.rebuildMinimapFeatures();
     const pickupBurstAnchor = gridToWorld(dungeon, dungeon.spawn, this.tileSize);
     this.pickupBurstWarmupPosition.set(pickupBurstAnchor.x, 0.4, pickupBurstAnchor.z);
     this.pickupBurstPool = new PickupBurstPool(6);
@@ -671,6 +693,7 @@ export class DungeonWorld {
           player,
           dungeon: this.dungeon,
           solidColliders: this.solidColliders,
+          solidColliderIndex: this.solidColliderIndex,
           tileSize: this.tileSize,
           repelRadius: Math.max(
             luminousWardActive ? LUMINOUS_WARD_REPEL_RADIUS : 0,
@@ -783,13 +806,17 @@ export class DungeonWorld {
         nearestChest = chest;
         nearestChestDistance = distance;
       }
-      chest.openness = THREE.MathUtils.damp(
+      const nextOpenness = THREE.MathUtils.damp(
         chest.openness,
         chest.opened ? 1 : 0,
         chest.opened ? 7.5 : 5,
         delta,
       );
-      chest.lid.rotation.x = -1.18 * chest.openness;
+      if (Math.abs(nextOpenness - chest.openness) > 0.000_001) {
+        chest.openness = nextOpenness;
+        chest.lid.rotation.x = -1.18 * chest.openness;
+        chest.runtimeBatch?.updateLidMatrix();
+      }
       if (!chest.opened || chest.reward.available || chest.reward.collected) continue;
       chest.reward.revealTime += delta;
       const reveal = THREE.MathUtils.clamp(chest.reward.revealTime / 0.52, 0, 1);
@@ -823,7 +850,7 @@ export class DungeonWorld {
       if (interactPressed) {
         nearestChest.opened = true;
         nearestChest.reward.revealTime = 0;
-        nearestChest.reward.object.visible = true;
+        setPickupDormant(nearestChest.reward.object, false);
         nearestChest.reward.object.position.y = nearestChest.reward.baseY - 0.34;
         nearestChest.reward.object.scale.copy(nearestChest.reward.baseScale).multiplyScalar(0.62);
         if (nearestChest.reward.timeFreezeSignal)
@@ -911,7 +938,7 @@ export class DungeonWorld {
         if (pickup.luminousWardSignal) pickup.luminousWardSignal.light.intensity = 0;
         if (pickup.annihilationPulseSignal) pickup.annihilationPulseSignal.light.intensity = 0;
         if (progress >= 1) {
-          // Dormant scale keeps lights/materials in the graph; never flip visible off.
+          // Keep the root/lights stable, but remove collected meshes from the draw list.
           setPickupDormant(pickup.object, true);
         }
         continue;
@@ -1164,8 +1191,10 @@ export class DungeonWorld {
       y: 1.5,
       z: this.pickupBurstWarmupPosition.z,
     });
-    // Chest rewards stay visible (tiny scale when dormant) so compile sees them.
-    for (const pickup of this.pickups) pickup.object.visible = true;
+    // Compile dormant variants once, then remove only their meshes from the draw list.
+    for (const pickup of this.pickups) {
+      setPickupDormant(pickup.object, visible ? false : pickup.collected || !pickup.available);
+    }
     // Portal open materials are usually hidden until the fourth stone.
     if (this.portalBeam) this.portalBeam.visible = visible || this.portalOpen;
     if (this.portalRoot) setMagicPortalWarmupVisible(this.portalRoot, visible, this.portalOpen);
@@ -1250,10 +1279,12 @@ export class DungeonWorld {
       const collected = restored.has(pickup.stoneId);
       pickup.collected = collected;
       pickup.collectTime = collected ? 1 : 0;
-      pickup.object.visible = true;
       pickup.object.position.y = pickup.baseY;
       if (collected) setPickupDormant(pickup.object, true);
-      else pickup.object.scale.copy(pickup.baseScale);
+      else {
+        setPickupDormant(pickup.object, false);
+        pickup.object.scale.copy(pickup.baseScale);
+      }
       setPickupOpacity(pickup.object, collected ? 0 : 1);
       if (pickup.stoneSignal)
         pickup.stoneSignal.light.intensity = collected ? 0 : pickup.stoneSignal.baseLightIntensity;
@@ -1308,19 +1339,23 @@ export class DungeonWorld {
     return this.solidColliders.map((collider) => ({ ...collider }));
   }
 
-  /**
-   * Read-only snapshot of placed world entities for minimap rendering.
-   * Door/fire/enemy/pickup positions come from the live actors; spawn from
-   * the dungeon grid so the entrance is shown even before actors populate.
-   * Stones and optional power pickups come from live actors; spawn from the dungeon grid.
-   */
-  getMinimapFeatures(): MinimapFeatures {
+  private rebuildMinimapFeatures(): void {
     const dungeon = this.dungeon;
     const toCell = (position: THREE.Vector3): MinimapCell => {
       if (!dungeon) return { x: 0, y: 0 };
       return worldToGrid(dungeon, { x: position.x, z: position.z }, this.tileSize);
     };
-    return projectMinimapFeatures({
+    const pickupDtos = this.pickups.map((pickup) => ({
+      kind: pickup.kind,
+      available: pickup.available,
+      collected: pickup.collected,
+      stoneId: pickup.stoneId,
+      cell: toCell(pickup.object.position),
+    }));
+    this.minimapPickupStates = pickupDtos.map(
+      (pickup) => (pickup.available ? 1 : 0) | (pickup.collected ? 2 : 0),
+    );
+    this.minimapFeatures = projectMinimapFeatures({
       doors: this.doors.map((door) => toCell(door.root.position)),
       fires: this.fireEffects.map((fire) => toCell(fire.root.position)),
       enemies: this.enemies.map((enemy) => ({
@@ -1329,19 +1364,71 @@ export class DungeonWorld {
         scaleX: enemy.scaleX,
         scaleY: enemy.scaleY,
       })),
-      pickups: this.pickups.map((pickup) => ({
-        kind: pickup.kind,
-        available: pickup.available,
-        collected: pickup.collected,
-        stoneId: pickup.stoneId,
-        cell: toCell(pickup.object.position),
-      })),
+      pickups: pickupDtos,
       stairs: this.staircases.map((stair) => ({
         cell: { ...stair.cell },
         direction: stair.direction,
       })),
       spawn: dungeon ? { x: dungeon.spawn.x, y: dungeon.spawn.y } : { x: 0, y: 0 },
     });
+    this.minimapFeatureRevision += 1;
+  }
+
+  private refreshMinimapFeatures(): void {
+    const dungeon = this.dungeon;
+    if (!dungeon) return;
+
+    for (let index = 0; index < this.pickups.length; index += 1) {
+      const pickup = this.pickups[index];
+      const state = (pickup?.available ? 1 : 0) | (pickup?.collected ? 2 : 0);
+      if (this.minimapPickupStates[index] !== state) {
+        this.rebuildMinimapFeatures();
+        return;
+      }
+    }
+
+    let changed = false;
+    let writeIndex = 0;
+    for (const enemy of this.enemies) {
+      if (enemy.scaleX <= 0.001 || enemy.scaleY <= 0.001) continue;
+      let marker = this.minimapFeatures.enemies[writeIndex];
+      if (!marker) {
+        marker = { cell: { x: 0, y: 0 }, tier: enemy.tier };
+        this.minimapFeatures.enemies.push(marker);
+        changed = true;
+      }
+      const previousX = marker.cell.x;
+      const previousY = marker.cell.y;
+      const previousTier = marker.tier;
+      worldToGridInto(dungeon, enemy.position, this.tileSize, marker.cell);
+      marker.tier = enemy.tier;
+      if (
+        marker.cell.x !== previousX ||
+        marker.cell.y !== previousY ||
+        marker.tier !== previousTier
+      ) {
+        changed = true;
+      }
+      writeIndex += 1;
+    }
+    if (this.minimapFeatures.enemies.length !== writeIndex) {
+      this.minimapFeatures.enemies.length = writeIndex;
+      changed = true;
+    }
+    if (changed) this.minimapFeatureRevision += 1;
+  }
+
+  /**
+   * Stable minimap snapshot. Static markers are projected once per floor;
+   * moving enemy cells update in place and pickup changes rebuild on demand.
+   */
+  getMinimapFeatures(): MinimapFeatures {
+    this.refreshMinimapFeatures();
+    return this.minimapFeatures;
+  }
+
+  getMinimapFeatureRevision(): number {
+    return this.minimapFeatureRevision;
   }
 
   /** Positions for HRTF sound placement; no simulation state leaves this adapter. */
@@ -1678,6 +1765,17 @@ export class DungeonWorld {
     this.annihilationPulseClock.remaining = 0;
     this.annihilationPulseClock.timeSincePulse = 0;
     this.difficultyRoomCount = 1;
+    this.solidColliderIndex = undefined;
+    this.minimapFeatures = {
+      doors: [],
+      fires: [],
+      enemies: [],
+      stones: [],
+      pickups: [],
+      spawn: { x: 0, y: 0 },
+    };
+    this.minimapPickupStates.length = 0;
+    this.minimapFeatureRevision += 1;
     if (this.pickupBurstPool) {
       this.group.remove(this.pickupBurstPool.root);
       this.pickupBurstPool.dispose();

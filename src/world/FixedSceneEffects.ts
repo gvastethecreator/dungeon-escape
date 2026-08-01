@@ -2,6 +2,7 @@ import * as THREE from "three";
 
 import type { DungeonData } from "../dungeon/types";
 import { biomeSpriteFloorDistanceFade, clampBiomeSpriteYaw } from "./BiomeSpriteDecorKit";
+import { FireLosScheduler } from "./FireLosScheduler";
 import { hasGridLineOfSight } from "./LightOcclusion";
 import { tickLiquidSections, type LiquidSurface } from "./LiquidSectionKit";
 import { tickNoiseFlame } from "./ProceduralFlameVfx";
@@ -27,15 +28,50 @@ export interface FixedSceneEffectsFrame {
 export class FixedSceneEffects {
   private readonly flamePosition = new THREE.Vector3();
   private readonly flameTarget = new THREE.Vector3();
+  private readonly fireLosScheduler = new FireLosScheduler();
+  private fireDistances = new Float32Array(0);
 
   update(frame: FixedSceneEffectsFrame): void {
     if (frame.viewerPosition) this.updateFloorSprites(frame.floorSprites, frame.viewerPosition);
-    for (const effect of frame.fires) this.updateFire(effect, frame);
+    this.updateFireLineOfSight(frame);
+    for (let index = 0; index < frame.fires.length; index += 1) {
+      const effect = frame.fires[index];
+      if (effect) this.updateFire(effect, frame, this.fireDistances[index] ?? 0);
+    }
 
     if (frame.portalBeam) tickVolumetricBeamTime(frame.portalBeam, frame.elapsed);
     for (const beam of frame.stoneBeams) tickVolumetricBeamTime(beam, frame.elapsed);
     for (const beam of frame.ambientBeams) tickVolumetricBeamTime(beam, frame.elapsed);
     if (frame.liquidSurfaces) tickLiquidSections(frame.liquidSurfaces, frame.elapsed);
+  }
+
+  private updateFireLineOfSight(frame: FixedSceneEffectsFrame): void {
+    const viewer = frame.viewerPosition;
+    if (this.fireDistances.length < frame.fires.length) {
+      this.fireDistances = new Float32Array(frame.fires.length);
+    }
+    for (let index = 0; index < frame.fires.length; index += 1) {
+      const effect = frame.fires[index];
+      if (!effect) continue;
+      const distance = viewer
+        ? Math.hypot(effect.root.position.x - viewer.x, effect.root.position.z - viewer.z)
+        : 0;
+      this.fireDistances[index] = distance;
+      if (!viewer || !frame.dungeon) effect.losOpen = true;
+      else if (distance > effect.cutoffDistance + 7) effect.losOpen = false;
+    }
+    if (!viewer || !frame.dungeon) return;
+    const selected = this.fireLosScheduler.select(frame.fires, this.fireDistances, frame.delta);
+    for (const index of selected) {
+      const effect = frame.fires[index];
+      if (!effect) continue;
+      effect.losOpen = hasGridLineOfSight(
+        frame.dungeon,
+        viewer,
+        effect.root.position,
+        frame.tileSize,
+      );
+    }
   }
 
   private updateFloorSprites(
@@ -60,31 +96,15 @@ export class FixedSceneEffects {
     }
   }
 
-  private updateFire(effect: StaticFireEffect, frame: FixedSceneEffectsFrame): void {
+  private updateFire(
+    effect: StaticFireEffect,
+    frame: FixedSceneEffectsFrame,
+    distance: number,
+  ): void {
     const viewer = frame.viewerPosition;
-    const distance = viewer
-      ? Math.hypot(effect.root.position.x - viewer.x, effect.root.position.z - viewer.z)
-      : 0;
-    const releaseDistance = effect.cutoffDistance + 7;
-    if (viewer && frame.dungeon && distance <= releaseDistance) {
-      effect.losAge += frame.delta;
-      if (effect.losAge >= 0.12) {
-        effect.losAge = 0;
-        effect.losOpen = hasGridLineOfSight(
-          frame.dungeon,
-          viewer,
-          effect.root.position,
-          frame.tileSize,
-        );
-      }
-    } else if (!viewer || !frame.dungeon) {
-      effect.losOpen = true;
-    } else {
-      effect.losOpen = false;
-    }
-
     const lod = computeTorchLod(distance, effect.cutoffDistance);
     effect.root.visible = lod.rootVisible;
+    effect.runtimeFixture?.setVisible(lod.rootVisible);
     const fxFactor = effect.losOpen ? Math.max(lod.lightFactor, effect.currentLightFactor) : 0;
     const showFlame = fxFactor > 0.02;
     const showHalo = fxFactor > 0.08 && distance < Math.min(15, effect.cutoffDistance);
