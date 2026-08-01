@@ -17,6 +17,9 @@ const staticSceneSource = await Bun.file(
   new URL("../src/world/StaticDungeonScene.ts", import.meta.url),
 ).text();
 const worldSource = await Bun.file(new URL("../src/world/DungeonWorld.ts", import.meta.url)).text();
+const fixedEffectsSource = await Bun.file(
+  new URL("../src/world/FixedSceneEffects.ts", import.meta.url),
+).text();
 
 describe("biome sprite decor atlas", () => {
   test("ships six distinct wall and floor props for every biome", () => {
@@ -99,7 +102,7 @@ describe("biome sprite decor atlas", () => {
       }
     }
     expect(staticSceneSource).toContain("0.02 - groundGap * scale");
-    expect(worldSource).toContain("const targetYaw = Math.atan2(deltaX, deltaZ)");
+    expect(fixedEffectsSource).toContain("const targetYaw = Math.atan2(deltaX, deltaZ)");
     expect(staticSceneSource).toContain("sprite.position.set(p.x, 0.045, p.z)");
     expect(staticSceneSource).toContain("sprite.rotation.x = -Math.PI / 2");
   });
@@ -109,7 +112,7 @@ describe("biome sprite decor atlas", () => {
     expect(clampBiomeSpriteYaw(0, -Math.PI)).toBeCloseTo(-BIOME_CORNER_PROP_MAX_TURN);
     expect(staticSceneSource).toContain("collectRoomCornerSeats");
     expect(staticSceneSource).toContain("cornerHugWorldOffset");
-    expect(worldSource).toContain("clampBiomeSpriteYaw(prop.baseYaw, targetYaw)");
+    expect(fixedEffectsSource).toContain("clampBiomeSpriteYaw(prop.baseYaw, targetYaw)");
     expect(staticSceneSource).toContain('"yaw-to-player-constrained"');
     expect(staticSceneSource).toContain("maxWallTurn: BIOME_CORNER_PROP_MAX_TURN");
   });
@@ -118,8 +121,8 @@ describe("biome sprite decor atlas", () => {
     expect(biomeSpriteFloorDistanceFade(BIOME_FLOOR_PROP_FADE_NEAR)).toBe(0);
     expect(biomeSpriteFloorDistanceFade(BIOME_FLOOR_PROP_FADE_FAR)).toBe(1);
     expect(biomeSpriteFloorDistanceFade(1.625)).toBeCloseTo(0.5, 5);
-    expect(worldSource).toContain("prop.material.opacity = prop.baseOpacity * fade");
-    expect(worldSource).toContain("this.updateBiomeFloorSprites(viewerPosition)");
+    expect(fixedEffectsSource).toContain("prop.material.opacity = prop.baseOpacity * fade");
+    expect(worldSource).toContain("this.fixedSceneEffects.update({");
   });
 
   test("reserves wall seats across artwork and generated wall props", () => {

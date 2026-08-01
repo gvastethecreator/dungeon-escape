@@ -82,8 +82,29 @@ The pure projection that maps persisted run state into generation, session, runt
 **Local run save coordinator**:
 The owner of delayed local-save scheduling, explicit flush, disposal, and failure-notification latching. It does not own the save schema or UI copy.
 
+**Audio asset catalog**:
+The single owner of dungeon audio files, groups, gains, spatial profiles, cue mappings, pickup mappings, music mappings, and creature take tables. `GameAudio` consumes this catalog and owns playback and device state.
+
+**Enemy presentation**:
+The render projection from simulated enemy actors to billboard poses, visibility attributes, contact shadows, animation frames, freeze uniforms, and motion trails. `DungeonWorld` keeps simulation and activation decisions.
+
+**Fixed scene effects**:
+The frame update for decorative actors that do not own gameplay state: fires, line of sight and LOD, local lights, volumetric beams, liquids, and biome floor sprites.
+
+**Round results controller**:
+The asynchronous owner of Hall comparison loading, timeout retry, stale-response rejection, saved rank, and the result states rendered by the round-results screen.
+
+**Floor transition transaction**:
+The serial checkpointed change between campaign floors. It prepares and validates the linked stair, blocks input, covers the scene, activates the target, waits for renderer warmup, presents the outcome, and always releases cover and input.
+
 **Forge frame client**:
 The browser boundary for the Forge iframe source, trusted messages, versioned presentation commands, waits, cancellation, and cleanup.
+
+**Forge presentation session**:
+The iframe-local owner of presentation identity, one-shot animation completion, late-finish rejection, and restoration of the retained Creation dungeon. Three.js, DOM, and `postMessage` remain in the iframe adapter.
+
+**Camera motion projection**:
+The pure frame projection for walk bob, breathing, landing dip, strafe lean, mobility boost, reduced motion, and field of view. `FirstPersonController` applies that projection to the Three.js camera.
 
 **Run intro transaction**:
 The serial, cancellable transition from New Game or Hall selection through Forge presentation, world preparation, Play activation, and final input focus.

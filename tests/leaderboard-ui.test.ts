@@ -20,6 +20,9 @@ describe("persistent leaderboard UI", () => {
   test("victory captures a bounded name and presents the trusted score", async () => {
     const host = await Bun.file(new URL("../index.html", import.meta.url)).text();
     const source = await Bun.file(new URL("../src/main.ts", import.meta.url)).text();
+    const controller = await Bun.file(
+      new URL("../src/ui/RoundResultsController.ts", import.meta.url),
+    ).text();
     expect(host).toContain('id="end-score"');
     expect(host).toContain('id="end-leaderboard-comparison"');
     expect(host).toContain('id="end-leaderboard-rank"');
@@ -29,9 +32,9 @@ describe("persistent leaderboard UI", () => {
     expect(host).toContain('id="leaderboard-name"');
     expect(host).toContain('maxlength="20"');
     expect(host).toContain('id="leaderboard-submit"');
-    expect(source).toContain("compareLeaderboardScore(");
-    expect(source).toContain("loadLeaderboard(END_LEADERBOARD_LIMIT)");
-    expect(source).toContain("renderSavedLeaderboardRank(entry.rank, entry.score)");
+    expect(controller).toContain("compareLeaderboardScore(");
+    expect(source).toContain("new RoundResultsController((limit) => loadLeaderboard(limit))");
+    expect(source).toContain("roundResults.save(entry.rank, entry.score");
   });
 
   test("client submits the completed run and refreshes the welcome ranking", async () => {

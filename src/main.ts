@@ -2,6 +2,13 @@ import * as THREE from "three";
 
 import { GameAudio, musicTrackForBiome, type AudioCue, type MusicTrack } from "./audio/GameAudio";
 import { footstepSurfaceAt } from "./audio/FootstepSurface";
+import {
+  resolveUiChangeCue,
+  resolveUiClickCue,
+  resolveUiHoverCue,
+  resolveUiSoundTarget,
+  type UiSoundTarget,
+} from "./ui/UiSoundPolicy";
 import { createAuthorityClient } from "./authority/client";
 import {
   createDomainBridge,
@@ -32,6 +39,7 @@ import {
 import { isLocalDevToolsEnabled, readLocalDevToolsEnv } from "./game/LocalDevTools";
 import { createLaunchHistory, parseLaunchConfiguration } from "./launch/LaunchConfiguration";
 import { FirstPersonController, type PlayerAction } from "./player/FirstPersonController";
+import { PLAYER_COMBAT_EYE_HEIGHT } from "./player/CombatPose";
 import { AtmosphereSystem } from "./systems/AtmosphereSystem";
 import {
   getDungeonMood,
@@ -45,11 +53,7 @@ import { applyTextureSmoothing } from "./systems/TextureSmoothing";
 import { resolveDungeonExposure } from "./systems/LightTuning";
 import { PovPostFx } from "./systems/PovPostFx";
 import { computeCriticalHealthFeel } from "./systems/CriticalHealthFeel";
-import {
-  computeHazardFeel,
-  decayHazardHitBoost,
-  type DamageWashKind,
-} from "./systems/HazardFeel";
+import { computeHazardFeel, decayHazardHitBoost, type DamageWashKind } from "./systems/HazardFeel";
 import { projectPlayStepDamage } from "./systems/PlayStepEffects";
 import { stepAdaptiveCrt } from "./systems/AdaptiveCrtPolicy";
 import { TimedStatusChip } from "./ui/TimedStatusChip";
@@ -77,6 +81,10 @@ import { nextProceduralSeed } from "./game/SeedFactory";
 import { FloorExploration } from "./game/FloorExploration";
 import { readUserSettings, writeUserSettings, type UserSettings } from "./game/UserSettings";
 import { LocalRunSaveCoordinator } from "./game/LocalRunSaveCoordinator";
+import {
+  FloorTransitionDirector,
+  type FloorTransitionResult,
+} from "./game/FloorTransitionDirector";
 import {
   RunIntroDirector,
   type RunIntroResult,
@@ -108,7 +116,7 @@ import {
   type PlayerProfile,
 } from "./game/PlayerProfile";
 import { loadLeaderboard, submitLeaderboardEntry } from "./leaderboard/client";
-import { compareLeaderboardScore } from "./leaderboard/comparison";
+import { RoundResultsController, type RoundResultsState } from "./ui/RoundResultsController";
 import {
   computeLeaderboardScore,
   emptyPlayerBiomeStars,
@@ -373,7 +381,7 @@ const domainBridge: DomainBridge = createDomainBridge({
 });
 const floorExploration = new FloorExploration();
 let campaignFloorSet: DungeonFloorCampaign | null = null;
-let floorTransitionPending = false;
+let floorTransitionInputBlocked = false;
 
 function applyLocalDevToolsChrome(): void {
   elements.shell.dataset.localDevTools = localDevTools ? "true" : "false";
@@ -580,9 +588,7 @@ let playerProfile: PlayerProfile | null = readPlayerProfile();
 let profileAvatarDraft = playerProfile?.avatarIndex ?? 0;
 let campaignClearRecordedForRun = false;
 let leaderboardLoadSequence = 0;
-let endLeaderboardComparisonSequence = 0;
-let endLeaderboardSavedRank: number | null = null;
-let endLeaderboardTopScore: number | null = null;
+const roundResults = new RoundResultsController((limit) => loadLeaderboard(limit));
 let pendingLeaderboardSubmission: Omit<LeaderboardSubmissionInput, "playerName"> | null = null;
 let leaderboardSubmissionPending = false;
 /**
@@ -639,7 +645,6 @@ function setEditorSurfaceStatus(
 
 const controller = new FirstPersonController(camera, elements.scene, {
   tileSize: TILE_SIZE,
-  eyeHeight: 1.62,
   moveSpeed: PLAYER_MOVE_SPEED,
   sprintMultiplier: PLAYER_SPRINT_MULT,
   acceleration: 12.5,
@@ -1139,9 +1144,7 @@ function setActiveBiomeMusic(): void {
     return;
   }
   const portalOpen = playRuntime.state().quest.portalOpen;
-  setMusicBed(
-    musicTrackForBiome(resolveActiveMood(dungeon).id, { portalOpen }),
-  );
+  setMusicBed(musicTrackForBiome(resolveActiveMood(dungeon).id, { portalOpen }));
 }
 
 function readStoredMusicMuted(): boolean {
@@ -1229,9 +1232,7 @@ function waitMs(ms: number, signal?: AbortSignal): Promise<void> {
 }
 
 function isSceneFadeCovering(): boolean {
-  return (
-    !elements.sceneFade.hidden && elements.sceneFade.classList.contains("is-opaque")
-  );
+  return !elements.sceneFade.hidden && elements.sceneFade.classList.contains("is-opaque");
 }
 
 /** Mood for the loading teaser: campaign pick, forced URL mood, or live dungeon. */
@@ -1643,97 +1644,10 @@ function createLeaderboardRunId(): string {
   return `run_${unique}`;
 }
 
-const END_LEADERBOARD_LIMIT = 50;
-
-function renderEndLeaderboardComparison(
-  state: "loading" | "ranked" | "empty" | "outside" | "unavailable" | "custom",
-  rank: string,
-  detail: string,
-): void {
-  elements.endLeaderboardComparison.dataset.state = state;
-  elements.endLeaderboardRank.textContent = rank;
-  elements.endLeaderboardDelta.textContent = detail;
-}
-
-function leaderboardScoreGap(score: number, leaderScore: number): string {
-  const difference = score - leaderScore;
-  if (difference > 0) return COPY.leaderboard.comparisonAhead(difference);
-  if (difference === 0) return COPY.leaderboard.comparisonTied;
-  return COPY.leaderboard.comparisonBehind(Math.abs(difference), leaderScore);
-}
-
-function renderSavedLeaderboardRank(rank: number, score: number): void {
-  const detail =
-    rank === 1
-      ? COPY.leaderboard.comparisonLeader
-      : endLeaderboardTopScore === null
-        ? COPY.leaderboard.comparisonSavedDetail
-        : leaderboardScoreGap(score, endLeaderboardTopScore);
-  renderEndLeaderboardComparison(
-    "ranked",
-    COPY.leaderboard.comparisonSavedRank(rank),
-    detail,
-  );
-}
-
-async function refreshEndLeaderboardComparison(score: number): Promise<void> {
-  const sequence = ++endLeaderboardComparisonSequence;
-  renderEndLeaderboardComparison(
-    "loading",
-    COPY.leaderboard.comparisonLoadingTitle,
-    COPY.leaderboard.comparisonLoading,
-  );
-  try {
-    let response: Awaited<ReturnType<typeof loadLeaderboard>>;
-    try {
-      response = await loadLeaderboard(END_LEADERBOARD_LIMIT);
-    } catch (error) {
-      if (!(error instanceof Error) || error.message !== "Leaderboard request timed out.") {
-        throw error;
-      }
-      if (sequence !== endLeaderboardComparisonSequence) return;
-      // A renderer warmup can block the first response callback on low-end
-      // devices. Retry once after that one-time stall instead of losing the comparison.
-      response = await loadLeaderboard(END_LEADERBOARD_LIMIT);
-    }
-    if (sequence !== endLeaderboardComparisonSequence) return;
-    const comparison = compareLeaderboardScore(score, response.entries, END_LEADERBOARD_LIMIT);
-    endLeaderboardTopScore =
-      comparison.kind === "empty" ? null : comparison.leaderScore;
-    if (endLeaderboardSavedRank !== null) {
-      renderSavedLeaderboardRank(endLeaderboardSavedRank, score);
-      return;
-    }
-    if (comparison.kind === "empty") {
-      renderEndLeaderboardComparison(
-        "empty",
-        COPY.leaderboard.comparisonEmptyTitle,
-        COPY.leaderboard.comparisonEmpty,
-      );
-      return;
-    }
-    if (comparison.kind === "outside") {
-      renderEndLeaderboardComparison(
-        "outside",
-        COPY.leaderboard.comparisonOutside(comparison.limit),
-        leaderboardScoreGap(score, comparison.leaderScore),
-      );
-      return;
-    }
-    renderEndLeaderboardComparison(
-      "ranked",
-      COPY.leaderboard.comparisonProjected(comparison.projectedRank),
-      leaderboardScoreGap(score, comparison.leaderScore),
-    );
-  } catch {
-    if (sequence !== endLeaderboardComparisonSequence) return;
-    endLeaderboardTopScore = null;
-    renderEndLeaderboardComparison(
-      "unavailable",
-      COPY.leaderboard.comparisonUnavailableTitle,
-      COPY.leaderboard.comparisonUnavailable,
-    );
-  }
+function renderEndLeaderboardComparison(state: RoundResultsState): void {
+  elements.endLeaderboardComparison.dataset.state = state.kind;
+  elements.endLeaderboardRank.textContent = state.rank;
+  elements.endLeaderboardDelta.textContent = state.detail;
 }
 
 function prepareLeaderboardSubmission(
@@ -1747,17 +1661,9 @@ function prepareLeaderboardSubmission(
   const difficultyValue = getEnemyDensity();
   const score = computeLeaderboardScore({ durationMs, difficultyValue, roomCount });
   elements.endScore.textContent = score.toLocaleString("en-US");
-  endLeaderboardSavedRank = null;
-  endLeaderboardTopScore = null;
-
   // Custom Run / Forge / Map Tools: show the local score, never open Hall submit.
   if (!isLeaderboardEligible(runSource) || Boolean(dungeon?.forge)) {
-    endLeaderboardComparisonSequence += 1;
-    renderEndLeaderboardComparison(
-      "custom",
-      COPY.leaderboard.comparisonCustomTitle,
-      COPY.leaderboard.customExcluded,
-    );
+    roundResults.showCustom(renderEndLeaderboardComparison);
     pendingLeaderboardSubmission = null;
     elements.endLeaderboardForm.hidden = true;
     elements.endLeaderboardNote.hidden = true;
@@ -1765,7 +1671,7 @@ function prepareLeaderboardSubmission(
     return;
   }
 
-  void refreshEndLeaderboardComparison(score);
+  void roundResults.begin(score, renderEndLeaderboardComparison);
 
   pendingLeaderboardSubmission = {
     runId: createLeaderboardRunId(),
@@ -1806,6 +1712,7 @@ function prepareLeaderboardSubmission(
 function canEnablePlayController(): boolean {
   return (
     elements.shell.dataset.runIntroInputGate !== "true" &&
+    !floorTransitionInputBlocked &&
     !welcomeOpen &&
     renderWarmupReady &&
     engineMode === "play" &&
@@ -2388,64 +2295,9 @@ function unlockAudioFromGesture(): void {
 document.addEventListener("pointerdown", unlockAudioFromGesture, { capture: true });
 document.addEventListener("keydown", unlockAudioFromGesture, { capture: true });
 
-const UI_SOUND_SELECTOR =
-  "button, [role='button'], a.button, summary, select, input[type='button'], input[type='submit'], input[type='checkbox'], input[type='radio'], .leaderboard-seed, .biome-picker-option, .welcome-menu__item, .welcome-music-toggle";
 let lastUiHoverAt = 0;
-let lastUiHoverTarget: EventTarget | null = null;
+let lastUiHoverTarget: UiSoundTarget | null = null;
 let lastUiClickAt = 0;
-
-function isUiControlDisabled(node: Element): boolean {
-  if (
-    node instanceof HTMLButtonElement ||
-    node instanceof HTMLInputElement ||
-    node instanceof HTMLSelectElement
-  ) {
-    return node.disabled;
-  }
-  return node.hasAttribute("disabled") || node.getAttribute("aria-disabled") === "true";
-}
-
-function resolveUiClickCue(target: Element): AudioCue {
-  if (isUiControlDisabled(target)) return "uiDeny";
-  if (
-    target.matches(
-      ".biome-picker-option, .welcome-menu__item--primary, #leaderboard-submit, #welcome-new, #options-resume, #end-next-biome",
-    ) ||
-    target.closest(".biome-picker-option, .welcome-menu__item--primary")
-  ) {
-    return "uiSelect";
-  }
-  if (
-    target.matches(
-      "#biome-picker-back, .welcome-menu__item--secondary, #welcome-custom, summary, #retry, #new-dungeon",
-    ) ||
-    target.closest("#biome-picker-back, .welcome-menu__item--secondary")
-  ) {
-    return "uiBack";
-  }
-  if (
-    target.matches(
-      "#music-toggle, #welcome-music-toggle, #audio-toggle, #crt-toggle, input[type='checkbox']",
-    ) ||
-    target.closest(
-      "#music-toggle, #welcome-music-toggle, #audio-toggle, #crt-toggle, #texture-smoothing-toggle",
-    )
-  ) {
-    return "uiToggle";
-  }
-  if (target.matches("select, .leaderboard-seed") || target.closest(".leaderboard-seed")) {
-    return "uiTick";
-  }
-  return "uiClick";
-}
-
-function shouldPlayUiHover(target: Element): boolean {
-  return Boolean(
-    target.closest(
-      ".welcome-menu__item, .biome-picker-option, .leaderboard-seed, .welcome-music-toggle, #options-resume, button.mode-button, [data-engine-mode]",
-    ),
-  );
-}
 
 /** Light global UI SFX so menus, toggles, and pickers feel like a game shell. */
 function wireInterfaceSounds(): void {
@@ -2453,7 +2305,7 @@ function wireInterfaceSounds(): void {
     "pointerdown",
     (event) => {
       if (event.button !== 0) return;
-      const target = (event.target as Element | null)?.closest?.(UI_SOUND_SELECTOR);
+      const target = resolveUiSoundTarget(event.target);
       if (!target || target.closest("#scene, .touch-controls")) return;
       const now = performance.now();
       if (now - lastUiClickAt < 40) return;
@@ -2466,15 +2318,16 @@ function wireInterfaceSounds(): void {
   document.addEventListener(
     "pointerover",
     (event) => {
-      const target = (event.target as Element | null)?.closest?.(UI_SOUND_SELECTOR);
+      const target = resolveUiSoundTarget(event.target);
       if (!target || target.closest("#scene, .touch-controls")) return;
-      if (isUiControlDisabled(target) || !shouldPlayUiHover(target)) return;
+      const cue = resolveUiHoverCue(target);
+      if (!cue) return;
       if (lastUiHoverTarget === target) return;
       lastUiHoverTarget = target;
       const now = performance.now();
       if (now - lastUiHoverAt < 70) return;
       lastUiHoverAt = now;
-      playCue("uiHover");
+      playCue(cue);
     },
     true,
   );
@@ -2482,13 +2335,8 @@ function wireInterfaceSounds(): void {
   document.addEventListener(
     "change",
     (event) => {
-      const target = event.target;
-      if (!(target instanceof HTMLElement)) return;
-      if (
-        target.matches("select, input[type='range'], input[type='checkbox'], input[type='radio']")
-      ) {
-        playCue(target.matches("input[type='range']") ? "uiTick" : "uiToggle");
-      }
+      const cue = resolveUiChangeCue(event.target);
+      if (cue) playCue(cue);
     },
     true,
   );
@@ -2496,12 +2344,12 @@ function wireInterfaceSounds(): void {
   document.addEventListener(
     "input",
     (event) => {
-      const target = event.target;
-      if (!(target instanceof HTMLInputElement) || target.type !== "range") return;
+      const cue = resolveUiChangeCue(event.target);
+      if (cue !== "uiTick") return;
       const now = performance.now();
       if (now - lastUiClickAt < 55) return;
       lastUiClickAt = now;
-      playCue("uiTick");
+      playCue(cue);
     },
     true,
   );
@@ -2796,9 +2644,7 @@ function closeEndOverlay(): void {
   hideEndNextBiome();
   pendingLeaderboardSubmission = null;
   leaderboardSubmissionPending = false;
-  endLeaderboardComparisonSequence += 1;
-  endLeaderboardSavedRank = null;
-  endLeaderboardTopScore = null;
+  roundResults.reset();
   elements.shell.dataset.mode = "playing";
   controller.setEnabled(canEnablePlayController());
   if (!welcomeOpen) setActiveBiomeMusic();
@@ -3678,8 +3524,7 @@ async function submitPreparedLeaderboardEntry(): Promise<void> {
     elements.leaderboardSubmit.textContent = "Saved";
     updateLeaderboardPortraitPreview(entry.playerName);
     elements.leaderboardSubmitStatus.textContent = COPY.leaderboard.saved(entry.rank, entry.score);
-    endLeaderboardSavedRank = entry.rank;
-    renderSavedLeaderboardRank(entry.rank, entry.score);
+    roundResults.save(entry.rank, entry.score, renderEndLeaderboardComparison);
     // Keep progression UI in sync when an older restored win is submitted.
     revealEndNextBiomeAfterSave();
     void refreshLeaderboard();
@@ -4216,107 +4061,128 @@ const minimapResizeObserver = new ResizeObserver(() => scheduleMinimapLayout());
 minimapResizeObserver.observe(elements.minimap);
 window.addEventListener("resize", resize);
 
-async function transitionCampaignFloor(
-  targetFloor: number,
-  direction: "up" | "down",
-): Promise<void> {
-  if (
-    floorTransitionPending ||
-    !campaignFloorSet ||
-    !dungeon?.floor ||
-    targetFloor < 0 ||
-    targetFloor >= campaignFloorSet.count
-  ) {
-    return;
-  }
-  const currentFloor = dungeon.floor.index;
-  const targetDungeon = campaignFloorSet.floor(targetFloor);
-  const resume = captureLocalRunResume();
-  if (!targetDungeon || !resume) return;
-  const entryStair = targetDungeon.floor?.stairs.find(
-    (stair) => stair.targetFloor === currentFloor,
-  );
-  if (!entryStair) {
-    setStatus("The linked staircase could not be found.");
-    return;
-  }
+interface PreparedFloorTransition {
+  targetFloor: number;
+  direction: "up" | "down";
+  targetDungeon: DungeonData;
+  floorCount: number;
+  previousDomain: DungeonDomainState;
+  resume: LocalRunResumeState;
+  restore: RunResumeActivationPlan;
+  runSource: RunSource;
+}
 
-  const entry = gridToWorld(targetDungeon, entryStair.cell, TILE_SIZE);
-  const previousDomain = currentDomainSave();
-  // Flush through the sole save owner so a queued autosave cannot later replace
-  // this checkpoint. Local storage remains best-effort for gameplay.
-  const floorCheckpointSaved = localRunSave.flush();
-  const restore = planFloorTransition({
-    domain: previousDomain,
-    resume,
-    destination: {
-      floorIndex: targetFloor,
-      entryCell: entryStair.cell,
-      position: { x: entry.x, y: 1.62, z: entry.z },
-      yaw: entryStair.yaw + Math.PI,
-      pitch: 0,
-    },
-  });
-
-  floorTransitionPending = true;
-  controller.setEnabled(false);
-  controller.releasePointerLock();
-  let transitionFailed = false;
-  let transitionError: unknown;
-  try {
-    await setSceneFadeOpaque(true, { durationMs: 180 });
-    const params = readEditorParams();
-    await activateDungeon(
-      targetDungeon,
-      `Floor ${targetFloor + 1} of ${campaignFloorSet.count}.`,
-      params,
-      { restore },
+const floorTransitions = new FloorTransitionDirector<PreparedFloorTransition>({
+  prepare(request) {
+    if (!campaignFloorSet || !dungeon?.floor) return { ok: false, reason: "not-ready" };
+    if (
+      !Number.isInteger(request.targetFloor) ||
+      request.targetFloor < 0 ||
+      request.targetFloor >= campaignFloorSet.count
+    ) {
+      return { ok: false, reason: "invalid-target" };
+    }
+    const currentFloor = dungeon.floor.index;
+    const targetDungeon = campaignFloorSet.floor(request.targetFloor);
+    const resume = captureLocalRunResume();
+    if (!targetDungeon || !resume) return { ok: false, reason: "not-ready" };
+    const entryStair = targetDungeon.floor?.stairs.find(
+      (stair) => stair.targetFloor === currentFloor,
     );
-    // Hold the loader until the new floor's first real frame is compiled so
-    // the reveal never catches a half-built layout or shader pop-in.
+    if (!entryStair) return { ok: false, reason: "missing-linked-stair" };
+
+    const entry = gridToWorld(targetDungeon, entryStair.cell, TILE_SIZE);
+    const previousDomain = currentDomainSave();
+    const restore = planFloorTransition({
+      domain: previousDomain,
+      resume,
+      destination: {
+        floorIndex: request.targetFloor,
+        entryCell: entryStair.cell,
+        position: { x: entry.x, y: PLAYER_COMBAT_EYE_HEIGHT, z: entry.z },
+        yaw: entryStair.yaw + Math.PI,
+        pitch: 0,
+      },
+    });
+    return {
+      ok: true,
+      value: {
+        targetFloor: request.targetFloor,
+        direction: request.direction,
+        targetDungeon,
+        floorCount: campaignFloorSet.count,
+        previousDomain,
+        resume,
+        restore,
+        runSource,
+      },
+    };
+  },
+  checkpoint() {
+    return localRunSave.flush();
+  },
+  setInputBlocked(blocked) {
+    floorTransitionInputBlocked = blocked;
+    if (blocked) {
+      controller.setEnabled(false);
+      controller.releasePointerLock();
+    } else {
+      controller.setEnabled(canEnablePlayController());
+    }
+  },
+  fade(opaque) {
+    return setSceneFadeOpaque(opaque, { durationMs: opaque ? 180 : 240 });
+  },
+  async activate(prepared) {
+    await activateDungeon(
+      prepared.targetDungeon,
+      `Floor ${prepared.targetFloor + 1} of ${prepared.floorCount}.`,
+      readEditorParams(),
+      { restore: prepared.restore },
+    );
+  },
+  isTargetActive(prepared) {
+    return dungeon === prepared.targetDungeon;
+  },
+  async warmup() {
     await waitForRendererWarmup(10_000);
+    return elements.shell.dataset.rendererReady === "true" ? "ready" : "degraded";
+  },
+  present(prepared, checkpoint) {
+    const portalOpen = playRuntime.state().quest.portalOpen;
     showObjectiveBanner(
-      playRuntime.state().quest.portalOpen && targetFloor === campaignFloorSet.count - 1
+      portalOpen && prepared.targetFloor === prepared.floorCount - 1
         ? COPY.objective.openPortal
-        : `Floor ${targetFloor + 1}/${campaignFloorSet.count} · Find the remaining stones`,
-      playRuntime.state().quest.portalOpen ? "portal" : "hunt",
+        : `Floor ${prepared.targetFloor + 1}/${prepared.floorCount} · Find the remaining stones`,
+      portalOpen ? "portal" : "hunt",
       2600,
       900,
     );
     setStatus(
-      `${direction === "down" ? "Descended" : "Ascended"} to floor ${targetFloor + 1}/${campaignFloorSet.count}.${floorCheckpointSaved ? "" : " Local save unavailable."}`,
+      `${prepared.direction === "down" ? "Descended" : "Ascended"} to floor ${prepared.targetFloor + 1}/${prepared.floorCount}.${checkpoint === "saved" ? "" : " Local save unavailable."}`,
     );
-  } catch (error) {
-    transitionFailed = true;
-    transitionError = error;
-    if (dungeon === targetDungeon) {
-      // A build that failed after replacing the active floor is not safe to
-      // resume. Keep the last durable save intact and return to a stable menu.
-      runHasStarted = false;
-      controller.setEnabled(false);
-      setContinueCandidate(
-        previousDomain,
-        floorCheckpointSaved
-          ? "Saved descent ready."
-          : "Saved descent ready for this session.",
-        { resume, runSource },
-        { runSeconds: resume.runSeconds, biomeId: resume.campaignBiomeId },
-      );
-      setWelcomeOpen(true);
-    }
-  } finally {
-    try {
-      await setSceneFadeOpaque(false, { durationMs: 240 });
-    } catch (fadeError) {
-      console.error("Floor transition fade recovery failed", fadeError);
-    } finally {
-      floorTransitionPending = false;
-      if (transitionFailed && dungeon !== targetDungeon) {
-        controller.setEnabled(canEnablePlayController());
-      }
-    }
-  }
-  if (transitionFailed) throw transitionError;
+  },
+  recoverTarget(prepared, checkpoint) {
+    runHasStarted = false;
+    controller.setEnabled(false);
+    setContinueCandidate(
+      prepared.previousDomain,
+      checkpoint === "saved" ? "Saved descent ready." : "Saved descent ready for this session.",
+      { resume: prepared.resume, runSource: prepared.runSource },
+      {
+        runSeconds: prepared.resume.runSeconds,
+        biomeId: prepared.resume.campaignBiomeId,
+      },
+    );
+    setWelcomeOpen(true);
+  },
+});
+
+function transitionCampaignFloor(
+  targetFloor: number,
+  direction: "up" | "down",
+): Promise<FloorTransitionResult> {
+  return floorTransitions.start({ targetFloor, direction });
 }
 
 async function descendFloor(): Promise<DungeonRuntimeState> {
@@ -4470,10 +4336,20 @@ function frame(now: number): void {
       }
       if (worldUpdate.floorTransition) {
         const transition = worldUpdate.floorTransition;
-        void transitionCampaignFloor(transition.targetFloor, transition.direction).catch(
-          (error: unknown) => {
-            console.error("Floor transition failed", error);
-            setStatus("Could not change floors. Try the staircase again.");
+        void transitionCampaignFloor(transition.targetFloor, transition.direction).then(
+          (result) => {
+            if (result.kind === "rejected") {
+              if (result.reason === "missing-linked-stair") {
+                setStatus("The linked staircase could not be found.");
+              }
+              return;
+            }
+            if (result.kind === "recovered") {
+              console.error("Floor transition failed", result.error);
+              if (result.activeFloor === "source") {
+                setStatus("Could not change floors. Try the staircase again.");
+              }
+            }
           },
         );
       }
