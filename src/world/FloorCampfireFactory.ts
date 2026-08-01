@@ -2,9 +2,9 @@ import * as THREE from "three";
 import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 
 import { FIRE_LIGHT_TUNING } from "../systems/LightTuning";
-import { createFlameTongueGeometry } from "./FlameGeometry";
 import { createLightingPropBase } from "./LightingPropFactory";
 import type { DungeonMaterials } from "./MaterialLibrary";
+import { createNoiseFlame } from "./ProceduralFlameVfx";
 
 /** Small floor campfire footprint at adult player scale. */
 export const FLOOR_CAMPFIRE_MESH_SCALE = 1;
@@ -17,18 +17,6 @@ export interface FloorCampfireAssembly {
   light: THREE.PointLight | null;
   baseIntensity: number;
   baseY: number;
-}
-
-function flameMaterial(color: number, opacity: number): THREE.MeshBasicMaterial {
-  return new THREE.MeshBasicMaterial({
-    color,
-    transparent: true,
-    opacity,
-    blending: THREE.AdditiveBlending,
-    depthWrite: false,
-    toneMapped: true,
-    side: THREE.DoubleSide,
-  });
 }
 
 function markVfx(object: THREE.Object3D): void {
@@ -238,32 +226,19 @@ export function createFloorCampfire(
   root.position.copy(position);
 
   const baseY = 0.32;
-  const emberMat = flameMaterial(0xd7a05c, 0.78);
-  const coreMat = flameMaterial(0xffe0a1, 0.84);
-  const flame = new THREE.Mesh(createFlameTongueGeometry(0.16, 0.42, 7, 0.065), emberMat);
-  flame.name = "Campfire outer flame";
+  const flameVfx = createNoiseFlame({
+    name: "Campfire procedural noise flame",
+    width: 0.7,
+    height: 0.92,
+    phase: variant * 0.73 + position.x * 0.17 + position.z * 0.11,
+    opacity: 0.98,
+    turbulence: 1.22,
+    lean: 0.055,
+    emberCount: 9,
+  });
+  const flame = flameVfx.flame;
   flame.visible = lit;
   flame.position.set(0, baseY, 0);
-  flame.scale.set(0.92, 1.16, 0.92);
-  flame.renderOrder = 4;
-  markVfx(flame);
-
-  const flameCore = new THREE.Mesh(createFlameTongueGeometry(0.08, 0.27, 7, -0.025), coreMat);
-  flameCore.name = "Campfire flame core";
-  flameCore.visible = lit;
-  flameCore.position.set(0.01, baseY + 0.02, -0.01);
-  flameCore.scale.set(0.86, 1.08, 0.86);
-  flameCore.renderOrder = 5;
-  markVfx(flameCore);
-
-  const tongue = new THREE.Mesh(createFlameTongueGeometry(0.07, 0.29, 6, -0.07), emberMat.clone());
-  tongue.name = "Campfire lean tongue";
-  tongue.visible = lit;
-  tongue.position.set(-0.06, baseY + 0.08, 0.04);
-  tongue.scale.set(0.7, 1.02, 0.7);
-  tongue.rotation.z = 0.18;
-  tongue.renderOrder = 4;
-  markVfx(tongue);
 
   const groundGlow = new THREE.Mesh(
     new THREE.CircleGeometry(0.55, 14),
@@ -286,7 +261,7 @@ export function createFloorCampfire(
   const vfx = new THREE.Group();
   vfx.name = "Floor campfire VFX";
   markVfx(vfx);
-  vfx.add(groundGlow, flame, flameCore, tongue);
+  vfx.add(groundGlow, flame);
   root.add(vfx);
 
   const baseIntensity = 26;
@@ -335,7 +310,7 @@ export function createFloorCampfire(
   return {
     root,
     flame,
-    flameDetails: [flameCore, tongue],
+    flameDetails: flameVfx.details,
     halos,
     light,
     baseIntensity,

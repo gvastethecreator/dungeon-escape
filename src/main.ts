@@ -53,6 +53,7 @@ import {
 import { projectPlayStepDamage } from "./systems/PlayStepEffects";
 import { stepAdaptiveCrt } from "./systems/AdaptiveCrtPolicy";
 import { TimedStatusChip } from "./ui/TimedStatusChip";
+import { SceneLoaderEnemy } from "./ui/SceneLoaderEnemy";
 import { projectPickupFeedback } from "./ui/PickupFeedback";
 import { FrameGapProfiler, type FrameGapSnapshot } from "./systems/FrameGapProfiler";
 import type { BiomeEventSnapshot } from "./systems/BiomeEventDirector";
@@ -162,6 +163,9 @@ const elements = {
   welcomeProfileEdit: requireElement<HTMLButtonElement>("#welcome-profile-edit"),
   welcomePlayerAvatar: requireElement<HTMLImageElement>("#welcome-player-avatar"),
   welcomePlayerName: requireElement<HTMLElement>("#welcome-player-name"),
+  welcomeSaveTitle: requireElement<HTMLElement>("#welcome-save-title"),
+  welcomeSaveDetails: requireElement<HTMLElement>("#welcome-save-details"),
+  welcomeSaveMeta: requireElement<HTMLElement>("#welcome-save-meta"),
   welcomeProfile: requireElement<HTMLElement>("#welcome-profile"),
   welcomeProfileForm: requireElement<HTMLFormElement>("#welcome-profile-form"),
   welcomeProfileBack: requireElement<HTMLButtonElement>("#welcome-profile-back"),
@@ -179,6 +183,7 @@ const elements = {
   biomePickerBack: requireElement<HTMLButtonElement>("#biome-picker-back"),
   welcomeLeaderboard: requireElement<HTMLElement>("#welcome-leaderboard"),
   leaderboardList: requireElement<HTMLOListElement>("#leaderboard-list"),
+  welcomeHallToggle: requireElement<HTMLButtonElement>("#welcome-hall-toggle"),
   leaderboardStatus: requireElement<HTMLElement>("#leaderboard-status"),
   generationForm: requireElement<HTMLFormElement>("#generation-form"),
   seed: requireElement<HTMLInputElement>("#seed"),
@@ -234,6 +239,8 @@ const elements = {
   annihilationPulseValue: requireElement<HTMLTimeElement>("#annihilation-pulse-value"),
   fogClearStatus: requireElement<HTMLElement>("#fog-clear-status"),
   fogClearValue: requireElement<HTMLTimeElement>("#fog-clear-value"),
+  mobilityStatus: requireElement<HTMLElement>("#mobility-status"),
+  mobilityValue: requireElement<HTMLTimeElement>("#mobility-value"),
   slowCurseStatus: requireElement<HTMLElement>("#slow-curse-status"),
   slowCurseValue: requireElement<HTMLTimeElement>("#slow-curse-value"),
   frenzyCurseStatus: requireElement<HTMLElement>("#frenzy-curse-status"),
@@ -308,6 +315,8 @@ const elements = {
   bootStatus: requireElement<HTMLElement>("#boot-status"),
   sceneFade: requireElement<HTMLElement>("#scene-fade"),
   sceneLoader: requireElement<HTMLElement>("#scene-loader"),
+  sceneLoaderEnemy: requireElement<HTMLElement>("#scene-loader-enemy"),
+  sceneLoaderEnemySprite: requireElement<HTMLElement>("#scene-loader-enemy-sprite"),
   runIntroStatus: requireElement<HTMLElement>("#run-intro-status"),
   crtToggle: requireElement<HTMLButtonElement>("#crt-toggle"),
   editorWorkspace: requireElement<HTMLElement>("#editor-workspace"),
@@ -439,6 +448,11 @@ const cameraShakeEuler = new THREE.Euler(0, 0, 0, "YXZ");
 // Cached once — reading matchMedia every frame is wasteful and some browsers do
 // non-trivial work on each call. The live MediaQueryList keeps .matches current.
 const REDUCED_MOTION_QUERY = window.matchMedia("(prefers-reduced-motion: reduce)");
+const sceneLoaderEnemy = new SceneLoaderEnemy({
+  stage: elements.sceneLoaderEnemy,
+  sprite: elements.sceneLoaderEnemySprite,
+  reducedMotion: REDUCED_MOTION_QUERY.matches,
+});
 let dungeon: DungeonData | null = null;
 let mapExpanded = false;
 let lastMapDraw = 0;
@@ -467,6 +481,12 @@ const fogClearChip = new TimedStatusChip({
   shell: elements.shell,
   shellDatasetKey: "fogClear",
   ariaRemaining: "clear air remaining",
+});
+const mobilityChip = new TimedStatusChip({
+  elements: { root: elements.mobilityStatus, value: elements.mobilityValue },
+  shell: elements.shell,
+  shellDatasetKey: "mobilityBoost",
+  ariaRemaining: "wayfinder remaining",
 });
 const slowCurseChip = new TimedStatusChip({
   elements: { root: elements.slowCurseStatus, value: elements.slowCurseValue },
@@ -781,14 +801,82 @@ function flushLocalRunSaveWhenHidden(): void {
   if (document.visibilityState === "hidden") localRunSave.flush();
 }
 
+const CONTINUE_DUNGEON_LABELS: Record<string, string> = {
+  ancient: "The Ancient Halls",
+  molten: "The Molten Depths",
+  frost: "The Frost Reliquary",
+  grim: "The Gloom Crypt",
+  verdant: "The Verdant Wilds",
+  ash: "The Ashen Crypt",
+  iron: "The Iron Halls",
+  obsidian: "The Obsidian Vault",
+  sunken: "The Sunken Basilica",
+  fungal: "The Fungal Warrens",
+  backrooms: "The Backrooms",
+};
+
+type ContinuePresentation = {
+  readonly runSeconds?: number;
+  readonly savedAt?: number;
+  readonly biomeId?: string;
+};
+
+function continueDungeonLabel(presentation: ContinuePresentation): string {
+  const biomeId = presentation.biomeId?.trim().toLowerCase();
+  if (biomeId && CONTINUE_DUNGEON_LABELS[biomeId]) return CONTINUE_DUNGEON_LABELS[biomeId];
+  return "The Forgotten Descent";
+}
+
+function continueDurationLabel(seconds: number): string {
+  const minutes = Math.max(0, Math.floor(seconds / 60));
+  if (minutes < 60) return `${minutes} min played`;
+  const hours = Math.floor(minutes / 60);
+  const remaining = minutes % 60;
+  return `${hours}h ${String(remaining).padStart(2, "0")}m played`;
+}
+
+function saveAgeLabel(savedAt: number): string {
+  const minutes = Math.max(0, Math.floor((Date.now() - savedAt) / 60_000));
+  if (minutes < 1) return "Last save just now";
+  if (minutes < 60) return `Last save ${minutes} min ago`;
+  const hours = Math.floor(minutes / 60);
+  return `Last save ${hours}h ago`;
+}
+
+function syncWelcomeSaveSummary(
+  state: DungeonDomainState | null,
+  presentation: ContinuePresentation = {},
+): void {
+  if (!state) {
+    elements.welcomeSaveTitle.textContent = "NO ACTIVE DESCENT";
+    elements.welcomeSaveDetails.textContent = "Open the gates to begin your first escape.";
+    elements.welcomeSaveMeta.textContent = "CONTINUE LOCKED · NEW DESCENT AVAILABLE";
+    return;
+  }
+  elements.welcomeSaveTitle.textContent = continueDungeonLabel(presentation);
+  const progress = `${state.foundStoneIds.length} / 4 stones bound`;
+  elements.welcomeSaveDetails.textContent = `Floor ${Math.max(1, state.floor)} · ${
+    presentation.runSeconds === undefined
+      ? progress
+      : continueDurationLabel(presentation.runSeconds)
+  }`;
+  elements.welcomeSaveMeta.textContent = presentation.savedAt
+    ? saveAgeLabel(presentation.savedAt)
+    : `Campaign descent · ${progress}`;
+}
+
 function setContinueCandidate(
   state: DungeonDomainState | null,
   status: string,
   recovery: { readonly resume: LocalRunResumeState; readonly runSource: RunSource } | null = null,
+  presentation: ContinuePresentation = {},
 ): void {
   continueDomainState = canContinueDomainRun(state) ? state : null;
   continueRecoveryOverride = continueDomainState ? recovery : null;
   elements.welcomeContinue.disabled = continueDomainState === null;
+  elements.welcomeContinue.classList.toggle("is-featured", continueDomainState !== null);
+  elements.welcomeNew.classList.toggle("is-featured", continueDomainState === null);
+  syncWelcomeSaveSummary(continueDomainState, presentation);
   elements.welcomeStatus.textContent = status;
 }
 
@@ -878,7 +966,12 @@ function showPlayerProfileEditor(required = playerProfile === null): void {
 }
 
 function focusWelcomeEntry(): void {
-  (playerProfile ? elements.welcomeNew : elements.welcomeProfileName).focus({
+  (playerProfile
+    ? continueDomainState
+      ? elements.welcomeContinue
+      : elements.welcomeNew
+    : elements.welcomeProfileName
+  ).focus({
     preventScroll: true,
   });
 }
@@ -1141,10 +1234,25 @@ function isSceneFadeCovering(): boolean {
   );
 }
 
+/** Mood for the loading teaser: campaign pick, forced URL mood, or live dungeon. */
+function resolveSceneLoaderMoodId(): string {
+  if (forcedPlayMoodId) return forcedPlayMoodId;
+  const forced = parseDungeonMoodId(launchConfig.mood);
+  if (forced) return forced;
+  if (dungeon) return resolveActiveMood(dungeon).id;
+  return resolveIntroThemeKey();
+}
+
 /** Map-build spinner only. Black fades used for theater bookends stay clean. */
 function setSceneLoaderVisible(visible: boolean): void {
   elements.sceneLoader.hidden = !visible;
   elements.sceneLoader.setAttribute("aria-hidden", visible ? "false" : "true");
+  // Keep the same teaser while a cover re-asserts the spinner mid-build.
+  if (visible) {
+    if (!sceneLoaderEnemy.isVisible) sceneLoaderEnemy.show(resolveSceneLoaderMoodId());
+  } else {
+    sceneLoaderEnemy.hide();
+  }
 }
 
 /**
@@ -1501,21 +1609,30 @@ function renderLeaderboard(entries: readonly LeaderboardEntry[]): void {
 async function refreshLeaderboard(): Promise<void> {
   const sequence = ++leaderboardLoadSequence;
   elements.leaderboardStatus.textContent = COPY.leaderboard.loading;
+  elements.welcomeLeaderboard.classList.remove("is-expanded");
+  elements.welcomeHallToggle.hidden = true;
+  elements.welcomeHallToggle.setAttribute("aria-expanded", "false");
+  const hallToggleLabel = elements.welcomeHallToggle.firstElementChild;
+  const hallToggleArrow = elements.welcomeHallToggle.lastElementChild;
+  if (hallToggleLabel) hallToggleLabel.textContent = "VIEW HALL";
+  if (hallToggleArrow) hallToggleArrow.textContent = "→";
   try {
     const response = await loadLeaderboard();
     if (sequence !== leaderboardLoadSequence) return;
     playerBiomeStars = response.playerBiomeStars ?? emptyPlayerBiomeStars();
     syncWelcomeArt();
     renderLeaderboard(response.entries);
+    elements.welcomeHallToggle.hidden = response.entries.length <= 3;
     if (!elements.welcomeBiomePicker.hidden) renderBiomePicker();
     elements.leaderboardStatus.textContent = response.entries.length
-      ? `${response.entries.length} completed escape${response.entries.length === 1 ? "" : "s"}.`
+      ? `${response.entries.length} record${response.entries.length === 1 ? "" : "s"} in the hall.`
       : COPY.leaderboard.empty;
   } catch (error) {
     if (sequence !== leaderboardLoadSequence) return;
     playerBiomeStars = emptyPlayerBiomeStars();
     syncWelcomeArt();
     renderLeaderboard([]);
+    elements.welcomeHallToggle.hidden = true;
     elements.leaderboardStatus.textContent = COPY.leaderboard.unavailable;
     console.warn("Leaderboard could not be loaded", error);
   }
@@ -1874,6 +1991,7 @@ function applyPersistedRunSession(plan: RunResumeActivationPlan): void {
   luminousWardChip.reset();
   annihilationPulseChip.reset();
   fogClearChip.reset();
+  mobilityChip.reset();
   resetCurseHud();
   syncCurseHud();
   syncRunTimer();
@@ -2000,11 +2118,15 @@ function returnToMainScreen(): void {
   localRunSave.flush();
   const save = readLocalRunSave();
   if (canContinueLocalRun(save)) {
-    setContinueCandidate(save.state, `Continue ready · ${save.state.seed}`);
+    setContinueCandidate(save.state, "Saved descent ready.", null, {
+      runSeconds: save.resume?.runSeconds,
+      savedAt: save.savedAt,
+      biomeId: save.resume?.campaignBiomeId,
+    });
   } else if (continueDomainState && canContinueDomainRun(continueDomainState)) {
-    setContinueCandidate(continueDomainState, `Continue ready · ${continueDomainState.seed}`);
+    setContinueCandidate(continueDomainState, "Saved descent ready.");
   } else {
-    setContinueCandidate(null, "No active saved run. Start a new game.");
+    setContinueCandidate(null, "No active saved run. Start a new descent.");
   }
   syncWelcomeArt();
   setWelcomeOpen(true);
@@ -2060,6 +2182,10 @@ function syncAnnihilationPulseHud(remaining = world.annihilationPulseRemaining):
 function syncFogClearHud(remaining = world.fogClearRemaining): void {
   fogClearChip.sync(remaining);
   atmosphere.setFogClearPulse(remaining > 0 ? 1 : 0);
+}
+
+function syncMobilityHud(remaining = world.mobilityBoostRemaining): void {
+  mobilityChip.sync(remaining);
 }
 
 function syncCurseHud(
@@ -2491,14 +2617,15 @@ function showPickupFeedback(
   pickupFeedbackAnimation?.cancel();
   pickupFeedbackAnimation = elements.pickupFeedback.animate(
     [
-      { opacity: 0, transform: "translate(-50%, 12px)", offset: 0 },
-      { opacity: 1, transform: "translate(-50%, 0)", offset: 0.14 },
-      { opacity: 1, transform: "translate(-50%, 0)", offset: 0.68 },
-      { opacity: 0, transform: "translate(-50%, -8px)", offset: 1 },
+      { opacity: 0, transform: "translate(-50%, 22px) scale(0.92)", offset: 0 },
+      { opacity: 1, transform: "translate(-50%, 0) scale(1.04)", offset: 0.12 },
+      { opacity: 1, transform: "translate(-50%, 0) scale(1)", offset: 0.22 },
+      { opacity: 1, transform: "translate(-50%, -6px) scale(1)", offset: 0.72 },
+      { opacity: 0, transform: "translate(-50%, -18px) scale(0.98)", offset: 1 },
     ],
     {
-      duration: REDUCED_MOTION_QUERY.matches ? 1 : 900,
-      easing: "steps(8, end)",
+      duration: REDUCED_MOTION_QUERY.matches ? 1 : 1200,
+      easing: "steps(10, end)",
       fill: "both",
     },
   );
@@ -2892,6 +3019,7 @@ async function activateDungeon(
   luminousWardChip.reset();
   annihilationPulseChip.reset();
   fogClearChip.reset();
+  mobilityChip.reset();
   resetCurseHud();
   syncBiomeEvent();
   controller.setSurfaceMovement(1, 1);
@@ -2958,6 +3086,7 @@ async function activateDungeon(
   syncLuminousWardHud();
   syncAnnihilationPulseHud();
   syncFogClearHud();
+  syncMobilityHud();
   syncCurseHud();
   updateObjective();
   // Intro objective: appears at run start, then fades so the scene stays clean.
@@ -3143,6 +3272,7 @@ function selectEditorSpawn(cell: { x: number; y: number }): void {
   luminousWardChip.reset();
   annihilationPulseChip.reset();
   fogClearChip.reset();
+  mobilityChip.reset();
   resetCurseHud();
   lastRunTimerSecond = -1;
   atmosphere.setDungeon(dungeon, mood);
@@ -3168,6 +3298,7 @@ function selectEditorSpawn(cell: { x: number; y: number }): void {
   syncLuminousWardHud();
   syncAnnihilationPulseHud();
   syncFogClearHud();
+  syncMobilityHud();
   syncCurseHud();
   updateReadout();
   drawMap();
@@ -3731,6 +3862,15 @@ elements.welcomeNew.addEventListener("click", () => {
   void audio.unlock();
   showBiomePicker();
 });
+elements.welcomeHallToggle.addEventListener("click", () => {
+  const expanded = !elements.welcomeLeaderboard.classList.contains("is-expanded");
+  elements.welcomeLeaderboard.classList.toggle("is-expanded", expanded);
+  elements.welcomeHallToggle.setAttribute("aria-expanded", String(expanded));
+  const label = elements.welcomeHallToggle.firstElementChild;
+  const arrow = elements.welcomeHallToggle.lastElementChild;
+  if (label) label.textContent = expanded ? "HIDE HALL" : "VIEW HALL";
+  if (arrow) arrow.textContent = expanded ? "↑" : "→";
+});
 elements.welcomeProfileEdit.addEventListener("click", () => {
   showPlayerProfileEditor(false);
 });
@@ -4157,9 +4297,10 @@ async function transitionCampaignFloor(
       setContinueCandidate(
         previousDomain,
         floorCheckpointSaved
-          ? `Continue ready · ${previousDomain.seed}`
-          : `Continue ready for this session · ${previousDomain.seed}`,
+          ? "Saved descent ready."
+          : "Saved descent ready for this session.",
         { resume, runSource },
+        { runSeconds: resume.runSeconds, biomeId: resume.campaignBiomeId },
       );
       setWelcomeOpen(true);
     }
@@ -4302,6 +4443,7 @@ function frame(now: number): void {
       syncLuminousWardHud(worldUpdate.luminousWardRemaining);
       syncAnnihilationPulseHud(worldUpdate.annihilationPulseRemaining);
       syncFogClearHud(worldUpdate.fogClearRemaining);
+      syncMobilityHud(worldUpdate.mobilityBoostRemaining);
       syncCurseHud({
         slow: worldUpdate.slowCurseRemaining,
         frenzy: worldUpdate.frenzyCurseRemaining,
@@ -4400,6 +4542,7 @@ function frame(now: number): void {
   syncLuminousWardHud();
   syncAnnihilationPulseHud();
   syncFogClearHud();
+  syncMobilityHud();
   syncCurseHud();
   syncRunTimer();
 
@@ -4510,7 +4653,9 @@ function frame(now: number): void {
     feel.curvature,
     feel.chromatic,
     simulationActive ? criticalHealth.redTint : 0,
-    reducedMotion ? 0.004 : 0.008,
+    // Reduced motion: drop animated grain entirely so frozen hash noise does
+    // not sit as static dirt. Normal path stays a light living film grade.
+    reducedMotion ? 0 : 0.0065,
     !reducedMotion,
   );
   const hazardFeel = simulationActive
@@ -4680,9 +4825,13 @@ const localContinue = readLocalRunSave();
 if (canContinueLocalRun(localContinue)) {
   // Continue builds only after the player asks for it; parsing the validated
   // save is enough to render the menu and keeps first choice immediate.
-  setContinueCandidate(localContinue.state, `Continue ready · ${localContinue.state.seed}`);
+  setContinueCandidate(localContinue.state, "Saved descent ready.", null, {
+    runSeconds: localContinue.resume?.runSeconds,
+    savedAt: localContinue.savedAt,
+    biomeId: localContinue.resume?.campaignBiomeId,
+  });
 } else {
-  setContinueCandidate(null, "No active saved run. Start a new game.");
+  setContinueCandidate(null, "No active saved run. Start a new descent.");
 }
 if (visualQaState) {
   // Deterministic visual-QA URLs intentionally own a live world at boot.
@@ -4722,14 +4871,14 @@ if (visualQaState) {
         if (hydrated && canContinueDomainRun(hydrated.state)) {
           applyDungeonDomainToForm(hydrated.state);
           elements.seed.value = hydrated.seed;
-          setContinueCandidate(hydrated.state, `Continue ready · ${hydrated.seed}`);
+          setContinueCandidate(hydrated.state, "Saved descent ready.");
           setStatus(`Saved run ready · seed ${hydrated.seed}`);
         } else if (!continueDomainState) {
-          setContinueCandidate(null, "No active saved run. Start a new game.");
+          setContinueCandidate(null, "No active saved run. Start a new descent.");
         }
         await refreshRunSelect();
       } else if (!continueDomainState) {
-        setContinueCandidate(null, "No active saved run. Start a new game.");
+        setContinueCandidate(null, "No active saved run. Start a new descent.");
       }
     } catch (error) {
       console.warn("Boot hydrate failed", error);
