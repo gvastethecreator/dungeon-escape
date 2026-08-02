@@ -65,9 +65,10 @@ export function resolveDungeonExposure(lightLevel: number, moodBias: number): nu
 }
 
 export const FIRE_LIGHT_TUNING = Object.freeze({
-  fullLodDistance: 11,
-  cutoffLodDistance: 16,
-  wallRange: 16,
+  fullLodDistance: 14,
+  cutoffLodDistance: 20,
+  /** Wall torch PointLight distance; a little longer than a room band. */
+  wallRange: 20,
   /** Floor campfires (legacy key name: candle). */
   candleRange: 9,
   brazierRange: 12,

@@ -51,5 +51,13 @@ describe("InteractionReach", () => {
     expect(shouldOpenChest(false, true)).toBe(true);
     expect(shouldOpenChest(false, false)).toBe(false);
   });
+
+  test("rejects same-XZ targets on another slab", () => {
+    const player = { x: 0, y: 1.62, z: 0 };
+    const otherSlab = { x: 0, y: 1.62 + 4.4, z: 0 };
+    expect(canCollectPickupAt(player, otherSlab, false, "stone")).toBe(false);
+    expect(canInteractWithChestAt(player, otherSlab, false)).toBe(false);
+    expect(canCollectPickupAt(player, { x: 0.5, y: 1.7, z: 0 }, false, "stone")).toBe(true);
+  });
 });
 

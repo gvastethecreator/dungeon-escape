@@ -1,4 +1,9 @@
 import { COPY, stoneLabel, type StoneId } from "../ui/copy";
+import {
+  hasPhoenixCharge,
+  phoenixReviveResolve,
+  tryConsumePhoenixCharge,
+} from "./PhoenixEgg";
 import type { QuestState } from "./QuestState";
 
 export type RunMode = "playing" | "dead" | "won";
@@ -11,6 +16,8 @@ export interface SessionWorldUpdate {
     | "time-freeze"
     | "luminous-ward"
     | "annihilation-pulse"
+    | "cull-brand"
+    | "phoenix-egg"
     | "map"
     | "mobility"
     | "clarity"
@@ -18,7 +25,11 @@ export interface SessionWorldUpdate {
     | "slow-curse"
     | "frenzy-curse"
     | "gloom-curse"
+    | "mirror-curse"
+    | "spin-curse"
     | null;
+  /** Armed phoenix charges available before this damage resolves. */
+  phoenixCharges?: number;
   collectedStoneId: StoneId | null;
   /** All IDs collected in one world update. Older adapters may omit this. */
   collectedStoneIds?: readonly StoneId[];
@@ -58,6 +69,7 @@ export interface RunSessionEffects {
     timeFreeze?: boolean;
     luminousWard?: boolean;
     annihilationPulse?: boolean;
+    cullBrand?: boolean;
     mapReveal?: boolean;
     mobilityBoost?: boolean;
     fogClear?: boolean;
@@ -65,6 +77,9 @@ export interface RunSessionEffects {
     slowCurse?: boolean;
     frenzyCurse?: boolean;
     gloomCurse?: boolean;
+    mirrorCurse?: boolean;
+    spinCurse?: boolean;
+    phoenixEgg?: boolean;
   };
   endOverlay?: "dead" | "won";
   flash?: "event" | "damage";
@@ -72,6 +87,10 @@ export interface RunSessionEffects {
   playEnemyHit?: boolean;
   playPickup?: boolean;
   sessionChanged?: boolean;
+  /** Lethal damage spent a phoenix charge; host should fire annihilation pulse. */
+  phoenixRevive?: boolean;
+  /** Remaining phoenix charges after this update (host syncs world). */
+  phoenixCharges?: number;
   /** Prefer quest-derived progress for HUD / domain after stone events. */
   questPortalOpen?: boolean;
   questStonesFound?: number;
@@ -190,6 +209,13 @@ export function applyWorldUpdate(
     effects.flash = "event";
   }
 
+  if (update.collectedPickupKind === "cull-brand") {
+    effects.status = COPY.status.cullBrand;
+    effects.pickup = { label: COPY.pickup.cullBrand, cullBrand: true };
+    effects.playPickup = true;
+    effects.flash = "event";
+  }
+
   if (update.collectedPickupKind === "map") {
     effects.status = COPY.status.map;
     effects.pickup = { label: COPY.pickup.map, mapReveal: true };
@@ -243,6 +269,28 @@ export function applyWorldUpdate(
     effects.flash = "damage";
   }
 
+  if (update.collectedPickupKind === "mirror-curse") {
+    effects.status = COPY.status.mirrorCurse;
+    effects.pickup = { label: COPY.pickup.mirrorCurse, mirrorCurse: true };
+    effects.playPickup = true;
+    effects.flash = "damage";
+  }
+
+  if (update.collectedPickupKind === "spin-curse") {
+    effects.status = COPY.status.spinCurse;
+    effects.pickup = { label: COPY.pickup.spinCurse, spinCurse: true };
+    effects.playPickup = true;
+    effects.flash = "damage";
+  }
+
+  if (update.collectedPickupKind === "phoenix-egg") {
+    effects.status = COPY.status.phoenixEgg;
+    effects.pickup = { label: COPY.pickup.phoenixEgg, phoenixEgg: true };
+    effects.playPickup = true;
+    effects.flash = "event";
+    effects.sessionChanged = true;
+  }
+
   if (update.resolveGain > 0) {
     session.resolve = Math.min(100, session.resolve + update.resolveGain);
     effects.status = `Health restored +${update.resolveGain}.`;
@@ -260,9 +308,24 @@ export function applyWorldUpdate(
     effects.status = `Hostile contact −${update.damage} health.`;
     effects.sessionChanged = true;
     if (session.resolve <= 0) {
-      session.runMode = "dead";
-      quest.stop();
-      effects.endOverlay = "dead";
+      const phoenix = tryConsumePhoenixCharge(update.phoenixCharges ?? 0);
+      if (phoenix.consumed) {
+        session.resolve = phoenixReviveResolve();
+        session.runMode = "playing";
+        effects.phoenixRevive = true;
+        effects.phoenixCharges = phoenix.charges;
+        effects.endOverlay = undefined;
+        effects.flash = "event";
+        effects.status = COPY.status.phoenixRevive;
+        effects.damageHit = false;
+      } else {
+        session.runMode = "dead";
+        quest.stop();
+        effects.endOverlay = "dead";
+        effects.phoenixCharges = 0;
+      }
+    } else if (hasPhoenixCharge(update.phoenixCharges ?? 0)) {
+      effects.phoenixCharges = update.phoenixCharges;
     }
   }
 

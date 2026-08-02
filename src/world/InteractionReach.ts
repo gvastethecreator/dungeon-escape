@@ -9,6 +9,11 @@ export const CHEST_INTERACTION_DISTANCE = 1.9;
 export const PICKUP_COLLECTION_DISTANCE = 1.18;
 /** Magic stones get a wider grab so dense props near the seat cannot softlock a run. */
 export const STONE_COLLECTION_DISTANCE = 1.55;
+/**
+ * Max |player.y - target.y| for interact/collect across stacked slabs.
+ * Keeps same-XZ objects on other stories out of reach (~half a story).
+ */
+export const INTERACTION_VERTICAL_BAND = 2.2;
 
 export type PickupReachKind = "stone" | "other" | string;
 
@@ -37,6 +42,28 @@ export function inInteractionRange(
   return horizontalDistance(player, target) <= range;
 }
 
+/** True when vertical separation is within the multi-slab interact band. */
+export function inVerticalInteractionBand(
+  playerY: number,
+  targetY: number,
+  band = INTERACTION_VERTICAL_BAND,
+): boolean {
+  if (!Number.isFinite(playerY) || !Number.isFinite(targetY)) return true;
+  return Math.abs(playerY - targetY) <= band;
+}
+
+/** XZ range plus optional vertical band (required for multi-slab stacks). */
+export function inInteractionRange3d(
+  player: { x: number; y?: number; z: number },
+  target: { x: number; y?: number; z: number },
+  range: number,
+  verticalBand = INTERACTION_VERTICAL_BAND,
+): boolean {
+  if (!inInteractionRange(player, target, range)) return false;
+  if (player.y === undefined || target.y === undefined) return true;
+  return inVerticalInteractionBand(player.y, target.y, verticalBand);
+}
+
 /** Prefer the nearest in-range target; returns null when none qualify. */
 export function nearestInRangeIndex(
   player: { x: number; z: number },
@@ -54,8 +81,22 @@ export function nearestInRangeIndex(
   return bestIndex;
 }
 
-export function canInteractWithChest(distance: number, opened: boolean): boolean {
-  return !opened && Number.isFinite(distance) && distance <= CHEST_INTERACTION_DISTANCE;
+export function canInteractWithChest(
+  distance: number,
+  opened: boolean,
+  verticalDelta?: number,
+): boolean {
+  if (opened || !Number.isFinite(distance) || distance > CHEST_INTERACTION_DISTANCE) {
+    return false;
+  }
+  if (
+    verticalDelta !== undefined &&
+    Number.isFinite(verticalDelta) &&
+    Math.abs(verticalDelta) > INTERACTION_VERTICAL_BAND
+  ) {
+    return false;
+  }
+  return true;
 }
 
 /**
@@ -68,31 +109,42 @@ export function shouldOpenChest(interactPressed: boolean, mouseForwardHeld: bool
 
 /** Point-form of chest reach for callers that still have world positions. */
 export function canInteractWithChestAt(
-  player: { x: number; z: number },
-  chest: { x: number; z: number },
+  player: { x: number; y?: number; z: number },
+  chest: { x: number; y?: number; z: number },
   opened: boolean,
 ): boolean {
-  return !opened && inInteractionRange(player, chest, CHEST_INTERACTION_DISTANCE);
+  return (
+    !opened && inInteractionRange3d(player, chest, CHEST_INTERACTION_DISTANCE)
+  );
 }
 
 export function canCollectPickup(
   distance: number,
   autoCollect = false,
   kind: PickupReachKind = "other",
+  verticalDelta?: number,
 ): boolean {
   if (autoCollect) return true;
   if (!Number.isFinite(distance)) return false;
   const limit = kind === "stone" ? STONE_COLLECTION_DISTANCE : PICKUP_COLLECTION_DISTANCE;
-  return distance <= limit;
+  if (distance > limit) return false;
+  if (
+    verticalDelta !== undefined &&
+    Number.isFinite(verticalDelta) &&
+    Math.abs(verticalDelta) > INTERACTION_VERTICAL_BAND
+  ) {
+    return false;
+  }
+  return true;
 }
 
 export function canCollectPickupAt(
-  player: { x: number; z: number },
-  pickup: { x: number; z: number },
+  player: { x: number; y?: number; z: number },
+  pickup: { x: number; y?: number; z: number },
   autoCollect = false,
   kind: PickupReachKind = "other",
 ): boolean {
   if (autoCollect) return true;
   const limit = kind === "stone" ? STONE_COLLECTION_DISTANCE : PICKUP_COLLECTION_DISTANCE;
-  return inInteractionRange(player, pickup, limit);
+  return inInteractionRange3d(player, pickup, limit);
 }

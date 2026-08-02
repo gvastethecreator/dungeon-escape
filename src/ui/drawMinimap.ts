@@ -26,6 +26,8 @@ export const MINIMAP_COLORS = {
   timeFreeze: "#72e7ef",
   luminousWard: "#b9e879",
   annihilationPulse: "#ff5d86",
+  cullBrand: "#ff7a3a",
+  phoenixEgg: "#ff9a3a",
   map: "#d5bd7a",
   mobility: "#72d45f",
   clarity: "#a8d8ef",
@@ -33,6 +35,8 @@ export const MINIMAP_COLORS = {
   slowCurse: "#6a6a8a",
   frenzyCurse: "#c45a1a",
   gloomCurse: "#3a3a48",
+  mirrorCurse: "#7ec8e8",
+  spinCurse: "#c07ae0",
   stairs: "#d7d2c4",
   relic: "#8a4fb0",
   door: "#3a3d3a",
@@ -337,6 +341,36 @@ function drawFeatures(
     context.fill();
   }
 
+  if (features.cullBrand && isExplored(features.cullBrand.x, features.cullBrand.y)) {
+    const [cx, cy] = cellCenter(features.cullBrand);
+    const r = Math.max(2, cellSize * 0.58);
+    context.strokeStyle = COLORS.cullBrand;
+    context.lineWidth = Math.max(1, cellSize * 0.14);
+    context.beginPath();
+    context.arc(cx, cy, r, 0, Math.PI * 2);
+    context.stroke();
+    context.fillStyle = COLORS.cullBrand;
+    context.beginPath();
+    context.moveTo(cx, cy - r * 0.55);
+    context.lineTo(cx + r * 0.42, cy + r * 0.45);
+    context.lineTo(cx - r * 0.42, cy + r * 0.45);
+    context.closePath();
+    context.fill();
+  }
+
+  if (features.phoenixEgg && isExplored(features.phoenixEgg.x, features.phoenixEgg.y)) {
+    const [cx, cy] = cellCenter(features.phoenixEgg);
+    const r = Math.max(2, cellSize * 0.55);
+    context.fillStyle = COLORS.phoenixEgg;
+    context.beginPath();
+    context.moveTo(cx, cy - r);
+    context.lineTo(cx + r * 0.72, cy);
+    context.lineTo(cx, cy + r);
+    context.lineTo(cx - r * 0.72, cy);
+    context.closePath();
+    context.fill();
+  }
+
   for (const [cell, color, shape] of [
     [features.map, COLORS.map, "square"],
     [features.mobility, COLORS.mobility, "circle"],
@@ -345,6 +379,8 @@ function drawFeatures(
     [features.slowCurse, COLORS.slowCurse, "circle"],
     [features.frenzyCurse, COLORS.frenzyCurse, "circle"],
     [features.gloomCurse, COLORS.gloomCurse, "circle"],
+    [features.mirrorCurse, COLORS.mirrorCurse, "circle"],
+    [features.spinCurse, COLORS.spinCurse, "circle"],
   ] as const) {
     if (!cell || !isExplored(cell.x, cell.y)) continue;
     const [cx, cy] = cellCenter(cell);

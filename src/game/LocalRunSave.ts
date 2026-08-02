@@ -1,12 +1,16 @@
 import type { DungeonDomainState } from "../domain/bridge";
 import { ANNIHILATION_PULSE_DURATION_SECONDS } from "./AnnihilationPulse";
+import { CULL_BRAND_DURATION_SECONDS } from "./CullBrand";
 import { LUMINOUS_WARD_DURATION_SECONDS } from "./LuminousWard";
 import { FOG_CLEAR_DURATION_SECONDS } from "./FogClear";
 import { FRENZY_CURSE_DURATION_SECONDS } from "./FrenzyCurse";
 import { GLOOM_CURSE_DURATION_SECONDS } from "./GloomCurse";
+import { MIRROR_CURSE_DURATION_SECONDS } from "./MirrorCurse";
 import { MOBILITY_BOOST_DURATION_SECONDS } from "./MobilityBoost";
+import { PHOENIX_MAX_CHARGES } from "./PhoenixEgg";
 import { isRunSource, type RunSource } from "./RunSource";
 import { SLOW_CURSE_DURATION_SECONDS } from "./SlowCurse";
+import { SPIN_CURSE_DURATION_SECONDS } from "./SpinCurse";
 import { TIME_FREEZE_DURATION_SECONDS } from "./TimeFreeze";
 import { STONE_ORDER, type StoneId } from "../ui/copy";
 
@@ -48,6 +52,14 @@ export interface LocalRunResumeState {
   gloomCurseRemaining?: number;
   /** Sticky floor swarm pressure after the swarm curse chest. */
   swarmCurseActive?: boolean;
+  /** Cull brand window remaining while a charge is held. */
+  cullBrandRemaining?: number;
+  /** Timed look+move invert curse remaining. */
+  mirrorCurseRemaining?: number;
+  /** Timed yaw-bias curse remaining. */
+  spinCurseRemaining?: number;
+  /** Armed phoenix charges (0 or 1). */
+  phoenixCharges?: number;
   /** Active zero-based floor in a deterministic campaign floor set. */
   activeFloor?: number;
   /** Root seed used to regenerate every sibling floor. */
@@ -226,6 +238,34 @@ function isLocalRunResumeState(value: unknown): value is LocalRunResumeState {
   )
     return false;
   if (value.swarmCurseActive !== undefined && typeof value.swarmCurseActive !== "boolean")
+    return false;
+  if (
+    value.cullBrandRemaining !== undefined &&
+    (!isFiniteNumber(value.cullBrandRemaining) ||
+      value.cullBrandRemaining < 0 ||
+      value.cullBrandRemaining > CULL_BRAND_DURATION_SECONDS)
+  )
+    return false;
+  if (
+    value.mirrorCurseRemaining !== undefined &&
+    (!isFiniteNumber(value.mirrorCurseRemaining) ||
+      value.mirrorCurseRemaining < 0 ||
+      value.mirrorCurseRemaining > MIRROR_CURSE_DURATION_SECONDS)
+  )
+    return false;
+  if (
+    value.spinCurseRemaining !== undefined &&
+    (!isFiniteNumber(value.spinCurseRemaining) ||
+      value.spinCurseRemaining < 0 ||
+      value.spinCurseRemaining > SPIN_CURSE_DURATION_SECONDS)
+  )
+    return false;
+  if (
+    value.phoenixCharges !== undefined &&
+    (!Number.isInteger(value.phoenixCharges) ||
+      (value.phoenixCharges as number) < 0 ||
+      (value.phoenixCharges as number) > PHOENIX_MAX_CHARGES)
+  )
     return false;
   if (!Array.isArray(value.visitedCells)) return false;
   if (!value.visitedCells.every((cell) => typeof cell === "string" && /^-?\d+,-?\d+$/.test(cell))) {

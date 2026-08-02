@@ -7,11 +7,20 @@ Dungeon Escape is a first-person run through a generated dungeon. Creation, Play
 **Dungeon**:
 A connected set of rooms, corridors, features, entry, objectives, and exit used by Creation and Play.
 
-**Dungeon floor set**:
-A deterministic campaign-level collection of one to four sibling dungeons. `DungeonWorld` owns only the active floor; reciprocal stair anchors switch the active dungeon.
+**Dungeon floor stack**:
+A deterministic campaign-level collection of one to three sibling dungeons that share map size and aligned stair shafts. Play builds the whole stack as stacked slabs in one scene.
 
 **Dungeon floor campaign**:
-The deterministic, lazy cache that generates only the requested campaign floor. It preserves floor order and reciprocal stair anchors without building every sibling dungeon at run start.
+The deterministic cache that materializes every floor of the active campaign level so stair shafts stay aligned. Floor count is capped at three for continuous residency.
+
+**Stair shaft**:
+An aligned vertical opening with walkable tread colliders linking floor `i` to `i+1`. Players climb the steps; there is no interact prompt and no floor-load transition.
+
+**Story metrics**:
+Shared vertical constants for story height, step rise/run, and shaft footprint used by generation, the stair kit, and vertical motion.
+
+**Active floor**:
+The floor under the player feet, derived from support height. It drives exploration, minimap, and the logical dungeon grid without rebuilding the scene.
 
 **Creation**:
 The shell mode for building and previewing a map (`engineMode: "editor"` in code). UI label is Creation, not Authority.
@@ -95,7 +104,7 @@ The frame update for decorative actors that do not own gameplay state: fires, li
 The asynchronous owner of Hall comparison loading, timeout retry, stale-response rejection, saved rank, and the result states rendered by the round-results screen.
 
 **Floor transition transaction**:
-The serial checkpointed change between campaign floors. It prepares and validates the linked stair, blocks input, covers the scene, activates the target, waits for renderer warmup, presents the outcome, and always releases cover and input.
+Legacy fade/rebuild path retained only for recovery tooling. Normal play no longer uses it for stairs; walkable shafts replace it.
 
 **Forge frame client**:
 The browser boundary for the Forge iframe source, trusted messages, versioned presentation commands, waits, cancellation, and cleanup.
@@ -126,3 +135,18 @@ A deterministic, time-bounded modifier for one biome that changes pressure, move
 
 **Utility pickup**:
 The map or mobility item. Map reveals the active floor; mobility boosts speed and stamina while granting floor-trap immunity. Both persist in the active run.
+
+**Offense power pool**:
+The single positive kill/pressure chest slot per floor. Deterministically rolls among offense kinds (currently annihilation pulse and cull brand) so new kill tools can ship without raising the eight-chest budget.
+
+**Control curse**:
+A timed cursed chest effect that remaps look and/or movement (mirror invert, spin yaw bias). Newest control curse clears the other so mirror and spin never stack.
+
+**Biome loot plan**:
+Deterministic per-floor budgets for health chests, free corridor/room flasks, free support powers, extra support chests on high ranks, and whether a phoenix egg may spawn. Scales with campaign biome rank.
+
+**Floor free pickup**:
+A collectible reward placed on the floor without a chest (resolve flasks and ranked support powers such as time-freeze, ward, clarity).
+
+**Phoenix egg**:
+A map-found run charge. Picking it up only equips a silent HUD state (no ambient particles). Lethal damage spends the charge to revive at fixed resolve and ignite an annihilation pulse for the rebirth visuals. At most one charge; a second egg does not spawn while armed. New runs never start with the egg active.
