@@ -8,6 +8,7 @@ import {
   inInteractionRange,
   nearestInRangeIndex,
   PICKUP_COLLECTION_DISTANCE,
+  shouldOpenChest,
   STONE_COLLECTION_DISTANCE,
 } from "../src/world/InteractionReach";
 import {
@@ -43,6 +44,12 @@ describe("InteractionReach", () => {
       nearestInRangeIndex({ x: 0, z: 0 }, [{ x: 2, z: 0 }, { x: 1, z: 0 }, { x: 3, z: 0 }], 1.5),
     ).toBe(1);
     expect(nearestInRangeIndex({ x: 0, z: 0 }, [{ x: 3, z: 0 }], 1)).toBeNull();
+  });
+
+  test("opens chests on interact or hold-click, not only by proximity", () => {
+    expect(shouldOpenChest(true, false)).toBe(true);
+    expect(shouldOpenChest(false, true)).toBe(true);
+    expect(shouldOpenChest(false, false)).toBe(false);
   });
 });
 

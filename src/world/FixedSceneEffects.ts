@@ -1,7 +1,11 @@
 import * as THREE from "three";
 
 import type { DungeonData } from "../dungeon/types";
-import { biomeSpriteFloorDistanceFade, clampBiomeSpriteYaw } from "./BiomeSpriteDecorKit";
+import {
+  BIOME_FLOOR_PROP_FADE_FAR,
+  biomeSpriteFloorDistanceFade,
+  clampBiomeSpriteYaw,
+} from "./BiomeSpriteDecorKit";
 import { FireLosScheduler } from "./FireLosScheduler";
 import { hasGridLineOfSight } from "./LightOcclusion";
 import { tickLiquidSections, type LiquidSurface } from "./LiquidSectionKit";
@@ -25,11 +29,16 @@ export interface FixedSceneEffectsFrame {
 }
 
 /** Advances decorative world actors that do not own gameplay state. */
+/** Beyond this range, billboard yaw updates run on a staggered cadence. */
+const BIOME_SPRITE_FULL_UPDATE_DISTANCE = 14;
+const BIOME_SPRITE_STAGGER = 3;
+
 export class FixedSceneEffects {
   private readonly flamePosition = new THREE.Vector3();
   private readonly flameTarget = new THREE.Vector3();
   private readonly fireLosScheduler = new FireLosScheduler();
   private fireDistances = new Float32Array(0);
+  private floorSpritePhase = 0;
 
   update(frame: FixedSceneEffectsFrame): void {
     if (frame.viewerPosition) this.updateFloorSprites(frame.floorSprites, frame.viewerPosition);
@@ -78,10 +87,24 @@ export class FixedSceneEffects {
     floorSprites: readonly StaticFloorBiomeSprite[],
     player: THREE.Vector3Like,
   ): void {
-    for (const prop of floorSprites) {
+    this.floorSpritePhase = (this.floorSpritePhase + 1) % BIOME_SPRITE_STAGGER;
+    for (let index = 0; index < floorSprites.length; index += 1) {
+      const prop = floorSprites[index];
+      if (!prop) continue;
       const deltaX = player.x - prop.x;
       const deltaZ = player.z - prop.z;
-      const fade = biomeSpriteFloorDistanceFade(Math.hypot(deltaX, deltaZ));
+      const distance = Math.hypot(deltaX, deltaZ);
+      // Floor cards finish their fade by FADE_FAR. Past that band opacity is stable.
+      const fadeStable = distance >= BIOME_FLOOR_PROP_FADE_FAR;
+      const needsFullUpdate =
+        distance <= BIOME_SPRITE_FULL_UPDATE_DISTANCE ||
+        index % BIOME_SPRITE_STAGGER === this.floorSpritePhase;
+      // Far, fully faded sprites only refresh on the staggered phase.
+      if (!needsFullUpdate && fadeStable && prop.mesh.userData.distanceFade === 1) {
+        continue;
+      }
+
+      const fade = biomeSpriteFloorDistanceFade(distance);
       prop.material.opacity = prop.baseOpacity * fade;
       prop.mesh.visible = fade > 0.001;
       prop.mesh.userData.distanceFade = fade;

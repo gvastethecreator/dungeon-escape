@@ -39,7 +39,13 @@ export interface PlayWorldPort<TDungeon, TMood, TPlayer, TWorldUpdate extends Pl
     mood: TMood,
     yieldToMain: () => Promise<void>,
   ): Promise<void>;
-  update(delta: number, player: TPlayer, atExit: boolean, interactPressed?: boolean): TWorldUpdate;
+  update(
+    delta: number,
+    player: TPlayer,
+    atExit: boolean,
+    interactPressed?: boolean,
+    mouseForwardHeld?: boolean,
+  ): TWorldUpdate;
   restoreSession(foundStoneIds: readonly StoneId[]): void;
   restoreRuntimeProgress(
     progress: PlayRuntimeProgress["progress"],
@@ -197,13 +203,20 @@ export class PlayRuntime<TDungeon, TMood, TPlayer, TWorldUpdate extends PlayWorl
     player: TPlayer;
     atExit: boolean;
     interactPressed?: boolean;
+    mouseForwardHeld?: boolean;
   }): PlayRuntimeStep<TWorldUpdate> {
     this.assertActive();
     if (this.session.runMode !== "playing") {
       return { worldUpdate: null, effects: EMPTY_EFFECTS, state: this.state() };
     }
     const delta = Number.isFinite(input.delta) ? Math.max(0, input.delta) : 0;
-    const worldUpdate = this.world.update(delta, input.player, input.atExit, input.interactPressed);
+    const worldUpdate = this.world.update(
+      delta,
+      input.player,
+      input.atExit,
+      input.interactPressed,
+      input.mouseForwardHeld,
+    );
     this.gameplayClockMs += delta * 1_000;
     const effects = applyWorldUpdate(
       this.session,

@@ -231,6 +231,8 @@ export class LuminousWardVfx {
   private lastElapsed = 0;
   private hasElapsed = false;
   private particlesActive = false;
+  /** True when inactive fields already sit at zero cost (no uniform churn). */
+  private idleClean = false;
 
   constructor() {
     this.root.name = "Luminous ward player field";
@@ -411,6 +413,9 @@ export class LuminousWardVfx {
 
   update(remaining: number, elapsed: number, viewer: LuminousWardViewer, delta = 0): void {
     const active = remaining > 0.0001;
+    // Keep the ward graph compiled for warmup, but skip uniform churn while idle.
+    if (!active && this.idleClean && !this.particlesActive) return;
+
     const life = THREE.MathUtils.clamp(remaining / LUMINOUS_WARD_DURATION_SECONDS, 0, 1);
     const pulse = 0.96 + Math.sin(elapsed * 3.4) * 0.04;
     const breath = 0.98 + Math.sin(elapsed * 1.35) * 0.02;
@@ -463,6 +468,7 @@ export class LuminousWardVfx {
       this.updateParticles(elapsed, step, nextParticlesActive);
     }
     this.particlesActive = nextParticlesActive;
+    this.idleClean = !active && !nextParticlesActive;
   }
 
   private updateParticles(elapsed: number, delta: number, active: boolean): void {

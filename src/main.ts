@@ -37,6 +37,7 @@ import {
   type DifficultySnapshot,
 } from "./game/DifficultyDirector";
 import { isLocalDevToolsEnabled, readLocalDevToolsEnv } from "./game/LocalDevTools";
+import { hashSeed } from "./core/random";
 import { createLaunchHistory, parseLaunchConfiguration } from "./launch/LaunchConfiguration";
 import { FirstPersonController, type PlayerAction } from "./player/FirstPersonController";
 import { PLAYER_COMBAT_EYE_HEIGHT } from "./player/CombatPose";
@@ -142,7 +143,12 @@ import {
   biomeDifficultyRank,
   nextBiomeId,
 } from "./systems/BiomeCampaign";
-import { listBiomeIdentities, type BiomeId } from "./systems/BiomeIdentity";
+import {
+  getBiomeIdentity,
+  isBiomeId,
+  listBiomeIdentities,
+  type BiomeId,
+} from "./systems/BiomeIdentity";
 import { biomeScreenArtSrc, mainScreenBiomeForPlayer } from "./systems/BiomeScreenArt";
 import { biomeHoverColor, biomeIconSrc, expandBiomeStars } from "./systems/BiomeUi";
 import { DungeonWorld } from "./world/DungeonWorld";
@@ -810,30 +816,34 @@ function flushLocalRunSaveWhenHidden(): void {
   if (document.visibilityState === "hidden") localRunSave.flush();
 }
 
-const CONTINUE_DUNGEON_LABELS: Record<string, string> = {
-  ancient: "The Ancient Halls",
-  molten: "The Molten Depths",
-  frost: "The Frost Reliquary",
-  grim: "The Gloom Crypt",
-  verdant: "The Verdant Wilds",
-  ash: "The Ashen Crypt",
-  iron: "The Iron Halls",
-  obsidian: "The Obsidian Vault",
-  sunken: "The Sunken Basilica",
-  fungal: "The Fungal Warrens",
-  backrooms: "The Backrooms",
-};
-
 type ContinuePresentation = {
   readonly runSeconds?: number;
   readonly savedAt?: number;
   readonly biomeId?: string;
 };
 
-function continueDungeonLabel(presentation: ContinuePresentation): string {
-  const biomeId = presentation.biomeId?.trim().toLowerCase();
-  if (biomeId && CONTINUE_DUNGEON_LABELS[biomeId]) return CONTINUE_DUNGEON_LABELS[biomeId];
-  return "The Forgotten Descent";
+/** Prefer resume biome; otherwise resolve the same seed/profile look as generation. */
+function continueBiomeLabel(
+  state: DungeonDomainState,
+  presentation: ContinuePresentation = {},
+): string {
+  const fromResume = presentation.biomeId?.trim().toLowerCase();
+  if (fromResume && isBiomeId(fromResume)) return getBiomeIdentity(fromResume).label;
+  const stub = {
+    seed: state.seed,
+    seedHash: hashSeed(state.seed),
+  } as DungeonData;
+  return resolveDungeonMood(stub, state.profile).label;
+}
+
+/** Readable continue title: real seed + biome label (pixel font, no gothic fantasy name). */
+function continueDungeonLabel(
+  state: DungeonDomainState | null,
+  presentation: ContinuePresentation = {},
+): string {
+  const seed = state?.seed?.trim() || "Unknown map";
+  if (!state) return seed;
+  return `${seed} · ${continueBiomeLabel(state, presentation)}`;
 }
 
 function continueDurationLabel(seconds: number): string {
@@ -862,7 +872,7 @@ function syncWelcomeSaveSummary(
     elements.welcomeSaveMeta.textContent = "CONTINUE LOCKED · NEW DESCENT AVAILABLE";
     return;
   }
-  elements.welcomeSaveTitle.textContent = continueDungeonLabel(presentation);
+  elements.welcomeSaveTitle.textContent = continueDungeonLabel(state, presentation);
   const progress = `${state.foundStoneIds.length} / 4 stones bound`;
   elements.welcomeSaveDetails.textContent = `Floor ${Math.max(1, state.floor)} · ${
     presentation.runSeconds === undefined
@@ -1781,37 +1791,54 @@ function startRendererWarmup(sequence: number, readyMessage: string): void {
   const failsafe = window.setTimeout(() => {
     markRendererWarmupReady(sequence, "timeout", readyMessage);
   }, 4_000);
+  // Split warmup across two frames: first forces dormant VFX into the graph,
+  // second compiles/draws. That keeps the longest main-thread task shorter than
+  // a single combined setVisible+render long task without dropping programs.
   window.requestAnimationFrame(() => {
     if (sequence !== renderWarmupSequence) {
       window.clearTimeout(failsafe);
       return;
     }
     const startedAt = performance.now();
-    let warmupError: unknown = null;
-    world.setPickupEffectsWarmupVisible(true);
     try {
-      // Draw only the live frame. Explicit scene precompile also registers
-      // offscreen variants whose program handles can outlive a replaced world.
-      povPost.render(renderer, scene, camera);
+      world.setPickupEffectsWarmupVisible(true);
     } catch (error) {
-      warmupError = error;
-    } finally {
-      world.setPickupEffectsWarmupVisible(false);
       window.clearTimeout(failsafe);
-    }
-
-    if (warmupError !== null) {
-      const detail = warmupError instanceof Error ? warmupError.message : "unknown error";
+      const detail = error instanceof Error ? error.message : "unknown error";
       markRendererWarmupReady(sequence, "error", readyMessage, detail);
       return;
     }
-    markRendererWarmupReady(
-      sequence,
-      "true",
-      readyMessage,
-      undefined,
-      Math.round(performance.now() - startedAt),
-    );
+    window.requestAnimationFrame(() => {
+      if (sequence !== renderWarmupSequence) {
+        world.setPickupEffectsWarmupVisible(false);
+        window.clearTimeout(failsafe);
+        return;
+      }
+      let warmupError: unknown = null;
+      try {
+        // Draw only the live frame. Explicit scene precompile also registers
+        // offscreen variants whose program handles can outlive a replaced world.
+        povPost.render(renderer, scene, camera);
+      } catch (error) {
+        warmupError = error;
+      } finally {
+        world.setPickupEffectsWarmupVisible(false);
+        window.clearTimeout(failsafe);
+      }
+
+      if (warmupError !== null) {
+        const detail = warmupError instanceof Error ? warmupError.message : "unknown error";
+        markRendererWarmupReady(sequence, "error", readyMessage, detail);
+        return;
+      }
+      markRendererWarmupReady(
+        sequence,
+        "true",
+        readyMessage,
+        undefined,
+        Math.round(performance.now() - startedAt),
+      );
+    });
   });
 }
 
@@ -2033,10 +2060,15 @@ function returnToMainScreen(): void {
     setContinueCandidate(save.state, "Saved descent ready.", null, {
       runSeconds: save.resume?.runSeconds,
       savedAt: save.savedAt,
-      biomeId: save.resume?.campaignBiomeId,
+      biomeId:
+        save.resume?.campaignBiomeId ??
+        forcedPlayMoodId ??
+        (dungeon ? resolveActiveMood(dungeon).id : undefined),
     });
   } else if (continueDomainState && canContinueDomainRun(continueDomainState)) {
-    setContinueCandidate(continueDomainState, "Saved descent ready.");
+    setContinueCandidate(continueDomainState, "Saved descent ready.", null, {
+      biomeId: forcedPlayMoodId ?? (dungeon ? resolveActiveMood(dungeon).id : undefined),
+    });
   } else {
     setContinueCandidate(null, "No active saved run. Start a new descent.");
   }
@@ -4350,6 +4382,7 @@ function frame(now: number): void {
       player: playerPosition,
       atExit: result.atExit,
       interactPressed: result.interactPressed || uiInteractQueued,
+      mouseForwardHeld: result.mouseForwardHeld,
     });
     uiInteractQueued = false;
     const { worldUpdate, effects, state } = step;
@@ -4814,7 +4847,9 @@ if (visualQaState) {
         if (hydrated && canContinueDomainRun(hydrated.state)) {
           applyDungeonDomainToForm(hydrated.state);
           elements.seed.value = hydrated.seed;
-          setContinueCandidate(hydrated.state, "Saved descent ready.");
+          setContinueCandidate(hydrated.state, "Saved descent ready.", null, {
+            biomeId: forcedPlayMoodId ?? undefined,
+          });
           setStatus(`Saved run ready · seed ${hydrated.seed}`);
         } else if (!continueDomainState) {
           setContinueCandidate(null, "No active saved run. Start a new descent.");

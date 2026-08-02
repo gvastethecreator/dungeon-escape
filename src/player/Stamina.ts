@@ -45,6 +45,8 @@ export const STAMINA_REGEN_EARLY_PER_SEC = 2.5;
 export const STAMINA_REGEN_EXHAUSTED_PER_SEC = 1.25;
 /** Must recover this fraction before sprinting again after a full drain. */
 export const STAMINA_RECOVER_RATIO = 0.35;
+/** Fixed stamina spent per successful jump (~3.5% of a full bar). */
+export const JUMP_STAMINA_COST = 0.35;
 
 export const DEFAULT_STAMINA_CONFIG: Readonly<StaminaConfig> = Object.freeze({
   max: STAMINA_MAX,
@@ -61,6 +63,19 @@ export function createStaminaState(max = STAMINA_MAX): StaminaState {
 export function resetStamina(state: StaminaState, max = STAMINA_MAX): void {
   state.value = max;
   state.exhausted = false;
+}
+
+/**
+ * Instant stamina spend (jump). Does not gate the action that spent it.
+ * Hitting zero marks exhausted, matching a full sprint drain.
+ */
+export function consumeStamina(state: StaminaState, amount: number): void {
+  if (!Number.isFinite(amount) || amount <= 0) return;
+  state.value = Math.max(0, state.value - amount);
+  if (state.value <= 0) {
+    state.value = 0;
+    state.exhausted = true;
+  }
 }
 
 export function staminaRatio(state: StaminaState, max = STAMINA_MAX): number {

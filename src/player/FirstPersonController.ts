@@ -20,8 +20,10 @@ import {
 } from "./CameraMotionProjection";
 import { LookInputFilter } from "./LookInputFilter";
 import {
+  consumeStamina,
   createStaminaState,
   DEFAULT_STAMINA_CONFIG,
+  JUMP_STAMINA_COST,
   resetStamina,
   STAMINA_MAX,
   stepStamina,
@@ -178,6 +180,8 @@ export interface ControllerUpdate {
   /** 0..1 fill for the stamina meter. */
   stamina: number;
   staminaExhausted: boolean;
+  /** True while LMB is held under pointer lock (click-to-walk). */
+  mouseForwardHeld: boolean;
 }
 
 interface ControllerOptions {
@@ -299,6 +303,8 @@ export class FirstPersonController {
   };
   private locked = false;
   private enabled = true;
+  /** LMB hold while pointer-locked → walk forward. */
+  private mouseForwardHeld = false;
   private distanceTravelled = 0;
   private readonly lastCell: GridCell = { x: 0, y: 0 };
   private hasLastCell = false;
@@ -379,6 +385,11 @@ export class FirstPersonController {
     document.addEventListener("visibilitychange", this.handleVisibilityChange);
     window.addEventListener("blur", this.handleBlur);
     this.domElement.addEventListener("click", this.handleSceneClick);
+    this.domElement.addEventListener("pointerdown", this.handlePointerDown);
+    this.domElement.addEventListener("contextmenu", this.handleContextMenu);
+    // Release may happen outside the canvas while pointer-locked.
+    document.addEventListener("pointerup", this.handlePointerUp);
+    document.addEventListener("pointercancel", this.handlePointerUp);
   }
 
   setDungeon(dungeon: DungeonData): void {
@@ -395,6 +406,7 @@ export class FirstPersonController {
     this.vaultedColliderIds.clear();
     resetVerticalMotion(this.verticalState, this.eyeHeight, this.verticalConfig.maxAirJumps);
     resetStamina(this.staminaState, STAMINA_MAX);
+    this.mouseForwardHeld = false;
     this.landingDip = 0;
     this.distanceTravelled = 0;
     this.currentCell.x = dungeon.spawn.x;
@@ -477,6 +489,7 @@ export class FirstPersonController {
     if (!enabled) {
       this.keys.clear();
       this.virtualActions.clear();
+      this.mouseForwardHeld = false;
       this.velocity.set(0, 0);
       this.knockVel.set(0, 0);
       this.lookInput.clear();
@@ -585,6 +598,7 @@ export class FirstPersonController {
         justExhausted: false,
         stamina: this.staminaState.value / STAMINA_MAX,
         staminaExhausted: this.staminaState.exhausted,
+        mouseForwardHeld: this.locked && this.mouseForwardHeld,
       };
 
     this.elapsed += delta;
@@ -609,15 +623,18 @@ export class FirstPersonController {
       delta,
     );
 
+    // Click-to-walk only while pointer-locked (never drive movement from a stale hold).
+    const mouseDrive = this.locked && this.mouseForwardHeld;
     const forwardInput =
-      Number(this.isActionActive("forward") || this.virtualPulse.has("forward")) -
-      Number(this.isActionActive("backward") || this.virtualPulse.has("backward"));
+      Number(
+        this.isActionActive("forward") || this.virtualPulse.has("forward") || mouseDrive,
+      ) - Number(this.isActionActive("backward") || this.virtualPulse.has("backward"));
     const sidewaysInput =
       Number(this.isActionActive("right") || this.virtualPulse.has("right")) -
       Number(this.isActionActive("left") || this.virtualPulse.has("left"));
     const hasIntent = forwardInput !== 0 || sidewaysInput !== 0;
     const movementAllowed =
-      this.locked || this.virtualActions.size > 0 || this.virtualPulse.size > 0;
+      this.locked || this.virtualActions.size > 0 || this.virtualPulse.size > 0 || mouseDrive;
     const stamina = stepStamina(
       this.staminaState,
       delta,
@@ -632,6 +649,7 @@ export class FirstPersonController {
       this.verticalConfig,
     );
     const jumped = (verticalEvents & VERTICAL_EVENT.jumped) !== 0;
+    if (jumped) consumeStamina(this.staminaState, JUMP_STAMINA_COST);
     const landed = (verticalEvents & VERTICAL_EVENT.landed) !== 0;
     const hitCeiling = (verticalEvents & VERTICAL_EVENT.hitCeiling) !== 0;
     if (landed) {
@@ -769,8 +787,9 @@ export class FirstPersonController {
       landed,
       hitCeiling,
       justExhausted: stamina.justExhausted,
-      stamina: stamina.ratio,
-      staminaExhausted: stamina.exhausted,
+      stamina: this.staminaState.value / STAMINA_MAX,
+      staminaExhausted: this.staminaState.exhausted,
+      mouseForwardHeld: mouseDrive,
     };
   }
 
@@ -810,14 +829,19 @@ export class FirstPersonController {
 
   dispose(): void {
     this.releasePointerLock();
+    this.mouseForwardHeld = false;
     document.removeEventListener("mousemove", this.handleMouseMove);
     document.removeEventListener("keydown", this.handleKeyDown);
     document.removeEventListener("keyup", this.handleKeyUp);
     document.removeEventListener("pointerlockchange", this.handlePointerLockChange);
     document.removeEventListener("pointerlockerror", this.handlePointerLockError);
     document.removeEventListener("visibilitychange", this.handleVisibilityChange);
+    document.removeEventListener("pointerup", this.handlePointerUp);
+    document.removeEventListener("pointercancel", this.handlePointerUp);
     window.removeEventListener("blur", this.handleBlur);
     this.domElement.removeEventListener("click", this.handleSceneClick);
+    this.domElement.removeEventListener("pointerdown", this.handlePointerDown);
+    this.domElement.removeEventListener("contextmenu", this.handleContextMenu);
   }
 
   /**
@@ -898,11 +922,12 @@ export class FirstPersonController {
     this.lookInput.clear();
     this.targetYaw = this.lookYaw;
     this.targetPitch = this.lookPitch;
+    if (!this.locked) this.mouseForwardHeld = false;
     if (this.locked) this.domElement.focus();
     this.onLockChange(
       this.locked,
       this.locked
-        ? "Pointer active. WASD moves. SHIFT sprints. SPACE double-jumps. E interacts."
+        ? "Pointer active. WASD or hold click moves. Right-click or SPACE jumps. SHIFT sprints. E interacts."
         : "Pointer released. The run is paused.",
     );
   };
@@ -913,6 +938,7 @@ export class FirstPersonController {
     this.keys.clear();
     this.justPressed.clear();
     this.virtualPulse.clear();
+    this.mouseForwardHeld = false;
     this.velocity.set(0, 0);
     this.knockVel.set(0, 0);
     this.lookInput.clear();
@@ -923,6 +949,26 @@ export class FirstPersonController {
     if (document.hidden) this.handleBlur();
   };
   private readonly handleSceneClick = (): void => this.requestPointerLock();
+  private readonly handleContextMenu = (event: Event): void => {
+    event.preventDefault();
+  };
+  private readonly handlePointerDown = (event: PointerEvent): void => {
+    if (!this.enabled || !this.locked) return;
+    if (event.button === 0) {
+      this.mouseForwardHeld = true;
+      return;
+    }
+    if (event.button === 2) {
+      event.preventDefault();
+      this.justPressed.add("jump");
+    }
+  };
+  private readonly handlePointerUp = (event: PointerEvent): void => {
+    // pointercancel may omit button 0; always release click-to-walk.
+    if (event.type === "pointercancel" || event.button === 0) {
+      this.mouseForwardHeld = false;
+    }
+  };
   private syncCameraPosition(): void {
     this.camera.position.copy(this.position);
   }

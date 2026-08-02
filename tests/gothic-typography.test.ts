@@ -34,6 +34,10 @@ describe("Dungeon gothic typography", () => {
     }
     expect(host).toContain('id="welcome-save-title">No active descent</strong>');
     expect(main).toContain('welcomeSaveTitle.textContent = "No active descent"');
-    expect(shell).toContain("`Floor ${save.state.floor} · ${save.state.seed}`");
+    // Continue title is seed · biome in pixel font (not gothic fantasy halls).
+    expect(main).toContain("continueDungeonLabel");
+    expect(main).toContain("getBiomeIdentity");
+    expect(shell).toContain("getBiomeIdentity");
+    expect(styles).toMatch(/\.welcome-save\s*>\s*strong[\s\S]*font-family:\s*var\(--font-pixel\)/);
   });
 });
