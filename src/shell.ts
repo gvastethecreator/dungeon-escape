@@ -3,8 +3,12 @@ import {
   portraitForIndex,
   randomPortraitIndex,
 } from "./leaderboard/portraits";
+import { hashSeed } from "./core/random";
 import { canContinueLocalRun, readLocalRunSave } from "./game/LocalRunSave";
 import { shouldLoadDungeonRuntime } from "./shellRoute";
+import { getBiomeIdentity, isBiomeId } from "./systems/BiomeIdentity";
+import { resolveDungeonMood } from "./systems/DungeonMood";
+import type { DungeonData } from "./dungeon/types";
 import { BiomeScreenParticles } from "./ui/BiomeScreenParticles";
 import "./styles.css";
 
@@ -96,9 +100,18 @@ function hydrateWelcome(): void {
   const canContinue = canContinueLocalRun(save);
   continueButton.disabled = !canContinue;
   if (canContinue && save) {
+    const biomeId = save.resume?.campaignBiomeId?.trim().toLowerCase();
+    const biomeLabel =
+      biomeId && isBiomeId(biomeId)
+        ? getBiomeIdentity(biomeId).label
+        : resolveDungeonMood(
+            { seed: save.state.seed, seedHash: hashSeed(save.state.seed) } as DungeonData,
+            save.state.profile,
+          ).label;
     element<HTMLElement>("welcome-save-title").textContent =
-      `Floor ${save.state.floor} · ${save.state.seed}`;
-    element<HTMLElement>("welcome-save-details").textContent = "Saved descent ready.";
+      `${save.state.seed} · ${biomeLabel}`;
+    element<HTMLElement>("welcome-save-details").textContent =
+      `Floor ${save.state.floor} · Saved descent ready.`;
     element<HTMLElement>("welcome-save-meta").textContent = "CONTINUE AVAILABLE";
     status.textContent = "Choose Continue or begin a new descent.";
   } else {

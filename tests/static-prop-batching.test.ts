@@ -1,9 +1,21 @@
 import { describe, expect, test } from "bun:test";
 import * as THREE from "three";
 
-import { createStaticPropTemplateBatches } from "../src/world/StaticDungeonScene";
+import {
+  clearStaticPropTemplateBatchCache,
+  createStaticPropTemplateBatches,
+  staticPropTemplateBatchCacheSize,
+} from "../src/world/StaticDungeonScene";
 import { createDungeonProp } from "../src/world/DungeonPropKit";
-import { createDungeonMaterials } from "../src/world/MaterialLibrary";
+import {
+  clearDungeonMaterialVariantCache,
+  clearDungeonMaterialVariantsFor,
+  createDungeonMaterials,
+  disposeDungeonMaterials,
+  dungeonMaterialVariantCacheSize,
+  dungeonMaterialsCacheToken,
+  getDungeonMaterialVariant,
+} from "../src/world/MaterialLibrary";
 
 describe("static Creation prop batching", () => {
   test("bakes source transforms and collapses meshes that share a material", () => {
@@ -82,5 +94,82 @@ describe("static Creation prop batching", () => {
     expect(batches.every((batch) => batch.geometry.index === null)).toBe(true);
 
     batches.forEach((batch) => batch.geometry.dispose());
+  });
+
+  test("caches template batch geometry by key and returns independent clones", () => {
+    clearStaticPropTemplateBatchCache();
+    const materials = createDungeonMaterials();
+    const token = dungeonMaterialsCacheToken(materials);
+    const first = createDungeonProp("crates", materials, 1);
+    const firstBatches = createStaticPropTemplateBatches(first, {
+      cacheKey: `test:crates:1:${token}`,
+    });
+    const second = createDungeonProp("crates", materials, 1);
+    const secondBatches = createStaticPropTemplateBatches(second, {
+      cacheKey: `test:crates:1:${token}`,
+    });
+
+    expect(staticPropTemplateBatchCacheSize()).toBe(1);
+    expect(secondBatches).toHaveLength(firstBatches.length);
+    expect(secondBatches[0]!.geometry).not.toBe(firstBatches[0]!.geometry);
+    expect(secondBatches[0]!.geometry.attributes.position.count).toBe(
+      firstBatches[0]!.geometry.attributes.position.count,
+    );
+
+    firstBatches.forEach((batch) => batch.geometry.dispose());
+    secondBatches.forEach((batch) => batch.geometry.dispose());
+    clearStaticPropTemplateBatchCache();
+  });
+
+  test("does not reuse template cache entries across distinct materials sets", () => {
+    clearStaticPropTemplateBatchCache();
+    const materialsA = createDungeonMaterials();
+    const materialsB = createDungeonMaterials();
+    const propA = createDungeonProp("crates", materialsA, 1);
+    const propB = createDungeonProp("crates", materialsB, 1);
+    createStaticPropTemplateBatches(propA, {
+      cacheKey: `test:crates:iso:${dungeonMaterialsCacheToken(materialsA)}`,
+    }).forEach((batch) => batch.geometry.dispose());
+    createStaticPropTemplateBatches(propB, {
+      cacheKey: `test:crates:iso:${dungeonMaterialsCacheToken(materialsB)}`,
+    }).forEach((batch) => batch.geometry.dispose());
+    expect(staticPropTemplateBatchCacheSize()).toBe(2);
+    expect(dungeonMaterialsCacheToken(materialsA)).not.toBe(dungeonMaterialsCacheToken(materialsB));
+    clearStaticPropTemplateBatchCache();
+  });
+
+  test("shares dungeon material finish variants across prop builds", () => {
+    clearDungeonMaterialVariantCache();
+    const materials = createDungeonMaterials();
+    const first = getDungeonMaterialVariant(materials.wood, "test-finish", (material) => {
+      material.color.multiplyScalar(0.5);
+      material.name = "Test finish wood";
+    });
+    const second = getDungeonMaterialVariant(materials.wood, "test-finish", (material) => {
+      material.color.multiplyScalar(0.1);
+      material.name = "Should not run";
+    });
+    expect(second).toBe(first);
+    expect(dungeonMaterialVariantCacheSize()).toBe(1);
+    expect(first.name).toBe("Test finish wood");
+    clearDungeonMaterialVariantCache();
+  });
+
+  test("disposeDungeonMaterials drops variants for that materials set only", () => {
+    clearDungeonMaterialVariantCache();
+    const materialsA = createDungeonMaterials();
+    const materialsB = createDungeonMaterials();
+    getDungeonMaterialVariant(materialsA.wood, "dispose-a", (material) => {
+      material.name = "A";
+    });
+    getDungeonMaterialVariant(materialsB.wood, "dispose-b", (material) => {
+      material.name = "B";
+    });
+    expect(dungeonMaterialVariantCacheSize()).toBe(2);
+    disposeDungeonMaterials(materialsA);
+    expect(dungeonMaterialVariantCacheSize()).toBe(1);
+    clearDungeonMaterialVariantsFor(materialsB);
+    disposeDungeonMaterials(materialsB);
+    expect(dungeonMaterialVariantCacheSize()).toBe(0);
   });
 });

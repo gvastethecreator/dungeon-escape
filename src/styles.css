@@ -424,6 +424,27 @@ kbd {
   overflow: hidden;
   background: var(--ink);
   isolation: isolate;
+  /* Game shell: drag-select must not treat HUD copy like a web page. */
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.app-shell input,
+.app-shell textarea,
+.app-shell [contenteditable="true"] {
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+.app-shell ::selection {
+  background: transparent;
+  color: inherit;
+}
+
+.app-shell input::selection,
+.app-shell textarea::selection {
+  background: rgb(201 197 184 / 35%);
+  color: var(--bone);
 }
 
 .app-shell:not(.crt-off) {
@@ -451,8 +472,17 @@ kbd {
   display: block;
   width: 100%;
   height: 100%;
+  outline: none;
   image-rendering: pixelated;
   touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+#scene:focus,
+#scene:focus-visible {
+  outline: none;
 }
 
 /* Softens the point where props enter the first-person frame and reinforces
@@ -3660,36 +3690,19 @@ kbd {
   }
 }
 .end-overlay[data-end="won"] .end-card {
-  width: min(680px, 100%);
-  max-height: calc(100dvh - 36px);
-  overflow: auto;
-  scrollbar-width: thin;
-  scrollbar-color: rgb(217 184 91 / 52%) rgb(255 255 255 / 5%);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 8px;
+  width: min(640px, 100%);
+  max-height: 100%;
+  overflow: hidden;
   border-color: rgb(217 184 91 / 38%);
   border-top-width: 3px;
   background: rgb(7 8 9 / 96%);
   box-shadow:
     0 0 0 1px rgb(255 255 255 / 4%),
     16px 20px 0 rgb(0 0 0 / 38%);
-  overscroll-behavior: contain;
-}
-
-.end-overlay[data-end="won"] .end-card::-webkit-scrollbar {
-  width: 8px;
-}
-
-.end-overlay[data-end="won"] .end-card::-webkit-scrollbar-track {
-  background: rgb(255 255 255 / 5%);
-}
-
-.end-overlay[data-end="won"] .end-card::-webkit-scrollbar-thumb {
-  border: 2px solid rgb(7 8 9 / 96%);
-  border-radius: 999px;
-  background: rgb(217 184 91 / 52%);
-}
-
-.end-overlay[data-end="won"] .end-card::-webkit-scrollbar-thumb:hover {
-  background: rgb(234 205 116 / 72%);
 }
 
 /* Victory stage keeps the full escape art uncropped next to the results card. */
@@ -3752,7 +3765,7 @@ kbd {
 .end-overlay[data-end="won"] .end-card {
   align-self: center;
   justify-self: end;
-  padding: clamp(26px, 3vw, 42px);
+  padding: clamp(16px, 2.2vw, 28px);
   text-align: left;
 }
 
@@ -3816,8 +3829,8 @@ kbd {
 
 .end-overlay[data-end="won"] .end-card h1 {
   max-width: none;
-  margin: 10px 0 8px;
-  font-size: clamp(42px, 3.6vw, 54px);
+  margin: 6px 0 4px;
+  font-size: clamp(28px, 3vw, 42px);
   line-height: 0.96;
   text-wrap: balance;
 }
@@ -3832,17 +3845,18 @@ kbd {
 
 .end-scoreboard {
   display: grid;
-  grid-template-columns: minmax(0, 1.22fr) minmax(210px, 0.78fr);
+  grid-template-columns: minmax(0, 1.22fr) minmax(180px, 0.78fr);
   grid-template-rows: auto auto;
   gap: 1px;
-  margin: 24px 0 0;
+  margin: 10px 0 0;
   padding: 1px;
   background: rgb(217 184 91 / 26%);
+  flex: 0 0 auto;
 }
 
 .end-scoreboard > div {
   min-width: 0;
-  padding: 16px 18px;
+  padding: 10px 12px;
   background: #0b0c0d;
 }
 
@@ -3874,7 +3888,7 @@ kbd {
 .end-scoreboard__score dd {
   overflow-wrap: anywhere;
   color: #f4df9a;
-  font-size: clamp(46px, 5.4vw, 76px);
+  font-size: clamp(32px, 4vw, 56px);
   font-weight: 800;
   letter-spacing: -0.06em;
   line-height: 0.96;
@@ -3882,14 +3896,14 @@ kbd {
 }
 
 .end-scoreboard__time dd {
-  font-size: clamp(22px, 2.5vw, 34px);
+  font-size: clamp(18px, 2.2vw, 28px);
   letter-spacing: 0.02em;
   line-height: 1;
 }
 
 .end-scoreboard__rank dd {
   color: #d9b85b;
-  font-size: clamp(16px, 1.7vw, 24px);
+  font-size: clamp(14px, 1.5vw, 20px);
   font-weight: 700;
   line-height: 1.05;
 }
@@ -3919,10 +3933,11 @@ kbd {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 0;
-  margin: 12px 0 18px;
+  margin: 6px 0 8px;
   border-top: 1px solid rgb(201 197 184 / 15%);
   border-bottom: 1px solid rgb(201 197 184 / 15%);
   text-align: left;
+  flex: 0 0 auto;
 }
 
 .end-results[hidden],
@@ -3932,7 +3947,7 @@ kbd {
 
 .end-results > div {
   min-width: 0;
-  padding: 12px 14px;
+  padding: 8px 10px;
   border-right: 1px solid rgb(201 197 184 / 12%);
 }
 
@@ -3980,14 +3995,15 @@ kbd {
 
 .end-leaderboard-form {
   display: grid;
-  grid-template-columns: 74px minmax(0, 1fr);
-  column-gap: 16px;
+  grid-template-columns: 64px minmax(0, 1fr);
+  column-gap: 12px;
   align-items: center;
-  margin: 0 0 18px;
-  padding: 14px 16px;
+  margin: 0 0 8px;
+  padding: 10px 12px;
   border: 1px solid rgb(201 197 184 / 14%);
   background: rgb(0 0 0 / 24%);
   text-align: left;
+  flex: 0 0 auto;
 }
 
 .end-leaderboard-form[hidden] {
@@ -4045,7 +4061,7 @@ kbd {
 
 .end-leaderboard-form input {
   min-width: 0;
-  height: 46px;
+  height: 40px;
   padding: 0 12px;
   border: var(--edge-strong);
   outline: none;
@@ -4076,8 +4092,9 @@ kbd {
   flex-direction: column;
   align-items: stretch;
   justify-content: center;
-  gap: 12px;
+  gap: 8px;
   width: 100%;
+  flex: 0 0 auto;
 }
 
 .end-actions__secondary {
@@ -4088,13 +4105,13 @@ kbd {
 }
 
 .end-card button {
-  min-width: 180px;
-  min-height: 46px;
+  min-width: 140px;
+  min-height: 40px;
   border: var(--edge-strong);
   background: var(--bone);
   color: var(--ink);
   font-family: var(--font-pixel);
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.1em;
 }
@@ -4114,25 +4131,24 @@ kbd {
   color: var(--ink);
 }
 
-/* Primary CTA: full-width, oversized, and impossible to miss after a clear. */
+/* Primary CTA: full-width and clear after a win, sized to avoid card scroll. */
 .end-actions #end-next-biome:not(:disabled) {
   flex: 0 0 auto;
   width: 100%;
-  min-height: 72px;
-  padding: 16px 20px;
+  min-height: 52px;
+  padding: 12px 16px;
   border: 3px solid #ffe7a8;
   background: linear-gradient(180deg, #fff0c2 0%, #f0d059 42%, #c8921f 100%);
   color: #14110a;
-  font-size: 18px;
+  font-size: 15px;
   font-weight: 800;
-  letter-spacing: 0.18em;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
   text-shadow: 0 1px 0 rgb(255 248 220 / 55%);
   box-shadow:
     0 0 0 1px rgb(255 236 170 / 40%),
-    0 0 28px rgb(255 210 90 / 55%),
-    0 0 72px rgb(255 190 60 / 28%),
-    0 10px 28px rgb(0 0 0 / 45%);
+    0 0 20px rgb(255 210 90 / 45%),
+    0 8px 20px rgb(0 0 0 / 40%);
   animation: end-next-glow 1.25s ease-in-out infinite;
   transform: translateZ(0);
 }
@@ -5508,12 +5524,14 @@ kbd {
 .welcome-save > strong {
   display: block;
   color: #e3c47d;
-  font-family: var(--font-gothic-compact);
-  font-size: clamp(20px, 2.7vw, 27px);
-  font-weight: 400;
-  letter-spacing: 0.05em;
-  line-height: 1;
+  font-family: var(--font-pixel);
+  font-size: clamp(14px, 2vw, 18px);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  line-height: 1.2;
   text-transform: none;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .welcome-save > p {

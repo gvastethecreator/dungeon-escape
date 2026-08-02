@@ -8,11 +8,12 @@ import {
 } from "../src/world/DoorOpenPolicy";
 
 describe("DoorOpenPolicy", () => {
-  test("opens inside, closes outside, holds in the gap", () => {
+  test("opens inside and latches open far away", () => {
     expect(resolveDoorTargetOpen(false, DOOR_DEFAULT_OPEN_DISTANCE - 0.01)).toBe(true);
-    expect(resolveDoorTargetOpen(true, DOOR_DEFAULT_CLOSE_DISTANCE + 0.01)).toBe(false);
+    expect(resolveDoorTargetOpen(true, DOOR_DEFAULT_CLOSE_DISTANCE + 0.01)).toBe(true);
     expect(resolveDoorTargetOpen(true, 3)).toBe(true);
     expect(resolveDoorTargetOpen(false, 3)).toBe(false);
+    expect(resolveDoorTargetOpen(false, DOOR_DEFAULT_CLOSE_DISTANCE + 10)).toBe(false);
   });
 
   test("passable and closed thresholds match world flags", () => {

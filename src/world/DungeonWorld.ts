@@ -16,7 +16,12 @@ import {
   preferEnemyActivationPool,
   resolveSafeSpawnDistance,
 } from "./EnemyActivation";
-import { canCollectPickup, canInteractWithChest, horizontalDistance } from "./InteractionReach";
+import {
+  canCollectPickup,
+  canInteractWithChest,
+  horizontalDistance,
+  shouldOpenChest,
+} from "./InteractionReach";
 import {
   DOOR_DEFAULT_OPEN_DISTANCE,
   isDoorClosed,
@@ -125,6 +130,7 @@ import {
 import { activateGloomCurse, isGloomCurseActive, tickGloomCurse } from "../game/GloomCurse";
 import { activateSwarmCurse, isSwarmCurseActive, swarmTargetEnemies } from "../game/SwarmCurse";
 import {
+  clearStaticPropTemplateBatchCache,
   StaticDungeonScene,
   type StaticChestActor,
   type StaticDoorActor,
@@ -641,6 +647,7 @@ export class DungeonWorld {
     player: THREE.Vector3,
     atExit: boolean,
     interactPressed = false,
+    mouseForwardHeld = false,
   ): WorldUpdate {
     this.lockedExitCooldown = Math.max(0, this.lockedExitCooldown - delta);
     this.timeFreezeSeconds = tickTimeFreeze(this.timeFreezeSeconds, delta);
@@ -847,7 +854,7 @@ export class DungeonWorld {
     }
     if (nearestChest) {
       interactionPrompt = "open-chest";
-      if (interactPressed) {
+      if (shouldOpenChest(interactPressed, mouseForwardHeld)) {
         nearestChest.opened = true;
         nearestChest.reward.revealTime = 0;
         setPickupDormant(nearestChest.reward.object, false);
@@ -1455,6 +1462,8 @@ export class DungeonWorld {
     this.staticScene.dispose();
     disposeRoomSurfaceMaterials(this.surfaceMaterials);
     disposeDungeonMaterials(this.materials);
+    // Geometry cache pins material refs from createStaticPropTemplateBatches.
+    clearStaticPropTemplateBatchCache();
     disposeEnemyContactShadowMaterial(this.enemyShadowMaterial);
     this.assets.dispose();
     this.scene.remove(this.group);

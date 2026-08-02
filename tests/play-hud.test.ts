@@ -180,6 +180,22 @@ describe("Play HUD structure (Ash Binding)", () => {
   test("copy mentions shift sprint", async () => {
     const { COPY } = await import("../src/ui/copy");
     expect(COPY.status.exploring.toLowerCase()).toContain("shift sprint");
+    expect(COPY.status.enterPlay.toLowerCase()).toContain("hold click");
+  });
+
+  test("won end-card never enables a content scrollbar", async () => {
+    const css = await Bun.file(new URL("../src/styles.css", import.meta.url)).text();
+    const wonCard = css.match(
+      /\.end-overlay\[data-end="won"\]\s+\.end-card\s*\{[^}]+\}/g,
+    );
+    expect(wonCard?.length).toBeGreaterThan(0);
+    for (const block of wonCard ?? []) {
+      expect(block).not.toMatch(/overflow\s*:\s*auto/);
+      expect(block).not.toMatch(/overflow-y\s*:\s*auto/);
+    }
+    expect(css).toMatch(
+      /\.end-overlay\[data-end="won"\]\s+\.end-card\s*\{[\s\S]*?overflow\s*:\s*hidden/,
+    );
   });
 
   test("maps hold-to-run touch input through PlayerAction on a 48px phone grid", async () => {

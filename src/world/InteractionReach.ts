@@ -58,6 +58,14 @@ export function canInteractWithChest(distance: number, opened: boolean): boolean
   return !opened && Number.isFinite(distance) && distance <= CHEST_INTERACTION_DISTANCE;
 }
 
+/**
+ * Chest open intent: explicit interact (E / UI) or hold-click auto-open.
+ * Stairs must not use mouseForwardHeld.
+ */
+export function shouldOpenChest(interactPressed: boolean, mouseForwardHeld: boolean): boolean {
+  return Boolean(interactPressed || mouseForwardHeld);
+}
+
 /** Point-form of chest reach for callers that still have world positions. */
 export function canInteractWithChestAt(
   player: { x: number; z: number },

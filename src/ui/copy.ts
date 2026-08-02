@@ -50,11 +50,13 @@ export const COPY = {
     verdant: "Verdant heart",
   } as const,
   status: {
-    enter: "Click the scene to explore.",
-    enterPlay: "Click the scene to explore. ESC opens options.",
+    enter: "Click the scene to lock the pointer. Hold click to walk.",
+    enterPlay:
+      "Click the scene to lock the pointer. Hold click to walk · right-click to jump · ESC options.",
     forgingMap: "Forging the dungeon…",
     enteringDungeon: "Entering the depths…",
-    exploring: "WASD move · SHIFT sprint · SPACE double jump · E interact · ESC options.",
+    exploring:
+      "WASD or hold click move · Right-click or SPACE jump · SHIFT sprint · E interact · ESC options.",
     pointerReleased: "Paused. ESC or RESUME to continue.",
     pointerFailed: "Could not capture the pointer. Click the scene to retry.",
     pointerBlocked: "The browser blocked the pointer. Click the scene to retry.",

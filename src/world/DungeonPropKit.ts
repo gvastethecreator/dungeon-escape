@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 
-import type { DungeonMaterials } from "./MaterialLibrary";
+import { getDungeonMaterialVariant, type DungeonMaterials } from "./MaterialLibrary";
 import { createReliquaryAltar } from "./ReliquaryAltar";
 import type { RoomTheme } from "./RoomArtDirection";
 import { createImageSculptedClutter } from "./ImageSculptedClutterKit";
@@ -580,57 +580,77 @@ function createChair(materials: DungeonMaterials, variant: number): THREE.Group 
 function createBookshelf(materials: DungeonMaterials, variant: number): THREE.Group {
   const root = new THREE.Group();
   root.name = `Image-sculpted iron-bound bookshelf v2 variant ${variant + 1}`;
-  const shelfWoodMaterial = materials.wood.clone();
-  shelfWoodMaterial.name = "Bookshelf dark aged oak PBR material";
-  shelfWoodMaterial.color.multiplyScalar(0.84);
-  shelfWoodMaterial.color.lerp(new THREE.Color(0x4a301f), 0.1);
-  shelfWoodMaterial.emissive.copy(shelfWoodMaterial.color);
-  shelfWoodMaterial.emissiveMap = shelfWoodMaterial.map;
-  shelfWoodMaterial.emissiveIntensity = 0.032;
-  shelfWoodMaterial.roughness = THREE.MathUtils.clamp(shelfWoodMaterial.roughness, 0.74, 0.84);
-  shelfWoodMaterial.envMapIntensity = Math.max(0.48, shelfWoodMaterial.envMapIntensity);
-  if (shelfWoodMaterial.normalMap) shelfWoodMaterial.normalScale.multiplyScalar(1.22);
-  shelfWoodMaterial.userData.localValueScale = 0.84;
-  shelfWoodMaterial.userData.localIndirectFill = 0.032;
-  shelfWoodMaterial.userData.indirectFillSource = "albedo map";
-  shelfWoodMaterial.userData.finish = "dark aged oak with visible grain relief";
-  shelfWoodMaterial.userData.biomeSafe = true;
+  const shelfWoodMaterial = getDungeonMaterialVariant(
+    materials.wood,
+    "bookshelf-dark-aged-oak",
+    (material) => {
+      material.name = "Bookshelf dark aged oak PBR material";
+      material.color.multiplyScalar(0.84);
+      material.color.lerp(new THREE.Color(0x4a301f), 0.1);
+      material.emissive.copy(material.color);
+      material.emissiveMap = material.map;
+      material.emissiveIntensity = 0.032;
+      material.roughness = THREE.MathUtils.clamp(material.roughness, 0.74, 0.84);
+      material.envMapIntensity = Math.max(0.48, material.envMapIntensity);
+      if (material.normalMap) material.normalScale.multiplyScalar(1.22);
+      material.userData.localValueScale = 0.84;
+      material.userData.localIndirectFill = 0.032;
+      material.userData.indirectFillSource = "albedo map";
+      material.userData.finish = "dark aged oak with visible grain relief";
+      material.userData.biomeSafe = true;
+    },
+  );
 
-  const recessedWoodMaterial = shelfWoodMaterial.clone();
-  recessedWoodMaterial.name = "Bookshelf recessed dark oak PBR material";
-  recessedWoodMaterial.color.multiplyScalar(0.62);
-  recessedWoodMaterial.emissive.copy(recessedWoodMaterial.color);
-  recessedWoodMaterial.emissiveIntensity = 0.014;
-  recessedWoodMaterial.roughness = Math.min(1, recessedWoodMaterial.roughness + 0.08);
-  recessedWoodMaterial.envMapIntensity = Math.max(0.3, recessedWoodMaterial.envMapIntensity * 0.72);
-  recessedWoodMaterial.userData.localValueScale = 0.52;
-  recessedWoodMaterial.userData.localIndirectFill = 0.014;
-  recessedWoodMaterial.userData.finish = "matte recessed dark oak";
+  const recessedWoodMaterial = getDungeonMaterialVariant(
+    shelfWoodMaterial,
+    "bookshelf-recessed-dark-oak",
+    (material) => {
+      material.name = "Bookshelf recessed dark oak PBR material";
+      material.color.multiplyScalar(0.62);
+      material.emissive.copy(material.color);
+      material.emissiveIntensity = 0.014;
+      material.roughness = Math.min(1, material.roughness + 0.08);
+      material.envMapIntensity = Math.max(0.3, material.envMapIntensity * 0.72);
+      material.userData.localValueScale = 0.52;
+      material.userData.localIndirectFill = 0.014;
+      material.userData.finish = "matte recessed dark oak";
+    },
+  );
 
-  const shelfIronMaterial = materials.iron.clone();
-  shelfIronMaterial.name = "Bookshelf readable forged iron PBR material";
-  shelfIronMaterial.color.offsetHSL(0, 0, 0.045);
-  shelfIronMaterial.emissive.setHex(0x000000);
-  shelfIronMaterial.emissiveMap = null;
-  shelfIronMaterial.emissiveIntensity = 0;
-  shelfIronMaterial.roughness = THREE.MathUtils.clamp(shelfIronMaterial.roughness, 0.56, 0.64);
-  shelfIronMaterial.metalness = Math.max(shelfIronMaterial.metalness, 0.62);
-  shelfIronMaterial.envMapIntensity = Math.max(shelfIronMaterial.envMapIntensity, 1.38);
-  shelfIronMaterial.userData.finish = "forged iron with controlled local specular lift";
-  shelfIronMaterial.userData.biomeSafe = true;
+  const shelfIronMaterial = getDungeonMaterialVariant(
+    materials.iron,
+    "bookshelf-forged-iron",
+    (material) => {
+      material.name = "Bookshelf readable forged iron PBR material";
+      material.color.offsetHSL(0, 0, 0.045);
+      material.emissive.setHex(0x000000);
+      material.emissiveMap = null;
+      material.emissiveIntensity = 0;
+      material.roughness = THREE.MathUtils.clamp(material.roughness, 0.56, 0.64);
+      material.metalness = Math.max(material.metalness, 0.62);
+      material.envMapIntensity = Math.max(material.envMapIntensity, 1.38);
+      material.userData.finish = "forged iron with controlled local specular lift";
+      material.userData.biomeSafe = true;
+    },
+  );
 
-  const bookSpineMaterial = materials.cloth.clone();
-  bookSpineMaterial.name = "Bookshelf muted codex cloth PBR material";
-  bookSpineMaterial.color.setHex(0xffffff);
-  bookSpineMaterial.emissive.setHex(0x050404);
-  bookSpineMaterial.emissiveMap = null;
-  bookSpineMaterial.emissiveIntensity = 0.012;
-  bookSpineMaterial.vertexColors = true;
-  bookSpineMaterial.roughness = Math.max(0.86, bookSpineMaterial.roughness);
-  if (bookSpineMaterial.normalMap) bookSpineMaterial.normalScale.multiplyScalar(1.08);
-  bookSpineMaterial.userData.palette = "burgundy, olive, slate, umber, muted violet";
-  bookSpineMaterial.userData.colorSource = "per-book vertex color";
-  bookSpineMaterial.userData.biomeSafe = true;
+  const bookSpineMaterial = getDungeonMaterialVariant(
+    materials.cloth,
+    "bookshelf-codex-cloth",
+    (material) => {
+      material.name = "Bookshelf muted codex cloth PBR material";
+      material.color.setHex(0xffffff);
+      material.emissive.setHex(0x050404);
+      material.emissiveMap = null;
+      material.emissiveIntensity = 0.012;
+      material.vertexColors = true;
+      material.roughness = Math.max(0.86, material.roughness);
+      if (material.normalMap) material.normalScale.multiplyScalar(1.08);
+      material.userData.palette = "burgundy, olive, slate, umber, muted violet";
+      material.userData.colorSource = "per-book vertex color";
+      material.userData.biomeSafe = true;
+    },
+  );
   const shell = createCarpentryPart("bookcase-shell", "Bookshelf framed shell", "bookcase-shell");
   for (let index = 0; index < 7; index += 1) {
     const plank = addCarpentryMesh(
@@ -830,31 +850,37 @@ function createUrn(materials: DungeonMaterials, variant: number): THREE.Group {
   const root = new THREE.Group();
   root.name = `Image-sculpted black ceramic funerary urn v2 variant ${suffix}`;
 
-  const ceramic = materials.ceramic.clone();
-  ceramic.name = "Urn black glazed ceramic PBR material";
-  ceramic.color.multiplyScalar(0.42);
-  ceramic.color.lerp(new THREE.Color(0x111417), 0.28);
-  ceramic.emissive.setHex(0x020304);
-  ceramic.emissiveMap = null;
-  ceramic.emissiveIntensity = 0.018;
-  ceramic.roughness = THREE.MathUtils.clamp(ceramic.roughness, 0.58, 0.72);
-  ceramic.metalness = Math.min(ceramic.metalness, 0.04);
-  ceramic.envMapIntensity = Math.max(ceramic.envMapIntensity, 0.6);
-  if (ceramic.normalMap) ceramic.normalScale.multiplyScalar(0.72);
-  ceramic.userData.finish = "black fired ceramic with restrained glaze";
-  ceramic.userData.biomeSafe = true;
+  const ceramic = getDungeonMaterialVariant(
+    materials.ceramic,
+    "urn-black-glazed-ceramic",
+    (material) => {
+      material.name = "Urn black glazed ceramic PBR material";
+      material.color.multiplyScalar(0.42);
+      material.color.lerp(new THREE.Color(0x111417), 0.28);
+      material.emissive.setHex(0x020304);
+      material.emissiveMap = null;
+      material.emissiveIntensity = 0.018;
+      material.roughness = THREE.MathUtils.clamp(material.roughness, 0.58, 0.72);
+      material.metalness = Math.min(material.metalness, 0.04);
+      material.envMapIntensity = Math.max(material.envMapIntensity, 0.6);
+      if (material.normalMap) material.normalScale.multiplyScalar(0.72);
+      material.userData.finish = "black fired ceramic with restrained glaze";
+      material.userData.biomeSafe = true;
+    },
+  );
 
-  const brass = materials.brass.clone();
-  brass.name = "Urn aged gold brass PBR material";
-  brass.color.multiply(new THREE.Color(0xd1ad62));
-  brass.emissive.setHex(0x0b0702);
-  brass.emissiveMap = null;
-  brass.emissiveIntensity = 0.018;
-  brass.roughness = THREE.MathUtils.clamp(brass.roughness, 0.48, 0.62);
-  brass.metalness = Math.max(brass.metalness, 0.58);
-  brass.envMapIntensity = Math.max(brass.envMapIntensity, 0.9);
-  brass.userData.finish = "aged gold brass trim";
-  brass.userData.biomeSafe = true;
+  const brass = getDungeonMaterialVariant(materials.brass, "urn-aged-gold-brass", (material) => {
+    material.name = "Urn aged gold brass PBR material";
+    material.color.multiply(new THREE.Color(0xd1ad62));
+    material.emissive.setHex(0x0b0702);
+    material.emissiveMap = null;
+    material.emissiveIntensity = 0.018;
+    material.roughness = THREE.MathUtils.clamp(material.roughness, 0.48, 0.62);
+    material.metalness = Math.max(material.metalness, 0.58);
+    material.envMapIntensity = Math.max(material.envMapIntensity, 0.9);
+    material.userData.finish = "aged gold brass trim";
+    material.userData.biomeSafe = true;
+  });
 
   const vessel = createCarpentryPart(
     `urn-vessel-${suffix}`,
@@ -1241,17 +1267,22 @@ function createCoffin(materials: DungeonMaterials, variant: number): THREE.Group
   root.name = `Image-sculpted iron-bound stone coffin v2 variant ${variant + 1}`;
   root.userData.propFamily = "coffin";
   root.userData.variant = variant;
-  const metalMaterial = materials.iron.clone();
-  metalMaterial.name = "Coffin shared iron and muted brass vertex-color material";
-  metalMaterial.color.setHex(0xffffff);
-  metalMaterial.map = null;
-  metalMaterial.aoMap = null;
-  metalMaterial.vertexColors = true;
-  metalMaterial.roughness = 0.58;
-  metalMaterial.metalness = Math.max(0.68, metalMaterial.metalness);
-  metalMaterial.envMapIntensity = Math.max(0.72, metalMaterial.envMapIntensity);
-  metalMaterial.emissive.setHex(0x24282b);
-  metalMaterial.emissiveIntensity = 0.18;
+  const metalMaterial = getDungeonMaterialVariant(
+    materials.iron,
+    "coffin-vertex-color-metal",
+    (material) => {
+      material.name = "Coffin shared iron and muted brass vertex-color material";
+      material.color.setHex(0xffffff);
+      material.map = null;
+      material.aoMap = null;
+      material.vertexColors = true;
+      material.roughness = 0.58;
+      material.metalness = Math.max(0.68, material.metalness);
+      material.envMapIntensity = Math.max(0.72, material.envMapIntensity);
+      material.emissive.setHex(0x24282b);
+      material.emissiveIntensity = 0.18;
+    },
+  );
   const ironColor = new THREE.Color(0x646d74);
   const brassColor = new THREE.Color(0xe2b955);
   const coffinUvTileSize = 1.12;

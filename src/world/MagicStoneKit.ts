@@ -3,7 +3,7 @@ import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 
 import type { StoneId } from "../ui/copy";
 import { stoneLabel } from "../ui/copy";
-import type { DungeonMaterials } from "./MaterialLibrary";
+import { getDungeonMaterialVariant, type DungeonMaterials } from "./MaterialLibrary";
 
 export interface MagicStoneVisual {
   root: THREE.Group;
@@ -320,14 +320,18 @@ export function createMagicStone(
   }
   const pedestal = mesh(
     mergeParts(pedestalParts, `${stoneId} stepped stone pedestal geometry`),
-    materials.darkStone.clone(),
+    getDungeonMaterialVariant(materials.darkStone, `magic-stone-pedestal-${stoneId}`, (material) => {
+      material.name = `${stoneId} stone pedestal material`;
+    }),
     `${stoneId} stone pedestal`,
   );
 
-  const cageMat = materials.iron.clone();
-  cageMat.color = new THREE.Color(0x2a2c2b);
-  cageMat.roughness = 0.64;
-  cageMat.metalness = 0.72;
+  const cageMat = getDungeonMaterialVariant(materials.iron, "magic-stone-cage-iron", (material) => {
+    material.color = new THREE.Color(0x2a2c2b);
+    material.roughness = 0.64;
+    material.metalness = 0.72;
+    material.name = "Magic stone cage iron";
+  });
   const cageParts: THREE.BufferGeometry[] = [
     new THREE.TorusGeometry(
       sculpt.cageRadius,

@@ -18,6 +18,8 @@ import { createWallLantern, createWallTorch } from "./WallTorchFactory";
 import {
   applyBiomeMapsToDungeonMaterials,
   applyMoodToDungeonMaterials,
+  dungeonMaterialsCacheToken,
+  getDungeonMaterialVariant,
   type DungeonMaterials,
 } from "./MaterialLibrary";
 import { createDungeonArch, createDungeonDoor, doorwayPlacement } from "./DoorFactory";
@@ -39,6 +41,7 @@ import {
   WARM_NOISE_FLAME_PALETTE,
 } from "./ProceduralFlameVfx";
 import {
+  batchDoorFramesForRuntime,
   batchForgeChestsForRuntime,
   batchWallFireFixturesForRuntime,
   type RuntimeChestInstanceHandle,
@@ -448,6 +451,7 @@ export class StaticDungeonScene {
     this.stats.hazardTiles = this.hazardTiles.placements.length;
     if (!dungeon.forge) this.addCaveProps(dungeon);
     this.addDoorsAndRoomProps(dungeon);
+    this.commitDoorFrameBatches();
     this.commitStaticContactShadows();
     const specialSignals = createSpecialRoomSignals(dungeon, this.materials, this.tileSize);
     if (specialSignals) {
@@ -698,6 +702,8 @@ export class StaticDungeonScene {
     );
     const wallFaceTemplate = createWallFaceGeometry(wallFaceWidth, this.wallHeight, this.tileSize);
 
+    // Clone only the base surface templates per theme (instance UV attrs differ).
+    // makeInstance reuses scratch matrices so tile fills do not allocate per cell.
     for (const [theme, cells] of partitionCells(dungeon, floorCells)) {
       const floorOffsets = new Float32Array(cells.length * 2);
       const ceilingOffsets = new Float32Array(cells.length * 2);
@@ -751,6 +757,8 @@ export class StaticDungeonScene {
       list.push(face);
       facesByTheme.set(face.theme, list);
     }
+    const wallFaceAxis = new THREE.Vector3(0, 1, 0);
+    const wallFaceQuaternion = new THREE.Quaternion();
     for (const [theme, themeFaces] of facesByTheme) {
       const wallOffsets = new Float32Array(themeFaces.length * 2);
       const wallGeometry = wallFaceTemplate.clone();
@@ -775,8 +783,8 @@ export class StaticDungeonScene {
         // Sit on the wall–floor plane, slightly into the room to avoid z-fight with colliders.
         const x = p.x + face.intoDx * this.tileSize * 0.5;
         const z = p.z + face.intoDy * this.tileSize * 0.5;
-        const rotation = new THREE.Quaternion().setFromAxisAngle(
-          new THREE.Vector3(0, 1, 0),
+        const rotation = wallFaceQuaternion.setFromAxisAngle(
+          wallFaceAxis,
           Math.atan2(face.intoDx, face.intoDy),
         );
         makeInstance(
@@ -938,20 +946,39 @@ export class StaticDungeonScene {
       roughness: null,
       metalness: null,
     };
-    const leafMaterial = new THREE.MeshStandardMaterial({
-      map: doorSurface.albedo,
-      normalMap: doorSurface.normal,
-      roughnessMap: doorSurface.roughness,
-      metalnessMap: doorSurface.metalness,
-      normalScale: new THREE.Vector2(0.72, 0.72),
-      color: this.activeMood.id === "obsidian" ? 0x686b72 : 0xffffff,
-      roughness: doorSurface.roughness ? 1 : profile.doorRoughness,
-      metalness: doorSurface.metalness ? 1 : this.activeMood.id === "iron" ? 0.42 : 0.03,
-      envMapIntensity: this.activeMood.id === "iron" ? 0.78 : 0.34,
-    });
-    const hardwareMaterial = this.materials.iron.clone();
-    hardwareMaterial.color.setHex(profile.hardwareTint);
-    hardwareMaterial.userData = { ...hardwareMaterial.userData, sharedDungeonMaterial: false };
+    const leafMaterial = getDungeonMaterialVariant(
+      this.materials.wood,
+      `door-leaf:${this.activeMood.id}:${profile.doorRoughness}`,
+      (material) => {
+        // Door plates replace wood role maps completely (albedo + PBR stack).
+        material.map = doorSurface.albedo;
+        material.normalMap = doorSurface.normal;
+        material.roughnessMap = doorSurface.roughness;
+        material.metalnessMap = doorSurface.metalness;
+        material.bumpMap = null;
+        material.aoMap = null;
+        material.emissiveMap = null;
+        material.emissive.setHex(0x000000);
+        material.emissiveIntensity = 0;
+        material.normalScale.set(0.72, 0.72);
+        material.color.setHex(this.activeMood.id === "obsidian" ? 0x686b72 : 0xffffff);
+        material.roughness = doorSurface.roughness ? 1 : profile.doorRoughness;
+        material.metalness = doorSurface.metalness ? 1 : this.activeMood.id === "iron" ? 0.42 : 0.03;
+        material.envMapIntensity = this.activeMood.id === "iron" ? 0.78 : 0.34;
+        material.userData.sharedDungeonMaterial = false;
+        material.userData.doorLeaf = true;
+      },
+    );
+    // Hardware tint is profile-stable per mood; share one variant across doors.
+    const hardwareMaterial = getDungeonMaterialVariant(
+      this.materials.iron,
+      `door-hardware:${this.activeMood.id}:${profile.hardwareTint.toString(16)}`,
+      (material) => {
+        material.color.setHex(profile.hardwareTint);
+        material.userData.sharedDungeonMaterial = false;
+        material.userData.doorHardware = true;
+      },
+    );
     return {
       style: profile.doorStyle,
       curvedArch: profile.curvedArch,
@@ -1203,8 +1230,14 @@ export class StaticDungeonScene {
       this.add(batch);
     }
 
+    // Keep InstancedMesh per classic family:variant. Global material bake was
+    // measured and raised mapLoadWorldMs (~+20%) for a modest draw reduction.
+    // Shared finish variants (PERF-13) still cut unique materials/programs.
+    const materialsToken = dungeonMaterialsCacheToken(this.materials);
     for (const [groupKey, placement] of classicPropPlacements) {
-      const templateBatches = createStaticPropTemplateBatches(placement.template);
+      const templateBatches = createStaticPropTemplateBatches(placement.template, {
+        cacheKey: `classic:${groupKey}:${materialsToken}`,
+      });
       disposeTemplateGeometries(placement.template);
       for (const [partIndex, part] of templateBatches.entries()) {
         const batch = new THREE.InstancedMesh(
@@ -1529,7 +1562,10 @@ export class StaticDungeonScene {
           { x: prop.x, y: prop.y },
         );
       }
-      const templateBatches = createStaticPropTemplateBatches(template);
+      const groupKey = `${instances[0]!.kind}:${Math.abs(instances[0]!.v ?? 0) % 3}`;
+      const templateBatches = createStaticPropTemplateBatches(template, {
+        cacheKey: `forge:${groupKey}:${dungeonMaterialsCacheToken(this.materials)}`,
+      });
       disposeTemplateGeometries(template);
       for (const part of templateBatches) {
         if (Array.isArray(part.material)) {
@@ -1740,6 +1776,12 @@ export class StaticDungeonScene {
       if (chest) chest.runtimeBatch = handle;
     });
     this.pendingChestKits.length = 0;
+  }
+
+  private commitDoorFrameBatches(): void {
+    if (this.doors.length === 0) return;
+    const result = batchDoorFramesForRuntime(this.doors, this.group);
+    this.add(result.root);
   }
 
   private registerSolidObject(object: THREE.Object3D, cell: GridCell): void {
@@ -3132,7 +3174,9 @@ export class StaticDungeonScene {
     for (const [template, cells] of grouped) {
       if (cells.length === 0) continue;
       const templateName = template.name;
-      const templateBatches = createStaticPropTemplateBatches(template);
+      const templateBatches = createStaticPropTemplateBatches(template, {
+        cacheKey: `atmosphere:${templateName}:${dungeonMaterialsCacheToken(this.materials)}`,
+      });
       disposeTemplateGeometries(template);
       const instanceCount = cells.length;
       for (const [partIndex, part] of templateBatches.entries()) {
@@ -3522,20 +3566,22 @@ export function dressingPropScale(family: string, maxRoomCells: number): number 
   return Math.min(1, Math.max(0.92, maxRoomCells / 5));
 }
 
+const makeInstanceMatrix = new THREE.Matrix4();
+const makeInstancePosition = new THREE.Vector3();
+const makeInstanceScale = new THREE.Vector3();
+const makeInstanceIdentity = new THREE.Quaternion();
+
 function makeInstance(
   mesh: THREE.InstancedMesh,
   index: number,
   position: THREE.Vector3Like,
   scale: THREE.Vector3Like = { x: 1, y: 1, z: 1 },
-  quaternion: THREE.Quaternion = new THREE.Quaternion(),
+  quaternion: THREE.Quaternion = makeInstanceIdentity,
 ): void {
-  const matrix = new THREE.Matrix4();
-  matrix.compose(
-    new THREE.Vector3(position.x, position.y, position.z),
-    quaternion,
-    new THREE.Vector3(scale.x, scale.y, scale.z),
-  );
-  mesh.setMatrixAt(index, matrix);
+  makeInstancePosition.set(position.x, position.y, position.z);
+  makeInstanceScale.set(scale.x, scale.y, scale.z);
+  makeInstanceMatrix.compose(makeInstancePosition, quaternion, makeInstanceScale);
+  mesh.setMatrixAt(index, makeInstanceMatrix);
 }
 
 /**
@@ -3723,6 +3769,44 @@ interface StaticPropTemplateBatch {
   receiveShadow: boolean;
 }
 
+/** Snapshot kept across scene rebuilds; callers always receive cloned geometries. */
+interface CachedStaticPropTemplateBatch {
+  geometry: THREE.BufferGeometry;
+  material: THREE.Material | THREE.Material[];
+  castShadow: boolean;
+  receiveShadow: boolean;
+}
+
+const staticPropTemplateBatchCache = new Map<string, CachedStaticPropTemplateBatch[]>();
+
+export interface StaticPropTemplateBatchOptions {
+  /** When set, skip toNonIndexed/merge work on later builds with the same key. */
+  cacheKey?: string;
+}
+
+/** Test/helper: drop cached template batches (does not dispose live scene meshes). */
+export function clearStaticPropTemplateBatchCache(): void {
+  for (const batches of staticPropTemplateBatchCache.values()) {
+    for (const batch of batches) batch.geometry.dispose();
+  }
+  staticPropTemplateBatchCache.clear();
+}
+
+export function staticPropTemplateBatchCacheSize(): number {
+  return staticPropTemplateBatchCache.size;
+}
+
+function cloneStaticPropTemplateBatches(
+  batches: readonly CachedStaticPropTemplateBatch[],
+): StaticPropTemplateBatch[] {
+  return batches.map((batch) => ({
+    geometry: batch.geometry.clone(),
+    material: batch.material,
+    castShadow: batch.castShadow,
+    receiveShadow: batch.receiveShadow,
+  }));
+}
+
 function prepareStaticPropGeometry(part: THREE.Mesh): THREE.BufferGeometry {
   const geometry = part.geometry.index ? part.geometry.toNonIndexed() : part.geometry.clone();
   geometry.applyMatrix4(part.matrixWorld);
@@ -3747,15 +3831,7 @@ function prepareStaticPropGeometry(part: THREE.Mesh): THREE.BufferGeometry {
   return geometry;
 }
 
-/**
- * Bake a static prop template into as few instanced parts as its materials allow.
- * Creation maps may reuse hundreds of props; one draw per source mesh caused the
- * full-width play view to exceed 600 calls even though the props were instanced.
- */
-export function createStaticPropTemplateBatches(
-  template: THREE.Object3D,
-): StaticPropTemplateBatch[] {
-  template.updateMatrixWorld(true);
+function buildStaticPropTemplateBatches(template: THREE.Object3D): StaticPropTemplateBatch[] {
   const groups = new Map<
     string,
     {
@@ -3813,6 +3889,39 @@ export function createStaticPropTemplateBatches(
       castShadow: part.castShadow,
       receiveShadow: part.receiveShadow,
     });
+  }
+  return batches;
+}
+
+/**
+ * Bake a static prop template into as few instanced parts as its materials allow.
+ * Creation maps may reuse hundreds of props; one draw per source mesh caused the
+ * full-width play view to exceed 600 calls even though the props were instanced.
+ * Optional cacheKey reuses merge work across dungeon rebuilds; each caller still
+ * owns a geometry clone it may dispose freely.
+ */
+export function createStaticPropTemplateBatches(
+  template: THREE.Object3D,
+  options?: StaticPropTemplateBatchOptions,
+): StaticPropTemplateBatch[] {
+  const cacheKey = options?.cacheKey?.trim() || "";
+  if (cacheKey) {
+    const hit = staticPropTemplateBatchCache.get(cacheKey);
+    if (hit) return cloneStaticPropTemplateBatches(hit);
+  }
+
+  template.updateMatrixWorld(true);
+  const batches = buildStaticPropTemplateBatches(template);
+  if (cacheKey) {
+    staticPropTemplateBatchCache.set(
+      cacheKey,
+      batches.map((batch) => ({
+        geometry: batch.geometry.clone(),
+        material: batch.material,
+        castShadow: batch.castShadow,
+        receiveShadow: batch.receiveShadow,
+      })),
+    );
   }
   return batches;
 }

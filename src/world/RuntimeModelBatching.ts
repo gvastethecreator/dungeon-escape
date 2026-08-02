@@ -368,3 +368,71 @@ export function batchWallFireFixturesForRuntime(
   root.userData.runtimeBatching = stats;
   return { root, handles, stats };
 }
+
+export interface RuntimeDoorFrameBatchStats {
+  doors: number;
+  sourceMeshes: number;
+  batches: number;
+}
+
+/**
+ * Share rigid door-frame meshes across all doors. Leaf hinges stay per door so
+ * openness animation keeps writing local rotations (strategy B).
+ */
+export function batchDoorFramesForRuntime(
+  doors: readonly { root: THREE.Group; left: THREE.Object3D; right: THREE.Object3D }[],
+  parent: THREE.Object3D,
+): { root: THREE.Group; stats: RuntimeDoorFrameBatchStats } {
+  const root = new THREE.Group();
+  root.name = "Runtime door frame global batches";
+  const stats: RuntimeDoorFrameBatchStats = {
+    doors: doors.length,
+    sourceMeshes: 0,
+    batches: 0,
+  };
+  if (doors.length === 0) return { root, stats };
+
+  parent.updateWorldMatrix(true, false);
+  for (const door of doors) door.root.updateWorldMatrix(true, true);
+
+  const isUnderHinge = (mesh: THREE.Object3D, door: { left: THREE.Object3D; right: THREE.Object3D }) =>
+    isBelow(mesh, door.left) || isBelow(mesh, door.right);
+
+  const frameMeshesPerDoor = doors.map((door) => {
+    const meshes: THREE.Mesh[] = [];
+    door.root.traverse((object) => {
+      if (object instanceof THREE.Mesh && !isUnderHinge(object, door)) meshes.push(object);
+    });
+    return meshes;
+  });
+  const templateMeshes = frameMeshesPerDoor[0] ?? [];
+  if (templateMeshes.length === 0) return { root, stats };
+
+  const templates = mergeAtAnchor(doors[0]!.root, templateMeshes, "Runtime door frame");
+  const matrix = new THREE.Matrix4();
+  for (const [batchIndex, template] of templates.entries()) {
+    const batch = new THREE.InstancedMesh(template.geometry, template.material, doors.length);
+    batch.name = `Runtime door frame global batch ${batchIndex + 1}`;
+    batch.castShadow = template.castShadow;
+    batch.receiveShadow = template.receiveShadow;
+    doors.forEach((door, instance) => {
+      batch.setMatrixAt(instance, relativeMatrix(door.root, parent, matrix));
+    });
+    batch.instanceMatrix.needsUpdate = true;
+    batch.computeBoundingBox();
+    batch.computeBoundingSphere();
+    root.add(batch);
+    stats.batches += 1;
+  }
+
+  for (const meshes of frameMeshesPerDoor) {
+    for (const mesh of meshes) {
+      stats.sourceMeshes += 1;
+      mesh.parent?.remove(mesh);
+      mesh.geometry.dispose();
+    }
+  }
+
+  root.userData.runtimeBatching = stats;
+  return { root, stats };
+}

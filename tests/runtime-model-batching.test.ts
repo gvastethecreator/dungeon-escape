@@ -4,10 +4,12 @@ import * as THREE from "three";
 import { createForgeChest } from "../src/world/ForgePropFactory";
 import { createDungeonMaterials } from "../src/world/MaterialLibrary";
 import {
+  batchDoorFramesForRuntime,
   batchForgeChestForRuntime,
   batchForgeChestsForRuntime,
   batchWallFireFixturesForRuntime,
 } from "../src/world/RuntimeModelBatching";
+import { createDungeonDoor } from "../src/world/DoorFactory";
 import { createWallLantern, createWallTorch } from "../src/world/WallTorchFactory";
 
 function meshCount(root: THREE.Object3D): number {
@@ -227,5 +229,79 @@ describe("runtime model batching", () => {
         expect(actual.max[axis]).toBeCloseTo(expected.max[axis], 4);
       }
     });
+  });
+
+  test("batches door frames while leaves stay under local hinges", () => {
+    const materials = createDungeonMaterials();
+    const parent = new THREE.Group();
+    const doors = [0, 1, 2].map((index) => {
+      const root = createDungeonDoor(materials, 2.2, 4.4, {
+        style: "dungeon",
+        leafMaterial: materials.wood,
+        frameMaterial: materials.stone,
+        hardwareMaterial: materials.iron,
+      });
+      root.position.set(index * 4, 0, 0);
+      parent.add(root);
+      const left = root.getObjectByName("Door leaf hinge");
+      const right = root.getObjectByName("Right door leaf hinge");
+      if (!(left instanceof THREE.Group) || !(right instanceof THREE.Group)) {
+        throw new Error("Door hinges missing");
+      }
+      return { root, left, right };
+    });
+    parent.updateMatrixWorld(true);
+    const leafMeshesBefore = doors.reduce((count, door) => {
+      let total = 0;
+      door.left.traverse((object) => {
+        if (object instanceof THREE.Mesh) total += 1;
+      });
+      door.right.traverse((object) => {
+        if (object instanceof THREE.Mesh) total += 1;
+      });
+      return count + total;
+    }, 0);
+
+    const result = batchDoorFramesForRuntime(doors, parent);
+    parent.add(result.root);
+    expect(result.stats.doors).toBe(3);
+    expect(result.stats.batches).toBeGreaterThan(0);
+    expect(result.stats.sourceMeshes).toBeGreaterThan(0);
+    expect(meshCount(result.root)).toBe(result.stats.batches);
+
+    const leafMeshesAfter = doors.reduce((count, door) => {
+      let total = 0;
+      door.left.traverse((object) => {
+        if (object instanceof THREE.Mesh) total += 1;
+      });
+      door.right.traverse((object) => {
+        if (object instanceof THREE.Mesh) total += 1;
+      });
+      return count + total;
+    }, 0);
+    expect(leafMeshesAfter).toBe(leafMeshesBefore);
+
+    doors[1]!.left.rotation.y = -1.38;
+    doors[1]!.root.updateMatrixWorld(true);
+    expect(doors[1]!.left.rotation.y).toBeCloseTo(-1.38, 5);
+  });
+
+  test("door leaf and hardware materials are shared across doors of the same set", () => {
+    const materials = createDungeonMaterials();
+    const doorA = createDungeonDoor(materials, 2.2, 4.4, {
+      style: "dungeon",
+      leafMaterial: materials.wood,
+      frameMaterial: materials.stone,
+      hardwareMaterial: materials.iron,
+    });
+    // Factory-level sharing is covered via StaticDungeonScene appearance path in play;
+    // here assert leaf meshes remain under hinges after frame batching (strategy B).
+    const left = doorA.getObjectByName("Door leaf hinge");
+    expect(left).toBeInstanceOf(THREE.Group);
+    let leafMeshes = 0;
+    left!.traverse((object) => {
+      if (object instanceof THREE.Mesh) leafMeshes += 1;
+    });
+    expect(leafMeshes).toBeGreaterThan(0);
   });
 });

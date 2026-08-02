@@ -55,13 +55,21 @@ export function isProtectedTraversalCell(dungeon: DungeonData, cell: GridCell): 
   )
     return true;
   const index = cell.y * dungeon.width + cell.x;
-  return Boolean(
+  if (
     dungeon.forge?.corridors[index] ||
     dungeon.forge?.doorways[index] ||
     dungeon.forge?.pools[index] ||
     dungeon.forge?.lakeMask[index] ||
-    dungeon.forge?.spawns.some((spawn) => spawn.x === cell.x && spawn.y === cell.y),
-  );
+    dungeon.forge?.spawns.some((spawn) => spawn.x === cell.x && spawn.y === cell.y)
+  ) {
+    return true;
+  }
+  // Procedural topology: doorway tile and the floor mouth in front of it.
+  for (const doorway of dungeon.topology?.doorways ?? []) {
+    if (doorway.cell.x === cell.x && doorway.cell.y === cell.y) return true;
+    if (doorway.outside.x === cell.x && doorway.outside.y === cell.y) return true;
+  }
+  return false;
 }
 
 export function findNearestPropCell(
