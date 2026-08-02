@@ -62,18 +62,18 @@ describe("biome campaign difficulty ramp", () => {
     expect(backrooms.enemyDensity).toBe(100);
   });
 
-  test("adds floors gradually without exceeding the active-floor contract", () => {
+  test("adds floors gradually without exceeding the multi-slab stack contract", () => {
     const ids = listBiomeIds();
     let prior = 1;
     for (const id of ids) {
       const count = biomeCampaignFloorCount(id);
       expect(count).toBeGreaterThanOrEqual(prior);
       expect(count).toBeGreaterThanOrEqual(1);
-      expect(count).toBeLessThanOrEqual(4);
+      expect(count).toBeLessThanOrEqual(3);
       prior = count;
     }
     expect(biomeCampaignFloorCount("ancient")).toBe(1);
-    expect(biomeCampaignFloorCount("backrooms")).toBe(4);
+    expect(biomeCampaignFloorCount("backrooms")).toBe(3);
   });
 
   test("can generate a Backrooms-scale dungeon from campaign params", () => {

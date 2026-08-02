@@ -51,21 +51,37 @@ import {
 import {
   createResolveFlask,
   createAnnihilationPulseRelic,
+  createCullBrandRelic,
   createDungeonMapPickup,
   createLuminousWardStone,
   createClarityPhial,
   createMobilityDraught,
   createCurseVessel,
+  createPhoenixEggRelic,
   createTimeFreezeRelic,
   ANNIHILATION_PULSE_PICKUP_GLOW_OPACITY,
   ANNIHILATION_PULSE_PICKUP_LIGHT_INTENSITY,
+  CULL_BRAND_PICKUP_GLOW_OPACITY,
+  CULL_BRAND_PICKUP_LIGHT_INTENSITY,
   LUMINOUS_WARD_PICKUP_GLOW_OPACITY,
   LUMINOUS_WARD_PICKUP_LIGHT_INTENSITY,
+  PHOENIX_EGG_PICKUP_GLOW_OPACITY,
+  PHOENIX_EGG_PICKUP_LIGHT_INTENSITY,
   preparePickupOpacity,
   setPickupDormant,
   TIME_FREEZE_PICKUP_LIGHT_INTENSITY,
 } from "./ItemFactory";
 import { planCurseChestPlacements } from "../game/CurseChestPlan";
+import {
+  planBiomeLootBudget,
+  spreadDepthFractions,
+  type FloorFreePowerKind,
+} from "../game/BiomeLootPlan";
+import {
+  OFFENSE_POWER_DEPTH_FRACTION,
+  OFFENSE_POWER_SALT,
+  planOffensePowerKind,
+} from "../game/OffensePowerPlan";
 import {
   createCobwebGeometry,
   createCobwebMaterial,
@@ -116,7 +132,12 @@ import {
   type BiomeSpritePlacement,
   type BiomeSpritePropDefinition,
 } from "./BiomeSpriteDecorKit";
-import { createDungeonStaircase, DUNGEON_STAIR_STEP_COUNT } from "./StaircaseKit";
+import {
+  buildStairFlight,
+  DUNGEON_STAIR_STEP_COUNT,
+  worldTreadColliders,
+} from "./StaircaseKit";
+import { floorSlabY } from "./StoryMetrics";
 import { ThreeResourceDisposer } from "./ThreeResourceDisposer";
 
 export interface StaticDungeonSceneStats {
@@ -168,13 +189,17 @@ export type StaticPickupKind =
   | "time-freeze"
   | "luminous-ward"
   | "annihilation-pulse"
+  | "cull-brand"
+  | "phoenix-egg"
   | "map"
   | "mobility"
   | "clarity"
   | "swarm-curse"
   | "slow-curse"
   | "frenzy-curse"
-  | "gloom-curse";
+  | "gloom-curse"
+  | "mirror-curse"
+  | "spin-curse";
 
 export interface StaticPickupActor {
   kind: StaticPickupKind;
@@ -211,6 +236,18 @@ export interface StaticPickupActor {
     baseGlowOpacity: number;
   };
   annihilationPulseSignal?: {
+    light: THREE.PointLight;
+    glow: THREE.Mesh;
+    baseIntensity: number;
+    baseGlowOpacity: number;
+  };
+  cullBrandSignal?: {
+    light: THREE.PointLight;
+    glow: THREE.Mesh;
+    baseIntensity: number;
+    baseGlowOpacity: number;
+  };
+  phoenixEggSignal?: {
     light: THREE.PointLight;
     glow: THREE.Mesh;
     baseIntensity: number;
@@ -359,6 +396,12 @@ export class StaticDungeonScene {
   private decorDensity = 0.6;
   private dynamicFireLightCount = 0;
   private disposed = false;
+  /** World Y offset for the floor slab currently being built (multi-floor stack). */
+  private floorWorldY = 0;
+  /** Cells with open ceiling/floor for stair shafts on the active build floor. */
+  private openVerticalKeys = new Set<string>();
+  /** When true, only descending flights are placed (one mesh per shaft). */
+  private stairsDownOnly = false;
   private readonly tempPosition = new THREE.Vector3();
   private readonly tempScale = new THREE.Vector3();
   private readonly tempQuaternion = new THREE.Quaternion();
@@ -391,6 +434,51 @@ export class StaticDungeonScene {
   build(dungeon: DungeonData, mood: DungeonMood, decorDensity: number): StaticDungeonSceneHandles {
     if (this.disposed) throw new Error("StaticDungeonScene has been disposed.");
     this.clear();
+    this.floorWorldY = 0;
+    this.stairsDownOnly = false;
+    this.openVerticalKeys = openVerticalKeySet(dungeon);
+    this.applyMoodMaterials(mood, decorDensity);
+    this.buildFloorContents(dungeon, mood);
+    return this.handles;
+  }
+
+  /**
+   * Build every campaign floor as stacked slabs in one scene.
+   * Stair flights are placed once on the lower mouth of each shaft.
+   */
+  buildStack(
+    floors: readonly DungeonData[],
+    mood: DungeonMood,
+    decorDensity: number,
+  ): StaticDungeonSceneHandles {
+    if (this.disposed) throw new Error("StaticDungeonScene has been disposed.");
+    if (floors.length === 0) throw new Error("buildStack requires at least one floor.");
+    if (floors.length === 1) return this.build(floors[0]!, mood, decorDensity);
+
+    this.clear();
+    this.applyMoodMaterials(mood, decorDensity);
+    let totalFloorCells = 0;
+    let totalWallCells = 0;
+    for (let index = 0; index < floors.length; index += 1) {
+      const dungeon = floors[index]!;
+      this.floorWorldY = floorSlabY(index);
+      this.stairsDownOnly = true;
+      this.openVerticalKeys = openVerticalKeySet(dungeon);
+      const counts = this.buildFloorContents(dungeon, mood);
+      totalFloorCells += counts.floorCells;
+      totalWallCells += counts.wallCells;
+    }
+    this.floorWorldY = 0;
+    this.stairsDownOnly = false;
+    this.openVerticalKeys = new Set();
+    this.stats.floorTiles = totalFloorCells;
+    this.stats.wallTiles = totalWallCells;
+    this.stats.ceilingTiles = totalFloorCells;
+    this.stats.pickups = this.pickups.length;
+    return this.handles;
+  }
+
+  private applyMoodMaterials(mood: DungeonMood, decorDensity: number): void {
     this.activeMood = mood;
     this.decorDensity = decorDensity;
     const biomeSurfaces = this.assets.getBiomeSurfaces(mood.id);
@@ -407,6 +495,12 @@ export class StaticDungeonScene {
       mood.surfaceTint,
       0.9 + mood.surfaceStrength * 0.25,
     );
+  }
+
+  private buildFloorContents(
+    dungeon: DungeonData,
+    mood: DungeonMood,
+  ): { floorCells: number; wallCells: number } {
     if (!hasValidPortalPlacementContract(dungeon)) {
       throw new Error("Dungeon cannot start Play without a reachable exit portal seat.");
     }
@@ -426,6 +520,9 @@ export class StaticDungeonScene {
     }
     for (const stair of dungeon.floor?.stairs ?? []) {
       this.objectiveClearanceCells.add(`${stair.cell.x},${stair.cell.y}`);
+      for (const cell of stair.footprint ?? []) {
+        this.objectiveClearanceCells.add(`${cell.x},${cell.y}`);
+      }
     }
     const floorCells: GridCell[] = [];
     for (let y = 0; y < dungeon.height; y += 1) {
@@ -441,14 +538,17 @@ export class StaticDungeonScene {
       `${dungeon.spawn.x},${dungeon.spawn.y}`,
       `${dungeon.exit.x},${dungeon.exit.y}`,
     ]);
-    this.hazardTiles = new HazardTileSystem(dungeon, mood, this.tileSize, hazardExclusions);
-    this.hazardTiles.placements.forEach((placement) => {
-      const key = `${placement.cell.x},${placement.cell.y}`;
-      this.hazardCells.add(key);
-      this.objectiveClearanceCells.add(key);
-    });
-    this.add(this.hazardTiles.root);
-    this.stats.hazardTiles = this.hazardTiles.placements.length;
+    // Hazards stay on the first/active floor slab only in multi-stack builds for budget.
+    if (this.floorWorldY === 0 || !this.stairsDownOnly) {
+      this.hazardTiles = new HazardTileSystem(dungeon, mood, this.tileSize, hazardExclusions);
+      this.hazardTiles.placements.forEach((placement) => {
+        const key = `${placement.cell.x},${placement.cell.y}`;
+        this.hazardCells.add(key);
+        this.objectiveClearanceCells.add(key);
+      });
+      this.add(this.hazardTiles.root);
+      this.stats.hazardTiles += this.hazardTiles.placements.length;
+    }
     if (!dungeon.forge) this.addCaveProps(dungeon);
     this.addDoorsAndRoomProps(dungeon);
     this.commitDoorFrameBatches();
@@ -471,21 +571,26 @@ export class StaticDungeonScene {
     this.addStaticObjectives(dungeon, stonePlacements);
     this.commitChestBatches();
     const stonePickups = this.pickups.filter((pickup) => pickup.kind === "stone");
-    if (stonePickups.length !== stonePlacements.length) {
-      throw new Error(
-        `Dungeon completeness failed: expected ${stonePlacements.length} stone pickups, built ${stonePickups.length}.`,
-      );
-    }
-    const finalFloor = !dungeon.floor || dungeon.floor.index === dungeon.floor.count - 1;
-    if (finalFloor && !this.portalRoot) {
-      throw new Error("Dungeon completeness failed: exit portal mesh was not created.");
+    // Stack builds accumulate stones across floors; only enforce on single-floor builds.
+    if (this.floorWorldY === 0 && !this.stairsDownOnly) {
+      if (stonePickups.length !== stonePlacements.length) {
+        throw new Error(
+          `Dungeon completeness failed: expected ${stonePlacements.length} stone pickups, built ${stonePickups.length}.`,
+        );
+      }
+      const finalFloor = !dungeon.floor || dungeon.floor.index === dungeon.floor.count - 1;
+      if (finalFloor && !this.portalRoot) {
+        throw new Error("Dungeon completeness failed: exit portal mesh was not created.");
+      }
     }
     this.applyMoodToPracticalLights(mood);
-    this.stats.floorTiles = floorCells.length;
-    this.stats.wallTiles = wallCells.length;
-    this.stats.ceilingTiles = floorCells.length;
-    this.stats.pickups = this.pickups.length;
-    return this.handles;
+    if (!this.stairsDownOnly) {
+      this.stats.floorTiles = floorCells.length;
+      this.stats.wallTiles = wallCells.length;
+      this.stats.ceilingTiles = floorCells.length;
+      this.stats.pickups = this.pickups.length;
+    }
+    return { floorCells: floorCells.length, wallCells: wallCells.length };
   }
 
   clear(): void {
@@ -578,8 +683,17 @@ export class StaticDungeonScene {
   }
 
   private add(...objects: THREE.Object3D[]): void {
+    if (this.floorWorldY !== 0) {
+      for (const object of objects) {
+        object.position.y += this.floorWorldY;
+      }
+    }
     this.group.add(...objects);
     this.buildRoots.push(...objects);
+  }
+
+  private worldY(localY: number): number {
+    return localY + this.floorWorldY;
   }
 
   private reserveObjectCell(cell: GridCell): void {
@@ -704,49 +818,84 @@ export class StaticDungeonScene {
 
     // Clone only the base surface templates per theme (instance UV attrs differ).
     // makeInstance reuses scratch matrices so tile fills do not allocate per cell.
+    // Shaft cells: open ceiling always; open floor on upper mouths (has up stair).
+    const hasUpShaft = (dungeon.floor?.stairs ?? []).some((stair) => stair.direction === "up");
     for (const [theme, cells] of partitionCells(dungeon, floorCells)) {
-      const floorOffsets = new Float32Array(cells.length * 2);
-      const ceilingOffsets = new Float32Array(cells.length * 2);
-      const floorGeometry = floorTemplate.clone();
-      const ceilingGeometry = ceilingTemplate.clone();
-      cells.forEach((cell, instance) => {
-        const floorUv = dungeonFloorUvOffset(cell);
-        const ceilingUv = dungeonCeilingUvOffset(cell);
-        floorOffsets[instance * 2] = floorUv[0];
-        floorOffsets[instance * 2 + 1] = floorUv[1];
-        ceilingOffsets[instance * 2] = ceilingUv[0];
-        ceilingOffsets[instance * 2 + 1] = ceilingUv[1];
-      });
-      setTileUvOffsets(floorGeometry, floorOffsets);
-      setTileUvOffsets(ceilingGeometry, ceilingOffsets);
+      const floorSeats = cells.filter(
+        (cell) => !(hasUpShaft && this.openVerticalKeys.has(`${cell.x},${cell.y}`)),
+      );
+      const ceilingSeats = cells.filter(
+        (cell) => !this.openVerticalKeys.has(`${cell.x},${cell.y}`),
+      );
+      if (floorSeats.length === 0 && ceilingSeats.length === 0) continue;
 
-      const floor = new THREE.InstancedMesh(
-        floorGeometry,
-        this.surfaceMaterials[theme].floor,
-        cells.length,
-      );
-      floor.name = `${theme} room floor`;
-      floor.receiveShadow = true;
-      const ceiling = new THREE.InstancedMesh(
-        ceilingGeometry,
-        this.surfaceMaterials[theme].ceiling,
-        cells.length,
-      );
-      ceiling.name = `${theme} room ceiling`;
-      cells.forEach((cell, instance) => {
-        const p = gridToWorld(dungeon, cell, this.tileSize);
-        makeInstance(floor, instance, { x: p.x, y: -0.05, z: p.z });
-        makeInstance(
-          ceiling,
-          instance,
-          { x: p.x, y: this.wallHeight - 0.01, z: p.z },
-          { x: 1, y: 1, z: 1 },
-          ceilingOrientation,
+      if (floorSeats.length > 0) {
+        const floorOffsets = new Float32Array(floorSeats.length * 2);
+        const floorGeometry = floorTemplate.clone();
+        floorSeats.forEach((cell, instance) => {
+          const floorUv = dungeonFloorUvOffset(cell);
+          floorOffsets[instance * 2] = floorUv[0];
+          floorOffsets[instance * 2 + 1] = floorUv[1];
+        });
+        setTileUvOffsets(floorGeometry, floorOffsets);
+        const floor = new THREE.InstancedMesh(
+          floorGeometry,
+          this.surfaceMaterials[theme].floor,
+          floorSeats.length,
         );
-      });
-      floor.instanceMatrix.needsUpdate = true;
-      ceiling.instanceMatrix.needsUpdate = true;
-      this.add(floor, ceiling);
+        floor.name = `${theme} room floor`;
+        floor.receiveShadow = true;
+        floorSeats.forEach((cell, instance) => {
+          const p = gridToWorld(dungeon, cell, this.tileSize);
+          makeInstance(floor, instance, { x: p.x, y: this.worldY(-0.05), z: p.z });
+          // Ground slab keeps virtual support at Y=0; raised slabs need deck colliders.
+          if (this.floorWorldY > 0) {
+            const half = this.tileSize * 0.5;
+            this.solidColliders.push({
+              minX: p.x - half,
+              maxX: p.x + half,
+              minZ: p.z - half,
+              maxZ: p.z + half,
+              minY: this.worldY(-0.06),
+              maxY: this.worldY(0.02),
+            });
+          }
+        });
+        floor.instanceMatrix.needsUpdate = true;
+        this.add(floor);
+        // add() also shifts position.y for groups; InstancedMesh uses matrices — undo add offset.
+        if (this.floorWorldY !== 0) floor.position.y -= this.floorWorldY;
+      }
+
+      if (ceilingSeats.length > 0) {
+        const ceilingOffsets = new Float32Array(ceilingSeats.length * 2);
+        const ceilingGeometry = ceilingTemplate.clone();
+        ceilingSeats.forEach((cell, instance) => {
+          const ceilingUv = dungeonCeilingUvOffset(cell);
+          ceilingOffsets[instance * 2] = ceilingUv[0];
+          ceilingOffsets[instance * 2 + 1] = ceilingUv[1];
+        });
+        setTileUvOffsets(ceilingGeometry, ceilingOffsets);
+        const ceiling = new THREE.InstancedMesh(
+          ceilingGeometry,
+          this.surfaceMaterials[theme].ceiling,
+          ceilingSeats.length,
+        );
+        ceiling.name = `${theme} room ceiling`;
+        ceilingSeats.forEach((cell, instance) => {
+          const p = gridToWorld(dungeon, cell, this.tileSize);
+          makeInstance(
+            ceiling,
+            instance,
+            { x: p.x, y: this.worldY(this.wallHeight - 0.01), z: p.z },
+            { x: 1, y: 1, z: 1 },
+            ceilingOrientation,
+          );
+        });
+        ceiling.instanceMatrix.needsUpdate = true;
+        this.add(ceiling);
+        if (this.floorWorldY !== 0) ceiling.position.y -= this.floorWorldY;
+      }
     }
 
     // Masonry as exposed face panels (not solid cubes) — kills the grid of vertical seams.
@@ -790,13 +939,14 @@ export class StaticDungeonScene {
         makeInstance(
           walls,
           instance,
-          { x, y: this.wallHeight / 2, z },
+          { x, y: this.worldY(this.wallHeight / 2), z },
           { x: 1, y: 1, z: 1 },
           rotation,
         );
       });
       walls.instanceMatrix.needsUpdate = true;
       this.add(walls);
+      if (this.floorWorldY !== 0) walls.position.y -= this.floorWorldY;
     }
 
     // Thin solid fill inside wall cells so tops/corners don't show sky through masonry.
@@ -1675,36 +1825,10 @@ export class StaticDungeonScene {
 
     const anchor = new THREE.Vector3(0, 0.91, 0.02);
     kit.root.localToWorld(anchor);
-    const item =
-      rewardKind === "time-freeze"
-        ? createTimeFreezeRelic(this.materials)
-        : rewardKind === "luminous-ward"
-          ? createLuminousWardStone(this.materials)
-          : rewardKind === "annihilation-pulse"
-            ? createAnnihilationPulseRelic(this.materials)
-            : rewardKind === "map"
-              ? createDungeonMapPickup(this.materials)
-              : rewardKind === "mobility"
-                ? createMobilityDraught(this.materials)
-                : rewardKind === "clarity"
-                  ? createClarityPhial(this.materials)
-                  : isCurseRewardKind(rewardKind)
-                    ? createCurseVessel(this.materials, rewardKind)
-                    : createResolveFlask(this.materials);
+    const item = this.createRewardObject(rewardKind);
     preparePickupOpacity(item);
     item.name = `${rewardKind} reward from chest`;
-    const rewardScale =
-      rewardKind === "resolve"
-        ? 0.64
-        : rewardKind === "map"
-          ? 0.62
-          : rewardKind === "mobility" || rewardKind === "clarity"
-            ? 0.58
-            : rewardKind === "time-freeze" || rewardKind === "annihilation-pulse"
-              ? 0.54
-              : isCurseRewardKind(rewardKind)
-                ? 0.56
-                : 0.52;
+    const rewardScale = this.rewardScaleForKind(rewardKind);
     const baseScale = new THREE.Vector3(rewardScale, rewardScale, rewardScale);
     // Sit clearly above the open lid so idle rewards do not clip the chest.
     const baseY = anchor.y + 0.42;
@@ -1750,6 +1874,24 @@ export class StaticDungeonScene {
         glow: item.getObjectByName("Annihilation pulse pickup halo") as THREE.Mesh,
         baseIntensity: ANNIHILATION_PULSE_PICKUP_LIGHT_INTENSITY,
         baseGlowOpacity: ANNIHILATION_PULSE_PICKUP_GLOW_OPACITY,
+      };
+    } else if (rewardKind === "cull-brand") {
+      const light = item.getObjectByName("Cull brand pickup light") as THREE.PointLight;
+      light.intensity = 0;
+      reward.cullBrandSignal = {
+        light,
+        glow: item.getObjectByName("Cull brand halo") as THREE.Mesh,
+        baseIntensity: CULL_BRAND_PICKUP_LIGHT_INTENSITY,
+        baseGlowOpacity: CULL_BRAND_PICKUP_GLOW_OPACITY,
+      };
+    } else if (rewardKind === "phoenix-egg") {
+      const light = item.getObjectByName("Phoenix egg pickup light") as THREE.PointLight;
+      light.intensity = 0;
+      reward.phoenixEggSignal = {
+        light,
+        glow: item.getObjectByName("Phoenix egg halo") as THREE.Mesh,
+        baseIntensity: PHOENIX_EGG_PICKUP_LIGHT_INTENSITY,
+        baseGlowOpacity: PHOENIX_EGG_PICKUP_GLOW_OPACITY,
       };
     }
     this.pickups.push(reward);
@@ -1896,52 +2038,14 @@ export class StaticDungeonScene {
         }
       }
     }
-    const spawnWorld = gridToWorld(dungeon, dungeon.spawn, this.tileSize);
-    const exitWorld = gridToWorld(dungeon, dungeon.exit, this.tileSize);
-    const spawnForward = new THREE.Vector3(
-      exitWorld.x - spawnWorld.x,
-      0,
-      exitWorld.z - spawnWorld.z,
-    ).normalize();
-    const entranceCandidates = [...candidates]
-      .map((candidate) => {
-        const floor = gridToWorld(dungeon, candidate.floor, this.tileSize);
-        const offset = new THREE.Vector3(floor.x - spawnWorld.x, 0, floor.z - spawnWorld.z);
-        const distance = offset.length();
-        const forwardScore = distance > 0.001 ? offset.normalize().dot(spawnForward) : 0;
-        return { candidate, score: distance - forwardScore * 3.2 };
-      })
-      .filter(
-        ({ candidate }) =>
-          Math.abs(candidate.wall.x - dungeon.spawn.x) +
-            Math.abs(candidate.wall.y - dungeon.spawn.y) <=
-          7,
-      )
-      .sort((left, right) => left.score - right.score)
-      .map(({ candidate }) => candidate);
     for (let index = candidates.length - 1; index > 0; index -= 1) {
       const swap = random.integer(0, index);
       [candidates[index], candidates[swap]] = [candidates[swap]!, candidates[index]!];
     }
-    const torches: typeof candidates = [];
-    for (const candidate of entranceCandidates) {
-      if (
-        torches.some(
-          (placed) =>
-            Math.max(
-              Math.abs(placed.wall.x - candidate.wall.x),
-              Math.abs(placed.wall.y - candidate.wall.y),
-            ) < 3,
-        )
-      )
-        continue;
-      torches.push(candidate);
-      if (torches.length >= 2) break;
-    }
+    // Even coverage across the map — no preferential ring around the player spawn.
     const target = Math.max(6, Math.round((8 + dungeon.rooms.length * 0.45) * this.decorDensity));
+    const torches: typeof candidates = [];
     for (const candidate of candidates) {
-      if (torches.includes(candidate)) continue;
-      // Relaxed from 5 to 4 cells so corridors and medium rooms get denser warmth.
       if (
         torches.some(
           (placed) =>
@@ -3203,7 +3307,7 @@ export class StaticDungeonScene {
   private addMarkers(dungeon: DungeonData, mood: DungeonMood): void {
     const entrance = gridToWorld(dungeon, dungeon.spawn, this.tileSize);
     const exit = gridToWorld(dungeon, dungeon.exit, this.tileSize);
-    this.exitPosition.set(exit.x, 0, exit.z);
+    this.exitPosition.set(exit.x, this.floorWorldY, exit.z);
 
     const entranceRing = new THREE.Mesh(new THREE.RingGeometry(0.46, 0.66, 8), this.materials.iron);
     entranceRing.rotation.x = -Math.PI / 2;
@@ -3238,13 +3342,29 @@ export class StaticDungeonScene {
 
   private addStaircases(dungeon: DungeonData): void {
     for (const stair of dungeon.floor?.stairs ?? []) {
+      // Multi-slab stacks place one physical flight on the lower mouth only.
+      if (this.stairsDownOnly && stair.direction !== "down") continue;
       const position = gridToWorld(dungeon, stair.cell, this.tileSize);
-      const root = createDungeonStaircase(stair.direction, this.materials, this.tileSize);
-      root.position.set(position.x, 0, position.z);
+      const flight = buildStairFlight(stair.direction, this.materials, this.tileSize);
+      const root = flight.root;
+      // Flight climbs local +Z from the lower landing; world Y is slab base.
+      root.position.set(position.x, this.floorWorldY, position.z);
       root.rotation.y = stair.yaw;
       root.userData.stairId = stair.id;
       root.userData.targetFloor = stair.targetFloor;
-      this.add(root);
+      root.userData.shaftId = stair.shaftId;
+      root.userData.walkable = true;
+      // Bypass add() Y offset — position already includes floorWorldY.
+      this.group.add(root);
+      this.buildRoots.push(root);
+      const colliders = worldTreadColliders(
+        flight.treadColliders,
+        position.x,
+        this.floorWorldY,
+        position.z,
+        stair.yaw,
+      );
+      this.solidColliders.push(...colliders);
       this.handles.staircases.push({
         root,
         direction: stair.direction,
@@ -3384,7 +3504,12 @@ export class StaticDungeonScene {
     for (const fraction of [0.42, 0.88] as const) {
       placePowerChest("luminous-ward", fraction, 61);
     }
-    placePowerChest("annihilation-pulse", 0.64, 83);
+    // One offense slot: annihilation pulse or cull brand (keeps 8 positive chests).
+    placePowerChest(
+      planOffensePowerKind(dungeon.seed),
+      OFFENSE_POWER_DEPTH_FRACTION,
+      OFFENSE_POWER_SALT,
+    );
 
     // Rare cursed chests: never early biomes, mid/late route only, hard-capped
     // below the eight positive power rewards (see planCurseChestPlacements).
@@ -3392,25 +3517,34 @@ export class StaticDungeonScene {
       placePowerChest(curse.kind, curse.depthFraction, curse.salt);
     }
 
-    // Place the classic bonus chests (health flasks) before enemy seats are
-    // planned. Their reservations then participate in both distributed and
-    // authored spawns. Cap is intentionally a bit generous so runs stay
-    // recoverable under pressure.
+    // Rank-scaled free loot + health: harder biomes get more recoverability.
+    // Forge imports keep authored layout only (no free floor spray).
     if (!dungeon.forge) {
-      rankedRooms
-        .filter((room) => !stoneRoomSet.has(room))
-        .filter((_, index) => index % 3 === 0)
-        .slice(0, 5)
-        .forEach((room) => {
-          const candidates = collectRoomInteriorSeats(dungeon, room).filter(
-            (cell) =>
-              !this.isObjectOccupiedCell(cell) &&
-              !this.objectiveClearanceCells.has(`${cell.x},${cell.y}`) &&
-              !isProtectedTraversalCell(dungeon, cell),
-          );
-          const cell = pickSpreadSeats(candidates, 1, dungeon.seedHash + room.id * 29)[0];
-          if (!cell) return;
-          this.addInteractiveChest(dungeon, {
+      const loot = planBiomeLootBudget(this.activeMood.id, dungeon.seed, {
+        // World may already hold a phoenix charge from a prior floor; skip spawn then.
+        phoenixArmed: this.pendingPhoenixArmed,
+      });
+
+      for (const [index, kind] of loot.extraSupportChests.entries()) {
+        placePowerChest(kind, 0.33 + index * 0.18, 131 + index * 17);
+      }
+
+      const healthRooms = rankedRooms.filter((room) => !stoneRoomSet.has(room));
+      const healthDepths = spreadDepthFractions(loot.healthChests, 0.15, 0.75);
+      healthDepths.forEach((depth, index) => {
+        const room =
+          healthRooms[Math.floor(healthRooms.length * depth)] ?? healthRooms[index] ?? null;
+        if (!room) return;
+        const candidates = collectRoomInteriorSeats(dungeon, room).filter(
+          (cell) =>
+            !pickupExcluded.has(`${cell.x},${cell.y}`) &&
+            !isProtectedTraversalCell(dungeon, cell),
+        );
+        const cell = pickSpreadSeats(candidates, 1, dungeon.seedHash + room.id * 29)[0];
+        if (!cell) return;
+        this.addInteractiveChest(
+          dungeon,
+          {
             kind: "chest",
             x: cell.x,
             y: cell.y,
@@ -3418,10 +3552,234 @@ export class StaticDungeonScene {
             rot: ((room.id + dungeon.seedHash) % 4) * (Math.PI / 2),
             scale: 0.92,
             v: room.id % 3,
-          });
-          pickupExcluded.add(`${cell.x},${cell.y}`);
-        });
+          },
+          "resolve",
+        );
+        pickupExcluded.add(`${cell.x},${cell.y}`);
+      });
+
+      const corridorCells = collectCorridorPickupSeats(dungeon, pickupExcluded);
+      const roomFreeCells: GridCell[] = [];
+      for (const room of healthRooms) {
+        for (const seat of collectRoomInteriorSeats(dungeon, room)) {
+          if (
+            pickupExcluded.has(`${seat.x},${seat.y}`) ||
+            isProtectedTraversalCell(dungeon, seat)
+          ) {
+            continue;
+          }
+          roomFreeCells.push(seat);
+        }
+      }
+
+      const placeFloor = (kind: ChestRewardKind, cell: GridCell | undefined): void => {
+        if (!cell) return;
+        const key = `${cell.x},${cell.y}`;
+        if (pickupExcluded.has(key)) return;
+        pickupExcluded.add(key);
+        this.objectiveClearanceCells.add(key);
+        this.addFloorPickup(dungeon, cell, kind);
+      };
+
+      const corridorFlaskCells = pickSpreadSeats(
+        corridorCells,
+        loot.corridorFlasks,
+        dungeon.seedHash + 401,
+      );
+      corridorFlaskCells.forEach((cell) => placeFloor("resolve", cell));
+
+      const remainingFlasks = Math.max(0, loot.freeFlasks - corridorFlaskCells.length);
+      const roomFlaskCells = pickSpreadSeats(
+        roomFreeCells.filter((cell) => !pickupExcluded.has(`${cell.x},${cell.y}`)),
+        remainingFlasks,
+        dungeon.seedHash + 409,
+      );
+      roomFlaskCells.forEach((cell) => placeFloor("resolve", cell));
+
+      const freePowerDepths = spreadDepthFractions(loot.freePowers.length, 0.22, 0.6);
+      loot.freePowers.forEach((kind: FloorFreePowerKind, index) => {
+        const depth = freePowerDepths[index] ?? 0.4;
+        // Prefer corridors for free powers so they read as route finds.
+        const fromCorridor = pickSpreadSeats(
+          corridorCells.filter((cell) => !pickupExcluded.has(`${cell.x},${cell.y}`)),
+          1,
+          dungeon.seedHash + 420 + index * 13,
+        )[0];
+        if (fromCorridor) {
+          placeFloor(kind, fromCorridor);
+          return;
+        }
+        const room =
+          healthRooms[Math.floor(healthRooms.length * depth)] ?? healthRooms[0] ?? null;
+        if (!room) return;
+        const seat = pickSpreadSeats(
+          collectRoomInteriorSeats(dungeon, room).filter(
+            (cell) =>
+              !pickupExcluded.has(`${cell.x},${cell.y}`) &&
+              !isProtectedTraversalCell(dungeon, cell),
+          ),
+          1,
+          dungeon.seedHash + room.id * 51 + index,
+        )[0];
+        placeFloor(kind, seat);
+      });
+
+      if (loot.placePhoenix) {
+        const phoenixRoom =
+          healthRooms[Math.floor(healthRooms.length * 0.55)] ??
+          healthRooms[Math.floor(healthRooms.length * 0.5)] ??
+          healthRooms[0] ??
+          null;
+        if (phoenixRoom) {
+          const seat = pickSpreadSeats(
+            collectRoomInteriorSeats(dungeon, phoenixRoom).filter(
+              (cell) =>
+                !pickupExcluded.has(`${cell.x},${cell.y}`) &&
+                !isProtectedTraversalCell(dungeon, cell),
+            ),
+            1,
+            dungeon.seedHash + phoenixRoom.id * 97,
+          )[0];
+          placeFloor("phoenix-egg", seat);
+        }
+      }
     }
+  }
+
+  private pendingPhoenixArmed = false;
+
+  /** When true, the next build skips spawning a phoenix egg (player already armed). */
+  setPhoenixArmedForNextBuild(armed: boolean): void {
+    this.pendingPhoenixArmed = armed === true;
+  }
+
+  private createRewardObject(rewardKind: ChestRewardKind): THREE.Object3D {
+    if (rewardKind === "time-freeze") return createTimeFreezeRelic(this.materials);
+    if (rewardKind === "luminous-ward") return createLuminousWardStone(this.materials);
+    if (rewardKind === "annihilation-pulse") return createAnnihilationPulseRelic(this.materials);
+    if (rewardKind === "cull-brand") return createCullBrandRelic(this.materials);
+    if (rewardKind === "phoenix-egg") return createPhoenixEggRelic(this.materials);
+    if (rewardKind === "map") return createDungeonMapPickup(this.materials);
+    if (rewardKind === "mobility") return createMobilityDraught(this.materials);
+    if (rewardKind === "clarity") return createClarityPhial(this.materials);
+    if (isCurseRewardKind(rewardKind)) return createCurseVessel(this.materials, rewardKind);
+    return createResolveFlask(this.materials);
+  }
+
+  private rewardScaleForKind(rewardKind: ChestRewardKind): number {
+    if (rewardKind === "resolve") return 0.64;
+    if (rewardKind === "map") return 0.62;
+    if (rewardKind === "mobility" || rewardKind === "clarity") return 0.58;
+    if (
+      rewardKind === "time-freeze" ||
+      rewardKind === "annihilation-pulse" ||
+      rewardKind === "cull-brand" ||
+      rewardKind === "phoenix-egg"
+    ) {
+      return 0.54;
+    }
+    if (isCurseRewardKind(rewardKind)) return 0.56;
+    return 0.52;
+  }
+
+  private attachRewardSignals(
+    reward: StaticPickupActor,
+    rewardKind: ChestRewardKind,
+    item: THREE.Object3D,
+  ): void {
+    if (rewardKind === "time-freeze") {
+      const light = item.getObjectByName("Time freeze pickup light") as THREE.PointLight | null;
+      if (!light) return;
+      light.intensity = light.intensity || TIME_FREEZE_PICKUP_LIGHT_INTENSITY;
+      reward.timeFreezeSignal = {
+        light,
+        baseIntensity: TIME_FREEZE_PICKUP_LIGHT_INTENSITY,
+      };
+    } else if (rewardKind === "luminous-ward") {
+      const light = item.getObjectByName("Luminous ward pickup light") as THREE.PointLight | null;
+      if (!light) return;
+      reward.luminousWardSignal = {
+        light,
+        glow: item.getObjectByName("Luminous ward pickup halo") as THREE.Mesh,
+        baseIntensity: LUMINOUS_WARD_PICKUP_LIGHT_INTENSITY,
+        baseGlowOpacity: LUMINOUS_WARD_PICKUP_GLOW_OPACITY,
+      };
+    } else if (rewardKind === "annihilation-pulse") {
+      const light = item.getObjectByName(
+        "Annihilation pulse pickup light",
+      ) as THREE.PointLight | null;
+      if (!light) return;
+      reward.annihilationPulseSignal = {
+        light,
+        glow: item.getObjectByName("Annihilation pulse pickup halo") as THREE.Mesh,
+        baseIntensity: ANNIHILATION_PULSE_PICKUP_LIGHT_INTENSITY,
+        baseGlowOpacity: ANNIHILATION_PULSE_PICKUP_GLOW_OPACITY,
+      };
+    } else if (rewardKind === "cull-brand") {
+      const light = item.getObjectByName("Cull brand pickup light") as THREE.PointLight | null;
+      if (!light) return;
+      reward.cullBrandSignal = {
+        light,
+        glow: item.getObjectByName("Cull brand halo") as THREE.Mesh,
+        baseIntensity: CULL_BRAND_PICKUP_LIGHT_INTENSITY,
+        baseGlowOpacity: CULL_BRAND_PICKUP_GLOW_OPACITY,
+      };
+    } else if (rewardKind === "phoenix-egg") {
+      const light = item.getObjectByName("Phoenix egg pickup light") as THREE.PointLight | null;
+      if (!light) return;
+      reward.phoenixEggSignal = {
+        light,
+        glow: item.getObjectByName("Phoenix egg halo") as THREE.Mesh,
+        baseIntensity: PHOENIX_EGG_PICKUP_LIGHT_INTENSITY,
+        baseGlowOpacity: PHOENIX_EGG_PICKUP_GLOW_OPACITY,
+      };
+    }
+  }
+
+  /** Floor-spawned auto-collect pickup (no chest lid). */
+  private addFloorPickup(
+    dungeon: DungeonData,
+    cell: GridCell,
+    rewardKind: ChestRewardKind,
+  ): void {
+    const world = gridToWorld(dungeon, cell, this.tileSize);
+    const item = this.createRewardObject(rewardKind);
+    preparePickupOpacity(item);
+    item.name = `${rewardKind} floor pickup ${cell.x},${cell.y}`;
+    const rewardScale = this.rewardScaleForKind(rewardKind) * 0.92;
+    const baseScale = new THREE.Vector3(rewardScale, rewardScale, rewardScale);
+    const baseY = rewardKind === "resolve" ? 0.42 : 0.48;
+    item.position.set(world.x, baseY, world.z);
+    item.scale.copy(baseScale);
+    setPickupDormant(item, false);
+    const reward: StaticPickupActor = {
+      kind: rewardKind,
+      object: item,
+      collected: false,
+      collectTime: 0,
+      collectOriginX: world.x,
+      collectOriginY: baseY,
+      collectOriginZ: world.z,
+      available: true,
+      revealTime: 1,
+      baseY,
+      baseScale,
+      autoCollect: true,
+    };
+    this.attachRewardSignals(reward, rewardKind, item);
+    // Floor free powers keep lights live; flasks stay unlit for budget.
+    if (reward.timeFreezeSignal) {
+      reward.timeFreezeSignal.light.intensity = reward.timeFreezeSignal.baseIntensity * 0.85;
+    }
+    if (reward.luminousWardSignal) {
+      reward.luminousWardSignal.light.intensity = reward.luminousWardSignal.baseIntensity * 0.75;
+    }
+    if (reward.phoenixEggSignal) {
+      reward.phoenixEggSignal.light.intensity = reward.phoenixEggSignal.baseIntensity * 0.9;
+    }
+    this.pickups.push(reward);
+    this.add(item);
+    this.stats.props += 1;
   }
 
   private addForgeLiquids(dungeon: DungeonData): void {
@@ -3442,6 +3800,37 @@ const CARDINAL_NEIGHBORS: ReadonlyArray<readonly [number, number]> = [
 ];
 const BIOME_WALL_DECAL_OFFSET = 0.026;
 const BIOME_CORNER_PROP_INSET = 0.66;
+
+/**
+ * Corridor-like floor seats for free pickups: forge corridor mask, or floor
+ * tiles with few orthogonal floor neighbors (narrow runs).
+ */
+function collectCorridorPickupSeats(
+  dungeon: DungeonData,
+  excluded: ReadonlySet<string>,
+): GridCell[] {
+  const seats: GridCell[] = [];
+  const width = dungeon.width;
+  const height = dungeon.height;
+  for (let y = 1; y < height - 1; y += 1) {
+    for (let x = 1; x < width - 1; x += 1) {
+      if (dungeon.grid[y]?.[x] !== FLOOR) continue;
+      const key = `${x},${y}`;
+      if (excluded.has(key)) continue;
+      const cell = { x, y };
+      if (isProtectedTraversalCell(dungeon, cell)) continue;
+      const forgeCorridor = dungeon.forge?.corridors?.[y * width + x];
+      let floorNeighbors = 0;
+      for (const [dx, dy] of CARDINAL_NEIGHBORS) {
+        if (dungeon.grid[y + dy]?.[x + dx] === FLOOR) floorNeighbors += 1;
+      }
+      const narrow = floorNeighbors > 0 && floorNeighbors <= 2;
+      if (!forgeCorridor && !narrow) continue;
+      seats.push(cell);
+    }
+  }
+  return seats;
+}
 
 type DungeonWallSeat = ReturnType<typeof collectRoomWallSeats>[number];
 type DungeonCornerSeat = ReturnType<typeof collectRoomCornerSeats>[number];
@@ -3955,6 +4344,19 @@ function collectExposedWallFaces(
   return faces;
 }
 
+function openVerticalKeySet(dungeon: DungeonData): Set<string> {
+  const keys = new Set<string>();
+  for (const cell of dungeon.floor?.openVerticalCells ?? []) {
+    keys.add(`${cell.x},${cell.y}`);
+  }
+  for (const stair of dungeon.floor?.stairs ?? []) {
+    for (const cell of stair.footprint ?? []) {
+      keys.add(`${cell.x},${cell.y}`);
+    }
+  }
+  return keys;
+}
+
 function collectBoundaryWalls(dungeon: DungeonData): GridCell[] {
   const walls: GridCell[] = [];
   for (let y = 0; y < dungeon.height; y += 1) {
@@ -3992,26 +4394,39 @@ export type ChestRewardKind =
   | "time-freeze"
   | "luminous-ward"
   | "annihilation-pulse"
+  | "cull-brand"
+  | "phoenix-egg"
   | "map"
   | "mobility"
   | "clarity"
   | "swarm-curse"
   | "slow-curse"
   | "frenzy-curse"
-  | "gloom-curse";
+  | "gloom-curse"
+  | "mirror-curse"
+  | "spin-curse";
 
 export function chestRewardAutoActivates(kind: ChestRewardKind): boolean {
+  // Phoenix arms a charge without firing; still auto-collects on contact.
   return kind !== "resolve";
 }
 
 function isCurseRewardKind(
   kind: ChestRewardKind,
-): kind is "swarm-curse" | "slow-curse" | "frenzy-curse" | "gloom-curse" {
+): kind is
+  | "swarm-curse"
+  | "slow-curse"
+  | "frenzy-curse"
+  | "gloom-curse"
+  | "mirror-curse"
+  | "spin-curse" {
   return (
     kind === "swarm-curse" ||
     kind === "slow-curse" ||
     kind === "frenzy-curse" ||
-    kind === "gloom-curse"
+    kind === "gloom-curse" ||
+    kind === "mirror-curse" ||
+    kind === "spin-curse"
   );
 }
 

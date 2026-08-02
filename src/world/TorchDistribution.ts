@@ -23,11 +23,13 @@ function nearestIndex(
 }
 
 /**
- * Greedy farthest-point distribution of lit torches. Always anchors the nearest
- * torch to `spawn` and `exit`, then seeds coverage near any `roomCenters`
- * (one torch each, if budget allows) so the mid-map zones aren't left dark,
- * then fills the rest by maximizing distance to the nearest already-chosen
- * torch.
+ * Greedy farthest-point distribution of lit torches. Anchors the nearest torch
+ * to `spawn` and `exit` (one each so the path ends stay readable), then seeds
+ * coverage near any `roomCenters` (one torch each, if budget allows), then
+ * fills the rest by maximizing distance to the nearest already-chosen torch.
+ *
+ * Placement geometry is owned by generation; this only picks which sconces get
+ * a dynamic PointLight within a fixed budget — spread evenly, not clustered.
  *
  * `roomCenters` is optional and does not change the legacy contract: when
  * omitted (as in the test) behaviour is identical to the original.
@@ -42,8 +44,7 @@ export function selectDistributedTorchIndices(
   const chosen = new Set<number>();
   const target = Math.min(Math.max(0, budget), torches.length);
   if (target === 0) return chosen;
-  // Mandatory anchors — entrance and exit coverage (kept first so the test
-  // contract holds regardless of roomCenters).
+  // Mandatory anchors — entrance and exit coverage (one each).
   const entrance = nearestIndex(torches, spawn, chosen);
   if (entrance >= 0) chosen.add(entrance);
   if (chosen.size < target) {

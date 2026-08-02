@@ -1,29 +1,40 @@
 import { hashSeed } from "../core/random";
 import { generateCompletableDungeon } from "./completeness";
+import {
+  applyStairShaftCarves,
+  planStairShafts,
+  type StairShaftPlan,
+} from "./StairShaftPlan";
 import type {
   DungeonData,
   DungeonFloorMetadata,
   DungeonOptions,
-  DungeonRoom,
   DungeonStair,
   GridCell,
 } from "./types";
 
-export const MAX_DUNGEON_FLOORS = 4;
+/** Campaign stack resident ceiling for continuous multi-floor play. */
+export const MAX_DUNGEON_FLOORS = 3;
 
 export interface DungeonFloorSet {
   rootSeed: string;
   floors: DungeonData[];
   signature: string;
+  shaftPlan: StairShaftPlan;
 }
 
-type DungeonGenerator = (seed?: string, options?: DungeonOptions) => DungeonData;
+export type DungeonGenerator = (seed?: string, options?: DungeonOptions) => DungeonData;
 
-/** Lazily materialized campaign floors; only the active floor pays generation cost. */
+/**
+ * Campaign floor stack. Materializes every floor on first access so stair
+ * shafts stay aligned across the resident set.
+ */
 export class DungeonFloorCampaign {
   readonly rootSeed: string;
   readonly count: number;
   private readonly cache = new Map<number, DungeonData>();
+  private shaftPlan: StairShaftPlan = { links: [] };
+  private materialized = false;
 
   constructor(
     seed = "BLACK-FLAG",
@@ -34,28 +45,56 @@ export class DungeonFloorCampaign {
   ) {
     this.rootSeed = seed.trim() || "BLACK-FLAG";
     this.count = clampFloorCount(requestedFloorCount);
-    if (initialFloor)
-      this.cache.set(0, withFloorMetadata(initialFloor, this.rootSeed, 0, this.count));
+    if (initialFloor && this.count === 1) {
+      this.cache.set(0, withSingleFloorMetadata(initialFloor, this.rootSeed, 0, 1));
+      this.materialized = true;
+    }
   }
 
   floor(index: number): DungeonData | null {
     const safeIndex = Math.trunc(index);
     if (safeIndex < 0 || safeIndex >= this.count) return null;
-    const cached = this.cache.get(safeIndex);
-    if (cached) return cached;
-    const floorSeed = safeIndex === 0 ? this.rootSeed : `${this.rootSeed}:F${safeIndex + 1}`;
-    const floor = withFloorMetadata(
-      this.generator(floorSeed, this.options),
-      this.rootSeed,
-      safeIndex,
-      this.count,
-    );
-    this.cache.set(safeIndex, floor);
-    return floor;
+    this.ensureMaterialized();
+    return this.cache.get(safeIndex) ?? null;
   }
 
   get cachedFloorCount(): number {
     return this.cache.size;
+  }
+
+  getShaftPlan(): StairShaftPlan {
+    this.ensureMaterialized();
+    return this.shaftPlan;
+  }
+
+  /** All floors of the stack in order. */
+  allFloors(): DungeonData[] {
+    this.ensureMaterialized();
+    return Array.from({ length: this.count }, (_, index) => this.cache.get(index)!);
+  }
+
+  private ensureMaterialized(): void {
+    if (this.materialized) return;
+    const raw: DungeonData[] = [];
+    for (let index = 0; index < this.count; index += 1) {
+      const floorSeed = index === 0 ? this.rootSeed : `${this.rootSeed}:F${index + 1}`;
+      raw.push(cloneDungeonGrid(this.generator(floorSeed, this.options)));
+    }
+
+    if (this.count > 1) {
+      this.shaftPlan = planStairShafts(raw, this.rootSeed);
+      applyStairShaftCarves(raw, this.shaftPlan);
+    } else {
+      this.shaftPlan = { links: [] };
+    }
+
+    raw.forEach((dungeon, index) => {
+      this.cache.set(
+        index,
+        withStackFloorMetadata(dungeon, this.rootSeed, index, this.count, this.shaftPlan),
+      );
+    });
+    this.materialized = true;
   }
 }
 
@@ -79,79 +118,38 @@ function clampFloorCount(value: number): number {
   return Math.min(MAX_DUNGEON_FLOORS, Math.max(1, Math.floor(value)));
 }
 
-function roomInteriorCandidates(room: DungeonRoom): GridCell[] {
-  const insetX = room.width >= 5 ? 1 : 0;
-  const insetY = room.height >= 5 ? 1 : 0;
-  return [
-    { x: room.x + insetX, y: room.y + insetY },
-    { x: room.x + room.width - 1 - insetX, y: room.y + insetY },
-    {
-      x: room.x + room.width - 1 - insetX,
-      y: room.y + room.height - 1 - insetY,
-    },
-    { x: room.x + insetX, y: room.y + room.height - 1 - insetY },
-    { ...room.center },
-  ];
-}
-
-function selectStairCell(
-  dungeon: DungeonData,
-  room: DungeonRoom,
-  salt: string,
-  avoid?: GridCell,
-): GridCell {
-  const candidates = roomInteriorCandidates(room).filter(
-    (cell) =>
-      dungeon.grid[cell.y]?.[cell.x] === 1 &&
-      (avoid === undefined || cell.x !== avoid.x || cell.y !== avoid.y),
-  );
-  const selected = candidates[hashSeed(`${dungeon.seed}:${salt}`) % Math.max(1, candidates.length)];
-  return selected ? { ...selected } : { ...room.center };
+function cloneDungeonGrid(dungeon: DungeonData): DungeonData {
+  return {
+    ...dungeon,
+    grid: dungeon.grid.map((row) => new Uint8Array(row)),
+    rooms: dungeon.rooms.map((room) => ({
+      ...room,
+      center: { ...room.center },
+    })),
+    edges: dungeon.edges.map((edge) => ({ ...edge })),
+    spawn: { ...dungeon.spawn },
+    exit: { ...dungeon.exit },
+    distances: new Int32Array(dungeon.distances),
+  };
 }
 
 function stairYaw(seed: string): number {
   return ((hashSeed(seed) % 4) * Math.PI) / 2;
 }
 
-function withFloorMetadata(
+function withSingleFloorMetadata(
   dungeon: DungeonData,
   rootSeed: string,
   index: number,
   count: number,
 ): DungeonData {
-  const entrance =
-    dungeon.rooms.find((room) => room.id === dungeon.entranceRoomId) ?? dungeon.rooms[0];
-  const exit = dungeon.rooms.find((room) => room.id === dungeon.exitRoomId) ?? dungeon.rooms.at(-1);
-  if (!entrance || !exit) throw new Error("A dungeon floor requires entrance and exit rooms.");
-
-  const stairs: DungeonStair[] = [];
-  let upCell: GridCell | undefined;
-  if (index > 0) {
-    upCell = selectStairCell(dungeon, entrance, "stairs-up");
-    stairs.push({
-      id: `floor-${index + 1}-up`,
-      direction: "up",
-      cell: upCell,
-      targetFloor: index - 1,
-      yaw: stairYaw(`${dungeon.seed}:up`),
-    });
-  }
-  if (index < count - 1) {
-    const downCell = selectStairCell(dungeon, exit, "stairs-down", upCell);
-    stairs.push({
-      id: `floor-${index + 1}-down`,
-      direction: "down",
-      cell: downCell,
-      targetFloor: index + 1,
-      yaw: stairYaw(`${dungeon.seed}:down`),
-    });
-  }
   const floor: DungeonFloorMetadata = {
     index,
     number: index + 1,
     count,
     rootSeed,
-    stairs,
+    stairs: [],
+    openVerticalCells: [],
   };
   return {
     ...dungeon,
@@ -160,10 +158,79 @@ function withFloorMetadata(
   };
 }
 
+function withStackFloorMetadata(
+  dungeon: DungeonData,
+  rootSeed: string,
+  index: number,
+  count: number,
+  plan: StairShaftPlan,
+): DungeonData {
+  const stairs: DungeonStair[] = [];
+  const openVerticalCells: GridCell[] = [];
+  const openSeen = new Set<string>();
+
+  for (const link of plan.links) {
+    for (const cell of link.footprint) {
+      const key = `${cell.x},${cell.y}`;
+      if (openSeen.has(key)) continue;
+      openSeen.add(key);
+      openVerticalCells.push({ ...cell });
+    }
+
+    if (link.lowerFloor === index) {
+      stairs.push({
+        id: `${link.shaftId}-down`,
+        direction: "down",
+        cell: { ...link.anchor },
+        targetFloor: link.upperFloor,
+        yaw: link.yaw,
+        shaftId: link.shaftId,
+        footprint: link.footprint.map((cell) => ({ ...cell })),
+      });
+    }
+    if (link.upperFloor === index) {
+      stairs.push({
+        id: `${link.shaftId}-up`,
+        direction: "up",
+        cell: { ...link.anchor },
+        targetFloor: link.lowerFloor,
+        yaw: link.yaw + Math.PI,
+        shaftId: link.shaftId,
+        footprint: link.footprint.map((cell) => ({ ...cell })),
+      });
+    }
+  }
+
+  // Single-floor campaigns keep empty stairs; multi-floor without a link is an error upstream.
+  if (count === 1 && stairs.length === 0) {
+    // no-op
+  }
+
+  const floor: DungeonFloorMetadata = {
+    index,
+    number: index + 1,
+    count,
+    rootSeed,
+    stairs,
+    openVerticalCells,
+  };
+
+  const shaftSig = plan.links
+    .map(
+      (link) =>
+        `${link.shaftId}@${link.anchor.x},${link.anchor.y}:${link.yaw.toFixed(3)}`,
+    )
+    .join("|");
+
+  return {
+    ...dungeon,
+    floor,
+    topologySignature: `${dungeon.topologySignature}:floor=${index + 1}/${count}:shafts=${shaftSig || "none"}`,
+  };
+}
+
 /**
- * A campaign level owns a deterministic set of sibling 2D floors. DungeonWorld
- * still receives one active floor, keeping collision, editor, Forge, and old
- * save consumers compatible while the runtime changes floors at stair anchors.
+ * Materialize a full deterministic floor stack with aligned walkable shafts.
  */
 export function generateDungeonFloorSet(
   seed = "BLACK-FLAG",
@@ -171,11 +238,16 @@ export function generateDungeonFloorSet(
   requestedFloorCount = 1,
 ): DungeonFloorSet {
   const campaign = createDungeonFloorCampaign(seed, options, requestedFloorCount);
-  const rootSeed = campaign.rootSeed;
-  const floors = Array.from({ length: campaign.count }, (_, index) => campaign.floor(index)!);
+  const floors = campaign.allFloors();
   return {
-    rootSeed,
+    rootSeed: campaign.rootSeed,
     floors,
     signature: floors.map((floor) => floor.topologySignature).join("||"),
+    shaftPlan: campaign.getShaftPlan(),
   };
+}
+
+/** @deprecated Prefer stack shafts; kept for tests that only need yaw hashing. */
+export function debugStairYaw(seed: string): number {
+  return stairYaw(seed);
 }

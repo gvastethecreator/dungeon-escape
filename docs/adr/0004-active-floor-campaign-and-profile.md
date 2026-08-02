@@ -10,8 +10,9 @@ Campaign levels now grow from one to four floors, while ADR 0002 keeps `DungeonW
 
 ## Decision
 
-- `generateDungeonFloorSet` derives deterministic sibling floors from one campaign root seed and adds reciprocal stair anchors.
-- Only one floor is loaded into `DungeonWorld` at a time. A stair transition snapshots the run, swaps the active dungeon, restores quest/vitals/timer, and places the player at the reciprocal stair.
+- `generateDungeonFloorSet` / `DungeonFloorCampaign` derive deterministic sibling floors from one campaign root seed and place **aligned walkable stair shafts** (shared grid cells, reciprocal metadata).
+- Campaign levels load up to **three** resident slabs into one scene. Players climb stair treads continuously; the active floor follows support height without a fade rebuild.
+- Legacy `FloorTransitionDirector` remains available for recovery tooling only.
 - The local run save stores active floor, root seed, biome, and explored cells per floor. Version 4 still reads
   v1-v3; ambiguous legacy custom saves fail closed under ADR 0005.
 - `PlayerProfile` is a separate validated local-storage record for name, avatar, first-finished-game

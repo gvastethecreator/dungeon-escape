@@ -1,5 +1,10 @@
 {
-  "params": { "seed": 424242, "roomCount": 24, "loopChance": 0.15, "decorDensity": 0.6 },
+  "params": {
+    "seed": 424242,
+    "roomCount": 24,
+    "loopChance": 0.15,
+    "decorDensity": 0.6
+  },
   "cases": {
     "ancient": {
       "seed": 424242,
