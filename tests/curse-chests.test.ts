@@ -71,6 +71,10 @@ describe("curse chest placement plan", () => {
     expect(source).toContain("slow-curse");
     expect(source).toContain("frenzy-curse");
     expect(source).toContain("gloom-curse");
+    expect(source).toContain("mirror-curse");
+    expect(source).toContain("spin-curse");
+    expect(source).toContain("planOffensePowerKind");
+    expect(source).toContain("cull-brand");
   });
 
   test("host wires curse HUD chips, floor swarm clear, and minimap markers", async () => {
@@ -82,11 +86,17 @@ describe("curse chest placement plan", () => {
     ]);
     expect(html).toContain('id="slow-curse-status"');
     expect(html).toContain('id="swarm-curse-status"');
+    expect(html).toContain('id="mirror-curse-status"');
+    expect(html).toContain('id="spin-curse-status"');
+    expect(html).toContain('id="cull-brand-status"');
     expect(main).toContain("syncCurseHud");
     expect(main).toContain("resetCurseHud");
     expect(main).toContain("setSlowCurse");
+    expect(main).toContain("setControlMods");
     expect(resumeMap).toContain("nextResume.swarmCurseActive = false");
     expect(minimap).toContain('firstUncollected(input.pickups, "swarm-curse")');
     expect(minimap).toContain('firstUncollected(input.pickups, "gloom-curse")');
+    expect(minimap).toContain('firstUncollected(input.pickups, "mirror-curse")');
+    expect(minimap).toContain('firstUncollected(input.pickups, "cull-brand")');
   });
 });

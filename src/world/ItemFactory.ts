@@ -1471,7 +1471,13 @@ export function createMobilityDraught(materials: DungeonMaterials): THREE.Group 
   return root;
 }
 
-export type CursePickupKind = "swarm-curse" | "slow-curse" | "frenzy-curse" | "gloom-curse";
+export type CursePickupKind =
+  | "swarm-curse"
+  | "slow-curse"
+  | "frenzy-curse"
+  | "gloom-curse"
+  | "mirror-curse"
+  | "spin-curse";
 
 const CURSE_PICKUP_COLORS: Readonly<
   Record<CursePickupKind, { glass: number; core: number; emissive: number; label: string }>
@@ -1500,7 +1506,154 @@ const CURSE_PICKUP_COLORS: Readonly<
     emissive: 0x0c0c14,
     label: "Gloom curse vessel",
   },
+  "mirror-curse": {
+    glass: 0x2a3a48,
+    core: 0x7ec8e8,
+    emissive: 0x1a4060,
+    label: "Mirror curse vessel",
+  },
+  "spin-curse": {
+    glass: 0x3a2848,
+    core: 0xc07ae0,
+    emissive: 0x401860,
+    label: "Spin curse vessel",
+  },
 };
+
+export const CULL_BRAND_PICKUP_LIGHT_INTENSITY = 1.05;
+export const CULL_BRAND_PICKUP_GLOW_OPACITY = 0.14;
+
+/** Brand iron brand: dark pedestal, hot iron plate, ember runes. */
+export function createCullBrandRelic(materials: DungeonMaterials): THREE.Group {
+  const root = new THREE.Group();
+  root.name = "Three-dimensional cull brand relic";
+
+  const base = materials.darkStone.clone();
+  base.color.multiplyScalar(0.78);
+  base.roughness = Math.max(base.roughness, 0.88);
+  const iron = materials.iron.clone();
+  iron.color.setHex(0x4a2a18);
+  iron.roughness = 0.48;
+  iron.metalness = Math.max(iron.metalness, 0.7);
+  const brand = materials.crystal.clone();
+  brand.color.setHex(0xff8a3a);
+  brand.emissive.setHex(0xa03810);
+  brand.emissiveIntensity = 1.25;
+  brand.roughness = 0.35;
+  const glow = new THREE.MeshBasicMaterial({
+    color: 0xff7a3a,
+    transparent: true,
+    opacity: CULL_BRAND_PICKUP_GLOW_OPACITY,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+    toneMapped: false,
+    side: THREE.DoubleSide,
+  });
+
+  const pedestal = mesh(
+    new THREE.CylinderGeometry(0.36, 0.46, 0.14, 8),
+    base,
+    "Cull brand pedestal",
+  );
+  pedestal.position.y = 0.07;
+  const plate = mesh(new THREE.BoxGeometry(0.42, 0.08, 0.42), iron, "Cull brand iron plate");
+  plate.position.y = 0.28;
+  const rune = mesh(new THREE.OctahedronGeometry(0.16, 0), brand, "Cull brand rune core");
+  rune.position.y = 0.52;
+  rune.rotation.set(0.35, 0.5, -0.2);
+  const spikeA = mesh(new THREE.ConeGeometry(0.05, 0.28, 5), iron, "Cull brand spike A");
+  spikeA.position.set(0.16, 0.48, 0.12);
+  spikeA.rotation.z = -0.45;
+  const spikeB = spikeA.clone();
+  spikeB.name = "Cull brand spike B";
+  spikeB.position.set(-0.14, 0.46, -0.1);
+  spikeB.rotation.z = 0.4;
+  const halo = mesh(new THREE.TorusGeometry(0.34, 0.014, 5, 22), glow, "Cull brand halo");
+  halo.rotation.x = Math.PI / 2;
+  halo.position.y = 0.52;
+  const light = new THREE.PointLight(0xff7a3a, CULL_BRAND_PICKUP_LIGHT_INTENSITY, 6.4, 2);
+  light.name = "Cull brand pickup light";
+  light.position.y = 0.55;
+  const pickupAnchor = new THREE.Object3D();
+  pickupAnchor.name = "Cull brand pickup anchor";
+  pickupAnchor.position.y = 0.52;
+  const glowAnchor = new THREE.Object3D();
+  glowAnchor.name = "Cull brand glow anchor";
+  glowAnchor.position.set(0, 0.52, 0.16);
+
+  root.add(pedestal, plate, rune, spikeA, spikeB, halo, light, pickupAnchor, glowAnchor);
+  root.userData.pickupKind = "cull-brand";
+  root.userData.pickupLight = light;
+  root.userData.pickupGlow = halo;
+  root.userData.pickupAnchor = pickupAnchor;
+  root.userData.glowAnchor = glowAnchor;
+  return root;
+}
+
+export const PHOENIX_EGG_PICKUP_LIGHT_INTENSITY = 1.15;
+export const PHOENIX_EGG_PICKUP_GLOW_OPACITY = 0.18;
+
+/** Ash-and-amber phoenix egg on a small cinder pedestal. */
+export function createPhoenixEggRelic(materials: DungeonMaterials): THREE.Group {
+  const root = new THREE.Group();
+  root.name = "Three-dimensional phoenix egg relic";
+
+  const base = materials.darkStone.clone();
+  base.color.multiplyScalar(0.7);
+  base.roughness = Math.max(base.roughness, 0.9);
+  const shell = materials.crystal.clone();
+  shell.color.setHex(0xd46a28);
+  shell.emissive.setHex(0x7a2808);
+  shell.emissiveIntensity = 1.15;
+  shell.roughness = 0.38;
+  const crack = materials.ice.clone();
+  crack.color.setHex(0xffc878);
+  crack.emissive.setHex(0xff8a30);
+  crack.emissiveIntensity = 1.55;
+  crack.roughness = 0.22;
+  const iron = materials.iron.clone();
+  iron.color.setHex(0x3a2418);
+  iron.roughness = 0.72;
+  const glow = new THREE.MeshBasicMaterial({
+    color: 0xff9a3a,
+    transparent: true,
+    opacity: PHOENIX_EGG_PICKUP_GLOW_OPACITY,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+    toneMapped: false,
+    side: THREE.DoubleSide,
+  });
+
+  const pedestal = mesh(
+    new THREE.CylinderGeometry(0.34, 0.44, 0.12, 8),
+    base,
+    "Phoenix egg pedestal",
+  );
+  pedestal.position.y = 0.06;
+  const ring = mesh(new THREE.TorusGeometry(0.32, 0.03, 6, 16), iron, "Phoenix egg iron ring");
+  ring.rotation.x = Math.PI / 2;
+  ring.position.y = 0.14;
+  const egg = mesh(new THREE.SphereGeometry(0.28, 12, 10), shell, "Phoenix egg shell");
+  egg.scale.set(0.92, 1.18, 0.92);
+  egg.position.y = 0.48;
+  const seam = mesh(new THREE.TorusGeometry(0.2, 0.018, 5, 18), crack, "Phoenix egg seam");
+  seam.rotation.x = Math.PI / 2;
+  seam.position.y = 0.5;
+  const core = mesh(new THREE.OctahedronGeometry(0.1, 0), crack, "Phoenix egg core");
+  core.position.y = 0.5;
+  const halo = mesh(new THREE.TorusGeometry(0.38, 0.014, 5, 22), glow, "Phoenix egg halo");
+  halo.rotation.x = Math.PI / 2;
+  halo.position.y = 0.48;
+  const light = new THREE.PointLight(0xff9a3a, PHOENIX_EGG_PICKUP_LIGHT_INTENSITY, 6.8, 2);
+  light.name = "Phoenix egg pickup light";
+  light.position.y = 0.55;
+
+  root.add(pedestal, ring, egg, seam, core, halo, light);
+  root.userData.pickupKind = "phoenix-egg";
+  root.userData.pickupLight = light;
+  root.userData.pickupGlow = halo;
+  return root;
+}
 
 /** Compact cursed phial: dark glass, cracked iron ring, colored core. */
 export function createCurseVessel(

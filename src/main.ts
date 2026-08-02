@@ -30,6 +30,7 @@ import { DungeonEditorView } from "./editor/DungeonEditorView";
 import { type EngineMode, isEngineMode } from "./game/EngineMode";
 import { MOBILITY_BOOST_FOOTSTEP_GAIN } from "./game/MobilityBoost";
 import { GLOOM_CURSE_FOG_MULTIPLIER, GLOOM_CURSE_LANTERN_MULTIPLIER } from "./game/GloomCurse";
+import { SPIN_CURSE_SENSITIVITY_SCALE, SPIN_CURSE_YAW_BIAS } from "./game/SpinCurse";
 import { createBrowserForgeFramePort, ForgeFrameClient } from "./forge/ForgeFrameClient";
 import {
   difficultyLabel,
@@ -41,6 +42,7 @@ import { hashSeed } from "./core/random";
 import { createLaunchHistory, parseLaunchConfiguration } from "./launch/LaunchConfiguration";
 import { FirstPersonController, type PlayerAction } from "./player/FirstPersonController";
 import { PLAYER_COMBAT_EYE_HEIGHT } from "./player/CombatPose";
+import { activeFloorFromSupportY } from "./world/StoryMetrics";
 import { AtmosphereSystem } from "./systems/AtmosphereSystem";
 import {
   getDungeonMood,
@@ -254,6 +256,9 @@ const elements = {
   luminousWardValue: requireElement<HTMLTimeElement>("#luminous-ward-value"),
   annihilationPulseStatus: requireElement<HTMLElement>("#annihilation-pulse-status"),
   annihilationPulseValue: requireElement<HTMLTimeElement>("#annihilation-pulse-value"),
+  cullBrandStatus: requireElement<HTMLElement>("#cull-brand-status"),
+  cullBrandValue: requireElement<HTMLTimeElement>("#cull-brand-value"),
+  phoenixStatus: requireElement<HTMLElement>("#phoenix-status"),
   fogClearStatus: requireElement<HTMLElement>("#fog-clear-status"),
   fogClearValue: requireElement<HTMLTimeElement>("#fog-clear-value"),
   mobilityStatus: requireElement<HTMLElement>("#mobility-status"),
@@ -265,6 +270,10 @@ const elements = {
   gloomCurseStatus: requireElement<HTMLElement>("#gloom-curse-status"),
   gloomCurseValue: requireElement<HTMLTimeElement>("#gloom-curse-value"),
   swarmCurseStatus: requireElement<HTMLElement>("#swarm-curse-status"),
+  mirrorCurseStatus: requireElement<HTMLElement>("#mirror-curse-status"),
+  mirrorCurseValue: requireElement<HTMLTimeElement>("#mirror-curse-value"),
+  spinCurseStatus: requireElement<HTMLElement>("#spin-curse-status"),
+  spinCurseValue: requireElement<HTMLTimeElement>("#spin-curse-value"),
   biomeEventStatus: requireElement<HTMLElement>("#biome-event-status"),
   biomeEventLabel: requireElement<HTMLElement>("#biome-event-label"),
   biomeEventValue: requireElement<HTMLTimeElement>("#biome-event-value"),
@@ -493,6 +502,12 @@ const annihilationPulseChip = new TimedStatusChip({
   shellDatasetKey: "annihilationPulse",
   ariaRemaining: "pulse remaining",
 });
+const cullBrandChip = new TimedStatusChip({
+  elements: { root: elements.cullBrandStatus, value: elements.cullBrandValue },
+  shell: elements.shell,
+  shellDatasetKey: "cullBrand",
+  ariaRemaining: "cull brand remaining",
+});
 const fogClearChip = new TimedStatusChip({
   elements: { root: elements.fogClearStatus, value: elements.fogClearValue },
   shell: elements.shell,
@@ -523,6 +538,18 @@ const gloomCurseChip = new TimedStatusChip({
   shellDatasetKey: "gloomCurse",
   ariaRemaining: "gloom remaining",
 });
+const mirrorCurseChip = new TimedStatusChip({
+  elements: { root: elements.mirrorCurseStatus, value: elements.mirrorCurseValue },
+  shell: elements.shell,
+  shellDatasetKey: "mirrorCurse",
+  ariaRemaining: "mirror curse remaining",
+});
+const spinCurseChip = new TimedStatusChip({
+  elements: { root: elements.spinCurseStatus, value: elements.spinCurseValue },
+  shell: elements.shell,
+  shellDatasetKey: "spinCurse",
+  ariaRemaining: "spin curse remaining",
+});
 
 function syncSwarmCurseHud(active = world.isSwarmCurseActive): void {
   elements.swarmCurseStatus.hidden = !active;
@@ -533,6 +560,8 @@ function resetCurseHud(): void {
   slowCurseChip.reset();
   frenzyCurseChip.reset();
   gloomCurseChip.reset();
+  mirrorCurseChip.reset();
+  spinCurseChip.reset();
   syncSwarmCurseHud(false);
 }
 /**
@@ -766,6 +795,10 @@ function captureLocalRunResume(): LocalRunResumeState | undefined {
       frenzyCurseRemaining: world.frenzyCurseRemaining,
       gloomCurseRemaining: world.gloomCurseRemaining,
       swarmCurseActive: world.isSwarmCurseActive,
+      cullBrandRemaining: world.cullBrandRemaining,
+      mirrorCurseRemaining: world.mirrorCurseRemaining,
+      spinCurseRemaining: world.spinCurseRemaining,
+      phoenixCharges: world.phoenixChargeCount,
     },
     exploration,
     campaign: {
@@ -1929,10 +1962,13 @@ function applyPersistedRunSession(plan: RunResumeActivationPlan): void {
   timeFreezeChip.reset();
   luminousWardChip.reset();
   annihilationPulseChip.reset();
+  cullBrandChip.reset();
   fogClearChip.reset();
   mobilityChip.reset();
   resetCurseHud();
   syncCurseHud();
+  syncCullBrandHud();
+  syncPhoenixHud();
   syncRunTimer();
   controller.setSolidColliders(world.getSolidColliders());
   elements.shell.dataset.mode = state.runMode;
@@ -2123,6 +2159,16 @@ function syncAnnihilationPulseHud(remaining = world.annihilationPulseRemaining):
   annihilationPulseChip.sync(remaining);
 }
 
+function syncCullBrandHud(remaining = world.cullBrandRemaining): void {
+  cullBrandChip.sync(remaining);
+}
+
+function syncPhoenixHud(charges = world.phoenixChargeCount): void {
+  const armed = charges > 0;
+  elements.phoenixStatus.hidden = !armed;
+  elements.shell.dataset.phoenix = armed ? "true" : "false";
+}
+
 function syncFogClearHud(remaining = world.fogClearRemaining): void {
   fogClearChip.sync(remaining);
   atmosphere.setFogClearPulse(remaining > 0 ? 1 : 0);
@@ -2138,11 +2184,15 @@ function syncCurseHud(
     frenzy?: number;
     gloom?: number;
     swarm?: boolean;
+    mirror?: number;
+    spin?: number;
   } = {},
 ): void {
   slowCurseChip.sync(remaining.slow ?? world.slowCurseRemaining);
   frenzyCurseChip.sync(remaining.frenzy ?? world.frenzyCurseRemaining);
   gloomCurseChip.sync(remaining.gloom ?? world.gloomCurseRemaining);
+  mirrorCurseChip.sync(remaining.mirror ?? world.mirrorCurseRemaining);
+  spinCurseChip.sync(remaining.spin ?? world.spinCurseRemaining);
   syncSwarmCurseHud(remaining.swarm ?? world.isSwarmCurseActive);
 }
 
@@ -2406,7 +2456,7 @@ function flash(kind: "event" | "damage" = "event"): void {
   elements.eventFlash.classList.add("is-active");
 }
 
-const DAMAGE_WASH_SECONDS = 2.1;
+const DAMAGE_WASH_SECONDS = 0.85;
 const ORB_SPLASH_DROPS = 16;
 
 /**
@@ -2906,18 +2956,22 @@ async function activateDungeon(
   // reclaim, then build the next floor. No yield without a cover — that flashed
   // empty frames and could stall the first New Game path.
   const worldStartedAt = performance.now();
-  let state = await playRuntime.loadWithYield({ dungeon, mood }, yieldIfCovered);
+  const stack =
+    campaignFloorSet && campaignFloorSet.count > 1 ? campaignFloorSet.allFloors() : undefined;
+  let state = await playRuntime.loadWithYield({ dungeon, mood, stack }, yieldIfCovered);
   const worldBuildMs = performance.now() - worldStartedAt;
   // Only re-upload textures whose sampling filters actually changed.
   applyTextureSmoothing(scene, userSettings.textureSmoothing);
   timeFreezeChip.reset();
   luminousWardChip.reset();
   annihilationPulseChip.reset();
+  cullBrandChip.reset();
   fogClearChip.reset();
   mobilityChip.reset();
   resetCurseHud();
   syncBiomeEvent();
   controller.setSurfaceMovement(1, 1);
+  controller.setControlMods({});
   lastHazardKind = undefined;
   activeHazardKind = null;
   hazardHitBoost = 0;
@@ -3166,6 +3220,7 @@ function selectEditorSpawn(cell: { x: number; y: number }): void {
   timeFreezeChip.reset();
   luminousWardChip.reset();
   annihilationPulseChip.reset();
+  cullBrandChip.reset();
   fogClearChip.reset();
   mobilityChip.reset();
   resetCurseHud();
@@ -3388,6 +3443,9 @@ export interface DungeonRuntimeState {
   timeFreezeRemaining?: number;
   luminousWardRemaining?: number;
   annihilationPulseRemaining?: number;
+  cullBrandRemaining?: number;
+  mirrorCurseRemaining?: number;
+  spinCurseRemaining?: number;
   resolve?: number;
   mode?: "playing" | "dead" | "won";
   engineMode?: EngineMode;
@@ -3492,6 +3550,9 @@ function getRuntimeState(): DungeonRuntimeState {
     timeFreezeRemaining: Number(world.timeFreezeRemaining.toFixed(2)),
     luminousWardRemaining: Number(world.luminousWardRemaining.toFixed(2)),
     annihilationPulseRemaining: Number(world.annihilationPulseRemaining.toFixed(2)),
+    cullBrandRemaining: Number(world.cullBrandRemaining.toFixed(2)),
+    mirrorCurseRemaining: Number(world.mirrorCurseRemaining.toFixed(2)),
+    spinCurseRemaining: Number(world.spinCurseRemaining.toFixed(2)),
     resolve: Number(state.resolve.toFixed(1)),
     mode: state.runMode,
     engineMode,
@@ -4228,12 +4289,14 @@ const floorTransitions = new FloorTransitionDirector<PreparedFloorTransition>({
   },
 });
 
+/** Legacy fade transition retained for recovery tooling; play stairs are walkable. */
 function transitionCampaignFloor(
   targetFloor: number,
   direction: "up" | "down",
 ): Promise<FloorTransitionResult> {
   return floorTransitions.start({ targetFloor, direction });
 }
+void transitionCampaignFloor;
 
 async function descendFloor(): Promise<DungeonRuntimeState> {
   const result = domainBridge.descend();
@@ -4345,6 +4408,12 @@ function frame(now: number): void {
   controller.setCriticalMovementDrift(criticalHealth.movementDrift);
   controller.setMobilityBoost(world.mobilityBoostRemaining > 0);
   controller.setSlowCurse(world.isSlowCurseActive);
+  controller.setControlMods({
+    invertLook: world.isMirrorCurseActive,
+    invertMove: world.isMirrorCurseActive,
+    yawBias: world.isSpinCurseActive ? SPIN_CURSE_YAW_BIAS : 0,
+    sensitivityScale: world.isSpinCurseActive ? SPIN_CURSE_SENSITIVITY_SCALE : 1,
+  });
   const result = controller.update(delta);
   const player = controller.getState();
   playerPosition.set(player.position.x, player.position.y, player.position.z);
@@ -4356,6 +4425,31 @@ function frame(now: number): void {
   }
 
   // Domain explore: only on cell change, and coalesced (no network/health per step).
+  // Multi-slab: rebind the logical floor from feet height (no scene rebuild).
+  if (dungeon && campaignFloorSet && campaignFloorSet.count > 1 && player.cell) {
+    const supportY = Math.max(0, player.position.y - PLAYER_COMBAT_EYE_HEIGHT);
+    const nextIndex = activeFloorFromSupportY(supportY, campaignFloorSet.count);
+    if (nextIndex !== (dungeon.floor?.index ?? 0)) {
+      const nextDungeon = campaignFloorSet.floor(nextIndex);
+      if (nextDungeon) {
+        dungeon = nextDungeon;
+        // Never call controller.setDungeon here — it teleports to spawn.
+        floorExploration.switchFloor(nextDungeon, player.cell);
+        controller.bindDungeon(nextDungeon);
+        world.rebindActiveDungeon(nextDungeon);
+        updateReadout();
+        drawMap(true);
+        const captured = domainBridge.captureBuild({
+          seed: nextDungeon.seed,
+          topologySignature: nextDungeon.topologySignature,
+          ...readEditorParams(),
+        });
+        if (!captured.ok) {
+          // Keep play going; save path may be stale until the next successful build capture.
+        }
+      }
+    }
+  }
   if (dungeon && player.cell) {
     const exploration = floorExploration.reveal(player.cell);
     if (exploration.cellChanged) syncDomainExplore();
@@ -4390,6 +4484,8 @@ function frame(now: number): void {
       syncTimeFreezeHud(worldUpdate.timeFreezeRemaining);
       syncLuminousWardHud(worldUpdate.luminousWardRemaining);
       syncAnnihilationPulseHud(worldUpdate.annihilationPulseRemaining);
+      syncCullBrandHud(worldUpdate.cullBrandRemaining);
+      syncPhoenixHud(worldUpdate.phoenixCharges);
       syncFogClearHud(worldUpdate.fogClearRemaining);
       syncMobilityHud(worldUpdate.mobilityBoostRemaining);
       syncCurseHud({
@@ -4397,11 +4493,20 @@ function frame(now: number): void {
         frenzy: worldUpdate.frenzyCurseRemaining,
         gloom: worldUpdate.gloomCurseRemaining,
         swarm: worldUpdate.swarmCurseActive,
+        mirror: worldUpdate.mirrorCurseRemaining,
+        spin: worldUpdate.spinCurseRemaining,
       });
       syncBiomeEvent(worldUpdate.biomeEvent);
       floorExploration.setMapRevealed(worldUpdate.mapRevealed);
       controller.setMobilityBoost(worldUpdate.mobilityBoostRemaining > 0);
       controller.setSlowCurse(worldUpdate.slowCurseRemaining > 0);
+      controller.setControlMods({
+        invertLook: worldUpdate.mirrorCurseRemaining > 0,
+        invertMove: worldUpdate.mirrorCurseRemaining > 0,
+        yawBias: worldUpdate.spinCurseRemaining > 0 ? SPIN_CURSE_YAW_BIAS : 0,
+        sensitivityScale:
+          worldUpdate.spinCurseRemaining > 0 ? SPIN_CURSE_SENSITIVITY_SCALE : 1,
+      });
       controller.setSurfaceMovement(
         worldUpdate.surfaceEffect.movementScale,
         worldUpdate.surfaceEffect.traction,
@@ -4410,31 +4515,12 @@ function frame(now: number): void {
       const interactionPrompt = worldUpdate.interactionPrompt;
       elements.interactionPrompt.hidden = interactionPrompt === null;
       if (interactionPrompt) {
-        const label =
-          interactionPrompt === "open-chest" ? COPY.interaction.openChest : "USE STAIRS";
+        const label = COPY.interaction.openChest;
         const text = elements.interactionPrompt.querySelector("span");
         if (text) text.textContent = label;
         elements.interactionPrompt.setAttribute("aria-label", label.toLowerCase());
       }
-      if (worldUpdate.floorTransition) {
-        const transition = worldUpdate.floorTransition;
-        void transitionCampaignFloor(transition.targetFloor, transition.direction).then(
-          (result) => {
-            if (result.kind === "rejected") {
-              if (result.reason === "missing-linked-stair") {
-                setStatus("The linked staircase could not be found.");
-              }
-              return;
-            }
-            if (result.kind === "recovered") {
-              console.error("Floor transition failed", result.error);
-              if (result.activeFloor === "source") {
-                setStatus("Could not change floors. Try the staircase again.");
-              }
-            }
-          },
-        );
-      }
+      // Walkable multi-slab stairs: no fade transition on height change.
 
       if (effects.questStonesFound !== undefined) {
         elements.shell.dataset.relic = effects.questPortalOpen ? "true" : "false";
@@ -4460,6 +4546,23 @@ function frame(now: number): void {
           );
           flash("event");
         }
+      }
+      if (worldUpdate.cullBrandKill) {
+        audio.playAnnihilationPulse(worldUpdate.cullBrandKill.position);
+        hitTrauma = Math.max(hitTrauma, 0.42);
+        flash("event");
+      }
+      if (effects.phoenixRevive) {
+        world.applyPhoenixRevive(playerPosition);
+        if (effects.phoenixCharges !== undefined) world.setPhoenixCharges(effects.phoenixCharges);
+        syncPhoenixHud(0);
+        audio.playAnnihilationPulse(playerPosition);
+        hitTrauma = Math.max(hitTrauma, 0.55);
+        flash("event");
+        updateResolve();
+      } else if (effects.phoenixCharges !== undefined) {
+        world.setPhoenixCharges(effects.phoenixCharges);
+        syncPhoenixHud(effects.phoenixCharges);
       }
       if (effects.playEnemyHit) {
         elements.shell.dataset.resolve = String(Math.ceil(state.resolve));

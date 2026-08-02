@@ -4,6 +4,8 @@ import { listBiomeIds, type BiomeId } from "../systems/BiomeIdentity";
 
 export const PLAYER_PROFILE_KEY = "blackflag.dungeon.player.v1";
 export const PLAYER_PROFILE_VERSION = 1 as const;
+/** Profile name cheat: unlocks every campaign biome on create/rename. */
+export const UNLOCK_ALL_BIOMES_PROFILE_NAME = "unlock";
 
 export interface PlayerProfile {
   version: typeof PLAYER_PROFILE_VERSION;
@@ -18,6 +20,19 @@ export interface PlayerProfile {
 }
 
 type StoragePort = Pick<Storage, "getItem" | "setItem" | "removeItem">;
+
+function maxCampaignRank(): number {
+  return listBiomeIds().length - 1;
+}
+
+/** Case-insensitive match after name normalization. */
+export function isUnlockAllBiomesProfileName(name: string): boolean {
+  return name.toLowerCase() === UNLOCK_ALL_BIOMES_PROFILE_NAME;
+}
+
+function startingUnlockedRank(name: string): number {
+  return isUnlockAllBiomesProfileName(name) ? maxCampaignRank() : 0;
+}
 
 function validAvatarIndex(value: unknown): value is number {
   return (
@@ -100,7 +115,7 @@ export function createPlayerProfile(
     name,
     avatarIndex: resolvedAvatar,
     hasCompletedRun: false,
-    highestUnlockedRank: 0,
+    highestUnlockedRank: startingUnlockedRank(name),
     clears: {},
     updatedAt,
   };
@@ -114,7 +129,10 @@ export function updatePlayerIdentity(
 ): PlayerProfile | null {
   const name = normalizePlayerName(inputName);
   if (!name || !validAvatarIndex(avatarIndex)) return null;
-  return { ...profile, name, avatarIndex, updatedAt };
+  const highestUnlockedRank = isUnlockAllBiomesProfileName(name)
+    ? maxCampaignRank()
+    : profile.highestUnlockedRank;
+  return { ...profile, name, avatarIndex, highestUnlockedRank, updatedAt };
 }
 
 export function isBiomeUnlocked(profile: PlayerProfile, biomeId: BiomeId): boolean {

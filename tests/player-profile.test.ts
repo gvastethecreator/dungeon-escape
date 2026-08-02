@@ -11,6 +11,7 @@ import {
   writePlayerProfile,
 } from "../src/game/PlayerProfile";
 import { randomPortraitIndex } from "../src/leaderboard/portraits";
+import { listBiomeIds } from "../src/systems/BiomeIdentity";
 
 function memoryStorage(): Pick<Storage, "getItem" | "setItem" | "removeItem"> {
   const values = new Map<string, string>();
@@ -101,5 +102,22 @@ describe("persistent player profile and ordered campaign", () => {
       }),
     );
     expect(readPlayerProfile(storage)).toBeNull();
+  });
+
+  test("profile name unlock grants every campaign biome on create and rename", () => {
+    const unlocked = createPlayerProfile("Unlock", 1, 100);
+    expect(unlocked).not.toBeNull();
+    expect(unlocked!.highestUnlockedRank).toBe(listBiomeIds().length - 1);
+    expect(isBiomeUnlocked(unlocked!, "ancient")).toBe(true);
+    expect(isBiomeUnlocked(unlocked!, "backrooms")).toBe(true);
+
+    const locked = createPlayerProfile("Runner", 2, 100)!;
+    expect(isBiomeUnlocked(locked, "molten")).toBe(false);
+    const renamed = updatePlayerIdentity(locked, "unlock", 2, 200);
+    expect(renamed?.highestUnlockedRank).toBe(listBiomeIds().length - 1);
+    expect(isBiomeUnlocked(renamed!, "backrooms")).toBe(true);
+    // Renaming away from the cheat keeps the granted unlocks.
+    const kept = updatePlayerIdentity(renamed!, "Runner", 2, 300);
+    expect(kept?.highestUnlockedRank).toBe(listBiomeIds().length - 1);
   });
 });

@@ -48,8 +48,8 @@ const BURST_PROFILES: Readonly<Record<AnnihilationBurstMaterial, AnnihilationBur
     shape: "splatter",
     lifeMin: 0.42,
     lifeMax: 0.78,
-    sizeMin: 0.065,
-    sizeMax: 0.115,
+    sizeMin: 0.045,
+    sizeMax: 0.08,
   },
   slag: {
     material: "slag",
@@ -60,8 +60,8 @@ const BURST_PROFILES: Readonly<Record<AnnihilationBurstMaterial, AnnihilationBur
     shape: "ember",
     lifeMin: 0.48,
     lifeMax: 0.82,
-    sizeMin: 0.06,
-    sizeMax: 0.105,
+    sizeMin: 0.04,
+    sizeMax: 0.075,
   },
   ice: {
     material: "ice",
@@ -72,8 +72,8 @@ const BURST_PROFILES: Readonly<Record<AnnihilationBurstMaterial, AnnihilationBur
     shape: "crystal",
     lifeMin: 0.58,
     lifeMax: 0.96,
-    sizeMin: 0.075,
-    sizeMax: 0.13,
+    sizeMin: 0.05,
+    sizeMax: 0.085,
   },
   sap: {
     material: "sap",
@@ -84,8 +84,8 @@ const BURST_PROFILES: Readonly<Record<AnnihilationBurstMaterial, AnnihilationBur
     shape: "droplet",
     lifeMin: 0.52,
     lifeMax: 0.88,
-    sizeMin: 0.07,
-    sizeMax: 0.12,
+    sizeMin: 0.045,
+    sizeMax: 0.08,
   },
   water: {
     material: "water",
@@ -96,8 +96,8 @@ const BURST_PROFILES: Readonly<Record<AnnihilationBurstMaterial, AnnihilationBur
     shape: "bubble",
     lifeMin: 0.62,
     lifeMax: 1,
-    sizeMin: 0.08,
-    sizeMax: 0.135,
+    sizeMin: 0.05,
+    sizeMax: 0.09,
   },
   spore: {
     material: "spore",
@@ -108,8 +108,8 @@ const BURST_PROFILES: Readonly<Record<AnnihilationBurstMaterial, AnnihilationBur
     shape: "spore",
     lifeMin: 0.82,
     lifeMax: 1.28,
-    sizeMin: 0.085,
-    sizeMax: 0.145,
+    sizeMin: 0.05,
+    sizeMax: 0.09,
   },
   obsidian: {
     material: "obsidian",
@@ -120,8 +120,8 @@ const BURST_PROFILES: Readonly<Record<AnnihilationBurstMaterial, AnnihilationBur
     shape: "shard",
     lifeMin: 0.5,
     lifeMax: 0.86,
-    sizeMin: 0.075,
-    sizeMax: 0.13,
+    sizeMin: 0.05,
+    sizeMax: 0.085,
   },
   dust: {
     material: "dust",
@@ -132,8 +132,8 @@ const BURST_PROFILES: Readonly<Record<AnnihilationBurstMaterial, AnnihilationBur
     shape: "crumb",
     lifeMin: 0.56,
     lifeMax: 0.96,
-    sizeMin: 0.065,
-    sizeMax: 0.12,
+    sizeMin: 0.045,
+    sizeMax: 0.08,
   },
 };
 
@@ -223,7 +223,8 @@ function createBurstMaterial(): THREE.ShaderMaterial {
         vShape = aShape;
         vSpin = aSpin;
         vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
-        gl_PointSize = clamp(aSize * (250.0 / max(0.8, -mvPosition.z)), 1.0, 20.0);
+        // Cap screen size so near-camera bursts stay soft motes, not clipped quads.
+        gl_PointSize = clamp(aSize * (180.0 / max(1.0, -mvPosition.z)), 1.0, 12.0);
         gl_Position = projectionMatrix * mvPosition;
       }
     `,

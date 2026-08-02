@@ -2,10 +2,12 @@ import { describe, expect, test } from "bun:test";
 
 import {
   createVerticalMotionState,
+  pickSupportTop,
   stepVerticalMotion,
   VERTICAL_EVENT,
   type VerticalMotionConfig,
 } from "../src/player/VerticalMotion";
+import { STORY_MAX_STEP_UP, STORY_STEP_RISE } from "../src/world/StoryMetrics";
 
 const CONFIG: VerticalMotionConfig = {
   eyeHeight: 1.62,
@@ -43,7 +45,6 @@ describe("first-person vertical motion", () => {
     expect(state.grounded).toBe(false);
     expect(state.airJumpsRemaining).toBe(1);
 
-    // Fall a few frames so the air jump must re-apply upward speed.
     for (let frame = 0; frame < 8; frame += 1) {
       stepVerticalMotion(state, 1 / 60, false, CONFIG);
     }
@@ -53,7 +54,6 @@ describe("first-person vertical motion", () => {
     const airJump = stepVerticalMotion(state, 1 / 60, true, CONFIG);
     expect(airJump & VERTICAL_EVENT.jumped).not.toBe(0);
     expect(state.grounded).toBe(false);
-    // Jump impulse then same-frame gravity, matching the grounded jump path.
     expect(state.velocity).toBeCloseTo(CONFIG.jumpSpeed - CONFIG.gravity / 60, 5);
     expect(state.velocity).toBeGreaterThan(fallingVelocity);
     expect(state.airJumpsRemaining).toBe(0);
@@ -78,14 +78,67 @@ describe("first-person vertical motion", () => {
   });
 
   test("blocks the camera below the ceiling", () => {
-    const state = createVerticalMotionState(CONFIG.eyeHeight);
-    const lowCeiling = { ...CONFIG, ceilingHeight: 2.05, headClearance: 0.2 };
-    let hitCeiling = false;
-    for (let frame = 0; frame < 60; frame += 1) {
-      const event = stepVerticalMotion(state, 1 / 60, frame === 0, lowCeiling);
-      hitCeiling ||= (event & VERTICAL_EVENT.hitCeiling) !== 0;
+    const state = createVerticalMotionState(CONFIG.eyeHeight, CONFIG.maxAirJumps);
+    state.grounded = false;
+    state.velocity = 40;
+    state.y = CONFIG.ceilingHeight - CONFIG.headClearance - 0.05;
+    const event = stepVerticalMotion(state, 1 / 60, false, CONFIG);
+    expect(event & VERTICAL_EVENT.hitCeiling).not.toBe(0);
+    expect(state.y).toBeCloseTo(CONFIG.ceilingHeight - CONFIG.headClearance, 5);
+    expect(state.velocity).toBe(0);
+  });
+
+  test("lands on a raised floorEyeY support after a jump", () => {
+    const state = createVerticalMotionState(CONFIG.eyeHeight, CONFIG.maxAirJumps);
+    stepVerticalMotion(state, 1 / 60, true, CONFIG);
+    const raised = CONFIG.eyeHeight + 2.2;
+    const raisedConfig: VerticalMotionConfig = {
+      ...CONFIG,
+      floorEyeY: raised,
+      ceilingHeight: raised + 4.4,
+    };
+    let landed = false;
+    for (let frame = 0; frame < 240; frame += 1) {
+      const event = stepVerticalMotion(state, 1 / 60, false, raisedConfig);
+      landed ||= (event & VERTICAL_EVENT.landed) !== 0;
+      if (landed) break;
     }
-    expect(hitCeiling).toBe(true);
-    expect(state.y).toBeLessThanOrEqual(1.85);
+    expect(landed).toBe(true);
+    expect(state.y).toBeCloseTo(raised, 5);
+  });
+
+  test("grounded step-up climbs successive stair treads without jumping", () => {
+    const state = createVerticalMotionState(CONFIG.eyeHeight, CONFIG.maxAirJumps);
+    const config: VerticalMotionConfig = {
+      ...CONFIG,
+      maxStepUp: STORY_MAX_STEP_UP,
+      ceilingHeight: 20,
+    };
+    for (let step = 1; step <= 20; step += 1) {
+      config.floorEyeY = CONFIG.eyeHeight + step * STORY_STEP_RISE;
+      const event = stepVerticalMotion(state, 1 / 60, false, config);
+      expect(event & VERTICAL_EVENT.steppedUp).not.toBe(0);
+      expect(state.grounded).toBe(true);
+      expect(state.y).toBeCloseTo(config.floorEyeY, 5);
+    }
+  });
+
+  test("walking off a raised support starts a fall", () => {
+    const state = createVerticalMotionState(CONFIG.eyeHeight + 2, CONFIG.maxAirJumps);
+    const event = stepVerticalMotion(state, 1 / 60, false, {
+      ...CONFIG,
+      floorEyeY: CONFIG.eyeHeight,
+    });
+    expect(state.grounded).toBe(false);
+    // Same frame begins falling after support loss.
+    expect(state.y).toBeLessThan(CONFIG.eyeHeight + 2);
+    expect(event & VERTICAL_EVENT.jumped).toBe(0);
+  });
+
+  test("pickSupportTop prefers the highest reachable tread", () => {
+    const feetY = 0.1;
+    const picked = pickSupportTop([0, 0.22, 0.44, 1.5], feetY, STORY_MAX_STEP_UP);
+    expect(picked).toBeCloseTo(0.22, 5);
+    expect(pickSupportTop([2, 3], feetY, STORY_MAX_STEP_UP)).toBeNull();
   });
 });

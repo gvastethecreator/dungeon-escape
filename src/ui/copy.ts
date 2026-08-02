@@ -1,11 +1,15 @@
 /** English UI copy for dungeon runtime and editor shell. */
 
 import { ANNIHILATION_PULSE_DURATION_SECONDS } from "../game/AnnihilationPulse";
+import { CULL_BRAND_DURATION_SECONDS } from "../game/CullBrand";
 import { FOG_CLEAR_DURATION_SECONDS } from "../game/FogClear";
 import { FRENZY_CURSE_DURATION_SECONDS } from "../game/FrenzyCurse";
 import { GLOOM_CURSE_DURATION_SECONDS } from "../game/GloomCurse";
 import { LUMINOUS_WARD_DURATION_SECONDS } from "../game/LuminousWard";
+import { MIRROR_CURSE_DURATION_SECONDS } from "../game/MirrorCurse";
+import { PHOENIX_REVIVE_RESOLVE } from "../game/PhoenixEgg";
 import { SLOW_CURSE_DURATION_SECONDS } from "../game/SlowCurse";
+import { SPIN_CURSE_DURATION_SECONDS } from "../game/SpinCurse";
 import { TIME_FREEZE_DURATION_SECONDS } from "../game/TimeFreeze";
 
 export const COPY = {
@@ -32,6 +36,8 @@ export const COPY = {
     timeFreeze: "Time Freeze",
     luminousWard: "Ward Stone",
     annihilationPulse: "Pulse Relic",
+    cullBrand: "Cull Brand",
+    phoenixEgg: "Phoenix Egg",
     map: "Dungeon Map",
     mobility: "Wayfinder Draught",
     clarity: "Clear Air",
@@ -39,6 +45,8 @@ export const COPY = {
     slowCurse: "Heavy Limbs",
     frenzyCurse: "Blood Frenzy",
     gloomCurse: "Gathering Gloom",
+    mirrorCurse: "Mirror Curse",
+    spinCurse: "Spin Curse",
   },
   interaction: {
     openChest: "OPEN CHEST",
@@ -66,6 +74,9 @@ export const COPY = {
     timeFreeze: `Time frozen for ${TIME_FREEZE_DURATION_SECONDS} seconds.`,
     luminousWard: `Ward active for ${LUMINOUS_WARD_DURATION_SECONDS} seconds.`,
     annihilationPulse: `Annihilation pulse active for ${ANNIHILATION_PULSE_DURATION_SECONDS} seconds.`,
+    cullBrand: `Next enemy contact kills for ${CULL_BRAND_DURATION_SECONDS} seconds.`,
+    phoenixEgg: "Phoenix egg equipped. Survives one death.",
+    phoenixRevive: `Reborn at ${PHOENIX_REVIVE_RESOLVE} health. Annihilation pulse ignited.`,
     map: "Dungeon map found. Every room and route is now visible.",
     mobility: "Speed and stamina boosted. Floor traps cannot harm you for 14 seconds.",
     clarity: `Fog thins for ${FOG_CLEAR_DURATION_SECONDS} seconds.`,
@@ -73,6 +84,8 @@ export const COPY = {
     slowCurse: `Your limbs are heavy for ${SLOW_CURSE_DURATION_SECONDS} seconds.`,
     frenzyCurse: `Enemies hunt harder for ${FRENZY_CURSE_DURATION_SECONDS} seconds.`,
     gloomCurse: `Darkness thickens for ${GLOOM_CURSE_DURATION_SECONDS} seconds.`,
+    mirrorCurse: `Look and movement inverted for ${MIRROR_CURSE_DURATION_SECONDS} seconds.`,
+    spinCurse: `The world spins for ${SPIN_CURSE_DURATION_SECONDS} seconds.`,
     won: "You escaped the dungeon",
     dead: "Keep distance. Shadows strike on contact.",
     hydrate: (seed: string) => `Loaded from server · seed ${seed}`,

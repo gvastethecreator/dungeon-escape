@@ -46,6 +46,10 @@ export interface MinimapFeatures {
   luminousWard?: MinimapCell;
   /** Annihilation pulse relic that has not yet been picked up. */
   annihilationPulse?: MinimapCell;
+  /** Cull brand relic that has not yet been picked up. */
+  cullBrand?: MinimapCell;
+  /** Phoenix egg that has not yet been picked up. */
+  phoenixEgg?: MinimapCell;
   /** Full-map scroll pickup. */
   map?: MinimapCell;
   /** Sprint/stamina/trap-immunity draught. */
@@ -57,6 +61,8 @@ export interface MinimapFeatures {
   slowCurse?: MinimapCell;
   frenzyCurse?: MinimapCell;
   gloomCurse?: MinimapCell;
+  mirrorCurse?: MinimapCell;
+  spinCurse?: MinimapCell;
   /** Connections to adjacent dungeon floors. */
   stairs?: MinimapStair[];
   /** Special objective prop (reliquary altar / boss-shrine crystal), if any. */

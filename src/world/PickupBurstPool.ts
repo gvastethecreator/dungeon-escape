@@ -6,13 +6,17 @@ export type PickupBurstKind =
   | "time-freeze"
   | "luminous-ward"
   | "annihilation-pulse"
+  | "cull-brand"
+  | "phoenix-egg"
   | "map"
   | "mobility"
   | "clarity"
   | "swarm-curse"
   | "slow-curse"
   | "frenzy-curse"
-  | "gloom-curse";
+  | "gloom-curse"
+  | "mirror-curse"
+  | "spin-curse";
 
 type PickupBurstMotion =
   | "bind"
@@ -74,6 +78,8 @@ const BURST_COLORS: Readonly<Record<PickupBurstKind, number>> = {
   "time-freeze": 0x72e7ef,
   "luminous-ward": 0xb9e879,
   "annihilation-pulse": 0xff5d86,
+  "cull-brand": 0xff7a3a,
+  "phoenix-egg": 0xff9a3a,
   map: 0xd5bd7a,
   mobility: 0x72d45f,
   clarity: 0xa8d8ef,
@@ -81,6 +87,8 @@ const BURST_COLORS: Readonly<Record<PickupBurstKind, number>> = {
   "slow-curse": 0x6a6a8a,
   "frenzy-curse": 0xc45a1a,
   "gloom-curse": 0x2a2a38,
+  "mirror-curse": 0x7ec8e8,
+  "spin-curse": 0xc07ae0,
 };
 
 const BURST_PROFILES: Readonly<Record<PickupBurstKind, PickupBurstProfile>> = {
@@ -163,6 +171,38 @@ const BURST_PROFILES: Readonly<Record<PickupBurstKind, PickupBurstProfile>> = {
     echoTilt: 0.12,
     ringSpin: 2.4,
     echoDelay: 0.1,
+  },
+  "cull-brand": {
+    motion: "shockwave",
+    shape: "thorn",
+    duration: 0.86,
+    ringStart: 0.7,
+    ringEnd: 6.8,
+    ringPeakOpacity: 0.9,
+    echoPeakOpacity: 0.58,
+    sparkPeakOpacity: 1,
+    pointSize: 0.15,
+    rootLift: 1.9,
+    ringTilt: 0.08,
+    echoTilt: -0.1,
+    ringSpin: 1.8,
+    echoDelay: 0.1,
+  },
+  "phoenix-egg": {
+    motion: "fountain",
+    shape: "flame",
+    duration: 1.12,
+    ringStart: 0.85,
+    ringEnd: 8.2,
+    ringPeakOpacity: 0.92,
+    echoPeakOpacity: 0.66,
+    sparkPeakOpacity: 1,
+    pointSize: 0.18,
+    rootLift: 2.4,
+    ringTilt: 0.2,
+    echoTilt: -0.25,
+    ringSpin: 2.6,
+    echoDelay: 0.12,
   },
   map: {
     motion: "reveal",
@@ -275,6 +315,38 @@ const BURST_PROFILES: Readonly<Record<PickupBurstKind, PickupBurstProfile>> = {
     echoTilt: -0.68,
     ringSpin: -2.5,
     echoDelay: 0.04,
+  },
+  "mirror-curse": {
+    motion: "freeze",
+    shape: "crystal",
+    duration: 1.05,
+    ringStart: 0.9,
+    ringEnd: 6.4,
+    ringPeakOpacity: 0.78,
+    echoPeakOpacity: 0.5,
+    sparkPeakOpacity: 1,
+    pointSize: 0.15,
+    rootLift: 1.85,
+    ringTilt: 0.55,
+    echoTilt: -0.55,
+    ringSpin: -2.2,
+    echoDelay: 0.1,
+  },
+  "spin-curse": {
+    motion: "swarm",
+    shape: "orb",
+    duration: 1,
+    ringStart: 0.85,
+    ringEnd: 7.2,
+    ringPeakOpacity: 0.82,
+    echoPeakOpacity: 0.55,
+    sparkPeakOpacity: 1,
+    pointSize: 0.155,
+    rootLift: 2.05,
+    ringTilt: 0.9,
+    echoTilt: -0.9,
+    ringSpin: 4.2,
+    echoDelay: 0.08,
   },
 };
 

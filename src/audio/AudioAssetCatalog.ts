@@ -46,13 +46,17 @@ export type CollectedPickupKind =
   | "time-freeze"
   | "luminous-ward"
   | "annihilation-pulse"
+  | "cull-brand"
+  | "phoenix-egg"
   | "map"
   | "mobility"
   | "clarity"
   | "swarm-curse"
   | "slow-curse"
   | "frenzy-curse"
-  | "gloom-curse";
+  | "gloom-curse"
+  | "mirror-curse"
+  | "spin-curse";
 
 export interface AudioAssetDefinition {
   readonly file: string;
@@ -326,6 +330,8 @@ const PICKUP_ASSETS: Readonly<Record<CollectedPickupKind, AudioAssetId>> = {
   "time-freeze": "pickup-time-freeze",
   "luminous-ward": "pickup-ward",
   "annihilation-pulse": "pickup-ward",
+  "cull-brand": "pickup-ward",
+  "phoenix-egg": "pickup-ward",
   map: "pickup-stone",
   mobility: "pickup-resolve",
   clarity: "pickup-time-freeze",
@@ -333,6 +339,8 @@ const PICKUP_ASSETS: Readonly<Record<CollectedPickupKind, AudioAssetId>> = {
   "slow-curse": "pickup-ward",
   "frenzy-curse": "pickup-ward",
   "gloom-curse": "pickup-ward",
+  "mirror-curse": "pickup-ward",
+  "spin-curse": "pickup-ward",
 };
 
 const CUE_ASSETS: Readonly<Record<Exclude<AudioCue, "step" | "pickup">, AudioAssetId>> = {

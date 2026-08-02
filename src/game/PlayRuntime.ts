@@ -29,7 +29,11 @@ export interface PlayWorldUpdate extends Omit<SessionWorldUpdate, "collectedPick
  * browser, or Three types so a fake world can exercise the same runtime seam.
  */
 export interface PlayWorldPort<TDungeon, TMood, TPlayer, TWorldUpdate extends PlayWorldUpdate> {
-  setDungeon(dungeon: TDungeon, mood: TMood): void;
+  setDungeon(
+    dungeon: TDungeon,
+    mood: TMood,
+    options?: { carryPhoenix?: boolean; stack?: readonly TDungeon[] },
+  ): void;
   /**
    * Optional: clear the previous floor, yield once, then rebuild. Hosts use this
    * during successive map loads so the load cover can paint between dispose and build.
@@ -38,6 +42,7 @@ export interface PlayWorldPort<TDungeon, TMood, TPlayer, TWorldUpdate extends Pl
     dungeon: TDungeon,
     mood: TMood,
     yieldToMain: () => Promise<void>,
+    options?: { carryPhoenix?: boolean; stack?: readonly TDungeon[] },
   ): Promise<void>;
   update(
     delta: number,
@@ -67,6 +72,10 @@ export interface PlayRuntimeProgress {
     frenzyCurseRemaining?: number;
     gloomCurseRemaining?: number;
     swarmCurseActive?: boolean;
+    cullBrandRemaining?: number;
+    mirrorCurseRemaining?: number;
+    spinCurseRemaining?: number;
+    phoenixCharges?: number;
   };
   player: { x: number; z: number };
 }
@@ -74,6 +83,8 @@ export interface PlayRuntimeProgress {
 export interface PlayRuntimeLoad<TDungeon, TMood> {
   dungeon: TDungeon;
   mood: TMood;
+  /** Optional multi-floor stack built into one resident scene. */
+  stack?: readonly TDungeon[];
   persisted?: PersistedRunSession;
   runtimeProgress?: PlayRuntimeProgress;
   resolve?: number;
@@ -151,7 +162,11 @@ export class PlayRuntime<TDungeon, TMood, TPlayer, TWorldUpdate extends PlayWorl
    */
   load(input: PlayRuntimeLoad<TDungeon, TMood>): Readonly<PlayRuntimeState> {
     this.assertActive();
-    this.world.setDungeon(input.dungeon, input.mood);
+    const carryPhoenix = (input.runtimeProgress?.progress?.phoenixCharges ?? 0) > 0;
+    this.world.setDungeon(input.dungeon, input.mood, {
+      carryPhoenix,
+      stack: input.stack,
+    });
     return this.finishLoad(input);
   }
 
@@ -164,10 +179,17 @@ export class PlayRuntime<TDungeon, TMood, TPlayer, TWorldUpdate extends PlayWorl
     yieldToMain: () => Promise<void>,
   ): Promise<Readonly<PlayRuntimeState>> {
     this.assertActive();
+    const carryPhoenix = (input.runtimeProgress?.progress?.phoenixCharges ?? 0) > 0;
     if (this.world.setDungeonWithYield) {
-      await this.world.setDungeonWithYield(input.dungeon, input.mood, yieldToMain);
+      await this.world.setDungeonWithYield(input.dungeon, input.mood, yieldToMain, {
+        carryPhoenix,
+        stack: input.stack,
+      });
     } else {
-      this.world.setDungeon(input.dungeon, input.mood);
+      this.world.setDungeon(input.dungeon, input.mood, {
+        carryPhoenix,
+        stack: input.stack,
+      });
     }
     return this.finishLoad(input);
   }
@@ -232,6 +254,7 @@ export class PlayRuntime<TDungeon, TMood, TPlayer, TWorldUpdate extends PlayWorl
         damage: worldUpdate.damage,
         reachedLockedExit: worldUpdate.reachedLockedExit,
         reachedOpenExit: worldUpdate.reachedOpenExit,
+        phoenixCharges: worldUpdate.phoenixCharges,
       },
       this.gameplayClockMs,
     );

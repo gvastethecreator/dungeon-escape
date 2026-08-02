@@ -258,10 +258,10 @@ describe("StaticDungeonScene", () => {
         wallTiles: 459,
         ceilingTiles: 564,
         hazardTiles: 4,
-        pickups: 13,
+        pickups: 26,
         beams: 7,
         lights: 12,
-        props: 189,
+        props: 202,
       });
       expect(classic.ambientBeams).toHaveLength(2);
       expect(group.getObjectByName("Ambient godray 1")).toBeDefined();
@@ -279,8 +279,8 @@ describe("StaticDungeonScene", () => {
       expect(classic.stoneBeams.every((beam) => beam.userData.profile === "objective-strata")).toBe(
         true,
       );
-      expect(classic.solidCells.size).toBe(23);
-      expect(classic.solidColliders).toHaveLength(23);
+      expect(classic.solidCells.size).toBe(27);
+      expect(classic.solidColliders).toHaveLength(27);
       expect(group.getObjectByName("Escape portal gate")).toBeDefined();
       expect(group.getObjectByName("Portal aperture trim")).toBeDefined();
       expect(group.getObjectByName(MAGIC_PORTAL_NAMES.vortex)).toBeDefined();
@@ -405,14 +405,14 @@ describe("StaticDungeonScene", () => {
         ceilingTiles: 564,
         enemies: 8,
         hazardTiles: 4,
-        pickups: 13,
+        pickups: 26,
         beams: 7,
         lights: 14,
-        props: 189,
-        reserveEnemies: 19,
+        props: 202,
+        reserveEnemies: 17,
       });
-      expect(world.getSolidCells()).toHaveLength(23);
-      expect(world.getSolidColliders()).toHaveLength(23);
+      expect(world.getSolidCells()).toHaveLength(27);
+      expect(world.getSolidColliders()).toHaveLength(27);
     } finally {
       world.dispose();
       restoreDocument();

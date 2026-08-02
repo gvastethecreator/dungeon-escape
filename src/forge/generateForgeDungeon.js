@@ -917,15 +917,22 @@ function tryGenerate(seed, params) {
     torchCand[i] = torchCand[j];
     torchCand[j] = t;
   }
+  // Even map coverage: shuffle candidates, then keep only those past a uniform
+  // Chebyshev spacing so no room (including the entrance) steals the budget.
+  const MAP_TORCH_SPACING = 4;
   const torches = [];
-  for (const c of torchCand) {
+  for (const candidate of torchCand) {
     let ok = true;
-    for (const t of torches)
-      if (Math.max(Math.abs(t.x - c.x), Math.abs(t.y - c.y)) < 4) {
+    for (const placed of torches) {
+      if (
+        Math.max(Math.abs(placed.x - candidate.x), Math.abs(placed.y - candidate.y)) <
+        MAP_TORCH_SPACING
+      ) {
         ok = false;
         break;
       }
-    if (ok) torches.push(c);
+    }
+    if (ok) torches.push(candidate);
   }
   for (let y = 0; y < H; y++) {
     const row = y * W;

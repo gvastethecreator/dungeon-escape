@@ -42,13 +42,36 @@ describe("controller pose restore boundary", () => {
     });
     expect(restored?.yaw).toBeCloseTo(Math.PI, 12);
 
+    // Multi-slab / stair resume keeps the saved eye Y instead of snapping to floor 0.
     expect(
       resolveRestorableControllerPose(
         dungeon(),
         { x: 0, y: 2.5, z: 0, yaw: 0, pitch: 0, distanceTravelled: 1 },
         OPTIONS,
       )?.y,
+    ).toBe(2.5);
+    // Degenerate low Y still falls back to standing eye height.
+    expect(
+      resolveRestorableControllerPose(
+        dungeon(),
+        { x: 0, y: 0.1, z: 0, yaw: 0, pitch: 0, distanceTravelled: 1 },
+        OPTIONS,
+      )?.y,
     ).toBe(OPTIONS.eyeHeight);
+  });
+
+  test("allows restore while standing on a finite-height tread collider", () => {
+    const restored = resolveRestorableControllerPose(
+      dungeon(),
+      { x: 0, y: 1.68 + 0.22, z: 0, yaw: 0, pitch: 0, distanceTravelled: 3 },
+      {
+        ...OPTIONS,
+        colliders: [
+          { minX: -0.5, maxX: 0.5, minZ: -0.5, maxZ: 0.5, minY: 0, maxY: 0.22 },
+        ],
+      },
+    );
+    expect(restored?.y).toBeCloseTo(1.9, 5);
   });
 
   test("rejects out-of-grid, wall, blocked, collider, and extreme poses", () => {

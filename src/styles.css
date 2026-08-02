@@ -3130,24 +3130,24 @@ kbd {
 }
 
 .damage-vignette.is-hit {
-  animation: damage-red-wash 2.1s ease-out forwards;
+  animation: damage-red-wash 0.85s ease-out forwards;
 }
 
 .damage-vignette[data-kind="fire"].is-hit {
   animation:
-    damage-red-wash 2.1s ease-out forwards,
-    damage-heat-shimmer 0.9s ease-in-out;
+    damage-red-wash 0.85s ease-out forwards,
+    damage-heat-shimmer 0.55s ease-in-out;
 }
 
 @keyframes damage-red-wash {
   0% {
     opacity: 1;
   }
-  12% {
-    opacity: 0.95;
+  18% {
+    opacity: 0.72;
   }
-  45% {
-    opacity: 0.62;
+  55% {
+    opacity: 0.22;
   }
   100% {
     opacity: 0;
@@ -3644,6 +3644,14 @@ kbd {
   color: #c8c8de;
 }
 
+.curse-status--mirror {
+  --chip-accent: #7ec8e8;
+}
+
+.curse-status--spin {
+  --chip-accent: #c07ae0;
+}
+
 .curse-status--swarm {
   border-right-color: rgb(180 40 40 / 90%);
 }
@@ -3659,6 +3667,20 @@ kbd {
   background: linear-gradient(90deg, transparent, rgb(35 10 20 / 90%) 26%);
   color: #ffb0bd;
   text-shadow: 0 0 10px rgb(255 93 134 / 64%);
+}
+
+.cull-brand-status {
+  border-right-color: rgb(255 122 58 / 86%);
+  background: linear-gradient(90deg, transparent, rgb(40 16 8 / 90%) 26%);
+  color: #ffc49a;
+  text-shadow: 0 0 10px rgb(255 122 58 / 58%);
+}
+
+.phoenix-status {
+  border-right-color: rgb(255 154 58 / 90%);
+  background: linear-gradient(90deg, transparent, rgb(48 18 6 / 92%) 26%);
+  color: #ffd6a0;
+  text-shadow: 0 0 12px rgb(255 140 40 / 70%);
 }
 
 .annihilation-pulse-status[data-urgent] {

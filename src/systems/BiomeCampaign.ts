@@ -166,13 +166,15 @@ export function biomeDifficultyRank(biomeId: BiomeId): number {
   return listBiomeIds().indexOf(biomeId);
 }
 
-/** Floors ramp inside campaign levels while DungeonWorld keeps one active floor. */
+/**
+ * Floors ramp inside campaign levels. Cap is 3 so the resident multi-slab
+ * stack stays walkable without streaming a fourth story.
+ */
 export function biomeCampaignFloorCount(biomeId: BiomeId): number {
   const rank = biomeDifficultyRank(biomeId);
   if (rank <= 2) return 1;
   if (rank <= 6) return 2;
-  if (rank <= 9) return 3;
-  return 4;
+  return 3;
 }
 
 /** Next campaign biome after `biomeId`, or null on the final step (Backrooms). */

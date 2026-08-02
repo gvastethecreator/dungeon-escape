@@ -33,12 +33,14 @@ import { MOBILITY_BOOST_SPEED_MULTIPLIER, MOBILITY_BOOST_STRIDE_RATE } from "../
 import { SLOW_CURSE_SPEED_MULTIPLIER } from "../game/SlowCurse";
 import {
   createVerticalMotionState,
+  pickSupportTop,
   resetVerticalMotion,
   stepVerticalMotion,
   VERTICAL_EVENT,
   type VerticalMotionConfig,
   type VerticalMotionState,
 } from "./VerticalMotion";
+import { STORY_HEIGHT, STORY_MAX_STEP_UP, closedCeilingY } from "../world/StoryMetrics";
 
 export type PlayerAction =
   | "forward"
@@ -133,13 +135,21 @@ export function resolveRestorableControllerPose(
     return null;
   }
   if (Math.abs(pose.y) > 1_000_000) return null;
-  // Saves do not carry vertical velocity/grounded state. Resume on the floor
-  // instead of freezing a mid-jump camera at an unsupported height.
-  const restoredY = options.eyeHeight;
+  // Prefer the saved eye Y so multi-slab resumes and stair teleports keep height.
+  // Fall back to the default standing eye only when Y is missing/degenerate.
+  const restoredY =
+    Number.isFinite(pose.y) && pose.y >= options.eyeHeight * 0.5 ? pose.y : options.eyeHeight;
+  const feetY = restoredY - options.eyeHeight + 0.08;
   const verticalRange = {
-    minY: 0.08,
+    minY: feetY,
     maxY: restoredY + options.headClearance,
   };
+  // Walkable tops (floor decks, stair treads) must not fail occupancy when the
+  // capsule is already standing on them.
+  const blockingColliders = (options.colliders ?? []).filter((collider) => {
+    if (collider.maxY === undefined || !Number.isFinite(collider.maxY)) return true;
+    return feetY < collider.maxY - 0.05;
+  });
   if (
     !canOccupy(
       dungeon,
@@ -147,7 +157,7 @@ export function resolveRestorableControllerPose(
       options.tileSize,
       options.radius,
       options.isBlockedCell,
-      options.colliders,
+      blockingColliders,
       verticalRange,
     )
   ) {
@@ -236,6 +246,10 @@ export class FirstPersonController {
   private surfaceTraction = 1;
   private mobilityBoostActive = false;
   private slowCurseActive = false;
+  private invertLook = false;
+  private invertMove = false;
+  private yawBias = 0;
+  private sensitivityScale = 1;
   private readonly lookResponse: number;
   private readonly verticalConfig: VerticalMotionConfig;
   private readonly verticalState: VerticalMotionState;
@@ -374,6 +388,7 @@ export class FirstPersonController {
       gravity: options.gravity ?? 17,
       jumpSpeed: options.jumpSpeed ?? 5.8,
       maxAirJumps: options.maxAirJumps ?? 1,
+      maxStepUp: STORY_MAX_STEP_UP,
     };
     this.verticalState = createVerticalMotionState(this.eyeHeight, this.verticalConfig.maxAirJumps);
     this.onLockChange = options.onLockChange ?? (() => undefined);
@@ -403,6 +418,10 @@ export class FirstPersonController {
     this.surfaceTraction = 1;
     this.mobilityBoostActive = false;
     this.slowCurseActive = false;
+    this.invertLook = false;
+    this.invertMove = false;
+    this.yawBias = 0;
+    this.sensitivityScale = 1;
     this.vaultedColliderIds.clear();
     resetVerticalMotion(this.verticalState, this.eyeHeight, this.verticalConfig.maxAirJumps);
     resetStamina(this.staminaState, STAMINA_MAX);
@@ -425,6 +444,18 @@ export class FirstPersonController {
     this.euler.set(this.lookPitch, this.lookYaw, 0, "YXZ");
     this.camera.quaternion.setFromEuler(this.euler);
     this.syncCameraPosition();
+  }
+
+  /**
+   * Swap the collision/grid dungeon without moving the player.
+   * Used when the multi-slab stack rebinds the active floor by height.
+   */
+  bindDungeon(dungeon: DungeonData): void {
+    this.dungeon = dungeon;
+    worldToGridInto(this.dungeon, this.position, this.tileSize, this.currentCell);
+    this.lastCell.x = this.currentCell.x;
+    this.lastCell.y = this.currentCell.y;
+    this.hasLastCell = true;
   }
 
   /**
@@ -546,6 +577,25 @@ export class FirstPersonController {
     this.slowCurseActive = active;
   }
 
+  /**
+   * Control-curse bag. Invert look/move for mirror; yawBias/sensitivity for spin.
+   * Values are absolute (not stacked) so the host can clear them each frame.
+   */
+  setControlMods(mods: {
+    invertLook?: boolean;
+    invertMove?: boolean;
+    yawBias?: number;
+    sensitivityScale?: number;
+  }): void {
+    this.invertLook = mods.invertLook === true;
+    this.invertMove = mods.invertMove === true;
+    this.yawBias = Number.isFinite(mods.yawBias) ? (mods.yawBias as number) : 0;
+    this.sensitivityScale =
+      Number.isFinite(mods.sensitivityScale) && (mods.sensitivityScale as number) > 0
+        ? (mods.sensitivityScale as number)
+        : 1;
+  }
+
   requestPointerLock(): void {
     if (!this.domElement.requestPointerLock || !this.enabled) return;
     const result = this.domElement.requestPointerLock();
@@ -603,16 +653,21 @@ export class FirstPersonController {
 
     this.elapsed += delta;
     const lookDelta = this.lookInput.consume();
-    this.targetYaw -= lookDelta.x * this.mouseSensitivity;
+    const lookSign = this.invertLook ? -1 : 1;
+    const lookSensitivity = this.mouseSensitivity * this.sensitivityScale;
+    this.targetYaw -= lookDelta.x * lookSensitivity * lookSign;
     this.targetPitch = clampLookPitch(
-      this.targetPitch - lookDelta.y * this.mouseSensitivity * 0.72,
+      this.targetPitch - lookDelta.y * lookSensitivity * 0.72 * lookSign,
     );
 
     const turnDirection =
       Number(this.isActionActive("turnRight") || this.virtualPulse.has("turnRight")) -
       Number(this.isActionActive("turnLeft") || this.virtualPulse.has("turnLeft"));
     if (turnDirection !== 0) {
-      this.targetYaw -= turnDirection * delta * 1.9;
+      this.targetYaw -= turnDirection * delta * 1.9 * lookSign;
+    }
+    if (Math.abs(this.yawBias) > 1e-6) {
+      this.targetYaw += this.yawBias * delta;
     }
 
     this.lookYaw = dampAngle(this.lookYaw, this.targetYaw, this.lookResponse * 0.72, delta);
@@ -625,13 +680,17 @@ export class FirstPersonController {
 
     // Click-to-walk only while pointer-locked (never drive movement from a stale hold).
     const mouseDrive = this.locked && this.mouseForwardHeld;
+    const moveSign = this.invertMove ? -1 : 1;
     const forwardInput =
-      Number(
+      (Number(
         this.isActionActive("forward") || this.virtualPulse.has("forward") || mouseDrive,
-      ) - Number(this.isActionActive("backward") || this.virtualPulse.has("backward"));
+      ) -
+        Number(this.isActionActive("backward") || this.virtualPulse.has("backward"))) *
+      moveSign;
     const sidewaysInput =
-      Number(this.isActionActive("right") || this.virtualPulse.has("right")) -
-      Number(this.isActionActive("left") || this.virtualPulse.has("left"));
+      (Number(this.isActionActive("right") || this.virtualPulse.has("right")) -
+        Number(this.isActionActive("left") || this.virtualPulse.has("left"))) *
+      moveSign;
     const hasIntent = forwardInput !== 0 || sidewaysInput !== 0;
     const movementAllowed =
       this.locked || this.virtualActions.size > 0 || this.virtualPulse.size > 0 || mouseDrive;
@@ -642,6 +701,7 @@ export class FirstPersonController {
       hasIntent && movementAllowed,
       this.mobilityBoostActive ? MOBILITY_STAMINA_CONFIG : DEFAULT_STAMINA_CONFIG,
     );
+    this.refreshVerticalSupport();
     const verticalEvents = stepVerticalMotion(
       this.verticalState,
       delta,
@@ -849,6 +909,44 @@ export class FirstPersonController {
    * ignored until the player is free of that footprint so landing mid-vault
    * cannot re-embed the capsule.
    */
+  /**
+   * Sample nearby collider tops and set floorEyeY / ceiling for multi-slab stairs.
+   * Falls back to the flat-floor eye plane when no support is near the capsule.
+   */
+  private refreshVerticalSupport(): void {
+    const feetY = this.verticalState.y - this.eyeHeight + 0.08;
+    const candidates: number[] = [0];
+    const nearby = this.nearbyColliderIds;
+    if (this.solidColliderIndex) {
+      this.solidColliderIndex.queryAabbIndicesInto(
+        this.position.x - this.radius * 1.2,
+        this.position.x + this.radius * 1.2,
+        this.position.z - this.radius * 1.2,
+        this.position.z + this.radius * 1.2,
+        nearby,
+      );
+    } else {
+      nearby.length = 0;
+      for (let index = 0; index < this.solidColliders.length; index += 1) nearby.push(index);
+    }
+    for (const index of nearby) {
+      const collider = this.solidColliders[index];
+      if (!collider || collider.maxY === undefined || !Number.isFinite(collider.maxY)) continue;
+      if (!overlapsWorldCollider(this.position, this.radius * 1.15, collider)) continue;
+      candidates.push(collider.maxY);
+    }
+    const supportTop = pickSupportTop(candidates, feetY, STORY_MAX_STEP_UP, 0.12) ?? 0;
+    this.verticalConfig.floorEyeY = supportTop + this.eyeHeight - 0.08;
+    // Closed rooms use one story of headroom; mid-flight shafts open to the next slab.
+    const slabIndex = Math.max(0, Math.floor((supportTop + 0.05) / STORY_HEIGHT));
+    const slabY = slabIndex * STORY_HEIGHT;
+    const onFlight =
+      supportTop > slabY + 0.12 && supportTop < slabY + STORY_HEIGHT - 0.12;
+    this.verticalConfig.ceilingHeight = onFlight
+      ? slabY + STORY_HEIGHT * 2
+      : closedCeilingY(slabY, STORY_HEIGHT);
+  }
+
   private updateVaultedColliders(feetY: number): void {
     if (!this.verticalState.grounded) {
       const nearby = this.nearbyColliderIds;

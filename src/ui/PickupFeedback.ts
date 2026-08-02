@@ -9,12 +9,16 @@ export type PickupFeedbackKind =
   | "clarity"
   | "mobility"
   | "annihilation-pulse"
+  | "cull-brand"
+  | "phoenix-egg"
   | "luminous-ward"
   | "time-freeze"
   | "swarm-curse"
   | "slow-curse"
   | "frenzy-curse"
   | "gloom-curse"
+  | "mirror-curse"
+  | "spin-curse"
   | "flask"
   | "stone"
   | "notice";
@@ -26,12 +30,16 @@ export interface PickupFeedbackFlags {
   fogClear?: boolean;
   mobilityBoost?: boolean;
   annihilationPulse?: boolean;
+  cullBrand?: boolean;
+  phoenixEgg?: boolean;
   luminousWard?: boolean;
   timeFreeze?: boolean;
   swarmCurse?: boolean;
   slowCurse?: boolean;
   frenzyCurse?: boolean;
   gloomCurse?: boolean;
+  mirrorCurse?: boolean;
+  spinCurse?: boolean;
   restoreResolve?: boolean;
   stoneId?: string;
 }
@@ -64,6 +72,12 @@ export function projectPickupFeedback(flags: PickupFeedbackFlags = {}): PickupFe
   if (flags.annihilationPulse) {
     return { kind: "annihilation-pulse", kickerKey: "itemFound", restoreResolve };
   }
+  if (flags.cullBrand) {
+    return { kind: "cull-brand", kickerKey: "itemFound", restoreResolve };
+  }
+  if (flags.phoenixEgg) {
+    return { kind: "phoenix-egg", kickerKey: "itemFound", restoreResolve };
+  }
   if (flags.luminousWard) {
     return { kind: "luminous-ward", kickerKey: "itemFound", restoreResolve };
   }
@@ -81,6 +95,12 @@ export function projectPickupFeedback(flags: PickupFeedbackFlags = {}): PickupFe
   }
   if (flags.gloomCurse) {
     return { kind: "gloom-curse", kickerKey: "curseFound", restoreResolve };
+  }
+  if (flags.mirrorCurse) {
+    return { kind: "mirror-curse", kickerKey: "curseFound", restoreResolve };
+  }
+  if (flags.spinCurse) {
+    return { kind: "spin-curse", kickerKey: "curseFound", restoreResolve };
   }
   if (restoreResolve) {
     return { kind: "flask", kickerKey: "itemFound", restoreResolve: true };

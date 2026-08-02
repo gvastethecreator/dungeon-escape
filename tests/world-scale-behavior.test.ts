@@ -48,8 +48,10 @@ describe("world scale and behavior contracts", () => {
       haloVisible: true,
       lightFactor: 1,
     });
-    expect(computeTorchLod(14).lightFactor).toBeGreaterThan(0);
-    expect(computeTorchLod(18).lightFactor).toBe(0);
+    expect(computeTorchLod(14).lightFactor).toBe(1);
+    expect(computeTorchLod(18).lightFactor).toBeGreaterThan(0);
+    expect(computeTorchLod(18).lightFactor).toBeLessThan(1);
+    expect(computeTorchLod(20).lightFactor).toBe(0);
     expect(computeTorchLod(18).haloVisible).toBe(false);
     expect(computeTorchLod(30)).toEqual({
       rootVisible: true,
@@ -84,6 +86,18 @@ describe("world scale and behavior contracts", () => {
     expect(chosen.has(5)).toBe(true);
     expect(chosen.size).toBe(4);
     expect([...chosen].some((index) => torches[index]!.x >= 8 && torches[index]!.x <= 12)).toBe(
+      true,
+    );
+  });
+
+  test("lit torch budget spreads across the map instead of clustering at spawn", () => {
+    const torches = [0, 1, 2, 3, 10, 20, 30].map((x) => ({ x, y: 0, dx: 1, dy: 0 }));
+    const chosen = selectDistributedTorchIndices(torches, 4, { x: 0, y: 0 }, { x: 30, y: 0 });
+    const nearSpawn = [...chosen].filter((index) => torches[index]!.x <= 3);
+    // One entrance anchor only; remaining budget goes farthest-point.
+    expect(nearSpawn.length).toBe(1);
+    expect(chosen.has(6)).toBe(true); // exit at x=30
+    expect([...chosen].some((index) => torches[index]!.x >= 10 && torches[index]!.x < 30)).toBe(
       true,
     );
   });

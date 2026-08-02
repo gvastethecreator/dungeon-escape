@@ -34,6 +34,10 @@ export interface RunResumeCaptureInput {
     readonly frenzyCurseRemaining: number;
     readonly gloomCurseRemaining: number;
     readonly swarmCurseActive: boolean;
+    readonly cullBrandRemaining: number;
+    readonly mirrorCurseRemaining: number;
+    readonly spinCurseRemaining: number;
+    readonly phoenixCharges: number;
   };
   readonly exploration: FloorExplorationSnapshot;
   readonly campaign: {
@@ -129,6 +133,10 @@ export function captureRunResume(input: RunResumeCaptureInput): LocalRunResumeSt
     frenzyCurseRemaining: input.world.frenzyCurseRemaining,
     gloomCurseRemaining: input.world.gloomCurseRemaining,
     swarmCurseActive: input.world.swarmCurseActive,
+    cullBrandRemaining: input.world.cullBrandRemaining,
+    mirrorCurseRemaining: input.world.mirrorCurseRemaining,
+    spinCurseRemaining: input.world.spinCurseRemaining,
+    phoenixCharges: input.world.phoenixCharges,
     activeFloor: input.exploration.activeFloor,
     campaignRootSeed: input.campaign.rootSeed,
     campaignBiomeId: input.campaign.biomeId,
@@ -173,6 +181,10 @@ export function planRunResumeRestore(
         frenzyCurseRemaining: resume.frenzyCurseRemaining,
         gloomCurseRemaining: resume.gloomCurseRemaining,
         swarmCurseActive: resume.swarmCurseActive,
+        cullBrandRemaining: resume.cullBrandRemaining,
+        mirrorCurseRemaining: resume.mirrorCurseRemaining,
+        spinCurseRemaining: resume.spinCurseRemaining,
+        phoenixCharges: resume.phoenixCharges,
       },
       player: { x: resume.player.x, z: resume.player.z },
     },
