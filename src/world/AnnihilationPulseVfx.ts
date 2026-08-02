@@ -435,6 +435,8 @@ export class AnnihilationPulseVfx {
     this.geometry.getAttribute("aSpin").needsUpdate = true;
   }
 
+  private idleClean = false;
+
   update(
     remaining: number,
     elapsed: number,
@@ -444,6 +446,17 @@ export class AnnihilationPulseVfx {
   ): void {
     const active = Number.isFinite(remaining) && remaining > 0.0001;
     const safeDelta = Math.max(0, Number.isFinite(delta) ? delta : 0);
+    if (!active && this.idleClean && this.activeBurstCountValue === 0) {
+      let ringLive = false;
+      for (const slot of this.rings) {
+        if (slot.active) {
+          ringLive = true;
+          break;
+        }
+      }
+      if (!ringLive) return;
+    }
+
     const profile = getAnnihilationBurstProfile(moodId);
     const pulse = 0.72 + Math.sin(elapsed * 8.2) * Math.sin(elapsed * 3.1) * 0.18;
     this.root.position.set(0, 0, 0);
@@ -498,6 +511,15 @@ export class AnnihilationPulseVfx {
     this.activeBurstCountValue = activeParticles > 0 ? Math.ceil(activeParticles / 18) : 0;
     this.geometry.getAttribute("position").needsUpdate = activeParticles > 0;
     this.geometry.getAttribute("aAlpha").needsUpdate = true;
+
+    let ringLive = false;
+    for (const slot of this.rings) {
+      if (slot.active) {
+        ringLive = true;
+        break;
+      }
+    }
+    this.idleClean = !active && !ringLive && activeParticles === 0;
   }
 
   setWarmupVisible(visible: boolean): void {
@@ -510,6 +532,8 @@ export class AnnihilationPulseVfx {
       slot.ring.material.opacity = 0;
     }
     if (visible) this.particles.visible = true;
+    // Force the next update() to re-sync after direct material writes.
+    this.idleClean = false;
   }
 
   dispose(): void {

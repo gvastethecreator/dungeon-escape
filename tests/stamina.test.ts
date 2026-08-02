@@ -1,8 +1,10 @@
 import { describe, expect, test } from "bun:test";
 
 import {
+  consumeStamina,
   createStaminaState,
   DEFAULT_STAMINA_CONFIG,
+  JUMP_STAMINA_COST,
   resetStamina,
   STAMINA_MAX,
   STAMINA_REGEN_EARLY_PER_SEC,
@@ -118,5 +120,23 @@ describe("sprint stamina", () => {
     resetStamina(state);
     expect(state.value).toBe(STAMINA_MAX);
     expect(state.exhausted).toBe(false);
+  });
+
+  test("jump costs a small fixed amount and can still fire at zero", () => {
+    const state = createStaminaState();
+    consumeStamina(state, JUMP_STAMINA_COST);
+    expect(state.value).toBeCloseTo(STAMINA_MAX - JUMP_STAMINA_COST, 5);
+    expect(state.exhausted).toBe(false);
+
+    consumeStamina(state, JUMP_STAMINA_COST);
+    expect(state.value).toBeCloseTo(STAMINA_MAX - JUMP_STAMINA_COST * 2, 5);
+
+    state.value = 0.1;
+    consumeStamina(state, JUMP_STAMINA_COST);
+    expect(state.value).toBe(0);
+    expect(state.exhausted).toBe(true);
+
+    consumeStamina(state, JUMP_STAMINA_COST);
+    expect(state.value).toBe(0);
   });
 });

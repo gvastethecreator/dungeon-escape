@@ -341,6 +341,58 @@ function shared<T extends THREE.Material>(material: T): T {
   return material;
 }
 
+const dungeonMaterialVariantCache = new Map<string, THREE.MeshStandardMaterial>();
+
+/** Drop all cached finish variants (tests / full material graph rebuild). */
+export function clearDungeonMaterialVariantCache(): void {
+  for (const material of dungeonMaterialVariantCache.values()) material.dispose();
+  dungeonMaterialVariantCache.clear();
+}
+
+/** Drop variants whose base uuid belongs to this materials set. */
+export function clearDungeonMaterialVariantsFor(materials: DungeonMaterials): void {
+  const prefixes = Object.values(materials).map((material) => `${material.uuid}::`);
+  for (const [key, variant] of [...dungeonMaterialVariantCache.entries()]) {
+    if (!prefixes.some((prefix) => key.startsWith(prefix))) continue;
+    variant.dispose();
+    dungeonMaterialVariantCache.delete(key);
+  }
+}
+
+export function dungeonMaterialVariantCacheSize(): number {
+  return dungeonMaterialVariantCache.size;
+}
+
+/**
+ * Stable token for one DungeonMaterials set. All roles are created together, so
+ * wood.uuid identifies the set for prop-batch cache keys.
+ */
+export function dungeonMaterialsCacheToken(materials: DungeonMaterials): string {
+  return materials.wood.uuid;
+}
+
+/**
+ * Clone a shared dungeon material once per finish key. Prop kits reuse the same
+ * variant object so the renderer does not accumulate one material per template.
+ * Configure must not mutate the material after this returns.
+ */
+export function getDungeonMaterialVariant(
+  base: THREE.MeshStandardMaterial,
+  key: string,
+  configure: (material: THREE.MeshStandardMaterial) => void,
+): THREE.MeshStandardMaterial {
+  const cacheKey = `${base.uuid}::${key}`;
+  const hit = dungeonMaterialVariantCache.get(cacheKey);
+  if (hit) return hit;
+  const material = base.clone();
+  configure(material);
+  material.userData.sharedDungeonMaterialVariant = true;
+  material.userData.variantKey = cacheKey;
+  material.userData.variantBaseUuid = base.uuid;
+  dungeonMaterialVariantCache.set(cacheKey, material);
+  return material;
+}
+
 export function createDungeonMaterials({
   compact = false,
 }: { compact?: boolean } = {}): DungeonMaterials {
@@ -616,6 +668,9 @@ function buildPbrMaterial(
 }
 
 export function disposeDungeonMaterials(materials: DungeonMaterials): void {
+  // Variants hold clones that share maps with the bases. Drop them before
+  // disposing base maps so rebuilds never reuse disposed GPU textures.
+  clearDungeonMaterialVariantsFor(materials);
   const textures = new Set<THREE.Texture>();
   for (const material of Object.values(materials)) {
     const biomeClones = material.userData.biomePropTextureClones as THREE.Texture[] | undefined;
