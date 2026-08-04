@@ -1,5 +1,6 @@
 import { FLOOR, WALL } from "../dungeon/generateDungeon";
 import type { DungeonData, DungeonRoom, GridCell } from "../dungeon/types";
+import type { CellOccupancyQuery } from "./FloorOccupancyGrid";
 
 const CARDINALS: ReadonlyArray<readonly [number, number]> = [
   [0, -1],
@@ -48,6 +49,18 @@ export interface CornerSeat extends WallSeat {
   wallBDy: number;
 }
 
+/**
+ * Placement code consumes a numeric, floor-owned query.  The Set branch is a
+ * compatibility overload for callers outside the live world build; it is
+ * deliberately queried in place and never copied.
+ */
+export type PlacementOccupancyQuery = CellOccupancyQuery | ReadonlySet<string>;
+
+function isPlacementOccupied(occupancy: PlacementOccupancyQuery, cell: GridCell): boolean {
+  if ("isOccupied" in occupancy) return occupancy.isOccupied(cell.x, cell.y);
+  return occupancy.has(`${cell.x},${cell.y}`);
+}
+
 export function isProtectedTraversalCell(dungeon: DungeonData, cell: GridCell): boolean {
   if (
     (cell.x === dungeon.spawn.x && cell.y === dungeon.spawn.y) ||
@@ -75,7 +88,7 @@ export function isProtectedTraversalCell(dungeon: DungeonData, cell: GridCell): 
 export function findNearestPropCell(
   dungeon: DungeonData,
   origin: GridCell,
-  occupied: ReadonlySet<string>,
+  occupied: PlacementOccupancyQuery,
   maxRadius = 4,
   isExtraBlocked: (cell: GridCell) => boolean = () => false,
 ): GridCell | null {
@@ -86,7 +99,7 @@ export function findNearestPropCell(
         const cell = { x: origin.x + offsetX, y: origin.y + offsetY };
         if (dungeon.grid[cell.y]?.[cell.x] !== FLOOR) continue;
         if (
-          occupied.has(`${cell.x},${cell.y}`) ||
+          isPlacementOccupied(occupied, cell) ||
           isProtectedTraversalCell(dungeon, cell) ||
           isExtraBlocked(cell)
         )
@@ -101,7 +114,9 @@ export function findNearestPropCell(
 /** Floor cells that touch masonry, with the direction the prop should face (into the room). */
 export function collectRoomWallSeats(dungeon: DungeonData, room: DungeonRoom): WallSeat[] {
   const seats: WallSeat[] = [];
-  const seen = new Set<string>();
+  // The nested loops visit each cell once and CARDINALS contains each normal
+  // once, so a (cell, normal) pair is unique by construction. Do not add a
+  // string-keyed Set here: classic dressing calls this for every room.
   for (let y = room.y; y < room.y + room.height; y += 1) {
     for (let x = room.x; x < room.x + room.width; x += 1) {
       if (dungeon.grid[y]?.[x] !== FLOOR) continue;
@@ -112,9 +127,6 @@ export function collectRoomWallSeats(dungeon: DungeonData, room: DungeonRoom): W
         // Prefer seats that are not doorway mouths (floor beyond the wall cell's side).
         const intoDx = -wallDx;
         const intoDy = -wallDy;
-        const key = `${x},${y}:${intoDx},${intoDy}`;
-        if (seen.has(key)) continue;
-        seen.add(key);
         seats.push({ cell, intoDx, intoDy });
       }
     }
@@ -128,7 +140,6 @@ export function collectRoomWallSeats(dungeon: DungeonData, room: DungeonRoom): W
  */
 export function collectRoomCornerSeats(dungeon: DungeonData, room: DungeonRoom): CornerSeat[] {
   const seats: CornerSeat[] = [];
-  const seen = new Set<string>();
   for (let y = room.y; y < room.y + room.height; y += 1) {
     for (let x = room.x; x < room.x + room.width; x += 1) {
       if (dungeon.grid[y]?.[x] !== FLOOR) continue;
@@ -142,9 +153,8 @@ export function collectRoomCornerSeats(dungeon: DungeonData, room: DungeonRoom):
           const [wallADx, wallADy] = inward[first]!;
           const [wallBDx, wallBDy] = inward[second]!;
           if (wallADx * wallBDx + wallADy * wallBDy !== 0) continue;
-          const key = `${x},${y}:${wallADx},${wallADy}:${wallBDx},${wallBDy}`;
-          if (seen.has(key)) continue;
-          seen.add(key);
+          // `inward` preserves the four cardinal order, so each pair is
+          // emitted once by the ordered first/second loops.
           seats.push({
             cell,
             intoDx: wallADx + wallBDx,
@@ -246,4 +256,101 @@ export function pickSpreadSeats<T>(seats: readonly T[], count: number, seedSalt:
     if (!picked.includes(entry.seat)) picked.push(entry.seat);
   }
   return picked;
+}
+
+/**
+ * Minimum Chebyshev gap from player spawn for the phoenix egg.
+ * Keeps the relic off the starting tile neighborhood so it never spawns "next to" the player.
+ */
+export const PHOENIX_EGG_MIN_SPAWN_DISTANCE = 8;
+
+function chebyshevDistance(a: GridCell, b: GridCell): number {
+  return Math.max(Math.abs(a.x - b.x), Math.abs(a.y - b.y));
+}
+
+function roomPathDistance(dungeon: DungeonData, room: DungeonRoom): number {
+  return dungeon.distances[room.center.y * dungeon.width + room.center.x] ?? -1;
+}
+
+function isFreePhoenixSeat(
+  dungeon: DungeonData,
+  cell: GridCell,
+  excluded: PlacementOccupancyQuery,
+  minSpawnDistance: number,
+): boolean {
+  if (isPlacementOccupied(excluded, cell)) return false;
+  if (isProtectedTraversalCell(dungeon, cell)) return false;
+  if (chebyshevDistance(cell, dungeon.spawn) < minSpawnDistance) return false;
+  return true;
+}
+
+function uniqueFreeCells(dungeon: DungeonData, cells: readonly GridCell[]): GridCell[] {
+  const seen = new Set<number>();
+  const unique: GridCell[] = [];
+  for (const cell of cells) {
+    const key = cell.y * dungeon.width + cell.x;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    unique.push(cell);
+  }
+  return unique;
+}
+
+/**
+ * Floor-only phoenix egg seat: prefer a free room corner, never beside spawn,
+ * never on occupied/objective cells. Falls back to wall seats, then far interior.
+ */
+export function selectPhoenixEggSeat(
+  dungeon: DungeonData,
+  rooms: readonly DungeonRoom[],
+  excluded: PlacementOccupancyQuery,
+  seedSalt: number,
+  minSpawnDistance = PHOENIX_EGG_MIN_SPAWN_DISTANCE,
+): GridCell | null {
+  const ranked = [...rooms]
+    .filter((room) => room.role === "room")
+    .sort((left, right) => roomPathDistance(dungeon, left) - roomPathDistance(dungeon, right));
+  if (ranked.length === 0) return null;
+
+  // Prefer mid/late route rooms so the egg reads as a hidden find, not a lobby gift.
+  const startIndex = Math.min(ranked.length - 1, Math.floor(ranked.length * 0.4));
+  const preferred = ranked.slice(startIndex);
+  const roomBands = preferred.length > 0 ? [preferred, ranked] : [ranked];
+
+  for (const band of roomBands) {
+    const corners: GridCell[] = [];
+    for (const room of band) {
+      for (const seat of collectRoomCornerSeats(dungeon, room)) {
+        if (isFreePhoenixSeat(dungeon, seat.cell, excluded, minSpawnDistance)) {
+          corners.push(seat.cell);
+        }
+      }
+    }
+    const cornerPick = pickSpreadSeats(uniqueFreeCells(dungeon, corners), 1, seedSalt)[0];
+    if (cornerPick) return cornerPick;
+
+    const walls: GridCell[] = [];
+    for (const room of band) {
+      for (const seat of collectRoomWallSeats(dungeon, room)) {
+        if (isFreePhoenixSeat(dungeon, seat.cell, excluded, minSpawnDistance)) {
+          walls.push(seat.cell);
+        }
+      }
+    }
+    const wallPick = pickSpreadSeats(uniqueFreeCells(dungeon, walls), 1, seedSalt + 11)[0];
+    if (wallPick) return wallPick;
+
+    const interiors: GridCell[] = [];
+    for (const room of band) {
+      for (const cell of collectRoomInteriorSeats(dungeon, room, 0)) {
+        if (isFreePhoenixSeat(dungeon, cell, excluded, minSpawnDistance)) {
+          interiors.push(cell);
+        }
+      }
+    }
+    const interiorPick = pickSpreadSeats(uniqueFreeCells(dungeon, interiors), 1, seedSalt + 23)[0];
+    if (interiorPick) return interiorPick;
+  }
+
+  return null;
 }

@@ -23,15 +23,14 @@ import {
   type DungeonFloorCampaign,
 } from "./dungeon/generateDungeonFloors";
 import { setDungeonSpawn } from "./dungeon/generateDungeon";
-import { gridToWorld } from "./dungeon/gridCollision";
 import { parseForgeDungeonMessage, type ForgeDungeonIntakeValue } from "./dungeon/forgeIntake";
 import type { DungeonData } from "./dungeon/types";
 import { DungeonEditorView } from "./editor/DungeonEditorView";
 import { type EngineMode, isEngineMode } from "./game/EngineMode";
 import { MOBILITY_BOOST_FOOTSTEP_GAIN } from "./game/MobilityBoost";
 import { GLOOM_CURSE_FOG_MULTIPLIER, GLOOM_CURSE_LANTERN_MULTIPLIER } from "./game/GloomCurse";
-import { SPIN_CURSE_SENSITIVITY_SCALE, SPIN_CURSE_YAW_BIAS } from "./game/SpinCurse";
 import { createBrowserForgeFramePort, ForgeFrameClient } from "./forge/ForgeFrameClient";
+import { projectLocomotionMods } from "./player/ControlModsProjection";
 import {
   difficultyLabel,
   formatRunClock,
@@ -52,14 +51,21 @@ import {
 } from "./systems/DungeonMood";
 import { LightingRig } from "./systems/LightingRig";
 import { resolveExplorationFogMultiplier } from "./systems/ExplorationFog";
-import { applyTextureSmoothing } from "./systems/TextureSmoothing";
+import { SceneTextureRegistry } from "./systems/SceneTextureRegistry";
 import { resolveDungeonExposure } from "./systems/LightTuning";
 import { PovPostFx } from "./systems/PovPostFx";
 import { computeCriticalHealthFeel } from "./systems/CriticalHealthFeel";
+import { computeBiomeLensFeel } from "./systems/BiomeLensFeel";
+import {
+  DungeonLoadTraceController,
+  type DungeonLoadTerminal,
+  type DungeonLoadTrace,
+  type DungeonLoadTraceSnapshot,
+} from "./systems/DungeonLoadTrace";
 import { computeHazardFeel, decayHazardHitBoost, type DamageWashKind } from "./systems/HazardFeel";
 import { projectPlayStepDamage } from "./systems/PlayStepEffects";
 import { stepAdaptiveCrt } from "./systems/AdaptiveCrtPolicy";
-import { TimedStatusChip } from "./ui/TimedStatusChip";
+import { PlayStatusHud } from "./ui/PlayStatusHud";
 import { SceneLoaderEnemy } from "./ui/SceneLoaderEnemy";
 import { projectPickupFeedback } from "./ui/PickupFeedback";
 import { FrameGapProfiler, type FrameGapSnapshot } from "./systems/FrameGapProfiler";
@@ -77,10 +83,7 @@ import {
 import { drawMinimap } from "./ui/drawMinimap";
 import { COPY, formatTime, type StoneId } from "./ui/copy";
 import { BiomeScreenParticles } from "./ui/BiomeScreenParticles";
-import {
-  createMinimapDrawInvalidator,
-  createMinimapLayoutScheduler,
-} from "./ui/minimapLayout";
+import { createMinimapDrawInvalidator, createMinimapLayoutScheduler } from "./ui/minimapLayout";
 import { PlayRuntime } from "./game/PlayRuntime";
 import { shouldAdoptHydratedSeed } from "./game/hydratePolicy";
 import { nextProceduralSeed } from "./game/SeedFactory";
@@ -88,17 +91,13 @@ import { FloorExploration } from "./game/FloorExploration";
 import { readUserSettings, writeUserSettings, type UserSettings } from "./game/UserSettings";
 import { LocalRunSaveCoordinator } from "./game/LocalRunSaveCoordinator";
 import {
-  FloorTransitionDirector,
-  type FloorTransitionResult,
-} from "./game/FloorTransitionDirector";
-import {
   RunIntroDirector,
+  type RunIntroRequest,
   type RunIntroResult,
   type RunIntroWarmup,
 } from "./game/RunIntroDirector";
 import {
   captureRunResume,
-  planFloorTransition,
   planRunResumeRestore,
   type RunResumeActivationPlan,
 } from "./game/RunResumeMapping";
@@ -122,6 +121,7 @@ import {
   type PlayerProfile,
 } from "./game/PlayerProfile";
 import { loadLeaderboard, submitLeaderboardEntry } from "./leaderboard/client";
+import { renderWelcomeLeaderboard } from "./leaderboard/render";
 import { RoundResultsController, type RoundResultsState } from "./ui/RoundResultsController";
 import {
   computeLeaderboardScore,
@@ -133,9 +133,7 @@ import {
 } from "./leaderboard/contract";
 import {
   LEADERBOARD_PORTRAIT_COUNT,
-  frameForRank,
   portraitForIndex,
-  portraitForName,
   portraitIndexForName,
   randomPortraitIndex,
 } from "./leaderboard/portraits";
@@ -152,7 +150,7 @@ import {
   type BiomeId,
 } from "./systems/BiomeIdentity";
 import { biomeScreenArtSrc, mainScreenBiomeForPlayer } from "./systems/BiomeScreenArt";
-import { biomeHoverColor, biomeIconSrc, expandBiomeStars } from "./systems/BiomeUi";
+import { biomeHoverColor, biomeIconSrc } from "./systems/BiomeUi";
 import { DungeonWorld } from "./world/DungeonWorld";
 import type { HazardSurfaceEffect } from "./world/HazardTileSystem";
 import { WORLD_TILE_SIZE, WORLD_WALL_HEIGHT } from "./world/WorldMetrics";
@@ -182,6 +180,7 @@ const elements = {
   welcomeProfileEdit: requireElement<HTMLButtonElement>("#welcome-profile-edit"),
   welcomePlayerAvatar: requireElement<HTMLImageElement>("#welcome-player-avatar"),
   welcomePlayerName: requireElement<HTMLElement>("#welcome-player-name"),
+  welcomeSave: requireElement<HTMLElement>("#welcome-save"),
   welcomeSaveTitle: requireElement<HTMLElement>("#welcome-save-title"),
   welcomeSaveDetails: requireElement<HTMLElement>("#welcome-save-details"),
   welcomeSaveMeta: requireElement<HTMLElement>("#welcome-save-meta"),
@@ -399,7 +398,6 @@ const domainBridge: DomainBridge = createDomainBridge({
 });
 const floorExploration = new FloorExploration();
 let campaignFloorSet: DungeonFloorCampaign | null = null;
-let floorTransitionInputBlocked = false;
 
 function applyLocalDevToolsChrome(): void {
   elements.shell.dataset.localDevTools = localDevTools ? "true" : "false";
@@ -447,6 +445,8 @@ renderer.setPixelRatio(resolveRenderPixelRatio(window.devicePixelRatio, renderCa
 // reset once per animation frame so diagnostics describe the real scene cost.
 renderer.info.autoReset = false;
 
+let userSettings: UserSettings = readUserSettings();
+const textureRegistry = new SceneTextureRegistry(userSettings.textureSmoothing);
 const lighting = new LightingRig(scene);
 // Neutral IBL so MeshStandard metals leave flat gray (low mood intensity keeps interiors grim).
 try {
@@ -455,16 +455,20 @@ try {
   // PMREM/RoomEnvironment can fail on broken Firefox WebGL adapters; continue without IBL.
   console.warn("Environment bind failed; continuing without IBL", error);
 }
-const world = new DungeonWorld(scene, { tileSize: TILE_SIZE, wallHeight: WORLD_WALL_HEIGHT });
+const world = new DungeonWorld(scene, {
+  tileSize: TILE_SIZE,
+  wallHeight: WORLD_WALL_HEIGHT,
+  textureRegistry,
+});
 const playRuntime = new PlayRuntime(world);
+const dungeonLoadTraces = new DungeonLoadTraceController();
 // Fog column shares WorldMetrics with the architecture stack.
-const atmosphere = new AtmosphereSystem(scene, TILE_SIZE, WORLD_WALL_HEIGHT);
+const atmosphere = new AtmosphereSystem(scene, TILE_SIZE, WORLD_WALL_HEIGHT, textureRegistry);
 const povPost = new PovPostFx();
 // CRT history + multi-sample composite is the usual Firefox stutter source.
 povPost.setCrtEnabled(renderCaps.enableCrtByDefault);
 const povFeel = new PovFeelState();
 const audio = new GameAudio();
-let userSettings: UserSettings = readUserSettings();
 audio.setMusicVolume(userSettings.musicVolume);
 audio.setEffectsVolume(userSettings.effectsVolume);
 const playerPosition = new THREE.Vector3();
@@ -484,86 +488,26 @@ let mapExpanded = false;
 let lastMapDraw = 0;
 let lastRunTimerSecond = -1;
 let lastHazardKind: HazardSurfaceEffect["kind"] | undefined;
-const timeFreezeChip = new TimedStatusChip({
-  elements: { root: elements.timeFreezeStatus, value: elements.timeFreezeValue },
+const playStatusHud = new PlayStatusHud({
   shell: elements.shell,
-  shellDatasetKey: "timeFreeze",
-  ariaRemaining: "time freeze remaining",
+  timeFreeze: { root: elements.timeFreezeStatus, value: elements.timeFreezeValue },
+  luminousWard: { root: elements.luminousWardStatus, value: elements.luminousWardValue },
+  annihilationPulse: {
+    root: elements.annihilationPulseStatus,
+    value: elements.annihilationPulseValue,
+  },
+  cullBrand: { root: elements.cullBrandStatus, value: elements.cullBrandValue },
+  fogClear: { root: elements.fogClearStatus, value: elements.fogClearValue },
+  mobility: { root: elements.mobilityStatus, value: elements.mobilityValue },
+  slowCurse: { root: elements.slowCurseStatus, value: elements.slowCurseValue },
+  frenzyCurse: { root: elements.frenzyCurseStatus, value: elements.frenzyCurseValue },
+  gloomCurse: { root: elements.gloomCurseStatus, value: elements.gloomCurseValue },
+  mirrorCurse: { root: elements.mirrorCurseStatus, value: elements.mirrorCurseValue },
+  spinCurse: { root: elements.spinCurseStatus, value: elements.spinCurseValue },
+  swarmRoot: elements.swarmCurseStatus,
+  phoenixRoot: elements.phoenixStatus,
+  onFogClearActive: (active) => atmosphere.setFogClearPulse(active ? 1 : 0),
 });
-const luminousWardChip = new TimedStatusChip({
-  elements: { root: elements.luminousWardStatus, value: elements.luminousWardValue },
-  shell: elements.shell,
-  shellDatasetKey: "luminousWard",
-  ariaRemaining: "ward remaining",
-});
-const annihilationPulseChip = new TimedStatusChip({
-  elements: { root: elements.annihilationPulseStatus, value: elements.annihilationPulseValue },
-  shell: elements.shell,
-  shellDatasetKey: "annihilationPulse",
-  ariaRemaining: "pulse remaining",
-});
-const cullBrandChip = new TimedStatusChip({
-  elements: { root: elements.cullBrandStatus, value: elements.cullBrandValue },
-  shell: elements.shell,
-  shellDatasetKey: "cullBrand",
-  ariaRemaining: "cull brand remaining",
-});
-const fogClearChip = new TimedStatusChip({
-  elements: { root: elements.fogClearStatus, value: elements.fogClearValue },
-  shell: elements.shell,
-  shellDatasetKey: "fogClear",
-  ariaRemaining: "clear air remaining",
-});
-const mobilityChip = new TimedStatusChip({
-  elements: { root: elements.mobilityStatus, value: elements.mobilityValue },
-  shell: elements.shell,
-  shellDatasetKey: "mobilityBoost",
-  ariaRemaining: "wayfinder remaining",
-});
-const slowCurseChip = new TimedStatusChip({
-  elements: { root: elements.slowCurseStatus, value: elements.slowCurseValue },
-  shell: elements.shell,
-  shellDatasetKey: "slowCurse",
-  ariaRemaining: "heavy limbs remaining",
-});
-const frenzyCurseChip = new TimedStatusChip({
-  elements: { root: elements.frenzyCurseStatus, value: elements.frenzyCurseValue },
-  shell: elements.shell,
-  shellDatasetKey: "frenzyCurse",
-  ariaRemaining: "blood frenzy remaining",
-});
-const gloomCurseChip = new TimedStatusChip({
-  elements: { root: elements.gloomCurseStatus, value: elements.gloomCurseValue },
-  shell: elements.shell,
-  shellDatasetKey: "gloomCurse",
-  ariaRemaining: "gloom remaining",
-});
-const mirrorCurseChip = new TimedStatusChip({
-  elements: { root: elements.mirrorCurseStatus, value: elements.mirrorCurseValue },
-  shell: elements.shell,
-  shellDatasetKey: "mirrorCurse",
-  ariaRemaining: "mirror curse remaining",
-});
-const spinCurseChip = new TimedStatusChip({
-  elements: { root: elements.spinCurseStatus, value: elements.spinCurseValue },
-  shell: elements.shell,
-  shellDatasetKey: "spinCurse",
-  ariaRemaining: "spin curse remaining",
-});
-
-function syncSwarmCurseHud(active = world.isSwarmCurseActive): void {
-  elements.swarmCurseStatus.hidden = !active;
-  elements.shell.dataset.swarmCurse = active ? "true" : "false";
-}
-
-function resetCurseHud(): void {
-  slowCurseChip.reset();
-  frenzyCurseChip.reset();
-  gloomCurseChip.reset();
-  mirrorCurseChip.reset();
-  spinCurseChip.reset();
-  syncSwarmCurseHud(false);
-}
 /**
  * Cached minimap viewport (CSS size + clamped DPR). Refreshed on resize so the
  * per-frame drawMinimap call never triggers a getBoundingClientRect reflow even
@@ -648,6 +592,9 @@ let continueRecoveryOverride: {
 let runHasStarted = false;
 let renderWarmupReady = false;
 let renderWarmupSequence = 0;
+let rendererWarmupTrace: DungeonLoadTrace | undefined;
+const runIntroLoadTraces = new WeakMap<RunIntroRequest, DungeonLoadTrace>();
+let activeRunIntroTrace: DungeonLoadTrace | undefined;
 let lastDebugDraw = 0;
 let regenerateTimer = 0;
 let currentThreatDistance: number | null = null;
@@ -869,14 +816,13 @@ function continueBiomeLabel(
   return resolveDungeonMood(stub, state.profile).label;
 }
 
-/** Readable continue title: real seed + biome label (pixel font, no gothic fantasy name). */
+/** Keep the saved-game title focused on the biome, not its technical seed. */
 function continueDungeonLabel(
   state: DungeonDomainState | null,
   presentation: ContinuePresentation = {},
 ): string {
-  const seed = state?.seed?.trim() || "Unknown map";
-  if (!state) return seed;
-  return `${seed} · ${continueBiomeLabel(state, presentation)}`;
+  if (!state) return "Unknown biome";
+  return continueBiomeLabel(state, presentation);
 }
 
 function continueDurationLabel(seconds: number): string {
@@ -899,10 +845,11 @@ function syncWelcomeSaveSummary(
   state: DungeonDomainState | null,
   presentation: ContinuePresentation = {},
 ): void {
+  elements.welcomeSave.hidden = state === null;
   if (!state) {
-    elements.welcomeSaveTitle.textContent = "No active descent";
-    elements.welcomeSaveDetails.textContent = "Open the gates to begin your first escape.";
-    elements.welcomeSaveMeta.textContent = "CONTINUE LOCKED · NEW DESCENT AVAILABLE";
+    elements.welcomeSaveTitle.textContent = "";
+    elements.welcomeSaveDetails.textContent = "";
+    elements.welcomeSaveMeta.textContent = "";
     return;
   }
   elements.welcomeSaveTitle.textContent = continueDungeonLabel(state, presentation);
@@ -978,7 +925,7 @@ function persistPlayerIdentity(nameInput: unknown, avatarIndex: number): boolean
 }
 
 function syncWelcomeLeaderboardVisibility(): boolean {
-  const visible = Boolean(playerProfile?.hasCompletedRun && !elements.welcomeHome.hidden);
+  const visible = welcomeOpen;
   elements.welcomeLeaderboard.hidden = !visible;
   elements.welcomeContent.classList.toggle("is-ranked", visible);
   return visible;
@@ -1038,6 +985,7 @@ function setWelcomeOpen(open: boolean): void {
     audio.setPaused(true);
     setMusicBed("menu");
     showWelcomeHome();
+    void refreshLeaderboard();
     window.requestAnimationFrame(focusWelcomeEntry);
   } else {
     elements.scene.focus({ preventScroll: true });
@@ -1057,7 +1005,7 @@ function showWelcomeHome(): void {
   elements.welcomeHome.hidden = false;
   elements.welcomeProfile.hidden = true;
   elements.welcomeBiomePicker.hidden = true;
-  if (syncWelcomeLeaderboardVisibility()) void refreshLeaderboard();
+  syncWelcomeLeaderboardVisibility();
 }
 
 function storedLeaderboardName(): string | null {
@@ -1381,6 +1329,8 @@ function resolveIntroThemeKey(): string {
 
 const runIntroDirector = new RunIntroDirector({
   prepare(request) {
+    const trace = runIntroLoadTraces.get(request);
+    activeRunIntroTrace = trace && dungeonLoadTraces.isActive(trace) ? trace : undefined;
     campaignClearRecordedForRun = false;
     continueRecoveryOverride = null;
     elements.shell.dataset.runIntroInputGate = "true";
@@ -1434,9 +1384,15 @@ const runIntroDirector = new RunIntroDirector({
   },
   async buildWorld(seed, signal) {
     if (signal.aborted) return { ok: false, message: "cancelled" };
+    const trace = activeRunIntroTrace;
+    if (!trace || !dungeonLoadTraces.isActive(trace)) {
+      return { ok: false, message: "cancelled" };
+    }
     try {
-      await buildDungeon(seed);
-      if (signal.aborted) return { ok: false, message: "cancelled" };
+      await buildDungeon(seed, {}, trace);
+      if (signal.aborted || !dungeonLoadTraces.isActive(trace)) {
+        return { ok: false, message: "cancelled" };
+      }
       if (!dungeon) return { ok: false, message: "Could not generate the dungeon." };
       return { ok: true, dungeon };
     } catch (error) {
@@ -1471,7 +1427,12 @@ const runIntroDirector = new RunIntroDirector({
     }
     if (signal.aborted) return;
     delete elements.shell.dataset.runIntroInputGate;
-    controller.setEnabled(canEnablePlayController());
+    const inputEnabled = canEnablePlayController();
+    controller.setEnabled(inputEnabled);
+    const trace = activeRunIntroTrace;
+    if (inputEnabled && trace && trace === rendererWarmupTrace) {
+      markDungeonLoadInputReady(trace);
+    }
     for (let attempt = 0; attempt < 4 && !signal.aborted; attempt += 1) {
       elements.scene.focus({ preventScroll: true });
       if (document.activeElement === elements.scene) return;
@@ -1479,6 +1440,7 @@ const runIntroDirector = new RunIntroDirector({
     }
   },
   recoverToWelcome(message) {
+    finishDungeonLoadTrace(activeRunIntroTrace, "error", message ?? "Run intro recovery");
     delete elements.shell.dataset.runIntroInputGate;
     setIntroTheaterRevealed(false);
     setSceneLoaderVisible(false);
@@ -1488,6 +1450,11 @@ const runIntroDirector = new RunIntroDirector({
     if (message) setStatus(message);
   },
   resetIntro(destination) {
+    finishDungeonLoadTrace(
+      activeRunIntroTrace,
+      destination === "superseded" ? "superseded" : "error",
+      `Run intro ${destination}`,
+    );
     controller.setEnabled(false);
     if (destination !== "superseded") delete elements.shell.dataset.runIntroInputGate;
     setIntroTheaterRevealed(false);
@@ -1508,13 +1475,27 @@ function startPlayWithSeed(
   options: { refreshProcedural?: boolean; runSource?: RunSource } = {},
 ): Promise<RunIntroResult> {
   const normalizedSeed = seed.trim() || COPY.hud.seedDefault;
-  return runIntroDirector.start({
+  const request: RunIntroRequest = {
     seed: normalizedSeed,
     runSource: options.runSource,
     themeKey: resolveIntroThemeKey(),
     refreshProcedural: options.refreshProcedural,
     skip: launchConfig.skipRunIntro,
     reducedMotion: REDUCED_MOTION_QUERY.matches,
+  };
+  const trace = openDungeonLoadTrace();
+  runIntroLoadTraces.set(request, trace);
+  return runIntroDirector.start(request).then((result) => {
+    if (result.kind === "failed") {
+      finishDungeonLoadTrace(trace, "error", result.message);
+    } else if (result.kind === "cancelled") {
+      finishDungeonLoadTrace(
+        trace,
+        result.reason === "superseded" ? "superseded" : "error",
+        `Run intro ${result.reason}`,
+      );
+    }
+    return result;
   });
 }
 
@@ -1549,110 +1530,18 @@ function cycleLeaderboardPortrait(): void {
 }
 
 function renderLeaderboard(entries: readonly LeaderboardEntry[]): void {
-  const fragment = document.createDocumentFragment();
-  for (const entry of entries) {
-    const portrait =
-      entry.portraitIndex !== undefined && entry.portraitIndex !== null
-        ? portraitForIndex(entry.portraitIndex)
-        : portraitForName(entry.playerName);
-    const frame = frameForRank(entry.rank);
-    const playerStars = playerBiomeStars[entry.playerName] ?? {};
-    const starTokens = expandBiomeStars(playerStars);
-    const item = document.createElement("li");
-    const face = document.createElement("div");
-    const portraitImg = document.createElement("img");
-    const frameImg = document.createElement("img");
-    const rank = document.createElement("span");
-    const body = document.createElement("div");
-    const top = document.createElement("div");
-    const nameBlock = document.createElement("div");
-    const name = document.createElement("span");
-    const stars = document.createElement("div");
-    const score = document.createElement("span");
-    const meta = document.createElement("div");
-    const time = document.createElement("span");
-    const biome = document.createElement("span");
-    const seed = document.createElement("button");
-
-    item.className = `leaderboard-entry is-${frame.kind}`;
-    face.className = `leaderboard-face is-${frame.kind}`;
-    portraitImg.className = "leaderboard-portrait";
-    frameImg.className = "leaderboard-frame";
-    rank.className = "leaderboard-rank";
-    body.className = "leaderboard-body";
-    top.className = "leaderboard-top";
-    nameBlock.className = "leaderboard-name-block";
-    name.className = "leaderboard-name";
-    stars.className = "leaderboard-stars";
-    score.className = "leaderboard-score";
-    meta.className = "leaderboard-meta";
-    time.className = "leaderboard-time";
-    biome.className = "leaderboard-biome";
-    seed.className = "leaderboard-seed";
-    seed.type = "button";
-
-    const escapeTime = formatTime(entry.durationMs / 1000);
-    portraitImg.src = portrait.src;
-    portraitImg.alt = "";
-    portraitImg.decoding = "async";
-    portraitImg.loading = "lazy";
-    portraitImg.draggable = false;
-    frameImg.src = frame.src;
-    frameImg.alt = "";
-    frameImg.decoding = "async";
-    frameImg.loading = "lazy";
-    frameImg.draggable = false;
-    frameImg.setAttribute("aria-hidden", "true");
-    rank.textContent = String(entry.rank);
-    rank.setAttribute("aria-label", COPY.leaderboard.rankLabel(entry.rank));
-    name.textContent = entry.playerName;
-    name.title = `${entry.biome} · ${entry.difficulty}`;
-    if (starTokens.length > 0) {
-      const counts = Object.entries(playerStars)
-        .filter(([, count]) => count > 0)
-        .map(([biomeLabel, count]) => `${biomeLabel}: ${count}`)
-        .join(" · ");
-      stars.title = counts;
-      stars.setAttribute("aria-label", `Biome stars: ${counts}`);
-      for (const token of starTokens) {
-        const star = document.createElement("span");
-        star.className = "leaderboard-star";
-        if (token.id) star.dataset.biome = token.id;
-        star.textContent = "★";
-        star.style.color = token.color;
-        star.title = token.label;
-        stars.append(star);
-      }
-    } else {
-      stars.hidden = true;
-    }
-    score.textContent = entry.score.toLocaleString("en-US");
-    score.title = "Score";
-    time.textContent = escapeTime;
-    time.title = "Escape time";
-    biome.textContent = entry.biome;
-    biome.title = "Biome";
-    seed.textContent = entry.seed;
-    seed.title = COPY.leaderboard.playSeed(entry.seed);
-    seed.setAttribute("aria-label", COPY.leaderboard.playSeed(entry.seed));
-    seed.addEventListener("click", (event) => {
-      event.preventDefault();
+  renderWelcomeLeaderboard({
+    list: elements.leaderboardList,
+    entries,
+    playerBiomeStars,
+    onPlaySeed: (entry) => {
       forcedPlayMoodId =
         listBiomeIdentities().find((biomeIdentity) => biomeIdentity.label === entry.biome)?.id ??
         null;
       // Hall seeds are campaign attempts — still rank on escape.
       void startPlayWithSeed(entry.seed, { runSource: "campaign" });
-    });
-
-    face.append(portraitImg, frameImg, rank);
-    nameBlock.append(name, stars);
-    top.append(nameBlock, score);
-    meta.append(time, biome, seed);
-    body.append(top, meta);
-    item.append(face, body);
-    fragment.append(item);
-  }
-  elements.leaderboardList.replaceChildren(fragment);
+    },
+  });
 }
 
 async function refreshLeaderboard(): Promise<void> {
@@ -1760,7 +1649,6 @@ function prepareLeaderboardSubmission(
 function canEnablePlayController(): boolean {
   return (
     elements.shell.dataset.runIntroInputGate !== "true" &&
-    !floorTransitionInputBlocked &&
     !welcomeOpen &&
     renderWarmupReady &&
     engineMode === "play" &&
@@ -1769,6 +1657,7 @@ function canEnablePlayController(): boolean {
 }
 
 function beginRendererWarmup(): number {
+  rendererWarmupTrace = undefined;
   renderWarmupSequence += 1;
   renderWarmupReady = false;
   elements.shell.dataset.rendererReady = "false";
@@ -1779,18 +1668,26 @@ function beginRendererWarmup(): number {
   return renderWarmupSequence;
 }
 
+function isCurrentRendererWarmup(sequence: number, trace: DungeonLoadTrace | undefined): boolean {
+  return sequence === renderWarmupSequence && rendererWarmupTrace === trace;
+}
+
 function markRendererWarmupReady(
   sequence: number,
   state: "true" | "error" | "timeout",
   readyMessage: string,
   detail?: string,
   readyMs?: number,
+  trace?: DungeonLoadTrace,
 ): void {
-  if (sequence !== renderWarmupSequence || renderWarmupReady) return;
+  if (!isCurrentRendererWarmup(sequence, trace) || renderWarmupReady) return;
   renderWarmupReady = true;
   elements.shell.dataset.rendererReady = state;
-  controller.setEnabled(canEnablePlayController());
+  trace?.end("warmup");
+  const inputEnabled = canEnablePlayController();
+  controller.setEnabled(inputEnabled);
   if (state === "error") {
+    finishDungeonLoadTrace(trace, "error", detail);
     console.error("Dungeon renderer warmup failed", detail);
     if (localDevTools) {
       setStatus(`${readyMessage} Renderer warmup failed: ${detail ?? "unknown error"}.`);
@@ -1802,11 +1699,13 @@ function markRendererWarmupReady(
     return;
   }
   if (state === "timeout") {
+    finishDungeonLoadTrace(trace, "timeout", detail);
     if (localDevTools) setStatus(`${readyMessage} Renderer warmup timed out.`);
     else if (engineMode === "play") setStatus(COPY.status.enterPlay);
     else setStatus(readyMessage);
     return;
   }
+  if (inputEnabled) markDungeonLoadInputReady(trace);
   elements.shell.dataset.renderPath = renderCaps.telemetryPath;
   if (localDevTools && readyMs !== undefined) {
     setStatus(`${readyMessage} Renderer ready in ${readyMs}ms.`);
@@ -1817,19 +1716,34 @@ function markRendererWarmupReady(
   }
 }
 
-function startRendererWarmup(sequence: number, readyMessage: string): void {
+function startRendererWarmup(
+  sequence: number,
+  readyMessage: string,
+  trace?: DungeonLoadTrace,
+): void {
+  if (sequence !== renderWarmupSequence) {
+    finishDungeonLoadTrace(trace, "superseded");
+    return;
+  }
+  if (trace && !dungeonLoadTraces.isActive(trace)) return;
+  rendererWarmupTrace = trace;
+  if (trace && !trace.begin("warmup")) {
+    finishDungeonLoadTrace(trace, "error", "Dungeon renderer warmup could not start.");
+    return;
+  }
   if (localDevTools) setStatus("Preparing renderer...");
   // Never leave the load cover waiting forever if rAF is delayed or the first
   // draw stalls. Parents (intro / rebuild cover) wait on renderWarmupReady.
   const failsafe = window.setTimeout(() => {
-    markRendererWarmupReady(sequence, "timeout", readyMessage);
+    markRendererWarmupReady(sequence, "timeout", readyMessage, undefined, undefined, trace);
   }, 4_000);
   // Split warmup across two frames: first forces dormant VFX into the graph,
   // second compiles/draws. That keeps the longest main-thread task shorter than
   // a single combined setVisible+render long task without dropping programs.
   window.requestAnimationFrame(() => {
-    if (sequence !== renderWarmupSequence) {
+    if (!isCurrentRendererWarmup(sequence, trace)) {
       window.clearTimeout(failsafe);
+      finishDungeonLoadTrace(trace, "superseded");
       return;
     }
     const startedAt = performance.now();
@@ -1838,13 +1752,13 @@ function startRendererWarmup(sequence: number, readyMessage: string): void {
     } catch (error) {
       window.clearTimeout(failsafe);
       const detail = error instanceof Error ? error.message : "unknown error";
-      markRendererWarmupReady(sequence, "error", readyMessage, detail);
+      markRendererWarmupReady(sequence, "error", readyMessage, detail, undefined, trace);
       return;
     }
     window.requestAnimationFrame(() => {
-      if (sequence !== renderWarmupSequence) {
-        world.setPickupEffectsWarmupVisible(false);
+      if (!isCurrentRendererWarmup(sequence, trace)) {
         window.clearTimeout(failsafe);
+        finishDungeonLoadTrace(trace, "superseded");
         return;
       }
       let warmupError: unknown = null;
@@ -1852,16 +1766,21 @@ function startRendererWarmup(sequence: number, readyMessage: string): void {
         // Draw only the live frame. Explicit scene precompile also registers
         // offscreen variants whose program handles can outlive a replaced world.
         povPost.render(renderer, scene, camera);
+        trace?.markFirstUsableFrame();
       } catch (error) {
         warmupError = error;
-      } finally {
+      }
+      try {
         world.setPickupEffectsWarmupVisible(false);
+      } catch (error) {
+        if (warmupError === null) warmupError = error;
+      } finally {
         window.clearTimeout(failsafe);
       }
 
       if (warmupError !== null) {
         const detail = warmupError instanceof Error ? warmupError.message : "unknown error";
-        markRendererWarmupReady(sequence, "error", readyMessage, detail);
+        markRendererWarmupReady(sequence, "error", readyMessage, detail, undefined, trace);
         return;
       }
       markRendererWarmupReady(
@@ -1870,6 +1789,7 @@ function startRendererWarmup(sequence: number, readyMessage: string): void {
         readyMessage,
         undefined,
         Math.round(performance.now() - startedAt),
+        trace,
       );
     });
   });
@@ -1959,16 +1879,8 @@ function applyPersistedRunSession(plan: RunResumeActivationPlan): void {
   applyRunResumePlan(plan, false);
   if (plan.playerPose) syncDomainExplore();
   lastRunTimerSecond = -1;
-  timeFreezeChip.reset();
-  luminousWardChip.reset();
-  annihilationPulseChip.reset();
-  cullBrandChip.reset();
-  fogClearChip.reset();
-  mobilityChip.reset();
-  resetCurseHud();
-  syncCurseHud();
-  syncCullBrandHud();
-  syncPhoenixHud();
+  playStatusHud.reset();
+  syncPlayStatusHud();
   syncRunTimer();
   controller.setSolidColliders(world.getSolidColliders());
   elements.shell.dataset.mode = state.runMode;
@@ -2041,6 +1953,11 @@ function resumePlay(): void {
 
 let mapRebuildPending = false;
 
+function cancelRunIntroBeforeDirectDungeonBuild(trace?: DungeonLoadTrace): boolean {
+  if (trace || (!isRunIntroActive() && !activeRunIntroTrace)) return false;
+  return runIntroDirector.cancel();
+}
+
 /**
  * End-overlay and pause-menu rebuilds swap the whole world.
  * Cover the swap with the scene fade + loader and hold it until the new
@@ -2048,6 +1965,7 @@ let mapRebuildPending = false;
  */
 async function rebuildDungeonCovered(build: () => void | Promise<unknown>): Promise<void> {
   if (mapRebuildPending) return;
+  if (cancelRunIntroBeforeDirectDungeonBuild()) return;
   mapRebuildPending = true;
   controller.setEnabled(false);
   try {
@@ -2106,7 +2024,7 @@ function returnToMainScreen(): void {
       biomeId: forcedPlayMoodId ?? (dungeon ? resolveActiveMood(dungeon).id : undefined),
     });
   } else {
-    setContinueCandidate(null, "No active saved run. Start a new descent.");
+    setContinueCandidate(null, "");
   }
   syncWelcomeArt();
   setWelcomeOpen(true);
@@ -2147,39 +2065,15 @@ function syncRunTimer(snapshot = world.getDifficultyState()): void {
   elements.shell.dataset.pressure = String(snapshot.pressureLevel);
 }
 
-function syncTimeFreezeHud(remaining = world.timeFreezeRemaining): void {
-  timeFreezeChip.sync(remaining);
-}
-
-function syncLuminousWardHud(remaining = world.luminousWardRemaining): void {
-  luminousWardChip.sync(remaining);
-}
-
-function syncAnnihilationPulseHud(remaining = world.annihilationPulseRemaining): void {
-  annihilationPulseChip.sync(remaining);
-}
-
-function syncCullBrandHud(remaining = world.cullBrandRemaining): void {
-  cullBrandChip.sync(remaining);
-}
-
-function syncPhoenixHud(charges = world.phoenixChargeCount): void {
-  const armed = charges > 0;
-  elements.phoenixStatus.hidden = !armed;
-  elements.shell.dataset.phoenix = armed ? "true" : "false";
-}
-
-function syncFogClearHud(remaining = world.fogClearRemaining): void {
-  fogClearChip.sync(remaining);
-  atmosphere.setFogClearPulse(remaining > 0 ? 1 : 0);
-}
-
-function syncMobilityHud(remaining = world.mobilityBoostRemaining): void {
-  mobilityChip.sync(remaining);
-}
-
-function syncCurseHud(
+function syncPlayStatusHud(
   remaining: {
+    timeFreeze?: number;
+    luminousWard?: number;
+    annihilationPulse?: number;
+    cullBrand?: number;
+    fogClear?: number;
+    mobility?: number;
+    phoenixCharges?: number;
     slow?: number;
     frenzy?: number;
     gloom?: number;
@@ -2188,12 +2082,25 @@ function syncCurseHud(
     spin?: number;
   } = {},
 ): void {
-  slowCurseChip.sync(remaining.slow ?? world.slowCurseRemaining);
-  frenzyCurseChip.sync(remaining.frenzy ?? world.frenzyCurseRemaining);
-  gloomCurseChip.sync(remaining.gloom ?? world.gloomCurseRemaining);
-  mirrorCurseChip.sync(remaining.mirror ?? world.mirrorCurseRemaining);
-  spinCurseChip.sync(remaining.spin ?? world.spinCurseRemaining);
-  syncSwarmCurseHud(remaining.swarm ?? world.isSwarmCurseActive);
+  playStatusHud.sync({
+    timeFreeze: remaining.timeFreeze ?? world.timeFreezeRemaining,
+    luminousWard: remaining.luminousWard ?? world.luminousWardRemaining,
+    annihilationPulse: remaining.annihilationPulse ?? world.annihilationPulseRemaining,
+    cullBrand: remaining.cullBrand ?? world.cullBrandRemaining,
+    fogClear: remaining.fogClear ?? world.fogClearRemaining,
+    mobility: remaining.mobility ?? world.mobilityBoostRemaining,
+    phoenixCharges: remaining.phoenixCharges ?? world.phoenixChargeCount,
+    slow: remaining.slow ?? world.slowCurseRemaining,
+    frenzy: remaining.frenzy ?? world.frenzyCurseRemaining,
+    gloom: remaining.gloom ?? world.gloomCurseRemaining,
+    swarm: remaining.swarm ?? world.isSwarmCurseActive,
+    mirror: remaining.mirror ?? world.mirrorCurseRemaining,
+    spin: remaining.spin ?? world.spinCurseRemaining,
+  });
+}
+
+function syncPhoenixHud(charges = world.phoenixChargeCount): void {
+  playStatusHud.sync({ phoenixCharges: charges });
 }
 
 /**
@@ -2907,6 +2814,71 @@ function publishMapLoadTelemetry(metrics: {
   }
 }
 
+function publishDungeonLoadTrace(snapshot: DungeonLoadTraceSnapshot): void {
+  const dataset = elements.scene.dataset;
+  dataset.dungeonLoadId = snapshot.loadId;
+  dataset.dungeonLoadState = snapshot.terminal;
+  dataset.dungeonLoadTerminal = snapshot.terminal;
+  dataset.dungeonLoadTrace = JSON.stringify(snapshot);
+  console.info("[dungeon-load]", snapshot);
+}
+
+function clearRendererWarmupTrace(trace: DungeonLoadTrace): void {
+  if (rendererWarmupTrace === trace) rendererWarmupTrace = undefined;
+}
+
+function clearActiveRunIntroTrace(trace: DungeonLoadTrace): void {
+  if (activeRunIntroTrace === trace) activeRunIntroTrace = undefined;
+}
+
+function openDungeonLoadTrace(): DungeonLoadTrace {
+  const previous = dungeonLoadTraces.active();
+  const { trace, superseded } = dungeonLoadTraces.open();
+  if (previous) {
+    clearRendererWarmupTrace(previous);
+    clearActiveRunIntroTrace(previous);
+  }
+  if (superseded) console.info("[dungeon-load]", superseded);
+  const dataset = elements.scene.dataset;
+  dataset.dungeonLoadId = trace.loadId;
+  dataset.dungeonLoadState = "active";
+  delete dataset.dungeonLoadTerminal;
+  delete dataset.dungeonLoadTrace;
+  return trace;
+}
+
+function finishDungeonLoadTrace(
+  trace: DungeonLoadTrace | undefined,
+  terminal: DungeonLoadTerminal,
+  detail?: string,
+): void {
+  if (!trace) return;
+  const snapshot = dungeonLoadTraces.finish(trace, terminal, detail);
+  if (!snapshot) return;
+  clearRendererWarmupTrace(trace);
+  clearActiveRunIntroTrace(trace);
+  publishDungeonLoadTrace(snapshot);
+}
+
+function markDungeonLoadInputReady(trace: DungeonLoadTrace | undefined): void {
+  if (!trace) return;
+  const snapshot = dungeonLoadTraces.complete(trace);
+  if (!snapshot) return;
+  clearRendererWarmupTrace(trace);
+  clearActiveRunIntroTrace(trace);
+  publishDungeonLoadTrace(snapshot);
+}
+
+function markCurrentRendererWarmupInputReady(): void {
+  const trace = rendererWarmupTrace;
+  if (trace) markDungeonLoadInputReady(trace);
+}
+
+function supersedeActiveDungeonLoadTrace(detail: string): void {
+  const trace = dungeonLoadTraces.active();
+  if (trace) finishDungeonLoadTrace(trace, "superseded", detail);
+}
+
 async function activateDungeon(
   nextDungeon: DungeonData,
   message: string,
@@ -2915,7 +2887,9 @@ async function activateDungeon(
     persistBuild?: boolean;
     restore?: RunResumeActivationPlan;
   } = {},
+  trace?: DungeonLoadTrace,
 ): Promise<DungeonRuntimeState> {
+  if (trace && !dungeonLoadTraces.isActive(trace)) return getRuntimeState();
   const persistBuild = options.persistBuild ?? true;
   if (persistBuild) {
     const captured = domainBridge.captureBuild({
@@ -2929,7 +2903,7 @@ async function activateDungeon(
       throw error;
     }
   }
-  // Parent covers (intro, floor transition, rebuildDungeonCovered) own reveal.
+  // Parent covers (intro and rebuildDungeonCovered) own reveal.
   // Never self-own a cover-and-wait here: that deadlocked first-map loads when
   // the warmup rAF and the waiter both stalled behind the same fade.
   // Only re-show the spinner while a black cover is already up for a real build.
@@ -2958,17 +2932,20 @@ async function activateDungeon(
   const worldStartedAt = performance.now();
   const stack =
     campaignFloorSet && campaignFloorSet.count > 1 ? campaignFloorSet.allFloors() : undefined;
-  let state = await playRuntime.loadWithYield({ dungeon, mood, stack }, yieldIfCovered);
+  let state = await playRuntime.loadWithYield(
+    { dungeon, mood, stack, loadTrace: trace },
+    yieldIfCovered,
+  );
+  if (trace && !dungeonLoadTraces.isActive(trace)) return getRuntimeState();
   const worldBuildMs = performance.now() - worldStartedAt;
   // Only re-upload textures whose sampling filters actually changed.
-  applyTextureSmoothing(scene, userSettings.textureSmoothing);
-  timeFreezeChip.reset();
-  luminousWardChip.reset();
-  annihilationPulseChip.reset();
-  cullBrandChip.reset();
-  fogClearChip.reset();
-  mobilityChip.reset();
-  resetCurseHud();
+  trace?.begin("texturePolicy");
+  try {
+    textureRegistry.setSmoothing(userSettings.textureSmoothing);
+  } finally {
+    trace?.end("texturePolicy");
+  }
+  playStatusHud.reset();
   syncBiomeEvent();
   controller.setSurfaceMovement(1, 1);
   controller.setControlMods({});
@@ -2980,10 +2957,16 @@ async function activateDungeon(
   elements.healthOrb.dataset.damageKind = "enemy";
   lastRunTimerSecond = -1;
   syncRunTimer();
+  trace?.begin("atmosphere");
   const atmosphereStartedAt = performance.now();
-  atmosphere.setDungeon(dungeon, mood);
+  try {
+    atmosphere.setDungeon(dungeon, mood);
+  } finally {
+    trace?.end("atmosphere");
+  }
   const atmosphereMs = performance.now() - atmosphereStartedAt;
   await yieldIfCovered();
+  if (trace && !dungeonLoadTraces.isActive(trace)) return getRuntimeState();
   controller.setDungeon(dungeon);
   controller.setBlockedCells([]);
   controller.setSolidColliders(world.getSolidColliders());
@@ -3002,7 +2985,12 @@ async function activateDungeon(
   }
   if (options.restore?.playerPose) syncDomainExplore();
   controller.setEnabled(canEnablePlayController());
-  editorView.setDungeon(dungeon, mood);
+  trace?.begin("editorProjection");
+  try {
+    editorView.setDungeon(dungeon, mood);
+  } finally {
+    trace?.end("editorProjection");
+  }
   setEditorSurfaceStatus(
     "runtime",
     `PLAY MAP · FLOOR ${nextDungeon.floor?.number ?? 1}/${nextDungeon.floor?.count ?? 1} · ${nextDungeon.stats.roomCount} ROOMS · ${nextDungeon.stats.loopCount} LOOPS`,
@@ -3031,12 +3019,7 @@ async function activateDungeon(
   if (state.runMode === "playing") closeEndOverlay();
   else showEndOverlay(state.runMode);
   updateResolve();
-  syncTimeFreezeHud();
-  syncLuminousWardHud();
-  syncAnnihilationPulseHud();
-  syncFogClearHud();
-  syncMobilityHud();
-  syncCurseHud();
+  syncPlayStatusHud();
   updateObjective();
   // Intro objective: appears at run start, then fades so the scene stays clean.
   if (engineMode === "play" && state.runMode === "playing" && !state.quest.portalOpen) {
@@ -3064,7 +3047,7 @@ async function activateDungeon(
     textures: renderer.info.memory.textures,
     programs: renderer.info.programs?.length ?? 0,
   });
-  startRendererWarmup(warmupSequence, message);
+  startRendererWarmup(warmupSequence, message, trace);
   if (persistBuild) {
     runHasStarted = true;
     domainBridge.syncSession(playRuntime.snapshot());
@@ -3079,11 +3062,15 @@ async function buildDungeon(
     persistBuild?: boolean;
     restore?: RunResumeActivationPlan;
   } = {},
+  trace?: DungeonLoadTrace,
 ): Promise<DungeonRuntimeState> {
+  if (cancelRunIntroBeforeDirectDungeonBuild(trace)) return getRuntimeState();
+  const loadTrace = trace ?? openDungeonLoadTrace();
+  if (!dungeonLoadTraces.isActive(loadTrace)) return getRuntimeState();
   povPost.resetCrtHistory();
   const normalizedSeed = seed.trim() || COPY.hud.seedDefault;
-  const params = readEditorParams();
   try {
+    const params = readEditorParams();
     const generationOptions = {
       roomTarget: params.roomTarget,
       extraConnectionRate: params.loopRate / 100,
@@ -3101,46 +3088,52 @@ async function buildDungeon(
           parseDungeonMoodId(launchConfig.mood))
         : null;
     let generated: DungeonData;
-    if (runSource === "campaign" && requestedCampaignMood) {
-      const rootSeed = options.restore?.generation.seed ?? normalizedSeed;
-      const floorCount = biomeCampaignFloorCount(requestedCampaignMood);
-      campaignFloorSet = createDungeonFloorCampaign(rootSeed, generationOptions, floorCount);
-      const activeFloorIndex = Math.min(
-        floorCount - 1,
-        Math.max(0, options.restore?.generation.activeFloor ?? 0),
-      );
-      generated = campaignFloorSet.floor(activeFloorIndex)!;
-    } else {
-      generated = generateCompletableDungeon(normalizedSeed, generationOptions);
-      if (runSource === "campaign" && !generated.forge) {
+    loadTrace.begin("generation");
+    try {
+      if (runSource === "campaign" && requestedCampaignMood) {
         const rootSeed = options.restore?.generation.seed ?? normalizedSeed;
-        if (rootSeed !== normalizedSeed) {
-          generated = generateCompletableDungeon(rootSeed, generationOptions);
-        }
-        const moodId = resolveActiveMood(generated).id;
-        const floorCount = biomeCampaignFloorCount(moodId);
-        campaignFloorSet = createDungeonFloorCampaign(
-          rootSeed,
-          generationOptions,
-          floorCount,
-          generated,
-        );
+        const floorCount = biomeCampaignFloorCount(requestedCampaignMood);
+        campaignFloorSet = createDungeonFloorCampaign(rootSeed, generationOptions, floorCount);
         const activeFloorIndex = Math.min(
           floorCount - 1,
           Math.max(0, options.restore?.generation.activeFloor ?? 0),
         );
         generated = campaignFloorSet.floor(activeFloorIndex)!;
       } else {
-        campaignFloorSet = null;
+        generated = generateCompletableDungeon(normalizedSeed, generationOptions);
+        if (runSource === "campaign" && !generated.forge) {
+          const rootSeed = options.restore?.generation.seed ?? normalizedSeed;
+          if (rootSeed !== normalizedSeed) {
+            generated = generateCompletableDungeon(rootSeed, generationOptions);
+          }
+          const moodId = resolveActiveMood(generated).id;
+          const floorCount = biomeCampaignFloorCount(moodId);
+          campaignFloorSet = createDungeonFloorCampaign(
+            rootSeed,
+            generationOptions,
+            floorCount,
+            generated,
+          );
+          const activeFloorIndex = Math.min(
+            floorCount - 1,
+            Math.max(0, options.restore?.generation.activeFloor ?? 0),
+          );
+          generated = campaignFloorSet.floor(activeFloorIndex)!;
+        } else {
+          campaignFloorSet = null;
+        }
       }
+    } finally {
+      loadTrace.end("generation");
     }
     const mood = resolveActiveMood(generated);
     const statusMessage = localDevTools
       ? COPY.status.generation(params.profile, mood.label)
       : COPY.status.generationPlayer(mood.label);
-    return await activateDungeon(generated, statusMessage, params, options);
+    return await activateDungeon(generated, statusMessage, params, options, loadTrace);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Could not generate the dungeon.";
+    finishDungeonLoadTrace(loadTrace, "error", message);
     setEditorSurfaceStatus("runtime", "PLAY MAP · GENERATION FAILED", "error");
     setStatus(message);
     throw error;
@@ -3170,6 +3163,7 @@ function applyForgeDungeon(): void {
   if (!forgeIntake) return;
   void (async () => {
     if (!forgeIntake) return;
+    const trace = openDungeonLoadTrace();
     try {
       const imported = forgePreviewDungeon ?? forgeIntake.dungeon;
       const { params } = forgeIntake;
@@ -3180,6 +3174,8 @@ function applyForgeDungeon(): void {
         imported,
         `${imported.forge?.name ?? "Dungeon Creation"} · ${mood.label} ready to play.`,
         params,
+        {},
+        trace,
       );
       setContinueCandidate(null, "Imported Forge maps are session-only.");
       setEngineMode("play");
@@ -3189,6 +3185,7 @@ function applyForgeDungeon(): void {
     } catch (error) {
       const message =
         error instanceof Error ? error.message : "Could not load the Dungeon Creation map.";
+      finishDungeonLoadTrace(trace, "error", message);
       setEditorSurfaceStatus("forge", message.toUpperCase(), "error");
       setStatus(message);
     }
@@ -3211,19 +3208,14 @@ function selectEditorSpawn(cell: { x: number; y: number }): void {
     flash();
     return;
   }
+  supersedeActiveDungeonLoadTrace("Editor spawn swap replaced the pending dungeon load.");
   const warmupSequence = beginRendererWarmup();
   dungeon = setDungeonSpawn(dungeon, cell);
   const mood = applyDungeonMood(dungeon);
   applyAtmosphereFromParams();
   const state = playRuntime.load({ dungeon, mood, persisted: playRuntime.snapshot() });
-  applyTextureSmoothing(scene, userSettings.textureSmoothing);
-  timeFreezeChip.reset();
-  luminousWardChip.reset();
-  annihilationPulseChip.reset();
-  cullBrandChip.reset();
-  fogClearChip.reset();
-  mobilityChip.reset();
-  resetCurseHud();
+  textureRegistry.setSmoothing(userSettings.textureSmoothing);
+  playStatusHud.reset();
   lastRunTimerSecond = -1;
   atmosphere.setDungeon(dungeon, mood);
   controller.setDungeon(dungeon);
@@ -3244,12 +3236,7 @@ function selectEditorSpawn(cell: { x: number; y: number }): void {
   updateResolve();
   updateObjective();
   syncRunTimer();
-  syncTimeFreezeHud();
-  syncLuminousWardHud();
-  syncAnnihilationPulseHud();
-  syncFogClearHud();
-  syncMobilityHud();
-  syncCurseHud();
+  syncPlayStatusHud();
   updateReadout();
   drawMap();
   setStatus(`Spawn set to ${formatCell(cell)}. Exit was recalculated.`);
@@ -3307,7 +3294,11 @@ function setEngineMode(
     button.setAttribute("aria-pressed", String(active));
   });
   controller.releasePointerLock();
-  if (!options.deferController) controller.setEnabled(canEnablePlayController());
+  if (!options.deferController) {
+    const inputEnabled = canEnablePlayController();
+    controller.setEnabled(inputEnabled);
+    if (inputEnabled) markCurrentRendererWarmupInputReady();
+  }
   elements.editorWorkspace.hidden = !external;
   elements.debugPanel.hidden = nextMode !== "debug";
   // Creation/Debug: Map Tools only when local developer chrome is on.
@@ -4056,7 +4047,8 @@ elements.effectsVolume.addEventListener("change", () => playCue("uiTick"));
 elements.textureSmoothingToggle.addEventListener("click", () => {
   const textureSmoothing = !userSettings.textureSmoothing;
   updateUserSettings({ textureSmoothing });
-  const textureCount = applyTextureSmoothing(scene, textureSmoothing);
+  textureRegistry.setSmoothing(textureSmoothing);
+  const textureCount = textureRegistry.diagnostics().registered;
   syncTextureSmoothingUi();
   setStatus(`Texture smoothing ${textureSmoothing ? "on" : "off"} · ${textureCount} textures.`);
 });
@@ -4172,132 +4164,6 @@ const minimapResizeObserver = new ResizeObserver(() => scheduleMinimapLayout());
 minimapResizeObserver.observe(elements.minimap);
 window.addEventListener("resize", resize);
 
-interface PreparedFloorTransition {
-  targetFloor: number;
-  direction: "up" | "down";
-  targetDungeon: DungeonData;
-  floorCount: number;
-  previousDomain: DungeonDomainState;
-  resume: LocalRunResumeState;
-  restore: RunResumeActivationPlan;
-  runSource: RunSource;
-}
-
-const floorTransitions = new FloorTransitionDirector<PreparedFloorTransition>({
-  prepare(request) {
-    if (!campaignFloorSet || !dungeon?.floor) return { ok: false, reason: "not-ready" };
-    if (
-      !Number.isInteger(request.targetFloor) ||
-      request.targetFloor < 0 ||
-      request.targetFloor >= campaignFloorSet.count
-    ) {
-      return { ok: false, reason: "invalid-target" };
-    }
-    const currentFloor = dungeon.floor.index;
-    const targetDungeon = campaignFloorSet.floor(request.targetFloor);
-    const resume = captureLocalRunResume();
-    if (!targetDungeon || !resume) return { ok: false, reason: "not-ready" };
-    const entryStair = targetDungeon.floor?.stairs.find(
-      (stair) => stair.targetFloor === currentFloor,
-    );
-    if (!entryStair) return { ok: false, reason: "missing-linked-stair" };
-
-    const entry = gridToWorld(targetDungeon, entryStair.cell, TILE_SIZE);
-    const previousDomain = currentDomainSave();
-    const restore = planFloorTransition({
-      domain: previousDomain,
-      resume,
-      destination: {
-        floorIndex: request.targetFloor,
-        entryCell: entryStair.cell,
-        position: { x: entry.x, y: PLAYER_COMBAT_EYE_HEIGHT, z: entry.z },
-        yaw: entryStair.yaw + Math.PI,
-        pitch: 0,
-      },
-    });
-    return {
-      ok: true,
-      value: {
-        targetFloor: request.targetFloor,
-        direction: request.direction,
-        targetDungeon,
-        floorCount: campaignFloorSet.count,
-        previousDomain,
-        resume,
-        restore,
-        runSource,
-      },
-    };
-  },
-  checkpoint() {
-    return localRunSave.flush();
-  },
-  setInputBlocked(blocked) {
-    floorTransitionInputBlocked = blocked;
-    if (blocked) {
-      controller.setEnabled(false);
-      controller.releasePointerLock();
-    } else {
-      controller.setEnabled(canEnablePlayController());
-    }
-  },
-  fade(opaque) {
-    return setSceneFadeOpaque(opaque, { durationMs: opaque ? 180 : 240 });
-  },
-  async activate(prepared) {
-    await activateDungeon(
-      prepared.targetDungeon,
-      `Floor ${prepared.targetFloor + 1} of ${prepared.floorCount}.`,
-      readEditorParams(),
-      { restore: prepared.restore },
-    );
-  },
-  isTargetActive(prepared) {
-    return dungeon === prepared.targetDungeon;
-  },
-  async warmup() {
-    await waitForRendererWarmup(10_000);
-    return elements.shell.dataset.rendererReady === "true" ? "ready" : "degraded";
-  },
-  present(prepared, checkpoint) {
-    const portalOpen = playRuntime.state().quest.portalOpen;
-    showObjectiveBanner(
-      portalOpen && prepared.targetFloor === prepared.floorCount - 1
-        ? COPY.objective.openPortal
-        : `Floor ${prepared.targetFloor + 1}/${prepared.floorCount} · Find the remaining stones`,
-      portalOpen ? "portal" : "hunt",
-      2600,
-      900,
-    );
-    setStatus(
-      `${prepared.direction === "down" ? "Descended" : "Ascended"} to floor ${prepared.targetFloor + 1}/${prepared.floorCount}.${checkpoint === "saved" ? "" : " Local save unavailable."}`,
-    );
-  },
-  recoverTarget(prepared, checkpoint) {
-    runHasStarted = false;
-    controller.setEnabled(false);
-    setContinueCandidate(
-      prepared.previousDomain,
-      checkpoint === "saved" ? "Saved descent ready." : "Saved descent ready for this session.",
-      { resume: prepared.resume, runSource: prepared.runSource },
-      {
-        runSeconds: prepared.resume.runSeconds,
-        biomeId: prepared.resume.campaignBiomeId,
-      },
-    );
-    setWelcomeOpen(true);
-  },
-});
-
-/** Legacy fade transition retained for recovery tooling; play stairs are walkable. */
-function transitionCampaignFloor(
-  targetFloor: number,
-  direction: "up" | "down",
-): Promise<FloorTransitionResult> {
-  return floorTransitions.start({ targetFloor, direction });
-}
-void transitionCampaignFloor;
-
 async function descendFloor(): Promise<DungeonRuntimeState> {
   const result = domainBridge.descend();
   if (!result.ok) {
@@ -4347,6 +4213,7 @@ window.__BLACK_FLAG_DUNGEON_ENGINE__ = api;
 window.__BLACK_FLAG_PROTOTYPE__ = api;
 window.__THREE_GAME_DIAGNOSTICS__ = {
   getState: getRuntimeState,
+  getResidentFloorCount: () => campaignFloorSet?.count ?? 1,
   getRenderer: getRendererDiagnostics,
   getScene: () => scene,
   getCamera: () => camera,
@@ -4406,14 +4273,14 @@ function frame(now: number): void {
     reducedMotion,
   );
   controller.setCriticalMovementDrift(criticalHealth.movementDrift);
-  controller.setMobilityBoost(world.mobilityBoostRemaining > 0);
-  controller.setSlowCurse(world.isSlowCurseActive);
-  controller.setControlMods({
-    invertLook: world.isMirrorCurseActive,
-    invertMove: world.isMirrorCurseActive,
-    yawBias: world.isSpinCurseActive ? SPIN_CURSE_YAW_BIAS : 0,
-    sensitivityScale: world.isSpinCurseActive ? SPIN_CURSE_SENSITIVITY_SCALE : 1,
-  });
+  controller.setLocomotionMods(
+    projectLocomotionMods({
+      mirrorCurseRemaining: world.mirrorCurseRemaining,
+      spinCurseRemaining: world.spinCurseRemaining,
+      slowCurseRemaining: world.slowCurseRemaining,
+      mobilityBoostRemaining: world.mobilityBoostRemaining,
+    }),
+  );
   const result = controller.update(delta);
   const player = controller.getState();
   playerPosition.set(player.position.x, player.position.y, player.position.z);
@@ -4481,14 +4348,14 @@ function frame(now: number): void {
     uiInteractQueued = false;
     const { worldUpdate, effects, state } = step;
     if (worldUpdate) {
-      syncTimeFreezeHud(worldUpdate.timeFreezeRemaining);
-      syncLuminousWardHud(worldUpdate.luminousWardRemaining);
-      syncAnnihilationPulseHud(worldUpdate.annihilationPulseRemaining);
-      syncCullBrandHud(worldUpdate.cullBrandRemaining);
-      syncPhoenixHud(worldUpdate.phoenixCharges);
-      syncFogClearHud(worldUpdate.fogClearRemaining);
-      syncMobilityHud(worldUpdate.mobilityBoostRemaining);
-      syncCurseHud({
+      syncPlayStatusHud({
+        timeFreeze: worldUpdate.timeFreezeRemaining,
+        luminousWard: worldUpdate.luminousWardRemaining,
+        annihilationPulse: worldUpdate.annihilationPulseRemaining,
+        cullBrand: worldUpdate.cullBrandRemaining,
+        fogClear: worldUpdate.fogClearRemaining,
+        mobility: worldUpdate.mobilityBoostRemaining,
+        phoenixCharges: worldUpdate.phoenixCharges,
         slow: worldUpdate.slowCurseRemaining,
         frenzy: worldUpdate.frenzyCurseRemaining,
         gloom: worldUpdate.gloomCurseRemaining,
@@ -4498,15 +4365,14 @@ function frame(now: number): void {
       });
       syncBiomeEvent(worldUpdate.biomeEvent);
       floorExploration.setMapRevealed(worldUpdate.mapRevealed);
-      controller.setMobilityBoost(worldUpdate.mobilityBoostRemaining > 0);
-      controller.setSlowCurse(worldUpdate.slowCurseRemaining > 0);
-      controller.setControlMods({
-        invertLook: worldUpdate.mirrorCurseRemaining > 0,
-        invertMove: worldUpdate.mirrorCurseRemaining > 0,
-        yawBias: worldUpdate.spinCurseRemaining > 0 ? SPIN_CURSE_YAW_BIAS : 0,
-        sensitivityScale:
-          worldUpdate.spinCurseRemaining > 0 ? SPIN_CURSE_SENSITIVITY_SCALE : 1,
-      });
+      controller.setLocomotionMods(
+        projectLocomotionMods({
+          mirrorCurseRemaining: worldUpdate.mirrorCurseRemaining,
+          spinCurseRemaining: worldUpdate.spinCurseRemaining,
+          slowCurseRemaining: worldUpdate.slowCurseRemaining,
+          mobilityBoostRemaining: worldUpdate.mobilityBoostRemaining,
+        }),
+      );
       controller.setSurfaceMovement(
         worldUpdate.surfaceEffect.movementScale,
         worldUpdate.surfaceEffect.traction,
@@ -4599,12 +4465,7 @@ function frame(now: number): void {
       currentThreatDistance = worldUpdate.nearestThreat;
     }
   }
-  syncTimeFreezeHud();
-  syncLuminousWardHud();
-  syncAnnihilationPulseHud();
-  syncFogClearHud();
-  syncMobilityHud();
-  syncCurseHud();
+  syncPlayStatusHud();
   syncRunTimer();
 
   damageTimer = Math.max(0, damageTimer - delta);
@@ -4728,6 +4589,9 @@ function frame(now: number): void {
     hazardFeel.iceBlue,
     hazardFeel.spikeEdge,
   );
+  const biomeLensMood = simulationActive && dungeon ? resolveActiveMood(dungeon).id : null;
+  const biomeLens = computeBiomeLensFeel(biomeLensMood, reducedMotion);
+  povPost.setBiomeLensFeel(biomeLens.waterWarp);
 
   if (result.changedCell) {
     updateReadout();
@@ -4796,9 +4660,10 @@ window.addEventListener("beforeunload", () => {
   audio.dispose();
   controller.dispose();
   atmosphere.dispose();
+  playRuntime.dispose();
+  textureRegistry.clear();
   povPost.dispose();
   lighting.dispose();
-  playRuntime.dispose();
   renderer.dispose();
 });
 function setBootProgress(progress: number, message: string): void {
@@ -4842,18 +4707,28 @@ function preloadImage(src: string): Promise<void> {
 }
 
 async function waitForRendererWarmup(timeoutMs = 6_000, signal?: AbortSignal): Promise<void> {
+  const expectedSequence = renderWarmupSequence;
+  const expectedTrace = rendererWarmupTrace;
   if (renderWarmupReady || signal?.aborted) return;
   const started = performance.now();
-  while (!renderWarmupReady && !signal?.aborted && performance.now() - started < timeoutMs) {
+  while (
+    expectedSequence === renderWarmupSequence &&
+    !renderWarmupReady &&
+    !signal?.aborted &&
+    performance.now() - started < timeoutMs
+  ) {
     // Race a short timer so a stalled rAF cannot freeze the load cover forever.
     await Promise.race([waitAnimationFrames(1, signal), waitMs(32, signal)]);
   }
-  if (!renderWarmupReady && !signal?.aborted) {
-    // Parent covers must still be able to lift. Mark ready so Play can continue.
-    renderWarmupReady = true;
-    elements.shell.dataset.rendererReady = "timeout";
-    controller.setEnabled(canEnablePlayController());
-  }
+  if (expectedSequence !== renderWarmupSequence || renderWarmupReady || signal?.aborted) return;
+  markRendererWarmupReady(
+    expectedSequence,
+    "timeout",
+    "Renderer warmup",
+    undefined,
+    undefined,
+    expectedTrace,
+  );
 }
 
 async function dismissBootScreen(): Promise<void> {
@@ -4879,6 +4754,13 @@ function consumeShellIntent(): void {
     elements.welcomeProfileName.value = intent.profileName;
     elements.welcomeProfileAvatarImage.src = portraitForIndex(profileAvatarDraft).src;
     elements.welcomeProfileForm.requestSubmit();
+    return;
+  }
+  if (intent.type === "leaderboard-seed") {
+    forcedPlayMoodId =
+      listBiomeIdentities().find((biomeIdentity) => biomeIdentity.label === intent.biome)?.id ??
+      null;
+    void startPlayWithSeed(intent.seed, { runSource: "campaign" });
     return;
   }
   document.getElementById(intent.targetId)?.click();
@@ -4909,7 +4791,7 @@ if (canContinueLocalRun(localContinue)) {
     biomeId: localContinue.resume?.campaignBiomeId,
   });
 } else {
-  setContinueCandidate(null, "No active saved run. Start a new descent.");
+  setContinueCandidate(null, "");
 }
 if (visualQaState) {
   // Deterministic visual-QA URLs intentionally own a live world at boot.
@@ -4955,11 +4837,11 @@ if (visualQaState) {
           });
           setStatus(`Saved run ready · seed ${hydrated.seed}`);
         } else if (!continueDomainState) {
-          setContinueCandidate(null, "No active saved run. Start a new descent.");
+          setContinueCandidate(null, "");
         }
         await refreshRunSelect();
       } else if (!continueDomainState) {
-        setContinueCandidate(null, "No active saved run. Start a new descent.");
+        setContinueCandidate(null, "");
       }
     } catch (error) {
       console.warn("Boot hydrate failed", error);

@@ -3,6 +3,8 @@
  * DungeonWorld supplies iterators; this module fills the pooled frame.
  */
 
+import * as THREE from "three";
+
 import type {
   AudioAnchor,
   CreatureVoice,
@@ -17,9 +19,18 @@ export function creatureVoiceForEnemy(kind: EnemyKind): CreatureVoice {
   return kind;
 }
 
+interface AudioPositionSource {
+  position: THREE.Vector3Like;
+  getWorldPosition?: (target: THREE.Vector3) => THREE.Vector3;
+}
+
+function readWorldPosition(source: AudioPositionSource, target: THREE.Vector3): THREE.Vector3 {
+  return source.getWorldPosition?.(target) ?? target.copy(source.position);
+}
+
 export interface AudioFireSource {
   audio?: boolean;
-  root: { position: { x: number; y: number; z: number } };
+  root: AudioPositionSource;
   baseY: number;
 }
 
@@ -27,7 +38,7 @@ export interface AudioStoneSource {
   kind: string;
   collected: boolean;
   stoneId?: string | null;
-  object: { position: { x: number; y: number; z: number } };
+  object: AudioPositionSource;
 }
 
 export interface AudioEnemySource {
@@ -58,22 +69,28 @@ export function projectDungeonAudioFrame(
     fires: readonly AudioFireSource[];
     stones: readonly AudioStoneSource[];
     enemies: readonly AudioEnemySource[];
+    /** Enemy roots are floor-local. The world supplies the active slab offset. */
+    enemyWorldYOffset?: number;
     portal: AudioPortalSource | null;
     moodId: string | null;
   },
 ): DungeonAudioFrame {
+  const sourcePosition = new THREE.Vector3();
   let fireCount = 0;
   for (const fire of sources.fires) {
     if (fire.audio === false) continue;
-    const anchor = frame.fires[fireCount] ?? ({
-      id: `fire-${fireCount}`,
-      x: 0,
-      y: 0,
-      z: 0,
-    } satisfies AudioAnchor);
-    anchor.x = fire.root.position.x;
-    anchor.y = fire.root.position.y + fire.baseY;
-    anchor.z = fire.root.position.z;
+    const anchor =
+      frame.fires[fireCount] ??
+      ({
+        id: `fire-${fireCount}`,
+        x: 0,
+        y: 0,
+        z: 0,
+      } satisfies AudioAnchor);
+    const position = readWorldPosition(fire.root, sourcePosition);
+    anchor.x = position.x;
+    anchor.y = position.y + fire.baseY;
+    anchor.z = position.z;
     frame.fires[fireCount++] = anchor;
   }
   frame.fires.length = fireCount;
@@ -81,16 +98,19 @@ export function projectDungeonAudioFrame(
   let stoneCount = 0;
   for (const pickup of sources.stones) {
     if (pickup.kind !== "stone" || pickup.collected || !pickup.stoneId) continue;
-    const anchor = frame.magicStones[stoneCount] ?? ({
-      id: `stone-${pickup.stoneId}`,
-      x: 0,
-      y: 0,
-      z: 0,
-    } satisfies AudioAnchor);
+    const anchor =
+      frame.magicStones[stoneCount] ??
+      ({
+        id: `stone-${pickup.stoneId}`,
+        x: 0,
+        y: 0,
+        z: 0,
+      } satisfies AudioAnchor);
     anchor.id = `stone-${pickup.stoneId}`;
-    anchor.x = pickup.object.position.x;
-    anchor.y = pickup.object.position.y;
-    anchor.z = pickup.object.position.z;
+    const position = readWorldPosition(pickup.object, sourcePosition);
+    anchor.x = position.x;
+    anchor.y = position.y;
+    anchor.z = position.z;
     frame.magicStones[stoneCount++] = anchor;
   }
   frame.magicStones.length = stoneCount;
@@ -99,17 +119,22 @@ export function projectDungeonAudioFrame(
   for (const enemy of sources.enemies) {
     if (enemy.scaleX <= 0.001 || enemy.scaleY <= 0.001) continue;
     const voice = creatureVoiceForEnemy(enemy.kind);
-    const anchor = frame.enemies[enemyCount] ?? ({
-      id: `enemy-${enemy.kind}-${enemy.instanceIndex}`,
-      x: 0,
-      y: 0,
-      z: 0,
-      voice,
-    } satisfies EnemyAudioAnchor);
+    const anchor =
+      frame.enemies[enemyCount] ??
+      ({
+        id: `enemy-${enemy.kind}-${enemy.instanceIndex}`,
+        x: 0,
+        y: 0,
+        z: 0,
+        voice,
+      } satisfies EnemyAudioAnchor);
     anchor.id = `enemy-${enemy.kind}-${enemy.instanceIndex}`;
     anchor.voice = voice;
     anchor.x = enemy.position.x;
-    anchor.y = enemy.position.y + ENEMY_ARCHETYPES[enemy.kind].height * 0.5;
+    anchor.y =
+      enemy.position.y +
+      (sources.enemyWorldYOffset ?? 0) +
+      ENEMY_ARCHETYPES[enemy.kind].height * 0.5;
     anchor.z = enemy.position.z;
     frame.enemies[enemyCount++] = anchor;
   }

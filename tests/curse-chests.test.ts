@@ -89,10 +89,11 @@ describe("curse chest placement plan", () => {
     expect(html).toContain('id="mirror-curse-status"');
     expect(html).toContain('id="spin-curse-status"');
     expect(html).toContain('id="cull-brand-status"');
-    expect(main).toContain("syncCurseHud");
-    expect(main).toContain("resetCurseHud");
-    expect(main).toContain("setSlowCurse");
-    expect(main).toContain("setControlMods");
+    expect(main).toContain("PlayStatusHud");
+    expect(main).toContain("syncPlayStatusHud");
+    expect(main).toContain("playStatusHud.reset");
+    expect(main).toContain("projectLocomotionMods");
+    expect(main).toContain("setLocomotionMods");
     expect(resumeMap).toContain("nextResume.swarmCurseActive = false");
     expect(minimap).toContain('firstUncollected(input.pickups, "swarm-curse")');
     expect(minimap).toContain('firstUncollected(input.pickups, "gloom-curse")');

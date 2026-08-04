@@ -78,4 +78,15 @@ describe("biome particle profiles", () => {
     expect(shapes.has("drop") || shapes.has("crumb")).toBe(true);
     expect(shapes.size).toBeGreaterThanOrEqual(8);
   });
+
+  test("sunken ambient dust is bubbles; signature rises; ceiling still seeps", () => {
+    const profile = getBiomeParticleProfile("sunken");
+    expect(profile.support.shape).toBe("bubble");
+    expect(profile.support.motion).toBe("drift");
+    expect(profile.support.name.toLowerCase()).toContain("bubble");
+    expect(profile.signature.shape).toBe("bubble");
+    expect(profile.signature.motion).toBe("rise");
+    expect(profile.ceiling.motion).toBe("drip");
+    expect(profile.ceiling.shape).toBe("drop");
+  });
 });

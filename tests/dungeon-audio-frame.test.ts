@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import * as THREE from "three";
 import {
   createEmptyDungeonAudioFrame,
   creatureVoiceForEnemy,
@@ -59,5 +60,32 @@ describe("DungeonAudioFrame", () => {
     expect(frame.enemies[0]!.voice).toBe("spider");
     expect(frame.portal?.id).toBe("exit-portal");
     expect(frame.moodId).toBe("ash");
+  });
+
+  test("uses resident-root world coordinates for upper-slab fires and stones", () => {
+    const residentRoot = new THREE.Group();
+    residentRoot.position.y = 8.8;
+    const fireRoot = new THREE.Group();
+    fireRoot.position.set(1, 1.42, 2);
+    const stone = new THREE.Group();
+    stone.position.set(3, 0, 4);
+    residentRoot.add(fireRoot, stone);
+    residentRoot.updateMatrixWorld(true);
+
+    const frame = createEmptyDungeonAudioFrame();
+    projectDungeonAudioFrame(frame, {
+      fires: [{ root: fireRoot, baseY: 0.4 }],
+      stones: [{ kind: "stone", collected: false, stoneId: "ember", object: stone }],
+      enemies: [],
+      portal: null,
+      moodId: "ash",
+    });
+
+    expect(frame.fires[0]!.x).toBeCloseTo(1, 5);
+    expect(frame.fires[0]!.y).toBeCloseTo(10.62, 5);
+    expect(frame.fires[0]!.z).toBeCloseTo(2, 5);
+    expect(frame.magicStones[0]!.x).toBeCloseTo(3, 5);
+    expect(frame.magicStones[0]!.y).toBeCloseTo(8.8, 5);
+    expect(frame.magicStones[0]!.z).toBeCloseTo(4, 5);
   });
 });

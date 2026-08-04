@@ -7,13 +7,13 @@
     "continuousArtResample": "lanczos"
   },
   "summary": {
-    "images": 494,
-    "converted": 0,
+    "images": 505,
+    "converted": 11,
     "skipped": 494,
-    "sourceBytes": 203564803,
-    "targetBytes": 44275910,
-    "savedBytes": 159288893,
-    "savedPercent": 78.25
+    "sourceBytes": 224154991.0,
+    "targetBytes": 57137518.0,
+    "savedBytes": 167017473.0,
+    "savedPercent": 74.51
   },
   "images": [
     {
@@ -795,6 +795,226 @@
       "targetSha256": "89bcb230872b6662972502a0c5f5e014c68b25fab2f08992a918c539830f383c",
       "resample": "lanczos",
       "encoding": "quality-82"
+    },
+    {
+      "source": "assets-source/runtime-metadata/sprites/biome-props-v2/ancient-props.png",
+      "target": "public/assets/sprites/biome-props-v2/ancient-props.webp",
+      "sourceFormat": "png",
+      "targetFormat": "webp",
+      "sourceDimensions": [
+        3584,
+        2048
+      ],
+      "targetDimensions": [
+        1792,
+        1024
+      ],
+      "sourceBytes": 1684856,
+      "targetBytes": 889862,
+      "sourceSha256": "24d6f7dfc9b11dcbbddb1cd1203c6b87a8e9728e57d6b96ade61ce94ad423016",
+      "targetSha256": "6ad97055537b4e258da8fa010c25c36d5b76f53dc48e5210acd947c74e9d4a91",
+      "resample": "nearest",
+      "encoding": "lossless"
+    },
+    {
+      "source": "assets-source/runtime-metadata/sprites/biome-props-v2/ash-props.png",
+      "target": "public/assets/sprites/biome-props-v2/ash-props.webp",
+      "sourceFormat": "png",
+      "targetFormat": "webp",
+      "sourceDimensions": [
+        3584,
+        2048
+      ],
+      "targetDimensions": [
+        1792,
+        1024
+      ],
+      "sourceBytes": 2241359,
+      "targetBytes": 1211844,
+      "sourceSha256": "eea28e01d8d2129c1b7d03e19fa5d2559e621dcfcc2f44aacc88db6595af9bb5",
+      "targetSha256": "009b6eb0a7ba9a5f0f5f3918b7b1c839c3d9205d453e15c159f3305048f63142",
+      "resample": "nearest",
+      "encoding": "lossless"
+    },
+    {
+      "source": "assets-source/runtime-metadata/sprites/biome-props-v2/backrooms-props.png",
+      "target": "public/assets/sprites/biome-props-v2/backrooms-props.webp",
+      "sourceFormat": "png",
+      "targetFormat": "webp",
+      "sourceDimensions": [
+        3584,
+        2048
+      ],
+      "targetDimensions": [
+        1792,
+        1024
+      ],
+      "sourceBytes": 1992177,
+      "targetBytes": 1046466,
+      "sourceSha256": "ade93460dc5be51d54b800c55b8e96e83aa45111460c29ba6792e22cb5be5157",
+      "targetSha256": "be3b4fbabd62b3363f52d094ca5ff7b3d89c77199124257b1a1d0598e25bbbad",
+      "resample": "nearest",
+      "encoding": "lossless"
+    },
+    {
+      "source": "assets-source/runtime-metadata/sprites/biome-props-v2/frost-props.png",
+      "target": "public/assets/sprites/biome-props-v2/frost-props.webp",
+      "sourceFormat": "png",
+      "targetFormat": "webp",
+      "sourceDimensions": [
+        3584,
+        2048
+      ],
+      "targetDimensions": [
+        1792,
+        1024
+      ],
+      "sourceBytes": 2259487,
+      "targetBytes": 1244602,
+      "sourceSha256": "1b93c79b09ba03671cb40620dc8d1ddb47b2f5aade8193b98e6f08f19f8a8083",
+      "targetSha256": "92843cc26b7b3b83a9cc9bd2422e88f419b6ba895a1b1b3dc84a4819432f6f44",
+      "resample": "nearest",
+      "encoding": "lossless"
+    },
+    {
+      "source": "assets-source/runtime-metadata/sprites/biome-props-v2/fungal-props.png",
+      "target": "public/assets/sprites/biome-props-v2/fungal-props.webp",
+      "sourceFormat": "png",
+      "targetFormat": "webp",
+      "sourceDimensions": [
+        3584,
+        2048
+      ],
+      "targetDimensions": [
+        1792,
+        1024
+      ],
+      "sourceBytes": 2468596,
+      "targetBytes": 1355604,
+      "sourceSha256": "c739c0a6c1d63e589635316b2aa5a5c6c5f3e2c6d59854f4223293a579e97a51",
+      "targetSha256": "cf2272dace56a685a99a8bcf58a21f3fe0f454c0c11f58520bb579919130f498",
+      "resample": "nearest",
+      "encoding": "lossless"
+    },
+    {
+      "source": "assets-source/runtime-metadata/sprites/biome-props-v2/grim-props.png",
+      "target": "public/assets/sprites/biome-props-v2/grim-props.webp",
+      "sourceFormat": "png",
+      "targetFormat": "webp",
+      "sourceDimensions": [
+        3584,
+        2048
+      ],
+      "targetDimensions": [
+        1792,
+        1024
+      ],
+      "sourceBytes": 1876957,
+      "targetBytes": 997164,
+      "sourceSha256": "c40847dcc7f9715e767f37db9965edb1768c05f372c8b61a276b0d32e940160c",
+      "targetSha256": "e7ba8e5d225ae4e1769e88b07cbeed29db098d405ce133db40260c970e58ca3c",
+      "resample": "nearest",
+      "encoding": "lossless"
+    },
+    {
+      "source": "assets-source/runtime-metadata/sprites/biome-props-v2/iron-props.png",
+      "target": "public/assets/sprites/biome-props-v2/iron-props.webp",
+      "sourceFormat": "png",
+      "targetFormat": "webp",
+      "sourceDimensions": [
+        3584,
+        2048
+      ],
+      "targetDimensions": [
+        1792,
+        1024
+      ],
+      "sourceBytes": 2637598,
+      "targetBytes": 1490026,
+      "sourceSha256": "264b835d6c48baccb574172bfa15398e3aaa09b637d764b26773921066ebd5c1",
+      "targetSha256": "304d2c7a3855b5f3717560fbf605b68c3407ebb429db90e11cb385195806666c",
+      "resample": "nearest",
+      "encoding": "lossless"
+    },
+    {
+      "source": "assets-source/runtime-metadata/sprites/biome-props-v2/molten-props.png",
+      "target": "public/assets/sprites/biome-props-v2/molten-props.webp",
+      "sourceFormat": "png",
+      "targetFormat": "webp",
+      "sourceDimensions": [
+        3584,
+        2048
+      ],
+      "targetDimensions": [
+        1792,
+        1024
+      ],
+      "sourceBytes": 2091652,
+      "targetBytes": 1159262,
+      "sourceSha256": "61edae975281dd84b44fdecb42d6a7089a0614eb7528fd1e8859a004a5677897",
+      "targetSha256": "9ac119cb0e5d6e01e76ca35ffdaa3fbb58fa4ceb636d27508ac8375955a72229",
+      "resample": "nearest",
+      "encoding": "lossless"
+    },
+    {
+      "source": "assets-source/runtime-metadata/sprites/biome-props-v2/obsidian-props.png",
+      "target": "public/assets/sprites/biome-props-v2/obsidian-props.webp",
+      "sourceFormat": "png",
+      "targetFormat": "webp",
+      "sourceDimensions": [
+        3584,
+        2048
+      ],
+      "targetDimensions": [
+        1792,
+        1024
+      ],
+      "sourceBytes": 1688710,
+      "targetBytes": 909650,
+      "sourceSha256": "c39b6b9500aa614bd6a9606c0661a6bdf611725d2e8fd1f1fe5b715c84d6de9e",
+      "targetSha256": "5a9293ab79d4c8bbd4d283f6f7f1c50f3c5f94a1583e511967b870f1e91d7f33",
+      "resample": "nearest",
+      "encoding": "lossless"
+    },
+    {
+      "source": "assets-source/runtime-metadata/sprites/biome-props-v2/sunken-props.png",
+      "target": "public/assets/sprites/biome-props-v2/sunken-props.webp",
+      "sourceFormat": "png",
+      "targetFormat": "webp",
+      "sourceDimensions": [
+        3584,
+        2048
+      ],
+      "targetDimensions": [
+        1792,
+        1024
+      ],
+      "sourceBytes": 2558093,
+      "targetBytes": 1433534,
+      "sourceSha256": "3d55bbde785b85a9cd07b67c6a65f8c9b30f2c46e800e8520d30d1a846a4c49d",
+      "targetSha256": "2c3b130a214fbef84cd1aeeb773bd0b5210fea908ce46880adada6aab2ad0ca1",
+      "resample": "nearest",
+      "encoding": "lossless"
+    },
+    {
+      "source": "assets-source/runtime-metadata/sprites/biome-props-v2/verdant-props.png",
+      "target": "public/assets/sprites/biome-props-v2/verdant-props.webp",
+      "sourceFormat": "png",
+      "targetFormat": "webp",
+      "sourceDimensions": [
+        3584,
+        2048
+      ],
+      "targetDimensions": [
+        1792,
+        1024
+      ],
+      "sourceBytes": 1603456,
+      "targetBytes": 872716,
+      "sourceSha256": "d190d6e1f21c9af02ed025359153f59aa90f90a888c8357208da2a1e7fccdf07",
+      "targetSha256": "e8c5367113d299a7df2c508f57112420c53ee1c404633660243553f20cd42d5d",
+      "resample": "nearest",
+      "encoding": "lossless"
     },
     {
       "source": "public/assets/sprites/biome-props/ancient-props.png",
@@ -1902,18 +2122,18 @@
       "sourceFormat": "png",
       "targetFormat": "webp",
       "sourceDimensions": [
-        1280,
+        640,
         3520
       ],
       "targetDimensions": [
         640,
-        1760
+        3520
       ],
-      "sourceBytes": 3448017,
-      "targetBytes": 684386,
-      "sourceSha256": "cced649677466934f47bf9d3b9ffd94ed4429f6cdb0964822b4897855b370301",
-      "targetSha256": "ac3173cda287040f52ba085fcba2ce64cdd62c8aad71a6f45698d6d6a17050f6",
-      "resample": "nearest",
+      "sourceBytes": 935264,
+      "targetBytes": 935264,
+      "sourceSha256": "5e848de8bde0ceddf0782b83d3ab11e073152b47e83d231e0572a2df4c1cd399",
+      "targetSha256": "5e848de8bde0ceddf0782b83d3ab11e073152b47e83d231e0572a2df4c1cd399",
+      "resample": "none",
       "encoding": "lossless"
     },
     {

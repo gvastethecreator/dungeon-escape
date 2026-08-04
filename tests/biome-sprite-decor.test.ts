@@ -12,17 +12,35 @@ import {
   biomeSpriteFloorGroundGap,
   biomeSpritePropTextureUrl,
 } from "../src/world/BiomeSpriteDecorKit";
+import {
+  BIOME_SPRITE_DECOR_ATLAS_SIZE,
+  biomeSpriteDecorAtlasFrame,
+  validateBiomeSpriteDecorCatalog,
+} from "../src/world/BiomeSpriteDecorContract";
+import {
+  biomeSpriteDecorCatalog,
+  biomeSpriteDecorTextureUrl,
+} from "../src/world/BiomeSpriteDecorCatalogs.generated";
+import {
+  balancedBiomeDecorItem,
+  selectFairBiomeDecorPlacements,
+} from "../src/world/BiomeSpriteDecorDistribution";
+import { BIOME_FLOOR_PROP_PLACEMENT_AUDIT } from "../src/world/BiomeSpriteDecorPlacementAudit";
+import { BIOME_SURFACE_PALETTES } from "../src/world/BiomeSurfacePalettes.generated";
 
 const staticSceneSource = await Bun.file(
   new URL("../src/world/StaticDungeonScene.ts", import.meta.url),
 ).text();
 const worldSource = await Bun.file(new URL("../src/world/DungeonWorld.ts", import.meta.url)).text();
+const residentEnemySource = await Bun.file(
+  new URL("../src/world/ResidentEnemyRuntime.ts", import.meta.url),
+).text();
 const fixedEffectsSource = await Bun.file(
   new URL("../src/world/FixedSceneEffects.ts", import.meta.url),
 ).text();
 
 describe("biome sprite decor atlas", () => {
-  test("ships six distinct wall and floor props for every biome", () => {
+  test("keeps the legacy six-frame catalog as compatibility data", () => {
     for (const mood of listDungeonMoodIds()) {
       const props = BIOME_SPRITE_PROPS[mood];
       expect(props).toHaveLength(6);
@@ -42,6 +60,61 @@ describe("biome sprite decor atlas", () => {
         `/assets/sprites/biome-props/${mood}-props.webp`,
       );
     }
+  });
+
+  test("ships the active 28-slot wall, floor, corner, and ceiling catalog", () => {
+    expect(BIOME_SPRITE_DECOR_ATLAS_SIZE).toEqual([1792, 1024]);
+    expect(biomeSpriteDecorAtlasFrame(27)).toEqual({ x: 1536, y: 768, w: 256, h: 256 });
+    for (const mood of listDungeonMoodIds()) {
+      const catalog = biomeSpriteDecorCatalog(mood);
+      expect(catalog.props).toHaveLength(28);
+      expect(catalog.props.filter((prop) => prop.surface === "wall")).toHaveLength(10);
+      expect(catalog.props.filter((prop) => prop.surface === "floor")).toHaveLength(10);
+      expect(catalog.props.filter((prop) => prop.surface === "ceiling")).toHaveLength(8);
+      expect(
+        catalog.props
+          .filter((prop) => prop.surface === "floor")
+          .every((prop) => prop.placement === "corner-standing"),
+      ).toBe(true);
+      expect(BIOME_FLOOR_PROP_PLACEMENT_AUDIT[mood]).toHaveLength(10);
+      expect(new Set(catalog.props.map((prop) => prop.id)).size).toBe(28);
+      expect(validateBiomeSpriteDecorCatalog(catalog)).toEqual([]);
+      expect(biomeSpriteDecorTextureUrl(mood)).toBe(
+        `/assets/sprites/biome-props-v2/${mood}-props.webp`,
+      );
+    }
+    expect(
+      biomeSpriteDecorCatalog("ancient").props.every(
+        (prop) => prop.surface !== "floor" || prop.placement === "corner-standing",
+      ),
+    ).toBe(true);
+    expect(staticSceneSource).toContain("wall: 5, floor: 3, ceiling: 4");
+    expect(staticSceneSource).toContain("balancedBiomeDecorItem(floorDefinitions");
+    expect(staticSceneSource).toContain("integrateBiomeDecorShader");
+    expect(staticSceneSource).toContain("biomeDecorSurfaceTone");
+    expect(staticSceneSource).toContain("biomeDecorRelativeLuma");
+    expect(staticSceneSource).toContain("diffuseColor.rgb, 0.28");
+  });
+
+  test("distributes candidates and atlas slots deterministically without early repeats", () => {
+    const slots = Array.from({ length: 10 }, (_, slot) => slot);
+    const sequence = Array.from({ length: 27 }, (_, index) =>
+      balancedBiomeDecorItem(slots, index, 417),
+    );
+    expect(new Set(sequence.slice(0, 10)).size).toBe(10);
+    const usage = slots.map((slot) => sequence.filter((candidate) => candidate === slot).length);
+    expect(Math.max(...usage) - Math.min(...usage)).toBe(1);
+    const candidates = [
+      { roomId: 1, id: "1a" },
+      { roomId: 1, id: "1b" },
+      { roomId: 2, id: "2a" },
+      { roomId: 2, id: "2b" },
+      { roomId: 3, id: "3a" },
+      { roomId: 3, id: "3b" },
+    ];
+    const selected = selectFairBiomeDecorPlacements(candidates, 4, 99);
+    expect(new Set(selected.slice(0, 3).map(({ roomId }) => roomId))).toEqual(new Set([1, 2, 3]));
+    expect(selectFairBiomeDecorPlacements(candidates, 4, 99)).toEqual(selected);
   });
 
   test("maps six crops to the optimized 3x2 256px atlas without overlap", () => {
@@ -67,26 +140,50 @@ describe("biome sprite decor atlas", () => {
     expect(JSON.stringify(BIOME_SPRITE_PROPS.frost)).not.toContain("chest");
   });
 
-  test("keeps generated props muted and outside distance/frustum culling", () => {
-    expect(staticSceneSource).toContain('"biome-prop-wall-decal-muted-fog-v4"');
-    expect(staticSceneSource).toContain("biome-prop-floor-${placement}-muted-fog-v4");
-    expect(staticSceneSource).toContain("diffuseColor.rgb = mix(vec3(biomePropLuma)");
-    expect(staticSceneSource).toContain("biomePropFogPull");
-    expect(staticSceneSource).toContain("opacity: 0.76");
-    expect(staticSceneSource).toContain('mapBlend = isFloorDecal ? "floor-contact-alpha"');
-    expect(staticSceneSource).toContain("sprite.frustumCulled = false");
-    expect(staticSceneSource).toContain('distanceLod: "disabled"');
+  test("renders active v2 props at authored opacity and with bounded culling", () => {
+    expect(staticSceneSource).toContain('"biome-prop-v2-wall-integrated-v6"');
+    expect(staticSceneSource).toContain("biome-prop-v2-${placement}-integrated-v6");
+    expect(staticSceneSource).toContain("opacity: 1");
+    expect(staticSceneSource).toContain("emissiveIntensity: 0.045");
+    expect(staticSceneSource).toContain(
+      'material.userData.mapBlend = "authored-v2-biome-surface-tone-v6"',
+    );
+    expect(staticSceneSource).toContain('color: biomeDecorTint(mood, "wall")');
+    expect(staticSceneSource).toContain("biomeSurfacePalette(mood.id, paletteRole)");
+    expect(staticSceneSource).toContain("batch.frustumCulled = catalog.runtime.culling.frustum");
+    expect(staticSceneSource).toContain("sprite.frustumCulled = catalog.runtime.culling.frustum");
+    expect(fixedEffectsSource).toContain(
+      "const maxDistance = prop.maxDistance ?? BIOME_FLOOR_PROP_FADE_FAR",
+    );
+    expect(fixedEffectsSource).toContain("private updateCeilingSprites(");
     expect(staticSceneSource).toContain("fog: true");
+    expect(staticSceneSource).toContain("1.0 - smoothstep(0.24, 0.62, fogFactor)");
+    expect(staticSceneSource).not.toContain("float biomePropFogPull = 1.0 - fogFactor");
+  });
+
+  test("derives floor, wall, and ceiling palettes from every shipped biome texture", () => {
+    for (const mood of listDungeonMoodIds()) {
+      const palette = BIOME_SURFACE_PALETTES[mood];
+      for (const surface of ["floor", "wall", "ceiling"] as const) {
+        expect(palette[surface].shadow).toBeGreaterThan(0);
+        expect(palette[surface].base).toBeGreaterThan(0);
+        expect(palette[surface].highlight).toBeGreaterThan(0);
+        expect(palette[surface].propTint).toBeGreaterThan(0);
+      }
+      expect(
+        new Set([palette.floor.base, palette.wall.base, palette.ceiling.base]).size,
+      ).toBeGreaterThan(1);
+    }
   });
 
   test("anchors wall props as fixed decals instead of camera sprites", () => {
-    expect(staticSceneSource).toContain("new THREE.PlaneGeometry(1, 1)");
+    expect(staticSceneSource).toContain("applyBiomeDecorAtlasUv(geometry, definition.slot)");
     expect(staticSceneSource).toContain("wallBatches");
     expect(staticSceneSource).toContain("facingRotation(seat.intoDx, seat.intoDy)");
     expect(staticSceneSource).toContain("BIOME_WALL_DECAL_OFFSET");
     expect(staticSceneSource).toContain("polygonOffset: true");
-    expect(staticSceneSource).toContain('billboard: "wall-normal"');
-    expect(staticSceneSource).toContain('"yaw-to-player"');
+    expect(staticSceneSource).toContain("placement: definition.placement");
+    expect(staticSceneSource).toContain('surface: "wall"');
   });
 
   test("anchors floor cards from the measured transparent bottom margin", () => {
@@ -101,20 +198,23 @@ describe("biome sprite decor atlas", () => {
         expect(biomeSpriteFloorGroundGap(mood, frame)).toBeLessThan(0.25);
       }
     }
-    expect(staticSceneSource).toContain("0.02 - groundGap * scale");
+    expect(staticSceneSource).toContain("(definition.anchor.y - 0.5) * height");
     expect(fixedEffectsSource).toContain("const targetYaw = Math.atan2(deltaX, deltaZ)");
-    expect(staticSceneSource).toContain("sprite.position.set(p.x, 0.045, p.z)");
-    expect(staticSceneSource).toContain("sprite.rotation.x = -Math.PI / 2");
+    expect(staticSceneSource).toContain("definition.mount.planeOffset");
+    expect(staticSceneSource).toContain("this.wallHeight - definition.mount.planeOffset");
   });
 
   test("keeps corner cards inside the open wall sector", () => {
+    expect(BIOME_CORNER_PROP_MAX_TURN).toBeLessThan(Math.PI / 6);
     expect(clampBiomeSpriteYaw(0, Math.PI)).toBeCloseTo(BIOME_CORNER_PROP_MAX_TURN);
     expect(clampBiomeSpriteYaw(0, -Math.PI)).toBeCloseTo(-BIOME_CORNER_PROP_MAX_TURN);
     expect(staticSceneSource).toContain("collectRoomCornerSeats");
     expect(staticSceneSource).toContain("cornerHugWorldOffset");
-    expect(fixedEffectsSource).toContain("clampBiomeSpriteYaw(prop.baseYaw, targetYaw)");
-    expect(staticSceneSource).toContain('"yaw-to-player-constrained"');
-    expect(staticSceneSource).toContain("maxWallTurn: BIOME_CORNER_PROP_MAX_TURN");
+    expect(fixedEffectsSource).toContain(
+      "clampBiomeSpriteYaw(prop.baseYaw, targetYaw, prop.maxWallTurn)",
+    );
+    expect(staticSceneSource).toContain("definition.maxYawTurn ?? BIOME_CORNER_PROP_MAX_TURN");
+    expect(staticSceneSource).toContain("...(maxWallTurn !== undefined ? { maxWallTurn } : {})");
   });
 
   test("fades floor cards smoothly in the near-player band", () => {
@@ -122,7 +222,7 @@ describe("biome sprite decor atlas", () => {
     expect(biomeSpriteFloorDistanceFade(BIOME_FLOOR_PROP_FADE_FAR)).toBe(1);
     expect(biomeSpriteFloorDistanceFade(1.625)).toBeCloseTo(0.5, 5);
     expect(fixedEffectsSource).toContain("prop.material.opacity = prop.baseOpacity * fade");
-    expect(worldSource).toContain("this.fixedSceneEffects.update({");
+    expect(worldSource).toContain("runtime.fixedSceneEffects.update({");
   });
 
   test("reserves wall seats across artwork and generated wall props", () => {
@@ -130,20 +230,37 @@ describe("biome sprite decor atlas", () => {
     expect(staticSceneSource).toContain("this.reserveWallObjectCell");
     expect(staticSceneSource).toContain("seat.cell.x - seat.intoDx === wall.cell.x");
     expect(staticSceneSource).toContain(
-      'customProgramCacheKey = () => "environment-sprite-muted-fog-v3"',
+      'customProgramCacheKey = () => "environment-sprite-muted-fog-v4"',
     );
+  });
+
+  test("keeps the retired wall atlas out while restoring batched 3D atmosphere props", () => {
+    const atmosphereBody = staticSceneSource.slice(
+      staticSceneSource.indexOf("private addAtmosphereProps("),
+      staticSceneSource.indexOf("private getAtmosphereTemplate("),
+    );
+    expect(atmosphereBody).toContain("this.scatterCobwebs(dungeon, random)");
+    expect(atmosphereBody).not.toContain("this.scatterWallDecor(");
+    expect(atmosphereBody).toContain("this.scatterRoomAtmosphereProps(dungeon, random)");
+    expect(staticSceneSource).toContain("collectDecorCorridorCells(dungeon)");
+    expect(staticSceneSource).toContain('surface: "floor" | "ceiling" = "floor"');
   });
 
   test("shares object reservations across props, chests and enemy seats", () => {
     expect(staticSceneSource).toContain("private handles = createHandles();");
-    expect(staticSceneSource).toContain("isObjectOccupiedCell(cell: GridCell): boolean");
-    expect(staticSceneSource).toContain("this.reserveObjectCell(cell)");
-    expect(staticSceneSource).toContain("...this.objectOccupiedCells,");
-    expect(worldSource).toContain("!this.isObjectOccupiedCell(spawn)");
     expect(staticSceneSource).toContain(
-      "Place the classic bonus chests (health flasks) before enemy seats are",
+      "isObjectOccupiedCell(cell: GridCell, floorIndex?: number): boolean",
     );
-    expect(staticSceneSource).toContain(".slice(0, 5)");
+    expect(staticSceneSource).toContain("this.reserveObjectCell(cell)");
+    expect(staticSceneSource).toContain(
+      "FloorOccupancyBit.Object | FloorOccupancyBit.Solid | FloorOccupancyBit.WallDecoration",
+    );
+    expect(worldSource).toContain("ResidentEnemyRuntime");
+    expect(residentEnemySource).toContain(
+      "explicitExclusions.mark(dungeon.spawn.x, dungeon.spawn.y, FloorOccupancyBit.Object)",
+    );
+    expect(staticSceneSource).toContain("const pickupExcluded: CellOccupancyQuery");
+    expect(staticSceneSource).toContain("FloorOccupancyBit.Hazard");
     expect(staticSceneSource).toContain("expired.objectOccupiedCells.clear()");
     expect(staticSceneSource).toContain("!this.isObjectOccupiedCell(cell)");
   });
@@ -173,6 +290,31 @@ describe("biome sprite decor atlas", () => {
       expect(sheet.frames).toHaveLength(6);
       expect(sheet.frames.every((frame) => frame.bbox.length === 4)).toBe(true);
       expect(sheet.frames.every((frame) => frame.edge_nonzero === 0)).toBe(true);
+    }
+  });
+
+  test("ships every active v2 runtime atlas with 28 authored frame records", async () => {
+    const root = new URL(
+      "../assets-source/runtime-metadata/sprites/biome-props-v2/",
+      import.meta.url,
+    );
+    const manifest = (await Bun.file(new URL("manifest.json", root)).json()) as {
+      atlas: { runtime_size: [number, number] };
+      biomes: Array<{ biome: string; runtime_size: [number, number]; frames: unknown[] }>;
+    };
+    expect(manifest.atlas.runtime_size).toEqual([1792, 1024]);
+    expect(manifest.biomes.map(({ biome }) => biome)).toEqual([...listDungeonMoodIds()]);
+    for (const biome of manifest.biomes) {
+      expect(biome.runtime_size).toEqual([1792, 1024]);
+      expect(biome.frames).toHaveLength(28);
+      const file = Bun.file(
+        new URL(
+          `../public/assets/sprites/biome-props-v2/${biome.biome}-props.webp`,
+          import.meta.url,
+        ),
+      );
+      expect(await file.exists()).toBe(true);
+      expect(file.size).toBeGreaterThan(10_000);
     }
   });
 });

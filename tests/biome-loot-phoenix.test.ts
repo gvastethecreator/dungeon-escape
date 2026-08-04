@@ -137,7 +137,9 @@ describe("host wiring smoke", () => {
     ]);
     expect(scene).toContain("planBiomeLootBudget");
     expect(scene).toContain("addFloorPickup");
+    expect(scene).toContain("selectPhoenixEggSeat");
     expect(scene).toContain("phoenix-egg");
+    expect(scene).not.toContain('placePowerChest("phoenix-egg"');
     expect(main).toContain("applyPhoenixRevive");
     expect(main).toContain("syncPhoenixHud");
     expect(html).toContain('id="phoenix-status"');

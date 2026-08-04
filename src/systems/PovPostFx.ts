@@ -63,6 +63,7 @@ export class PovPostFx {
         uChromatic: { value: 0 },
         uCriticalRed: { value: 0 },
         uHeatwave: { value: 0 },
+        uWaterWarp: { value: 0 },
         uToxinGreen: { value: 0 },
         uIceBlue: { value: 0 },
         uSpikeEdge: { value: 0 },
@@ -82,6 +83,7 @@ export class PovPostFx {
         uniform float uChromatic;
         uniform float uCriticalRed;
         uniform float uHeatwave;
+        uniform float uWaterWarp;
         uniform float uToxinGreen;
         uniform float uIceBlue;
         uniform float uSpikeEdge;
@@ -138,6 +140,25 @@ export class PovPostFx {
           return vec2(wave, lift) * amount;
         }
 
+        // Quiet underwater pressure: slow multi-frequency noise UV warp.
+        // Amplitude stays well below heatwave so it never reads as drunk-camera.
+        vec2 waterWarpOffset(vec2 uv, float amount) {
+          if (amount < 0.001) return vec2(0.0);
+          float t = uTime * 0.55;
+          float n0 = random(floor(uv * 18.0 + t * 0.35));
+          float n1 = random(floor(uv * 11.0 - t * 0.22) + 3.7);
+          float noise = (n0 + n1) * 0.5 - 0.5;
+          float waveX =
+            sin(uv.y * 9.5 + t * 1.35) * 0.00105 +
+            sin(uv.y * 4.2 - t * 0.82 + noise * 2.4) * 0.00055 +
+            sin(uv.x * 3.1 + t * 0.48) * 0.00032;
+          float waveY =
+            cos(uv.x * 8.4 - t * 1.12) * 0.00085 +
+            sin(uv.x * 3.8 + t * 0.66 + noise * 1.7) * 0.00042 +
+            cos(uv.y * 2.6 + t * 0.38) * 0.00028;
+          return vec2(waveX, waveY) * amount;
+        }
+
         void main() {
           float k = uCurvature;
           float crtFrame = floor(uTime * 24.0);
@@ -148,7 +169,8 @@ export class PovPostFx {
           );
           float ca = uChromatic + uCrtEnabled * 0.00022;
           vec2 heat = heatwaveOffset(vUv, uHeatwave);
-          vec2 sampleUv = vUv + heat + crtJitter;
+          vec2 water = waterWarpOffset(vUv, uWaterWarp);
+          vec2 sampleUv = vUv + heat + water + crtJitter;
 
           vec2 uvG = pincushion(sampleUv, k);
           // Radial chromatic: R/B pull slightly along the same warp direction.
@@ -320,6 +342,11 @@ export class PovPostFx {
     this.material.uniforms.uToxinGreen.value = THREE.MathUtils.clamp(toxinGreen, 0, 1);
     this.material.uniforms.uIceBlue.value = THREE.MathUtils.clamp(iceBlue, 0, 1);
     this.material.uniforms.uSpikeEdge.value = THREE.MathUtils.clamp(spikeEdge, 0, 1);
+  }
+
+  /** Biome lens response: quiet underwater UV warp (sunken). Independent of hazard heatwave. */
+  setBiomeLensFeel(waterWarp: number): void {
+    this.material.uniforms.uWaterWarp.value = THREE.MathUtils.clamp(waterWarp, 0, 1);
   }
 
   /**

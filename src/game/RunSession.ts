@@ -4,6 +4,7 @@ import {
   phoenixReviveResolve,
   tryConsumePhoenixCharge,
 } from "./PhoenixEgg";
+import { applyPickupSessionEffects } from "./PickupSessionEffects";
 import type { QuestState } from "./QuestState";
 
 export type RunMode = "playing" | "dead" | "won";
@@ -188,108 +189,7 @@ export function applyWorldUpdate(
     effects.sessionChanged = true;
   }
 
-  if (update.collectedPickupKind === "time-freeze") {
-    effects.status = COPY.status.timeFreeze;
-    effects.pickup = { label: COPY.pickup.timeFreeze, timeFreeze: true };
-    effects.playPickup = true;
-    effects.flash = "event";
-  }
-
-  if (update.collectedPickupKind === "luminous-ward") {
-    effects.status = COPY.status.luminousWard;
-    effects.pickup = { label: COPY.pickup.luminousWard, luminousWard: true };
-    effects.playPickup = true;
-    effects.flash = "event";
-  }
-
-  if (update.collectedPickupKind === "annihilation-pulse") {
-    effects.status = COPY.status.annihilationPulse;
-    effects.pickup = { label: COPY.pickup.annihilationPulse, annihilationPulse: true };
-    effects.playPickup = true;
-    effects.flash = "event";
-  }
-
-  if (update.collectedPickupKind === "cull-brand") {
-    effects.status = COPY.status.cullBrand;
-    effects.pickup = { label: COPY.pickup.cullBrand, cullBrand: true };
-    effects.playPickup = true;
-    effects.flash = "event";
-  }
-
-  if (update.collectedPickupKind === "map") {
-    effects.status = COPY.status.map;
-    effects.pickup = { label: COPY.pickup.map, mapReveal: true };
-    effects.playPickup = true;
-    effects.flash = "event";
-    effects.sessionChanged = true;
-  }
-
-  if (update.collectedPickupKind === "mobility") {
-    effects.status = COPY.status.mobility;
-    effects.pickup = { label: COPY.pickup.mobility, mobilityBoost: true };
-    effects.playPickup = true;
-    effects.flash = "event";
-    effects.sessionChanged = true;
-  }
-
-  if (update.collectedPickupKind === "clarity") {
-    effects.status = COPY.status.clarity;
-    effects.pickup = { label: COPY.pickup.clarity, fogClear: true };
-    effects.playPickup = true;
-    effects.flash = "event";
-    effects.sessionChanged = true;
-  }
-
-  if (update.collectedPickupKind === "swarm-curse") {
-    effects.status = COPY.status.swarmCurse;
-    effects.pickup = { label: COPY.pickup.swarmCurse, swarmCurse: true };
-    effects.playPickup = true;
-    effects.flash = "damage";
-    effects.sessionChanged = true;
-  }
-
-  if (update.collectedPickupKind === "slow-curse") {
-    effects.status = COPY.status.slowCurse;
-    effects.pickup = { label: COPY.pickup.slowCurse, slowCurse: true };
-    effects.playPickup = true;
-    effects.flash = "damage";
-  }
-
-  if (update.collectedPickupKind === "frenzy-curse") {
-    effects.status = COPY.status.frenzyCurse;
-    effects.pickup = { label: COPY.pickup.frenzyCurse, frenzyCurse: true };
-    effects.playPickup = true;
-    effects.flash = "damage";
-  }
-
-  if (update.collectedPickupKind === "gloom-curse") {
-    effects.status = COPY.status.gloomCurse;
-    effects.pickup = { label: COPY.pickup.gloomCurse, gloomCurse: true };
-    effects.playPickup = true;
-    effects.flash = "damage";
-  }
-
-  if (update.collectedPickupKind === "mirror-curse") {
-    effects.status = COPY.status.mirrorCurse;
-    effects.pickup = { label: COPY.pickup.mirrorCurse, mirrorCurse: true };
-    effects.playPickup = true;
-    effects.flash = "damage";
-  }
-
-  if (update.collectedPickupKind === "spin-curse") {
-    effects.status = COPY.status.spinCurse;
-    effects.pickup = { label: COPY.pickup.spinCurse, spinCurse: true };
-    effects.playPickup = true;
-    effects.flash = "damage";
-  }
-
-  if (update.collectedPickupKind === "phoenix-egg") {
-    effects.status = COPY.status.phoenixEgg;
-    effects.pickup = { label: COPY.pickup.phoenixEgg, phoenixEgg: true };
-    effects.playPickup = true;
-    effects.flash = "event";
-    effects.sessionChanged = true;
-  }
+  applyPickupSessionEffects(effects, update.collectedPickupKind);
 
   if (update.resolveGain > 0) {
     session.resolve = Math.min(100, session.resolve + update.resolveGain);

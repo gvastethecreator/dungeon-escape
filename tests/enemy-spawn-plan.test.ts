@@ -8,6 +8,7 @@ import {
   selectEnemyKindsForSpawns,
 } from "../src/world/EnemySpawnPlan";
 import { ENEMY_DANGER_TIER } from "../src/game/DifficultyDirector";
+import { FloorOccupancyBit, FloorOccupancyGrid } from "../src/world/FloorOccupancyGrid";
 
 describe("enemy spawn plan", () => {
   const tiers = [0, 0, 1, 1, 2, 2, 3, 3, 0, 1, 2];
@@ -102,6 +103,30 @@ describe("enemy spawn plan", () => {
         expect(chebyshev).toBeGreaterThanOrEqual(MIN_SPAWN_CELL_SEPARATION);
       }
     }
+  });
+
+  test("keeps spawn planning identical for a legacy exclusion Set and owning grid", () => {
+    const rooms = [0, 1, 2].map((id) => ({
+      id,
+      x: id * 12,
+      y: 0,
+      width: 8,
+      height: 8,
+      center: { x: id * 12 + 4, y: 4 },
+      role: "room" as const,
+    }));
+    const excludedCells = [
+      { x: 3, y: 3 },
+      { x: 16, y: 4 },
+      { x: 28, y: 5 },
+    ];
+    const legacy = new Set(excludedCells.map((cell) => `${cell.x},${cell.y}`));
+    const occupancy = new FloorOccupancyGrid(0, 36, 8);
+    excludedCells.forEach((cell) => occupancy.mark(cell.x, cell.y, FloorOccupancyBit.Object));
+
+    expect(buildDistributedEnemySpawns("GRID-EXCLUSIONS", rooms, 12, occupancy)).toEqual(
+      buildDistributedEnemySpawns("GRID-EXCLUSIONS", rooms, 12, legacy),
+    );
   });
 
   test("raises danger tiers every later reinforcement pass", () => {

@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import type { DungeonMoodId } from "../systems/DungeonMood";
+import type { SceneTextureSink } from "../systems/SceneTextureRegistry";
 import {
   liftTextureLuminanceSource,
   liftTextureRoughnessSource,
@@ -17,6 +18,8 @@ import {
   biomeSpritePropFrame,
   biomeSpritePropTextureUrl,
 } from "./BiomeSpriteDecorKit";
+import { BIOME_SPRITE_DECOR_ATLAS_SIZE } from "./BiomeSpriteDecorContract";
+import { biomeSpriteDecorTextureUrl } from "./BiomeSpriteDecorCatalogs.generated";
 
 export interface AtlasFrame {
   x: number;
@@ -67,15 +70,33 @@ export interface WallSpriteTextures {
 
 const loader = new THREE.TextureLoader();
 
+interface TextureLoadLifecycle {
+  active: boolean;
+  textureSink?: SceneTextureSink;
+}
+
+function completeTextureLoad(
+  lifecycle: TextureLoadLifecycle,
+  texture: THREE.Texture,
+  prepare?: (loaded: THREE.Texture) => void,
+): void {
+  if (!lifecycle.active) return;
+  prepare?.(texture);
+  lifecycle.textureSink?.markRenderable(texture);
+}
+
 function pixelTexture(
   source: string,
   colorSpace = true,
   seam: "none" | "mirror" | "edge-blend" = "edge-blend",
+  lifecycle: TextureLoadLifecycle,
   onLoad?: (texture: THREE.Texture) => void,
 ): THREE.Texture {
   const texture = loader.load(source, (loaded) => {
-    onLoad?.(loaded);
-    resolveTextureSource(loaded);
+    completeTextureLoad(lifecycle, loaded, (ready) => {
+      onLoad?.(ready);
+      resolveTextureSource(ready);
+    });
   });
   // Edge-blend makes Imagine/AI maps wrap cleanly; mirror kept for older generated props.
   const mode = source.includes("/generated/") && seam === "edge-blend" ? "mirror" : seam;
@@ -91,8 +112,8 @@ function pixelTexture(
 }
 
 /** Data maps (normal/rough/depth) — linear color space, no seam re-bake (already seamless). */
-function dataTexture(source: string): THREE.Texture {
-  const texture = loader.load(source);
+function dataTexture(source: string, lifecycle: TextureLoadLifecycle): THREE.Texture {
+  const texture = loader.load(source, (loaded) => completeTextureLoad(lifecycle, loaded));
   texture.name = source;
   texture.colorSpace = THREE.NoColorSpace;
   texture.magFilter = THREE.LinearFilter;
@@ -151,29 +172,35 @@ const BIOME_ROUGHNESS_FLOORS: Record<
 function loadBiomeLayer(
   mood: DungeonMoodId,
   surface: "floor" | "wall" | "ceiling",
+  lifecycle: TextureLoadLifecycle,
 ): BiomeLayerTextures {
   const compact = typeof window !== "undefined" && window.matchMedia("(max-width: 760px)").matches;
   // Light edge-blend on every layer with the same ratio keeps wrap borders locked.
   // (Albedo-only blend was desyncing normal/rough and drawing false tile lines.)
-  const albedo = pixelTexture(biomePath(mood, surface, "albedo"), true, "edge-blend", (loaded) =>
-    liftTextureLuminanceSource(loaded, {
-      targetLuma: BIOME_ALBEDO_TARGETS[mood][surface],
-      contrast: mood === "obsidian" || mood === "fungal" ? 1.5 : 1.35,
-      gamma: 0.82,
-    }),
+  const albedo = pixelTexture(
+    biomePath(mood, surface, "albedo"),
+    true,
+    "edge-blend",
+    lifecycle,
+    (loaded) =>
+      liftTextureLuminanceSource(loaded, {
+        targetLuma: BIOME_ALBEDO_TARGETS[mood][surface],
+        contrast: mood === "obsidian" || mood === "fungal" ? 1.5 : 1.35,
+        gamma: 0.82,
+      }),
   );
   const normal = compact
     ? null
-    : pixelTexture(biomePath(mood, surface, "normal"), false, "edge-blend");
+    : pixelTexture(biomePath(mood, surface, "normal"), false, "edge-blend", lifecycle);
   const rough = compact
     ? null
-    : pixelTexture(biomePath(mood, surface, "rough"), false, "edge-blend", (loaded) =>
+    : pixelTexture(biomePath(mood, surface, "rough"), false, "edge-blend", lifecycle, (loaded) =>
         liftTextureRoughnessSource(loaded, {
           floor: BIOME_ROUGHNESS_FLOORS[mood][surface],
           gamma: 1,
         }),
       );
-  const depth = compact ? null : dataTexture(biomePath(mood, surface, "depth"));
+  const depth = compact ? null : dataTexture(biomePath(mood, surface, "depth"), lifecycle);
   // Shared sampling: linear mips for all layers reduce light shimmer at tile boundaries.
   for (const tex of [albedo, normal, rough, depth].filter(
     (candidate): candidate is THREE.Texture => candidate !== null,
@@ -192,38 +219,44 @@ function loadBiomeLayer(
 }
 
 export class AssetLibrary {
-  readonly wall = pixelTexture("/assets/textures/iron-ash-wall-v2.webp");
-  readonly wallCrypt = pixelTexture("/assets/textures/generated/iron-ash-wall-crypt-v1.webp");
-  readonly wallShrine = pixelTexture("/assets/textures/generated/iron-ash-wall-shrine-v1.webp");
-  readonly wallTreasure = pixelTexture("/assets/textures/generated/iron-ash-wall-treasure-v1.webp");
-  readonly wallBoss = pixelTexture("/assets/textures/generated/iron-ash-wall-boss-v1.webp");
-  readonly floor = pixelTexture("/assets/textures/iron-ash-floor-v2.webp");
-  readonly floorCrypt = pixelTexture("/assets/textures/generated/iron-ash-floor-crypt-v1.webp");
-  readonly floorShrine = pixelTexture("/assets/textures/generated/iron-ash-floor-shrine-v1.webp");
-  readonly floorTreasure = pixelTexture(
-    "/assets/textures/generated/iron-ash-floor-treasure-v1.webp",
-  );
-  readonly floorBoss = pixelTexture("/assets/textures/generated/iron-ash-floor-boss-v1.webp");
-  readonly ceiling = pixelTexture("/assets/textures/iron-ash-ceiling.webp");
+  readonly wall: THREE.Texture;
+  readonly wallCrypt: THREE.Texture;
+  readonly wallShrine: THREE.Texture;
+  readonly wallTreasure: THREE.Texture;
+  readonly wallBoss: THREE.Texture;
+  readonly floor: THREE.Texture;
+  readonly floorCrypt: THREE.Texture;
+  readonly floorShrine: THREE.Texture;
+  readonly floorTreasure: THREE.Texture;
+  readonly floorBoss: THREE.Texture;
+  readonly ceiling: THREE.Texture;
   /** Lazy biome packs — only the active mood loads PBR stacks (big boot win). */
   private readonly biomeSurfaces = new Map<DungeonMoodId, BiomeSurfaceTextures>();
   private readonly biomeDoors = new Map<DungeonMoodId, BiomeDoorTextures>();
-  private readonly ownedTextures: THREE.Texture[] = [
-    this.wall,
-    this.wallCrypt,
-    this.wallShrine,
-    this.wallTreasure,
-    this.wallBoss,
-    this.floor,
-    this.floorCrypt,
-    this.floorShrine,
-    this.floorTreasure,
-    this.floorBoss,
-    this.ceiling,
-  ];
+  private readonly ownedTextures = new Set<THREE.Texture>();
   private readonly atlasCache = new Map<string, THREE.Texture>();
+  private readonly loadLifecycle: TextureLoadLifecycle;
+  private disposed = false;
 
-  constructor() {
+  constructor(textureSink?: SceneTextureSink) {
+    this.loadLifecycle = { active: true, textureSink };
+    this.wall = this.pixelTexture("/assets/textures/iron-ash-wall-v2.webp");
+    this.wallCrypt = this.pixelTexture("/assets/textures/generated/iron-ash-wall-crypt-v1.webp");
+    this.wallShrine = this.pixelTexture("/assets/textures/generated/iron-ash-wall-shrine-v1.webp");
+    this.wallTreasure = this.pixelTexture(
+      "/assets/textures/generated/iron-ash-wall-treasure-v1.webp",
+    );
+    this.wallBoss = this.pixelTexture("/assets/textures/generated/iron-ash-wall-boss-v1.webp");
+    this.floor = this.pixelTexture("/assets/textures/iron-ash-floor-v2.webp");
+    this.floorCrypt = this.pixelTexture("/assets/textures/generated/iron-ash-floor-crypt-v1.webp");
+    this.floorShrine = this.pixelTexture(
+      "/assets/textures/generated/iron-ash-floor-shrine-v1.webp",
+    );
+    this.floorTreasure = this.pixelTexture(
+      "/assets/textures/generated/iron-ash-floor-treasure-v1.webp",
+    );
+    this.floorBoss = this.pixelTexture("/assets/textures/generated/iron-ash-floor-boss-v1.webp");
+    this.ceiling = this.pixelTexture("/assets/textures/iron-ash-ceiling.webp");
     this.wall.repeat.set(1, 1);
     this.floor.repeat.set(1, 1);
     this.ceiling.repeat.set(1, 1);
@@ -233,16 +266,14 @@ export class AssetLibrary {
     const cached = this.biomeSurfaces.get(mood);
     if (cached) return cached;
     const pack = {
-      floor: loadBiomeLayer(mood, "floor"),
-      wall: loadBiomeLayer(mood, "wall"),
-      ceiling: loadBiomeLayer(mood, "ceiling"),
+      floor: loadBiomeLayer(mood, "floor", this.loadLifecycle),
+      wall: loadBiomeLayer(mood, "wall", this.loadLifecycle),
+      ceiling: loadBiomeLayer(mood, "ceiling", this.loadLifecycle),
     } satisfies BiomeSurfaceTextures;
     for (const layer of Object.values(pack)) {
-      this.ownedTextures.push(
-        ...[layer.albedo, layer.normal, layer.rough, layer.depth].filter(
-          (candidate): candidate is THREE.Texture => candidate !== null,
-        ),
-      );
+      for (const texture of [layer.albedo, layer.normal, layer.rough, layer.depth]) {
+        if (texture) this.ownTexture(texture);
+      }
     }
     this.biomeSurfaces.set(mood, pack);
     return pack;
@@ -259,10 +290,10 @@ export class AssetLibrary {
     if (cached) return cached;
     const base = `/assets/textures/biomes/${mood}/door`;
     const surface = {
-      albedo: pixelTexture(biomeDoorTextureUrl(mood), true, "none"),
-      normal: dataTexture(`${base}-normal.webp`),
-      roughness: dataTexture(`${base}-roughness.webp`),
-      metalness: dataTexture(`${base}-metalness.webp`),
+      albedo: this.pixelTexture(biomeDoorTextureUrl(mood), true, "none"),
+      normal: this.dataTexture(`${base}-normal.webp`),
+      roughness: this.dataTexture(`${base}-roughness.webp`),
+      metalness: this.dataTexture(`${base}-metalness.webp`),
     } satisfies BiomeDoorTextures;
     for (const texture of Object.values(surface)) {
       texture.wrapS = texture.wrapT = THREE.ClampToEdgeWrapping;
@@ -271,7 +302,7 @@ export class AssetLibrary {
       texture.minFilter = THREE.LinearMipmapLinearFilter;
       texture.generateMipmaps = true;
       texture.anisotropy = 8;
-      this.ownedTextures.push(texture);
+      this.loadLifecycle.textureSink?.register(texture);
     }
     this.biomeDoors.set(mood, surface);
     return surface;
@@ -313,6 +344,19 @@ export class AssetLibrary {
     );
   }
 
+  /**
+   * One shared 7x4 v2 atlas per biome. Individual prop geometries remap their
+   * UVs to a slot, avoiding 28 full-atlas texture uploads for one mood.
+   */
+  biomeSpriteDecorAtlas(mood: DungeonMoodId): THREE.Texture {
+    return this.atlasFrame(biomeSpriteDecorTextureUrl(mood), BIOME_SPRITE_DECOR_ATLAS_SIZE, {
+      x: 0,
+      y: 0,
+      w: BIOME_SPRITE_DECOR_ATLAS_SIZE[0],
+      h: BIOME_SPRITE_DECOR_ATLAS_SIZE[1],
+    });
+  }
+
   enemy(frame: SourcedAtlasFrame): THREE.Texture {
     return this.atlasFrame(frame.src ?? ENEMY_ATLAS_SRC, frame.size ?? ENEMY_ATLAS_SIZE, frame);
   }
@@ -325,7 +369,8 @@ export class AssetLibrary {
     const key = `${animation.src}:${animation.size[0]}x${animation.size[1]}:animation-atlas`;
     const cached = this.atlasCache.get(key);
     if (cached) return cached;
-    const texture = loader.load(animation.src);
+    const lifecycle = this.loadLifecycle;
+    const texture = loader.load(animation.src, (loaded) => completeTextureLoad(lifecycle, loaded));
     texture.name = `${animation.src}#shared-animation-atlas`;
     texture.colorSpace = THREE.SRGBColorSpace;
     texture.magFilter = THREE.NearestFilter;
@@ -333,7 +378,7 @@ export class AssetLibrary {
     texture.generateMipmaps = false;
     texture.wrapS = THREE.ClampToEdgeWrapping;
     texture.wrapT = THREE.ClampToEdgeWrapping;
-    this.ownedTextures.push(texture);
+    this.ownTexture(texture);
     this.atlasCache.set(key, texture);
     return texture;
   }
@@ -365,7 +410,16 @@ export class AssetLibrary {
   }
 
   dispose(): void {
-    for (const texture of this.ownedTextures) texture.dispose();
+    if (this.disposed) return;
+    this.disposed = true;
+    this.loadLifecycle.active = false;
+    const textureSink = this.loadLifecycle.textureSink;
+    for (const texture of this.ownedTextures) {
+      textureSink?.unregister(texture);
+      texture.dispose();
+    }
+    this.loadLifecycle.textureSink = undefined;
+    this.ownedTextures.clear();
   }
 
   private atlasFrame(
@@ -377,7 +431,8 @@ export class AssetLibrary {
     const key = `${source}:${size[0]}x${size[1]}:${frame.x},${frame.y},${frame.w},${frame.h}:${color ? "srgb" : "data"}`;
     const cached = this.atlasCache.get(key);
     if (cached) return cached;
-    const texture = loader.load(source);
+    const lifecycle = this.loadLifecycle;
+    const texture = loader.load(source, (loaded) => completeTextureLoad(lifecycle, loaded));
     texture.name = `${source}#${frame.x},${frame.y},${frame.w},${frame.h}`;
     texture.colorSpace = color ? THREE.SRGBColorSpace : THREE.NoColorSpace;
     texture.magFilter = color ? THREE.NearestFilter : THREE.LinearFilter;
@@ -387,8 +442,27 @@ export class AssetLibrary {
     texture.wrapT = THREE.ClampToEdgeWrapping;
     texture.repeat.set(frame.w / size[0], frame.h / size[1]);
     texture.offset.set(frame.x / size[0], 1 - (frame.y + frame.h) / size[1]);
-    this.ownedTextures.push(texture);
+    this.ownTexture(texture);
     this.atlasCache.set(key, texture);
+    return texture;
+  }
+
+  private pixelTexture(
+    source: string,
+    colorSpace = true,
+    seam: "none" | "mirror" | "edge-blend" = "edge-blend",
+    onLoad?: (texture: THREE.Texture) => void,
+  ): THREE.Texture {
+    return this.ownTexture(pixelTexture(source, colorSpace, seam, this.loadLifecycle, onLoad));
+  }
+
+  private dataTexture(source: string): THREE.Texture {
+    return this.ownTexture(dataTexture(source, this.loadLifecycle));
+  }
+
+  private ownTexture<T extends THREE.Texture>(texture: T): T {
+    this.ownedTextures.add(texture);
+    this.loadLifecycle.textureSink?.register(texture);
     return texture;
   }
 }

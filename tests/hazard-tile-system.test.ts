@@ -4,6 +4,8 @@ import * as THREE from "three";
 import type { DungeonData, DungeonRoom } from "../src/dungeon/types";
 import { gridToWorld } from "../src/dungeon/gridCollision";
 import { getDungeonMood } from "../src/systems/DungeonMood";
+import { SceneTextureRegistry } from "../src/systems/SceneTextureRegistry";
+import { FloorOccupancyBit, FloorOccupancyGrid } from "../src/world/FloorOccupancyGrid";
 import {
   createForgedIronTextureSet,
   createForgedSpikeGeometry,
@@ -64,6 +66,22 @@ function dungeonFixture(): DungeonData {
 }
 
 describe("biome hazard tiles", () => {
+  test("registers rendered hazard maps and releases them with the system", () => {
+    const registry = new SceneTextureRegistry(true);
+    const system = new HazardTileSystem(
+      dungeonFixture(),
+      getDungeonMood("molten"),
+      2,
+      new Set(),
+      registry,
+    );
+    expect(registry.diagnostics().registered).toBeGreaterThan(0);
+    expect(registry.diagnostics().pending).toBe(0);
+    system.dispose();
+    system.dispose();
+    expect(registry.diagnostics().registered).toBe(0);
+  });
+
   test("assigns distinct hazards to representative biomes", () => {
     expect(hazardKindsForMood("molten")).toEqual(["fire", "spikes"]);
     expect(hazardKindsForMood("frost")).toEqual(["ice", "spikes"]);
@@ -79,6 +97,19 @@ describe("biome hazard tiles", () => {
     expect(new Set(first.map((tile) => `${tile.cell.x},${tile.cell.y}`)).size).toBe(first.length);
     expect(planHazardTiles(dungeon, "molten", excluded)).not.toContainEqual(first[0]);
     expect(first.every((tile) => tile.kind === "fire" || tile.kind === "spikes")).toBe(true);
+  });
+
+  test("keeps the legacy exclusion result when callers switch to a floor grid", () => {
+    const dungeon = dungeonFixture();
+    const baseline = planHazardTiles(dungeon, "molten");
+    const excludedCells = baseline.slice(0, 3).map((placement) => placement.cell);
+    const legacy = new Set(excludedCells.map((cell) => `${cell.x},${cell.y}`));
+    const occupancy = new FloorOccupancyGrid(0, dungeon.width, dungeon.height);
+    excludedCells.forEach((cell) => occupancy.mark(cell.x, cell.y, FloorOccupancyBit.Object));
+
+    expect(planHazardTiles(dungeon, "molten", occupancy)).toEqual(
+      planHazardTiles(dungeon, "molten", legacy),
+    );
   });
 
   test("lets a jump clear floor triggers and mobility immunity suppresses them", () => {

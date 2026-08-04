@@ -1,8 +1,11 @@
 import * as THREE from "three";
 
 import type { ForgePropMetadata } from "../dungeon/types";
+import type { SceneTextureSink } from "../systems/SceneTextureRegistry";
 import { createDungeonProp } from "./DungeonPropKit";
 import type { DungeonMaterials } from "./MaterialLibrary";
+import { tagOwnedMaterialTextures } from "./ThreeResourceDisposer";
+import { linkTextureClone } from "./TextureTreatment";
 import {
   addCarpentryMesh,
   addCarpentryRivets,
@@ -64,23 +67,35 @@ function mesh(geometry: THREE.BufferGeometry, material: THREE.Material, name: st
 
 const LOCAL_MAP_SLOTS = ["map", "normalMap", "roughnessMap", "aoMap", "bumpMap"] as const;
 
+interface ForgeTextureCloneSink extends SceneTextureSink {
+  registerClone<T extends THREE.Texture>(source: THREE.Texture, clone: T): T;
+}
+
 /** Keep one ImageGen PBR family, but give hero props a non-mirrored local texture scale. */
 function retileLocalMaterialMaps(
   material: THREE.MeshStandardMaterial,
   repeat: readonly [number, number],
   offset: readonly [number, number],
+  textureSink?: ForgeTextureCloneSink,
 ): void {
+  const ownedTextures: THREE.Texture[] = [];
   for (const slot of LOCAL_MAP_SLOTS) {
     const source = material[slot];
     if (!source) continue;
     const texture = source.clone();
+    linkTextureClone(source, texture);
     texture.wrapS = THREE.RepeatWrapping;
     texture.wrapT = THREE.RepeatWrapping;
     texture.repeat.set(...repeat);
     texture.offset.set(...offset);
-    texture.needsUpdate = true;
+    textureSink?.registerClone(source, texture);
     material[slot] = texture;
+    ownedTextures.push(texture);
   }
+  tagOwnedMaterialTextures(material, ownedTextures, {
+    textureSink,
+    unlinkClones: true,
+  });
   material.userData.localTextureTransform = { repeat: [...repeat], offset: [...offset] };
   material.needsUpdate = true;
 }
@@ -628,7 +643,11 @@ export function createForgeChest(materials: DungeonMaterials): ForgeChestKit {
   return { root, lid };
 }
 
-function crystal(materials: DungeonMaterials, boss: boolean): THREE.Group {
+function crystal(
+  materials: DungeonMaterials,
+  boss: boolean,
+  textureSink?: ForgeTextureCloneSink,
+): THREE.Group {
   interface LoftRing {
     y: number;
     radiusX: number;
@@ -741,7 +760,7 @@ function crystal(materials: DungeonMaterials, boss: boolean): THREE.Group {
     stoneMaterial.emissiveMap = stoneMaterial.map;
     stoneMaterial.emissiveIntensity = 0.035;
     stoneMaterial.envMapIntensity = Math.max(stoneMaterial.envMapIntensity, 0.72);
-    retileLocalMaterialMaps(stoneMaterial, [0.76, 0.76], [0.17, 0.09]);
+    retileLocalMaterialMaps(stoneMaterial, [0.76, 0.76], [0.17, 0.09], textureSink);
     stoneMaterial.emissiveMap = stoneMaterial.map;
   } else {
     stoneMaterial.color.multiplyScalar(0.78);
@@ -755,7 +774,7 @@ function crystal(materials: DungeonMaterials, boss: boolean): THREE.Group {
     middleBaseMaterial.emissive.setHex(0xffffff);
     middleBaseMaterial.emissiveMap = middleBaseMaterial.map;
     middleBaseMaterial.emissiveIntensity = 0.028;
-    retileLocalMaterialMaps(middleBaseMaterial, [0.7, 0.7], [0.53, 0.31]);
+    retileLocalMaterialMaps(middleBaseMaterial, [0.7, 0.7], [0.53, 0.31], textureSink);
     middleBaseMaterial.emissiveMap = middleBaseMaterial.map;
   }
   const ironMaterial = materials.iron.clone();
@@ -768,7 +787,7 @@ function crystal(materials: DungeonMaterials, boss: boolean): THREE.Group {
     ironMaterial.emissive.setHex(0x111419);
     ironMaterial.emissiveMap = null;
     ironMaterial.emissiveIntensity = 0.035;
-    retileLocalMaterialMaps(ironMaterial, [0.92, 0.92], [0.23, 0.41]);
+    retileLocalMaterialMaps(ironMaterial, [0.92, 0.92], [0.23, 0.41], textureSink);
   }
   const lowerBase = mesh(
     boss
@@ -1190,7 +1209,7 @@ function crystal(materials: DungeonMaterials, boss: boolean): THREE.Group {
     destructionGroups: ["plinth", "brace-cage", "crystal-core"],
     ...(boss
       ? {
-         opticalDepth: {
+          opticalDepth: {
             transmission: 0.16,
             thickness: 0.9,
             innerGlowOpacity: 0.46,
@@ -1486,7 +1505,10 @@ function createPillarFluteGeometry(): THREE.ExtrudeGeometry {
   return geometry;
 }
 
-function graveMarker(materials: DungeonMaterials): THREE.Group {
+function graveMarker(
+  materials: DungeonMaterials,
+  textureSink?: ForgeTextureCloneSink,
+): THREE.Group {
   const root = new THREE.Group();
   root.name = "Image-sculpted gothic grave marker v3";
 
@@ -1495,7 +1517,7 @@ function graveMarker(materials: DungeonMaterials): THREE.Group {
   slabStone.color.setHex(0x858684);
   slabStone.roughness = 0.96;
   slabStone.envMapIntensity = 0.34;
-  retileLocalMaterialMaps(slabStone, [0.72, 0.72], [0.13, 0.27]);
+  retileLocalMaterialMaps(slabStone, [0.72, 0.72], [0.13, 0.27], textureSink);
   slabStone.emissive.setHex(0xffffff);
   slabStone.emissiveMap = slabStone.map;
   slabStone.emissiveIntensity = 0.026;
@@ -1506,7 +1528,7 @@ function graveMarker(materials: DungeonMaterials): THREE.Group {
   edgeStone.color.setHex(0xa1a09a);
   edgeStone.roughness = 0.94;
   edgeStone.envMapIntensity = 0.38;
-  retileLocalMaterialMaps(edgeStone, [0.66, 0.66], [0.46, 0.08]);
+  retileLocalMaterialMaps(edgeStone, [0.66, 0.66], [0.46, 0.08], textureSink);
   edgeStone.emissive.setHex(0xffffff);
   edgeStone.emissiveMap = edgeStone.map;
   edgeStone.emissiveIntensity = 0.02;
@@ -1528,7 +1550,7 @@ function graveMarker(materials: DungeonMaterials): THREE.Group {
   graveIron.emissive.setHex(0x0b0d10);
   graveIron.emissiveMap = null;
   graveIron.emissiveIntensity = 0.025;
-  retileLocalMaterialMaps(graveIron, [0.86, 0.86], [0.29, 0.51]);
+  retileLocalMaterialMaps(graveIron, [0.86, 0.86], [0.29, 0.51], textureSink);
 
   const outline = createDamagedGraveSlabShape();
   const slabGeometry = new THREE.ExtrudeGeometry(outline, {
@@ -1608,15 +1630,7 @@ function graveMarker(materials: DungeonMaterials): THREE.Group {
   }
   rivets.instanceMatrix.needsUpdate = true;
 
-  root.add(
-    slab,
-    brokenBase,
-    insetBorder,
-    carvedCross,
-    sigilCross,
-    rearGrooves,
-    rivets,
-  );
+  root.add(slab, brokenBase, insetBorder, carvedCross, sigilCross, rearGrooves, rivets);
   root.userData.asset = "grave-marker";
   root.userData.reference =
     "assets-source/imagegen/model-references-v2/architecture/grave-marker-three-view.png";
@@ -1878,13 +1892,14 @@ function groundDetail(kind: string, materials: DungeonMaterials, variant = 0): T
 export function createForgeProp(
   prop: ForgePropMetadata,
   materials: DungeonMaterials,
+  textureSink?: ForgeTextureCloneSink,
 ): THREE.Group | null {
   if (prop.kind === "brazier" || prop.kind === "candle" || prop.kind === "campfire") return null;
   if (prop.kind === "chest") return createForgeChest(materials).root;
   if (prop.kind === "bossCrystal" || prop.kind === "shrineCrystal")
-    return crystal(materials, prop.kind === "bossCrystal");
+    return crystal(materials, prop.kind === "bossCrystal", textureSink);
   if (prop.kind === "pillar") return pillar(materials);
-  if (prop.kind === "grave") return graveMarker(materials);
+  if (prop.kind === "grave") return graveMarker(materials, textureSink);
   if (IMAGE_SCULPTED_FAMILIES.has(prop.kind as ImageSculptedPropFamily))
     return createImageSculptedProp(prop.kind as ImageSculptedPropFamily, materials);
   if (prop.kind === "sarco") return createDungeonProp("coffin", materials, prop.v);

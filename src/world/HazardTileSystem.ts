@@ -1,10 +1,16 @@
 import * as THREE from "three";
+import type { SceneTextureSink } from "../systems/SceneTextureRegistry";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 
 import { createSeededRandom } from "../core/random";
 import { gridToWorld } from "../dungeon/gridCollision";
 import type { DungeonData, DungeonRoom, GridCell } from "../dungeon/types";
 import type { DungeonMood, DungeonMoodId } from "../systems/DungeonMood";
+import {
+  FloorOccupancyBit,
+  FloorOccupancyOverlay,
+  type CellOccupancyQuery,
+} from "./FloorOccupancyGrid";
 import {
   HAZARD_CONTACT_RADIUS,
   spikeExposure as computeSpikeExposure,
@@ -25,6 +31,22 @@ export interface HazardSurfaceEffect {
   damage: number;
   movementScale: number;
   traction: number;
+}
+
+/**
+ * Live callers pass a floor-owned numeric query.  The Set branch keeps the
+ * public planner source-compatible for external tools and tests; it is read
+ * directly and never cloned into a placement snapshot.
+ */
+export type HazardCellExclusionQuery = CellOccupancyQuery | ReadonlySet<string>;
+
+const EMPTY_HAZARD_EXCLUSION_QUERY: CellOccupancyQuery = {
+  isOccupied: () => false,
+};
+
+function isHazardCellExcluded(exclusions: HazardCellExclusionQuery, x: number, y: number): boolean {
+  if ("isOccupied" in exclusions) return exclusions.isOccupied(x, y);
+  return exclusions.has(`${x},${y}`);
 }
 
 export interface HazardTraversalState {
@@ -84,7 +106,7 @@ export function hazardKindsForMood(mood: DungeonMoodId): readonly HazardTileKind
 export function planHazardTiles(
   dungeon: DungeonData,
   mood: DungeonMoodId,
-  excludedCellKeys: ReadonlySet<string> = new Set(),
+  excludedCells: HazardCellExclusionQuery = EMPTY_HAZARD_EXCLUSION_QUERY,
 ): HazardTilePlacement[] {
   const rooms = dungeon.rooms
     .filter((room) => room.role === "room")
@@ -97,7 +119,7 @@ export function planHazardTiles(
   const target = Math.min(18, Math.max(4, Math.round(dungeon.stats.roomCount * 0.28)));
   const random = createSeededRandom(`${dungeon.seed}:${mood}:hazards`);
   const kinds = HAZARDS_BY_MOOD[mood];
-  const used = new Set(excludedCellKeys);
+  const selected = new FloorOccupancyOverlay(dungeon.width, dungeon.height);
   const placements: HazardTilePlacement[] = [];
   let attempts = 0;
   while (placements.length < target && attempts < target * 12) {
@@ -112,9 +134,8 @@ export function planHazardTiles(
       const insetY = Math.min(2, Math.max(1, Math.floor((room.height - 1) / 3)));
       const x = random.integer(room.x + insetX, room.x + room.width - 1 - insetX);
       const y = random.integer(room.y + insetY, room.y + room.height - 1 - insetY);
-      const key = `${x},${y}`;
-      if (used.has(key)) continue;
-      used.add(key);
+      if (selected.isOccupied(x, y) || isHazardCellExcluded(excludedCells, x, y)) continue;
+      selected.mark(x, y, FloorOccupancyBit.Hazard);
       placements.push({
         kind: kinds[placements.length % kinds.length]!,
         cell: { x, y },
@@ -267,6 +288,23 @@ export interface ForgedIronTextureSet {
   ao: THREE.Texture;
 }
 
+interface HazardTextureLifecycle {
+  active: boolean;
+  textureSink?: SceneTextureSink;
+  readonly ownedTextures: Set<THREE.Texture>;
+}
+
+function ownHazardTexture<T extends THREE.Texture>(
+  lifecycle: HazardTextureLifecycle | undefined,
+  texture: T,
+  registerForPolicy = true,
+): T {
+  if (!lifecycle?.active) return texture;
+  lifecycle.ownedTextures.add(texture);
+  if (registerForPolicy) lifecycle.textureSink?.register(texture);
+  return texture;
+}
+
 function dataTexture(
   data: Uint8Array,
   size: number,
@@ -310,6 +348,7 @@ function loadFilteredForgedIronTexture(
   name: string,
   colorSpace: THREE.ColorSpace,
   field: ForgedTextureField,
+  lifecycle?: HazardTextureLifecycle,
 ): THREE.Texture {
   const canvas = document.createElement("canvas");
   canvas.width = 96;
@@ -326,12 +365,22 @@ function loadFilteredForgedIronTexture(
     colorSpace,
   );
   const source = new THREE.TextureLoader(THREE.DefaultLoadingManager).load(path, (loaded) => {
-    if (!context || !loaded.image) return;
+    if (lifecycle && (!lifecycle.active || !lifecycle.ownedTextures.has(filtered))) {
+      loaded.dispose();
+      return;
+    }
+    if (!context || !loaded.image) {
+      loaded.dispose();
+      return;
+    }
     const sample = document.createElement("canvas");
     sample.width = 20;
     sample.height = 20;
     const sampleContext = sample.getContext("2d", { willReadFrequently: true });
-    if (!sampleContext) return;
+    if (!sampleContext) {
+      loaded.dispose();
+      return;
+    }
     sampleContext.imageSmoothingEnabled = true;
     sampleContext.imageSmoothingQuality = "high";
     sampleContext.drawImage(loaded.image as CanvasImageSource, 0, 0, sample.width, sample.height);
@@ -367,43 +416,51 @@ function loadFilteredForgedIronTexture(
     context.imageSmoothingQuality = "high";
     context.drawImage(sample, 0, 0, canvas.width, canvas.height);
     filtered.needsUpdate = true;
+    lifecycle?.textureSink?.markRenderable(filtered);
     loaded.dispose();
   });
   source.name = `${name} source`;
-  return filtered;
+  return ownHazardTexture(lifecycle, filtered);
 }
 
-function loadForgedIronTextureSet(): ForgedIronTextureSet {
+function loadForgedIronTextureSet(lifecycle?: HazardTextureLifecycle): ForgedIronTextureSet {
   const albedo = loadFilteredForgedIronTexture(
     FORGED_IRON_PBR_PATHS.albedo,
     "ImageGen forged iron albedo",
     THREE.SRGBColorSpace,
     "albedo",
+    lifecycle,
   );
   const roughness = loadFilteredForgedIronTexture(
     FORGED_IRON_PBR_PATHS.roughness,
     "ImageGen forged iron roughness",
     THREE.NoColorSpace,
     "roughness",
+    lifecycle,
   );
   const normal = loadFilteredForgedIronTexture(
     FORGED_IRON_PBR_PATHS.normal,
     "ImageGen forged iron normal",
     THREE.NoColorSpace,
     "normal",
+    lifecycle,
   );
   const ao = loadFilteredForgedIronTexture(
     FORGED_IRON_PBR_PATHS.ao,
     "ImageGen forged iron ambient occlusion",
     THREE.NoColorSpace,
     "ao",
+    lifecycle,
   );
   ao.channel = 0;
   return { albedo, roughness, normal, ao };
 }
 
 /** Independent procedural PBR fields used only when images cannot load during SSR/tests. */
-function createFallbackForgedIronTextureSet(size: number): ForgedIronTextureSet {
+function createFallbackForgedIronTextureSet(
+  size: number,
+  lifecycle?: HazardTextureLifecycle,
+): ForgedIronTextureSet {
   const albedo = new Uint8Array(size * size * 4);
   const roughness = new Uint8Array(size * size * 4);
   const normal = new Uint8Array(size * size * 4);
@@ -467,14 +524,18 @@ function createFallbackForgedIronTextureSet(size: number): ForgedIronTextureSet 
   textures.normal.name = "Forged iron SSR fallback normal";
   textures.ao.name = "Forged iron SSR fallback ambient occlusion";
   textures.ao.channel = 0;
+  for (const texture of Object.values(textures)) ownHazardTexture(lifecycle, texture);
   return textures;
 }
 
 /** ImageGen black-iron PBR in browser, with a deterministic non-directional SSR fallback. */
-export function createForgedIronTextureSet(size = 32): ForgedIronTextureSet {
+export function createForgedIronTextureSet(
+  size = 32,
+  lifecycle?: HazardTextureLifecycle,
+): ForgedIronTextureSet {
   return typeof document === "undefined"
-    ? createFallbackForgedIronTextureSet(size)
-    : loadForgedIronTextureSet();
+    ? createFallbackForgedIronTextureSet(size, lifecycle)
+    : loadForgedIronTextureSet(lifecycle);
 }
 
 function createForgedIronMaterial(
@@ -784,11 +845,18 @@ export function createImageSculptedSpikePlate(tileSize = 2): THREE.Group {
   return root;
 }
 
-function createHazardTexture(kind: HazardTileKind, mood: DungeonMoodId): THREE.Texture {
+function createHazardTexture(
+  kind: HazardTileKind,
+  mood: DungeonMoodId,
+  lifecycle: HazardTextureLifecycle,
+): THREE.Texture {
   const texture =
     typeof document === "undefined"
       ? new THREE.Texture()
-      : new THREE.TextureLoader().load(HAZARD_ATLAS_PATH);
+      : new THREE.TextureLoader().load(HAZARD_ATLAS_PATH, (loaded) => {
+          if (!lifecycle.active) return;
+          lifecycle.textureSink?.markRenderable(loaded);
+        });
   texture.name = `${mood} ${kind} imagegen hazard atlas`;
   texture.colorSpace = THREE.SRGBColorSpace;
   texture.wrapS = THREE.RepeatWrapping;
@@ -798,7 +866,7 @@ function createHazardTexture(kind: HazardTileKind, mood: DungeonMoodId): THREE.T
   texture.magFilter = THREE.NearestFilter;
   texture.minFilter = THREE.LinearMipmapLinearFilter;
   texture.generateMipmaps = true;
-  return texture;
+  return ownHazardTexture(lifecycle, texture, typeof document !== "undefined");
 }
 
 interface HazardVisual {
@@ -823,15 +891,19 @@ export class HazardTileSystem {
   private spikeCooldown = 0;
   private toxinTickCooldown = 0;
   private toxinRemaining = 0;
+  private readonly textureLifecycle: HazardTextureLifecycle;
+  private disposed = false;
 
   constructor(
     dungeon: DungeonData,
     mood: DungeonMood,
     tileSize: number,
-    excludedCellKeys: ReadonlySet<string>,
+    excludedCells: HazardCellExclusionQuery = EMPTY_HAZARD_EXCLUSION_QUERY,
+    textureSink?: SceneTextureSink,
   ) {
+    this.textureLifecycle = { active: true, textureSink, ownedTextures: new Set() };
     this.root.name = `${mood.label} hazard tiles`;
-    this.placements = planHazardTiles(dungeon, mood.id, excludedCellKeys);
+    this.placements = planHazardTiles(dungeon, mood.id, excludedCells);
     const tileGeometry = new THREE.PlaneGeometry(tileSize * 0.78, tileSize * 0.78);
     const placementsByKind = new Map<HazardTileKind, HazardTilePlacement[]>();
     for (const placement of this.placements) {
@@ -846,7 +918,7 @@ export class HazardTileSystem {
       new THREE.Color(BIOME_ACCENTS[mood.id][0]),
       0.04,
     );
-    const forgedTextures = createForgedIronTextureSet();
+    const forgedTextures = createForgedIronTextureSet(32, this.textureLifecycle);
     const spikeMaterial = createForgedIronMaterial(forgedTextures, spikeColor);
     spikeMaterial.name = `${mood.id} inset blackened forged plate material`;
     const frameMaterial = createForgedFrameMaterial(forgedTextures);
@@ -864,7 +936,7 @@ export class HazardTileSystem {
     const identityQuaternion = new THREE.Quaternion();
     for (const [kind, placements] of placementsByKind) {
       const response = HAZARD_MATERIAL_RESPONSE[kind];
-      const texture = createHazardTexture(kind, mood.id);
+      const texture = createHazardTexture(kind, mood.id, this.textureLifecycle);
       const material = new THREE.MeshStandardMaterial({
         map: texture,
         emissiveMap: kind === "spikes" ? null : texture,
@@ -1003,7 +1075,11 @@ export class HazardTileSystem {
       raisedSpikeMaterial.dispose();
       collarGeometry.dispose();
       rivetGeometry.dispose();
-      Object.values(forgedTextures).forEach((texture) => texture.dispose());
+      Object.values(forgedTextures).forEach((texture) => {
+        this.textureLifecycle.textureSink?.unregister(texture);
+        this.textureLifecycle.ownedTextures.delete(texture);
+        texture.dispose();
+      });
     }
     this.root.userData.sculptRuntime = {
       sourceImage: "assets-source/imagegen/model-references-v2/ambient/spike-plate-three-view.png",
@@ -1127,33 +1203,57 @@ export class HazardTileSystem {
   }
 
   dispose(): void {
+    if (this.disposed) return;
+    this.disposed = true;
+    this.textureLifecycle.active = false;
     const geometries = new Set<THREE.BufferGeometry>();
     const materials = new Set<THREE.Material>();
     const textures = new Set<THREE.Texture>();
-    this.root.traverse((object) => {
-      if (!(object instanceof THREE.Mesh)) return;
-      geometries.add(object.geometry);
-      const entries = Array.isArray(object.material) ? object.material : [object.material];
-      entries.forEach((material) => materials.add(material));
-    });
-    geometries.forEach((geometry) => geometry.dispose());
-    materials.forEach((material) => {
-      if (material instanceof THREE.MeshStandardMaterial) {
-        for (const texture of [
-          material.map,
-          material.emissiveMap,
-          material.normalMap,
-          material.roughnessMap,
-          material.metalnessMap,
-          material.aoMap,
-        ]) {
-          if (texture) textures.add(texture);
+    let cleanupError: unknown;
+    let hasCleanupError = false;
+    const clean = (dispose: () => void): void => {
+      try {
+        dispose();
+      } catch (error) {
+        if (!hasCleanupError) {
+          hasCleanupError = true;
+          cleanupError = error;
         }
       }
-      material.dispose();
-    });
-    textures.forEach((texture) => texture.dispose());
-    this.root.clear();
+    };
+    try {
+      for (const texture of this.textureLifecycle.ownedTextures) {
+        textures.add(texture);
+        clean(() => this.textureLifecycle.textureSink?.unregister(texture));
+      }
+      this.root.traverse((object) => {
+        if (!(object instanceof THREE.Mesh)) return;
+        geometries.add(object.geometry);
+        const entries = Array.isArray(object.material) ? object.material : [object.material];
+        entries.forEach((material) => materials.add(material));
+      });
+      geometries.forEach((geometry) => clean(() => geometry.dispose()));
+      materials.forEach((material) => {
+        if (material instanceof THREE.MeshStandardMaterial) {
+          for (const texture of [
+            material.map,
+            material.emissiveMap,
+            material.normalMap,
+            material.roughnessMap,
+            material.metalnessMap,
+            material.aoMap,
+          ]) {
+            if (texture) textures.add(texture);
+          }
+        }
+        clean(() => material.dispose());
+      });
+      textures.forEach((texture) => clean(() => texture.dispose()));
+    } finally {
+      this.textureLifecycle.textureSink = undefined;
+      this.textureLifecycle.ownedTextures.clear();
+      this.root.clear();
+    }
+    if (hasCleanupError) throw cleanupError;
   }
-
 }
