@@ -3,6 +3,11 @@ import type { DungeonRoom, GridCell } from "../dungeon/types";
 import { ENEMY_DANGER_TIER } from "../game/DifficultyDirector";
 import type { EnemyKind } from "./EnemyArchetypes";
 import { ENEMY_ROSTER } from "./EnemySpriteAtlas";
+import {
+  FloorOccupancyBit,
+  FloorOccupancyOverlay,
+  type CellOccupancyQuery,
+} from "./FloorOccupancyGrid";
 
 /**
  * Default Chebyshev gap (in cells) between planned seats. Small rooms use a
@@ -17,12 +22,32 @@ export interface PlannedEnemySpawn {
   pass: number;
 }
 
-function markSpawnNeighborhood(used: Set<string>, cell: GridCell, separation: number): void {
+/**
+ * The runtime supplies a query against the owning floor.  Retaining the Set
+ * overload preserves standalone planner consumers without allocating a copy
+ * of their input.
+ */
+export type EnemySpawnExclusionQuery = CellOccupancyQuery | ReadonlySet<string>;
+
+const EMPTY_ENEMY_SPAWN_EXCLUSION_QUERY: CellOccupancyQuery = {
+  isOccupied: () => false,
+};
+
+function isEnemySpawnExcluded(exclusions: EnemySpawnExclusionQuery, cell: GridCell): boolean {
+  if ("isOccupied" in exclusions) return exclusions.isOccupied(cell.x, cell.y);
+  return exclusions.has(`${cell.x},${cell.y}`);
+}
+
+function markSpawnNeighborhood(
+  used: FloorOccupancyOverlay,
+  cell: GridCell,
+  separation: number,
+): void {
   const radius = Math.max(0, separation - 1);
   for (let y = cell.y - radius; y <= cell.y + radius; y += 1) {
     for (let x = cell.x - radius; x <= cell.x + radius; x += 1) {
       if (Math.max(Math.abs(x - cell.x), Math.abs(y - cell.y)) <= radius) {
-        used.add(`${x},${y}`);
+        used.mark(x, y, FloorOccupancyBit.Object);
       }
     }
   }
@@ -78,7 +103,9 @@ export function roomOpeningEnemyCap(room: Pick<DungeonRoom, "width" | "height">)
 }
 
 /** Sum of per-room seat caps — drives the map-wide reserve pool size. */
-export function totalEnemySeatBudget(rooms: readonly Pick<DungeonRoom, "width" | "height">[]): number {
+export function totalEnemySeatBudget(
+  rooms: readonly Pick<DungeonRoom, "width" | "height">[],
+): number {
   return rooms.reduce((sum, room) => sum + roomEnemySeatCap(room), 0);
 }
 
@@ -154,14 +181,16 @@ export function buildDistributedEnemySpawns(
   seed: string,
   rooms: readonly DungeonRoom[],
   count: number,
-  excludedCellKeys: ReadonlySet<string> = new Set(),
+  excludedCells: EnemySpawnExclusionQuery = EMPTY_ENEMY_SPAWN_EXCLUSION_QUERY,
 ): PlannedEnemySpawn[] {
   if (rooms.length === 0 || count <= 0) return [];
   const random = createSeededRandom(`${seed}:enemy-cells`);
   const rankById = new Map(rooms.map((room, index) => [room.id, index]));
   const seatCapById = new Map(rooms.map((room) => [room.id, roomEnemySeatCap(room)]));
   const seatsByRoom = new Map<number, number>(rooms.map((room) => [room.id, 0]));
-  const used = new Set(excludedCellKeys);
+  const maxX = rooms.reduce((max, room) => Math.max(max, room.x + room.width), 1);
+  const maxY = rooms.reduce((max, room) => Math.max(max, room.y + room.height), 1);
+  const used = new FloorOccupancyOverlay(maxX, maxY);
   const result: PlannedEnemySpawn[] = [];
   let attempts = 0;
   let passIndex = 0;
@@ -187,7 +216,11 @@ export function buildDistributedEnemySpawns(
         [candidates[index], candidates[swap]] = [candidates[swap]!, candidates[index]!];
       }
       attempts += 1;
-      const cell = candidates.find((candidate) => !used.has(`${candidate.x},${candidate.y}`));
+      const cell = candidates.find(
+        (candidate) =>
+          !used.isOccupied(candidate.x, candidate.y) &&
+          !isEnemySpawnExcluded(excludedCells, candidate),
+      );
       if (!cell) continue;
       // Tighter gap in small rooms so seat caps are actually reachable.
       markSpawnNeighborhood(used, cell, roomSpawnSeparation(room));
@@ -196,8 +229,7 @@ export function buildDistributedEnemySpawns(
       // Opening pass stays tier 0; pass 1+ climbs so reserves unlock over time.
       const distanceTier = Math.floor((rank / Math.max(1, rooms.length)) * 5);
       const passTier = Math.min(4, passIndex);
-      const tier =
-        passIndex === 0 ? 0 : Math.min(4, Math.max(1, Math.max(passTier, distanceTier)));
+      const tier = passIndex === 0 ? 0 : Math.min(4, Math.max(1, Math.max(passTier, distanceTier)));
       result.push({ cell, tier, roomId: room.id, pass: passIndex });
       seatsByRoom.set(room.id, seated + 1);
       placedThisPass += 1;
@@ -288,7 +320,9 @@ export function selectEnemyKindsForSpawns(
     } else {
       // Exact band exhausted in this room — pick unused kinds from any band,
       // preferring danger closest to the seat tier so variety still feels local.
-      const unusedAll = (ENEMY_ROSTER as readonly EnemyKind[]).filter((kind) => !roomUsed.has(kind));
+      const unusedAll = (ENEMY_ROSTER as readonly EnemyKind[]).filter(
+        (kind) => !roomUsed.has(kind),
+      );
       if (unusedAll.length > 0) {
         let bestDist = Infinity;
         for (const kind of unusedAll) {

@@ -167,14 +167,15 @@ export function biomeDifficultyRank(biomeId: BiomeId): number {
 }
 
 /**
- * Floors ramp inside campaign levels. Cap is 3 so the resident multi-slab
- * stack stays walkable without streaming a fourth story.
+ * Floors ramp inside campaign levels. The final Backrooms level uses the full
+ * four-floor resident stack; traversal never streams or regenerates a floor.
  */
 export function biomeCampaignFloorCount(biomeId: BiomeId): number {
   const rank = biomeDifficultyRank(biomeId);
   if (rank <= 2) return 1;
   if (rank <= 6) return 2;
-  return 3;
+  if (rank < listBiomeIds().length - 1) return 3;
+  return 4;
 }
 
 /** Next campaign biome after `biomeId`, or null on the final step (Backrooms). */

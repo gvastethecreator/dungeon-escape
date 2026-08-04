@@ -4,10 +4,21 @@ Source: [architecture review](architecture-review-2026-07-27.md)
 
 Status: implemented and locally verified on 2026-07-27.
 
-The owner accepted A7 and the startup portion of A8 on 2026-07-30. A9 remains deferred.
+The owner accepted A7 and the startup portion of A8 on 2026-07-30. El usuario aceptó A9 el
+2026-08-02 dentro de Resident Dungeon Load; su implementación sigue pendiente.
 
 The separate 2026-07-30 deep-module batch is complete: ten accepted maintenance seams were implemented
 and verified without accepting A7-A9. See the [completion report](architecture-review-2026-07-30.md).
+
+## Resident Dungeon Load — 2026-08-02
+
+El usuario aceptó A9 dentro de Resident Dungeon Load. El alcance aprobado está en el
+[contrato](../../.scratch/planning/2026-08-02-dungeon-load-deep-audit-2026-08-02/contract.md) y el
+[ticket RDL-03](../../.scratch/resident-dungeon-load/tickets.md). Esta aceptación no declara A9
+implementado; autoriza el trabajo residente de cuatro pisos.
+
+Las notas históricas inferiores que dicen que A9 estaba deferred describen el estado de su lote fechado,
+no la decisión actual.
 
 ## Frontier
 
@@ -48,11 +59,11 @@ and verified without accepting A7-A9. See the [completion report](architecture-r
 - Quality baseline: [`docs/quality-review-2026-07-27.md`](../quality-review-2026-07-27.md)
 - Execution state: `.scratch/planning/2026-07-27-accepted-architecture-a1-a6/`
 
-## Pending owner decision
+## Accepted work, not yet implemented
 
 | ID  | Candidate                           | Status              | Measured driver                          |
 | --- | ----------------------------------- | ------------------- | ---------------------------------------- |
-| A9  | Static scene plan then Three commit | awaiting acceptance | 3,973-line synchronous build transaction |
+| A9  | Static scene plan then Three commit | accepted; pendiente | 3,973-line synchronous build transaction |
 
 ## Completed deep-module batch — 2026-07-30
 
@@ -94,6 +105,28 @@ hysteresis, interaction reach ownership, annihilation pulse hit eligibility, spi
 exposure curve, biome-event surface composition, safe spawn distance composition,
 minimap feature projection, pickup HUD feedback projection, and adaptive CRT hysteresis.
 A9 remains deferred.
+
+## Completed runtime batch C — 2026-08-02
+
+Exactly ten accepted runtime deepenings are complete under
+[architecture-review-2026-08-02.md](architecture-review-2026-08-02.md)
+and `.scratch/dungeon-architecture-batch-2026-08-02/`.
+
+| ID | Módulo / interfaz | Resultado |
+| --- | --- | --- |
+| ARC-C01 | TimedSeconds | Reloj compartido para poderes y maldiciones |
+| ARC-C02 | RunPowerRuntime | Bolsa de estado de run fuera de campos sueltos en el facade |
+| ARC-C03 | ControlModsProjection | Proyección pura mirror/spin/slow/mobility |
+| ARC-C04 | applyPickupToRunPowers | Activación por kind sobre la bolsa |
+| ARC-C05 | PickupSessionEffects | Tabla de feedback de sesión por kind |
+| ARC-C06 | ChestPresentation | Tapa y reveal fuera de `DungeonWorld.update` |
+| ARC-C07 | PickupMotionPresentation | Idle y collect motion fuera del facade |
+| ARC-C08 | DoorLeafPresentation | Damp de hojas tras DoorOpenPolicy |
+| ARC-C09 | PlayStatusHud | Un snapshot sync/reset para chips de Play |
+| ARC-C10 | setLocomotionMods | Un seam de locomoción en el controller |
+
+Final proof: 967 tests pass and the same 2 baseline tests fail; client/server/worker types
+and lint pass. A9 remains deferred.
 
 ## Completed responsibility batch B — 2026-08-01
 

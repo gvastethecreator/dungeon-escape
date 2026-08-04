@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import type { SceneTextureSink } from "../systems/SceneTextureRegistry";
 import type { DungeonMood } from "../systems/DungeonMood";
 import type { EnemyAnimationDefinition } from "./EnemySpriteAtlas";
 
@@ -96,11 +97,11 @@ export function createEnemyBillboardMaterial(
     shader.vertexShader = shader.vertexShader
       .replace(
         "#include <common>",
-        "#include <common>\nattribute float aEnemyVisibility;\nvarying float vEnemyVisibility;\nuniform vec4 uEnemyAtlasFrame;",
+        "#include <common>\nattribute float aEnemyVisibility;\nattribute vec4 aEnemyAtlasFrame;\nvarying float vEnemyVisibility;\nuniform vec4 uEnemyAtlasFrame;",
       )
       .replace(
         "#include <uv_vertex>",
-        "#include <uv_vertex>\nvMapUv = uEnemyAtlasFrame.xy + vMapUv * uEnemyAtlasFrame.zw;",
+        "#include <uv_vertex>\nvMapUv = aEnemyAtlasFrame.xy + vMapUv * aEnemyAtlasFrame.zw;",
       )
       .replace(
         "#include <begin_vertex>",
@@ -132,7 +133,7 @@ export function createEnemyBillboardMaterial(
         ].join("\n"),
       );
   };
-  material.customProgramCacheKey = () => "enemy-billboard-opacity-atlas-freeze-v5";
+  material.customProgramCacheKey = () => "enemy-billboard-instance-atlas-freeze-v6";
   return material;
 }
 
@@ -160,6 +161,23 @@ export function setEnemyBillboardFrame(
   const target = material.userData.enemyAtlasFrame;
   if (!target) return;
   target.set(
+    frame.x / animation.size[0],
+    1 - (frame.y + frame.h) / animation.size[1],
+    frame.w / animation.size[0],
+    frame.h / animation.size[1],
+  );
+}
+
+/** Writes one normalized atlas rect for one enemy instance. */
+export function setEnemyBillboardInstanceFrame(
+  attribute: THREE.InstancedBufferAttribute,
+  instanceIndex: number,
+  animation: EnemyAnimationDefinition,
+  frameIndex: number,
+): void {
+  const frame = animation.frames[frameIndex % animation.frames.length]!;
+  attribute.setXYZW(
+    instanceIndex,
     frame.x / animation.size[0],
     1 - (frame.y + frame.h) / animation.size[1],
     frame.w / animation.size[0],
@@ -218,7 +236,9 @@ export function enemyOpaqueFeetY(
   return positionY - planeHeight * 0.5 + bottomPaddingRatio * planeHeight;
 }
 
-export function createEnemyContactShadowMaterial(): THREE.MeshBasicMaterial {
+export function createEnemyContactShadowMaterial(
+  textureSink?: SceneTextureSink,
+): THREE.MeshBasicMaterial {
   const size = 64;
   const data = new Uint8Array(size * size * 4);
   for (let y = 0; y < size; y += 1) {
@@ -242,6 +262,7 @@ export function createEnemyContactShadowMaterial(): THREE.MeshBasicMaterial {
   map.magFilter = THREE.LinearFilter;
   map.minFilter = THREE.LinearFilter;
   map.generateMipmaps = false;
+  textureSink?.register(map);
   const material = new THREE.MeshBasicMaterial({
     map,
     transparent: true,
@@ -258,7 +279,11 @@ export function createEnemyContactShadowMaterial(): THREE.MeshBasicMaterial {
   return material;
 }
 
-export function disposeEnemyContactShadowMaterial(material: THREE.MeshBasicMaterial): void {
+export function disposeEnemyContactShadowMaterial(
+  material: THREE.MeshBasicMaterial,
+  textureSink?: SceneTextureSink,
+): void {
+  if (material.map) textureSink?.unregister(material.map);
   material.map?.dispose();
   material.dispose();
 }

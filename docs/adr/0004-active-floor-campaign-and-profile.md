@@ -4,6 +4,12 @@
 
 Accepted
 
+## Supersession
+
+Las cláusulas de **Decision** y **Consequences** que limitan la campaña a tres pisos o reconstruyen la
+ruta normal de escaleras quedan reemplazadas por [ADR 0007](0007-resident-four-floor-stack.md). Las
+decisiones restantes de perfil, save, unlock y recovery siguen aceptadas.
+
 ## Context
 
 Campaign levels now grow from one to four floors, while ADR 0002 keeps `DungeonWorld` as the Play facade. Ordered biome unlocks and player identity must also survive browser restarts without coupling long-lived progress to a disposable run.

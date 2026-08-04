@@ -6,6 +6,7 @@ import { gridToWorld } from "../dungeon/gridCollision";
 import type { DungeonData, GridCell } from "../dungeon/types";
 import type { DungeonMood } from "./DungeonMood";
 import { getDungeonMood } from "./DungeonMood";
+import type { SceneTextureSink } from "./SceneTextureRegistry";
 import {
   BIOME_PARTICLE_MOTION_ID,
   BIOME_PARTICLE_SHAPE_ID,
@@ -634,8 +635,8 @@ export const CEILING_EVENT_SPEED_BOOST = 1.7;
 export class AtmosphereSystem {
   readonly stats = { mistBanks: 0, motes: 0, groundFogTiles: 0 };
   private readonly group = new THREE.Group();
-  private readonly mistTexture = createMistTexture();
-  private readonly dustTexture = createDustTexture();
+  private readonly mistTexture: THREE.Texture;
+  private readonly dustTexture: THREE.Texture;
   private readonly mistBanks: MistBank[] = [];
   private softGroundFog: SoftGroundFog | null = null;
   private supportParticles: THREE.Points | null = null;
@@ -653,13 +654,19 @@ export class AtmosphereSystem {
   private elapsed = 0;
   private readonly wallHeight: number;
   private readonly viewer = new THREE.Vector3();
+  private disposed = false;
 
   constructor(
     private readonly scene: THREE.Scene,
     private readonly tileSize: number,
     wallHeight: number = SOFT_FOG_DEFAULT_WALL_HEIGHT,
+    private readonly textureSink?: SceneTextureSink,
   ) {
     this.wallHeight = wallHeight;
+    this.mistTexture = createMistTexture();
+    this.dustTexture = createDustTexture();
+    this.textureSink?.register(this.mistTexture);
+    this.textureSink?.register(this.dustTexture);
     this.group.name = "Dungeon atmosphere";
     scene.add(this.group);
   }
@@ -800,7 +807,11 @@ export class AtmosphereSystem {
   }
 
   dispose(): void {
+    if (this.disposed) return;
+    this.disposed = true;
     this.clear();
+    this.textureSink?.unregister(this.mistTexture);
+    this.textureSink?.unregister(this.dustTexture);
     this.mistTexture.dispose();
     this.dustTexture.dispose();
     this.scene.remove(this.group);
@@ -845,6 +856,7 @@ export class AtmosphereSystem {
     );
 
     const mask = createFloorMaskTexture(dungeon);
+    this.textureSink?.register(mask);
     // Local box: follows player each frame; height = full wall column.
     const side = SOFT_FOG_LOCAL_HALF * 2;
     const geometry = new THREE.BoxGeometry(side, this.wallHeight, side);
@@ -927,6 +939,7 @@ export class AtmosphereSystem {
 
   private clear(): void {
     if (this.softGroundFog) {
+      this.textureSink?.unregister(this.softGroundFog.mask);
       this.softGroundFog.mask.dispose();
       this.softGroundFog = null;
     }

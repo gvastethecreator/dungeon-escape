@@ -1,0 +1,149 @@
+{
+  "version": 1,
+  "kind": "ancient-enemy-animation-atlas",
+  "size": [
+    640,
+    3520
+  ],
+  "cell": [
+    160,
+    160
+  ],
+  "layout": "two interleaved rows per enemy: movement, attack",
+  "frames_per_state": 4,
+  "enemies": {
+    "carrion": {
+      "candidate": ".scratch/biome-enemy-animation-spritesheets/candidates/ancient/carrion",
+      "source_sha256": "ac2a8335196e76580c4d864fe4be674f342a4037c03f804a7b6b96f3df2fd192",
+      "movement_row": 0,
+      "attack_row": 1,
+      "movement_fps": 8,
+      "attack_fps": 10,
+      "pivot": {
+        "x": 80,
+        "bottom": 152
+      }
+    },
+    "goblin": {
+      "candidate": ".scratch/biome-enemy-animation-spritesheets/candidates/ancient/goblin",
+      "source_sha256": "b7a9d266840c8bae0258dcae696401e274c05d1170992e07ed8ab9953ab58d51",
+      "movement_row": 2,
+      "attack_row": 3,
+      "movement_fps": 8,
+      "attack_fps": 10,
+      "pivot": {
+        "x": 80,
+        "bottom": 152
+      }
+    },
+    "ghost": {
+      "candidate": ".scratch/biome-enemy-animation-spritesheets/candidates/ancient/ghost-v2",
+      "source_sha256": "914a130052b771d240725764113b57a9694b81611d2cf5c4917c91ec9cc70e2a",
+      "movement_row": 4,
+      "attack_row": 5,
+      "movement_fps": 8,
+      "attack_fps": 10,
+      "pivot": {
+        "x": 80,
+        "bottom": 152
+      }
+    },
+    "ratling": {
+      "candidate": ".scratch/biome-enemy-animation-spritesheets/candidates/ancient/ratling",
+      "source_sha256": "daade26a2d9bb158195cdcb7c1b2c1f42745ccce7594aca6d46df81ef557dc7f",
+      "movement_row": 6,
+      "attack_row": 7,
+      "movement_fps": 8,
+      "attack_fps": 10,
+      "pivot": {
+        "x": 80,
+        "bottom": 152
+      }
+    },
+    "husk": {
+      "candidate": ".scratch/biome-enemy-animation-spritesheets/candidates/ancient/husk",
+      "source_sha256": "41443c2328330b2da265d678c08c4b24e7e3a3b02d333a570d30c86361f4f746",
+      "movement_row": 8,
+      "attack_row": 9,
+      "movement_fps": 8,
+      "attack_fps": 10,
+      "pivot": {
+        "x": 80,
+        "bottom": 152
+      }
+    },
+    "imp": {
+      "candidate": ".scratch/biome-enemy-animation-spritesheets/candidates/ancient/imp-v5",
+      "source_sha256": "3352113ee7a1d5cd030f30533cb3686fa9d99829c853dd001b8c7535f97a88c2",
+      "movement_row": 10,
+      "attack_row": 11,
+      "movement_fps": 8,
+      "attack_fps": 10,
+      "pivot": {
+        "x": 80,
+        "bottom": 152
+      }
+    },
+    "zombie-orc": {
+      "candidate": ".scratch/biome-enemy-animation-spritesheets/candidates/ancient/zombie-orc",
+      "source_sha256": "aa901f6415073b7b888f1c1cf0a35c910579e3b41e29692b87ae954f1c847122",
+      "movement_row": 12,
+      "attack_row": 13,
+      "movement_fps": 7,
+      "attack_fps": 9,
+      "pivot": {
+        "x": 80,
+        "bottom": 152
+      }
+    },
+    "spider": {
+      "candidate": ".scratch/biome-enemy-animation-spritesheets/candidates/ancient/spider",
+      "source_sha256": "75e956edc6ff05410b589fe00900714d137094b7ae90d2eef8b98a94f117cdc4",
+      "movement_row": 14,
+      "attack_row": 15,
+      "movement_fps": 8,
+      "attack_fps": 10,
+      "pivot": {
+        "x": 80,
+        "bottom": 152
+      }
+    },
+    "bone-slime": {
+      "candidate": ".scratch/biome-enemy-animation-spritesheets/candidates/ancient/bone-slime",
+      "source_sha256": "63f2a0c585b57134a388169c419d120c41b4ac9283dce67537256d1c23778f48",
+      "movement_row": 16,
+      "attack_row": 17,
+      "movement_fps": 8,
+      "attack_fps": 10,
+      "pivot": {
+        "x": 80,
+        "bottom": 152
+      }
+    },
+    "white-eyed-shadow": {
+      "candidate": ".scratch/biome-enemy-animation-spritesheets/candidates/ancient/white-eyed-shadow",
+      "source_sha256": "480973a7475c94c32dd5a19d62462e0751776415c4019eae4365a1f3abff5437",
+      "movement_row": 18,
+      "attack_row": 19,
+      "movement_fps": 8,
+      "attack_fps": 10,
+      "pivot": {
+        "x": 80,
+        "bottom": 152
+      }
+    },
+    "carrion-stalker": {
+      "candidate": ".scratch/biome-enemy-animation-spritesheets/candidates/ancient/carrion-stalker",
+      "source_sha256": "9390c98b17655497bea7e6cceeba3aa1482c64ded1083708a0dc31e7c56bc0ac",
+      "movement_row": 20,
+      "attack_row": 21,
+      "movement_fps": 8,
+      "attack_fps": 10,
+      "pivot": {
+        "x": 80,
+        "bottom": 152
+      }
+    }
+  },
+  "output_sha256": "5e848de8bde0ceddf0782b83d3ab11e073152b47e83d231e0572a2df4c1cd399"
+}

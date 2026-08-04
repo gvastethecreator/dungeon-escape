@@ -20,6 +20,7 @@ export const MINIMAP_COLORS = {
   spawn: "#5a5d58",
   enemy: "#c2362e",
   fire: "#d68a2c",
+  hazard: "#b85a48",
   stone: "#3aa6a0",
   stoneCollected: "#1d2f30",
   pickup: "#6a9a4f",
@@ -271,6 +272,15 @@ function drawFeatures(
   cellSize: number,
   isExplored: (x: number, y: number) => boolean,
 ): void {
+  // Hazards sit under fires and pickups so an item keeps its readable marker.
+  context.fillStyle = COLORS.hazard;
+  const hazardR = Math.max(1, cellSize * 0.22);
+  for (const hazard of features.hazards ?? []) {
+    if (!isExplored(hazard.x, hazard.y)) continue;
+    const [cx, cy] = cellCenter(hazard);
+    context.fillRect(cx - hazardR, cy - hazardR, hazardR * 2, hazardR * 2);
+  }
+
   // Fires: small ember dots.
   context.fillStyle = COLORS.fire;
   const fireR = Math.max(1.2, cellSize * 0.3);

@@ -9,8 +9,9 @@
   "biome_atlases": {
     "ancient": {
       "path": "/assets/sprites/enemies-v8/biomes/ancient-enemies.webp",
-      "sha256": "ac3173cda287040f52ba085fcba2ce64cdd62c8aad71a6f45698d6d6a17050f6",
-      "size_bytes": 684386
+      "sha256": "5e848de8bde0ceddf0782b83d3ab11e073152b47e83d231e0572a2df4c1cd399",
+      "size_bytes": 935264,
+      "animation_package": "assets-source/enemies/v8/ancient-enemies-animated.json"
     },
     "molten": {
       "path": "/assets/sprites/enemies-v8/biomes/molten-enemies.webp",

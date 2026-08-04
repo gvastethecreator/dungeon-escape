@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import type { DungeonMoodId } from "../systems/DungeonMood";
+import type { SceneTextureSink } from "../systems/SceneTextureRegistry";
 import type { BiomeSurfaceTextures } from "./AssetLibrary";
 import {
   registerTextureSource,
@@ -8,6 +9,41 @@ import {
 } from "./TextureTreatment";
 
 const textureLoader = new THREE.TextureLoader();
+
+export interface DungeonMaterialTextureLifecycle {
+  active: boolean;
+  textureSink?: SceneTextureSink;
+  readonly ownedTextures: Set<THREE.Texture>;
+}
+
+const materialTextureLifecycles = new WeakMap<DungeonMaterials, DungeonMaterialTextureLifecycle>();
+
+export function dungeonMaterialTextureLifecycle(
+  materials: DungeonMaterials,
+): DungeonMaterialTextureLifecycle | undefined {
+  return materialTextureLifecycles.get(materials);
+}
+
+export function registerDungeonMaterialTexture<T extends THREE.Texture>(
+  lifecycle: DungeonMaterialTextureLifecycle | undefined,
+  texture: T,
+  registerForPolicy = true,
+): T {
+  if (!lifecycle?.active) return texture;
+  lifecycle.ownedTextures.add(texture);
+  if (registerForPolicy) lifecycle.textureSink?.register(texture);
+  return texture;
+}
+
+export function completeDungeonMaterialTextureLoad(
+  lifecycle: DungeonMaterialTextureLifecycle | undefined,
+  texture: THREE.Texture,
+  prepare?: (loaded: THREE.Texture) => void,
+): void {
+  if (!lifecycle?.active) return;
+  prepare?.(texture);
+  lifecycle.textureSink?.markRenderable(texture);
+}
 
 /** ImageGen-authored albedo families with independent derived PBR channels. */
 const PBR_FAMILIES = [
@@ -56,32 +92,42 @@ interface PbrMapSet {
  * Falls back to `null` when document is unavailable (SSR/tests) — callers
  * keep their procedural fallback in that case.
  */
-function loadPbrMaps(family: PbrFamily, compact = false): PbrMapSet {
+function loadPbrMaps(
+  family: PbrFamily,
+  compact: boolean,
+  lifecycle: DungeonMaterialTextureLifecycle,
+): PbrMapSet {
   if (typeof document === "undefined")
     return { albedo: null, normal: null, roughness: null, ao: null };
   const base = `/assets/textures/model-materials-v2/${family}/${family}`;
   const albedo = textureLoader.load(`${base}_albedo.webp`, (loaded) =>
-    resolveTextureSource(loaded),
+    completeDungeonMaterialTextureLoad(lifecycle, loaded, resolveTextureSource),
   );
   registerTextureSource(albedo, `${base}_albedo.webp`, { seam: "none" });
   albedo.colorSpace = THREE.SRGBColorSpace;
   const normal = compact
     ? null
-    : textureLoader.load(`${base}_normal.webp`, (loaded) => resolveTextureSource(loaded));
+    : textureLoader.load(`${base}_normal.webp`, (loaded) =>
+        completeDungeonMaterialTextureLoad(lifecycle, loaded, resolveTextureSource),
+      );
   if (normal) {
     registerTextureSource(normal, `${base}_normal.webp`, { seam: "none" });
     normal.colorSpace = THREE.NoColorSpace;
   }
   const roughness = compact
     ? null
-    : textureLoader.load(`${base}_roughness.webp`, (loaded) => resolveTextureSource(loaded));
+    : textureLoader.load(`${base}_roughness.webp`, (loaded) =>
+        completeDungeonMaterialTextureLoad(lifecycle, loaded, resolveTextureSource),
+      );
   if (roughness) {
     registerTextureSource(roughness, `${base}_roughness.webp`, { seam: "none" });
     roughness.colorSpace = THREE.NoColorSpace;
   }
   const ao = compact
     ? null
-    : textureLoader.load(`${base}_ao.webp`, (loaded) => resolveTextureSource(loaded));
+    : textureLoader.load(`${base}_ao.webp`, (loaded) =>
+        completeDungeonMaterialTextureLoad(lifecycle, loaded, resolveTextureSource),
+      );
   if (ao) {
     registerTextureSource(ao, `${base}_ao.webp`, { seam: "none" });
     ao.colorSpace = THREE.NoColorSpace;
@@ -100,6 +146,7 @@ function loadPbrMaps(family: PbrFamily, compact = false): PbrMapSet {
     texture.minFilter = THREE.LinearMipmapLinearFilter;
     texture.generateMipmaps = true;
     texture.anisotropy = 8;
+    registerDungeonMaterialTexture(lifecycle, texture);
   }
   return { albedo, normal, roughness, ao };
 }
@@ -272,6 +319,7 @@ export function applyBiomeMapsToDungeonMaterials(
 function surfaceTexture(
   kind: "wood" | "stone" | "metal" | "cloth",
   height = false,
+  lifecycle?: DungeonMaterialTextureLifecycle,
 ): THREE.DataTexture {
   const data = new Uint8Array(128 * 128 * 4);
   let state = kind.length * 9973 + (height ? 41 : 17);
@@ -317,14 +365,20 @@ function surfaceTexture(
   texture.repeat.set(kind === "wood" ? 2 : 3, kind === "wood" ? 4 : 3);
   texture.magFilter = THREE.NearestFilter;
   texture.minFilter = THREE.NearestMipmapNearestFilter;
-  return texture;
+  return registerDungeonMaterialTexture(lifecycle, texture);
 }
 
-function generatedAlbedo(path: string, repeat: readonly [number, number]): THREE.Texture {
+function generatedAlbedo(
+  path: string,
+  repeat: readonly [number, number],
+  lifecycle: DungeonMaterialTextureLifecycle,
+): THREE.Texture {
   const texture =
     typeof document === "undefined"
       ? new THREE.Texture()
-      : textureLoader.load(path, (loaded) => resolveTextureSource(loaded));
+      : textureLoader.load(path, (loaded) =>
+          completeDungeonMaterialTextureLoad(lifecycle, loaded, resolveTextureSource),
+        );
   registerTextureSource(texture, path, true);
   texture.name = path;
   texture.colorSpace = THREE.SRGBColorSpace;
@@ -333,7 +387,7 @@ function generatedAlbedo(path: string, repeat: readonly [number, number]): THREE
   texture.magFilter = THREE.NearestFilter;
   texture.minFilter = THREE.NearestMipmapNearestFilter;
   texture.generateMipmaps = true;
-  return texture;
+  return registerDungeonMaterialTexture(lifecycle, texture, typeof document !== "undefined");
 }
 
 function shared<T extends THREE.Material>(material: T): T {
@@ -352,7 +406,7 @@ export function clearDungeonMaterialVariantCache(): void {
 /** Drop variants whose base uuid belongs to this materials set. */
 export function clearDungeonMaterialVariantsFor(materials: DungeonMaterials): void {
   const prefixes = Object.values(materials).map((material) => `${material.uuid}::`);
-  for (const [key, variant] of [...dungeonMaterialVariantCache.entries()]) {
+  for (const [key, variant] of dungeonMaterialVariantCache.entries()) {
     if (!prefixes.some((prefix) => key.startsWith(prefix))) continue;
     variant.dispose();
     dungeonMaterialVariantCache.delete(key);
@@ -395,51 +449,100 @@ export function getDungeonMaterialVariant(
 
 export function createDungeonMaterials({
   compact = false,
-}: { compact?: boolean } = {}): DungeonMaterials {
+  textureSink,
+}: { compact?: boolean; textureSink?: SceneTextureSink } = {}): DungeonMaterials {
+  const textureLifecycle: DungeonMaterialTextureLifecycle = {
+    active: true,
+    textureSink,
+    ownedTextures: new Set(),
+  };
   // ImageGen albedos provide the authored color layer. Height, normal,
   // roughness, and AO remain separate derived data channels.
-  const stonePbr = loadPbrMaps("dungeon-stone", compact);
-  const woodPbr = loadPbrMaps("aged-oak", compact);
-  const rootPbr = loadPbrMaps("root-bark", compact);
-  const ironPbr = loadPbrMaps("black-iron", compact);
-  const paintedSteelPbr = loadPbrMaps("ochre-painted-steel", compact);
-  const brassPbr = loadPbrMaps("dull-brass", compact);
-  const ceramicPbr = loadPbrMaps("ash-ceramic", compact);
-  const clothPbr = loadPbrMaps("woven-cloth", compact);
-  const bonePbr = loadPbrMaps("aged-bone", compact);
-  const crystalPbr = loadPbrMaps("arcane-crystal", compact);
-  const icePbr = loadPbrMaps("dungeon-ice", compact);
+  const stonePbr = loadPbrMaps("dungeon-stone", compact, textureLifecycle);
+  const woodPbr = loadPbrMaps("aged-oak", compact, textureLifecycle);
+  const rootPbr = loadPbrMaps("root-bark", compact, textureLifecycle);
+  const ironPbr = loadPbrMaps("black-iron", compact, textureLifecycle);
+  const paintedSteelPbr = loadPbrMaps("ochre-painted-steel", compact, textureLifecycle);
+  const brassPbr = loadPbrMaps("dull-brass", compact, textureLifecycle);
+  const ceramicPbr = loadPbrMaps("ash-ceramic", compact, textureLifecycle);
+  const clothPbr = loadPbrMaps("woven-cloth", compact, textureLifecycle);
+  const bonePbr = loadPbrMaps("aged-bone", compact, textureLifecycle);
+  const crystalPbr = loadPbrMaps("arcane-crystal", compact, textureLifecycle);
+  const icePbr = loadPbrMaps("dungeon-ice", compact, textureLifecycle);
+  const needsProceduralFallback = typeof document === "undefined";
 
   const woodMap =
     woodPbr.albedo ??
-    generatedAlbedo("/assets/textures/generated/iron-ash-prop-oak-v1.webp", [2, 4]);
-  const woodHeight = surfaceTexture("wood", true);
-  const stoneMap = stonePbr.albedo ?? surfaceTexture("stone");
-  const stoneHeight = surfaceTexture("stone", true);
+    generatedAlbedo(
+      "/assets/textures/generated/iron-ash-prop-oak-v1.webp",
+      [2, 4],
+      textureLifecycle,
+    );
+  const woodHeight = needsProceduralFallback
+    ? surfaceTexture("wood", true, textureLifecycle)
+    : woodMap;
+  const stoneMap = stonePbr.albedo ?? surfaceTexture("stone", false, textureLifecycle);
+  const stoneHeight = needsProceduralFallback
+    ? surfaceTexture("stone", true, textureLifecycle)
+    : stoneMap;
   const ironMap =
     ironPbr.albedo ??
-    generatedAlbedo("/assets/textures/generated/iron-ash-prop-iron-v1.webp", [3, 3]);
-  const ironHeight = surfaceTexture("metal", true);
+    generatedAlbedo(
+      "/assets/textures/generated/iron-ash-prop-iron-v1.webp",
+      [3, 3],
+      textureLifecycle,
+    );
+  const ironHeight = needsProceduralFallback
+    ? surfaceTexture("metal", true, textureLifecycle)
+    : ironMap;
   const brassMap =
     brassPbr.albedo ??
-    generatedAlbedo("/assets/textures/generated/iron-ash-prop-brass-v1.webp", [3, 3]);
-  const brassHeight = surfaceTexture("metal", true);
-  const clothMap = clothPbr.albedo ?? surfaceTexture("cloth");
-  const clothHeight = surfaceTexture("cloth", true);
+    generatedAlbedo(
+      "/assets/textures/generated/iron-ash-prop-brass-v1.webp",
+      [3, 3],
+      textureLifecycle,
+    );
+  const brassHeight = needsProceduralFallback
+    ? surfaceTexture("metal", true, textureLifecycle)
+    : brassMap;
+  const clothMap = clothPbr.albedo ?? surfaceTexture("cloth", false, textureLifecycle);
+  const clothHeight = needsProceduralFallback
+    ? surfaceTexture("cloth", true, textureLifecycle)
+    : clothMap;
   const boneMap =
     bonePbr.albedo ??
-    generatedAlbedo("/assets/textures/generated/iron-ash-prop-bone-v1.webp", [1.5, 1.5]);
+    generatedAlbedo(
+      "/assets/textures/generated/iron-ash-prop-bone-v1.webp",
+      [1.5, 1.5],
+      textureLifecycle,
+    );
   const ceramicMap =
     ceramicPbr.albedo ??
-    generatedAlbedo("/assets/textures/generated/iron-ash-prop-ceramic-v1.webp", [2, 2]);
+    generatedAlbedo(
+      "/assets/textures/generated/iron-ash-prop-ceramic-v1.webp",
+      [2, 2],
+      textureLifecycle,
+    );
   const crystalMap =
     crystalPbr.albedo ??
-    generatedAlbedo("/assets/textures/generated/iron-ash-prop-crystal-v1.webp", [1.25, 1.25]);
-  const crystalHeight = surfaceTexture("stone", true);
+    generatedAlbedo(
+      "/assets/textures/generated/iron-ash-prop-crystal-v1.webp",
+      [1.25, 1.25],
+      textureLifecycle,
+    );
+  const crystalHeight = needsProceduralFallback
+    ? surfaceTexture("stone", true, textureLifecycle)
+    : crystalMap;
   const iceMap =
     icePbr.albedo ??
-    generatedAlbedo("/assets/textures/generated/iron-ash-prop-ice-v1.webp", [1.25, 1.25]);
-  const iceHeight = surfaceTexture("stone", true);
+    generatedAlbedo(
+      "/assets/textures/generated/iron-ash-prop-ice-v1.webp",
+      [1.25, 1.25],
+      textureLifecycle,
+    );
+  const iceHeight = needsProceduralFallback
+    ? surfaceTexture("stone", true, textureLifecycle)
+    : iceMap;
 
   const materials: DungeonMaterials = {
     stone: shared(
@@ -617,6 +720,7 @@ export function createDungeonMaterials({
   materials.crystal.emissiveIntensity = 0.68;
   materials.ice.emissive.setHex(0x11191b);
   materials.ice.emissiveIntensity = 0.28;
+  materialTextureLifecycles.set(materials, textureLifecycle);
   return materials;
 }
 
@@ -668,6 +772,12 @@ function buildPbrMaterial(
 }
 
 export function disposeDungeonMaterials(materials: DungeonMaterials): void {
+  const lifecycle = materialTextureLifecycles.get(materials);
+  if (lifecycle) {
+    lifecycle.active = false;
+    for (const texture of lifecycle.ownedTextures) lifecycle.textureSink?.unregister(texture);
+    lifecycle.textureSink = undefined;
+  }
   // Variants hold clones that share maps with the bases. Drop them before
   // disposing base maps so rebuilds never reuse disposed GPU textures.
   clearDungeonMaterialVariantsFor(materials);
@@ -701,5 +811,8 @@ export function disposeDungeonMaterials(materials: DungeonMaterials): void {
     if (localVariants) localVariants.length = 0;
     material.dispose();
   }
+  for (const texture of lifecycle?.ownedTextures ?? []) textures.add(texture);
   textures.forEach((texture) => texture.dispose());
+  lifecycle?.ownedTextures.clear();
+  materialTextureLifecycles.delete(materials);
 }

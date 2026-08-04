@@ -4,6 +4,13 @@ Status: accepted
 
 Date: 2026-07-30
 
+## Supersession
+
+La cláusula de **Decision** que usa un cache lazy determinista y materializa sólo el Active floor queda
+reemplazada por [ADR 0007](0007-resident-four-floor-stack.md). El contrato de runtime assets queda
+íntegro: el límite de `public/`, la política de raster, el optimization manifest y el deployment audit
+siguen aceptados.
+
 ## Context
 
 `public/` mixed deployable files with raw enemy sources and production metadata. It held 1,169 files and 408.26 MiB. New Game also generated every campaign floor before the player used one.

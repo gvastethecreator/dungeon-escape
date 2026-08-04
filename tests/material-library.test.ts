@@ -8,6 +8,7 @@ import {
   type DungeonMaterials,
 } from "../src/world/MaterialLibrary";
 import type { BiomeLayerTextures, BiomeSurfaceTextures } from "../src/world/AssetLibrary";
+import { SceneTextureRegistry } from "../src/systems/SceneTextureRegistry";
 import * as THREE from "three";
 
 function layer(name: string): BiomeLayerTextures {
@@ -29,6 +30,63 @@ function biome(name: string): BiomeSurfaceTextures {
 }
 
 describe("dungeon prop materials", () => {
+  test("keeps pending material loads inert after owner disposal", () => {
+    const documentDescriptor = Object.getOwnPropertyDescriptor(globalThis, "document");
+    const prototype = THREE.TextureLoader.prototype;
+    const originalLoad = prototype.load;
+    const pending: Array<{
+      texture: THREE.Texture;
+      onLoad?: (texture: THREE.Texture) => void;
+    }> = [];
+    Object.defineProperty(globalThis, "document", {
+      configurable: true,
+      value: {},
+    });
+    prototype.load = ((_url: string, onLoad?: (texture: THREE.Texture) => void) => {
+      const texture = new THREE.Texture({ width: 0, height: 0 });
+      pending.push({ texture, onLoad });
+      return texture;
+    }) as typeof prototype.load;
+
+    try {
+      const registry = new SceneTextureRegistry(true);
+      const materials = createDungeonMaterials({ compact: true, textureSink: registry });
+      expect(pending.length).toBeGreaterThan(0);
+      expect(registry.diagnostics().pending).toBe(pending.length);
+      const disposalCounts = new Map<THREE.Texture, number>();
+      for (const { texture } of pending) {
+        texture.addEventListener("dispose", () => {
+          disposalCounts.set(texture, (disposalCounts.get(texture) ?? 0) + 1);
+        });
+      }
+
+      disposeDungeonMaterials(materials);
+      expect(registry.diagnostics().registered).toBe(0);
+      const before = pending.map(({ texture }) => ({
+        texture,
+        version: texture.version,
+        magFilter: texture.magFilter,
+        minFilter: texture.minFilter,
+      }));
+      for (const entry of pending) {
+        entry.texture.image = { width: 8, height: 8 };
+        entry.onLoad?.(entry.texture);
+      }
+
+      for (const snapshot of before) {
+        expect(snapshot.texture.version).toBe(snapshot.version);
+        expect(snapshot.texture.magFilter).toBe(snapshot.magFilter);
+        expect(snapshot.texture.minFilter).toBe(snapshot.minFilter);
+        expect(disposalCounts.get(snapshot.texture)).toBe(1);
+      }
+      expect(registry.diagnostics().registered).toBe(0);
+    } finally {
+      prototype.load = originalLoad;
+      if (documentDescriptor) Object.defineProperty(globalThis, "document", documentDescriptor);
+      else Reflect.deleteProperty(globalThis, "document");
+    }
+  });
+
   test("createDungeonMaterials yields the full iron-ash set", () => {
     const materials = createDungeonMaterials();
     const keys = Object.keys(materials) as (keyof DungeonMaterials)[];

@@ -1,6 +1,12 @@
 import * as THREE from "three";
 
-import type { DungeonMaterials } from "./MaterialLibrary";
+import {
+  completeDungeonMaterialTextureLoad,
+  dungeonMaterialTextureLifecycle,
+  registerDungeonMaterialTexture,
+  type DungeonMaterials,
+  type DungeonMaterialTextureLifecycle,
+} from "./MaterialLibrary";
 import { registerTextureSource, resolveTextureSource } from "./TextureTreatment";
 
 const textureLoader = new THREE.TextureLoader();
@@ -127,12 +133,17 @@ export function getReadableRootMaterial(materials: DungeonMaterials): THREE.Mesh
   );
 }
 
-function curedMeatTexture(kind: "albedo" | "normal" | "roughness" | "ao"): THREE.Texture {
+function curedMeatTexture(
+  kind: "albedo" | "normal" | "roughness" | "ao",
+  lifecycle: DungeonMaterialTextureLifecycle | undefined,
+): THREE.Texture {
   const path = `/assets/textures/model-materials-v2/cured-meat/cured-meat_${kind}.webp`;
   const texture =
     typeof document === "undefined"
       ? new THREE.Texture()
-      : textureLoader.load(path, (loaded) => resolveTextureSource(loaded));
+      : textureLoader.load(path, (loaded) =>
+          completeDungeonMaterialTextureLoad(lifecycle, loaded, resolveTextureSource),
+        );
   registerTextureSource(texture, path, { seam: "none" });
   texture.name = path;
   texture.colorSpace = kind === "albedo" ? THREE.SRGBColorSpace : THREE.NoColorSpace;
@@ -144,17 +155,18 @@ function curedMeatTexture(kind: "albedo" | "normal" | "roughness" | "ao"): THREE
   texture.generateMipmaps = true;
   texture.anisotropy = 8;
   if (kind === "ao") texture.channel = 0;
-  return texture;
+  return registerDungeonMaterialTexture(lifecycle, texture, typeof document !== "undefined");
 }
 
 /** Lazy meat-only PBR material; the model pays its four texture maps only when used. */
 export function getCuredMeatMaterial(materials: DungeonMaterials): THREE.MeshStandardMaterial {
   let material = curedMeatCache.get(materials);
   if (!material) {
-    const albedo = curedMeatTexture("albedo");
-    const normal = curedMeatTexture("normal");
-    const roughness = curedMeatTexture("roughness");
-    const ao = curedMeatTexture("ao");
+    const lifecycle = dungeonMaterialTextureLifecycle(materials);
+    const albedo = curedMeatTexture("albedo", lifecycle);
+    const normal = curedMeatTexture("normal", lifecycle);
+    const roughness = curedMeatTexture("roughness", lifecycle);
+    const ao = curedMeatTexture("ao", lifecycle);
     material = registerLocalVariant(
       materials.cloth,
       new THREE.MeshStandardMaterial({

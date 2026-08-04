@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
+import type { SceneTextureSink } from "../systems/SceneTextureRegistry";
 
 import type { DungeonMaterials } from "./MaterialLibrary";
 import { createLuminousWardGoldMaterial } from "./LuminousWardMaterial";
@@ -630,11 +631,7 @@ export function createTimeFreezeRelic(materials: DungeonMaterials): THREE.Group 
 
   const frame = new THREE.Group();
   frame.name = "Time freeze hourglass frame";
-  const topCap = mesh(
-    new THREE.CylinderGeometry(0.34, 0.37, 0.12, 8),
-    iron,
-    "Time freeze top cap",
-  );
+  const topCap = mesh(new THREE.CylinderGeometry(0.34, 0.37, 0.12, 8), iron, "Time freeze top cap");
   topCap.position.y = 1.38;
   const bottomCap = mesh(
     new THREE.CylinderGeometry(0.37, 0.34, 0.12, 8),
@@ -850,7 +847,10 @@ export function createTimeFreezeRelic(materials: DungeonMaterials): THREE.Group 
  * dungeon, so its accent shifts with the room mood while its matte base keeps
  * the pickup from looking like a second glossy magic stone.
  */
-export function createLuminousWardStone(materials: DungeonMaterials): THREE.Group {
+export function createLuminousWardStone(
+  materials: DungeonMaterials,
+  textureSink?: SceneTextureSink,
+): THREE.Group {
   const root = new THREE.Group();
   root.name = "Three-dimensional luminous ward stone";
 
@@ -868,6 +868,7 @@ export function createLuminousWardStone(materials: DungeonMaterials): THREE.Grou
   const crystal = createLuminousWardGoldMaterial({
     compact: compactWardMaterial,
     biomeTint: materials.ice.color,
+    textureSink,
   });
   crystal.color.setHex(0xd1c18f);
   crystal.emissive.setHex(0x4d3b13);
@@ -1281,11 +1282,7 @@ export function createDungeonMapPickup(materials: DungeonMaterials): THREE.Group
   wood.color.setHex(0x4a2d1d);
   wood.roughness = 0.86;
 
-  const sheet = mesh(
-    new THREE.PlaneGeometry(0.9, 0.62, 3, 2),
-    parchment,
-    "Dungeon map parchment",
-  );
+  const sheet = mesh(new THREE.PlaneGeometry(0.9, 0.62, 3, 2), parchment, "Dungeon map parchment");
   sheet.rotation.x = -Math.PI / 2;
   sheet.rotation.z = -0.12;
   sheet.position.y = 0.52;
@@ -1355,11 +1352,7 @@ export function createClarityPhial(materials: DungeonMaterials): THREE.Group {
   const cork = materials.wood.clone();
   cork.color.setHex(0x5a4030);
 
-  const bottle = mesh(
-    new THREE.CylinderGeometry(0.16, 0.2, 0.52, 10),
-    glass,
-    "Clarity phial body",
-  );
+  const bottle = mesh(new THREE.CylinderGeometry(0.16, 0.2, 0.52, 10), glass, "Clarity phial body");
   bottle.position.y = 0.42;
   const liquid = mesh(
     new THREE.CylinderGeometry(0.12, 0.155, 0.34, 10),
@@ -1367,11 +1360,7 @@ export function createClarityPhial(materials: DungeonMaterials): THREE.Group {
     "Clarity phial mist charge",
   );
   liquid.position.y = 0.36;
-  const neck = mesh(
-    new THREE.CylinderGeometry(0.08, 0.1, 0.16, 8),
-    glass,
-    "Clarity phial neck",
-  );
+  const neck = mesh(new THREE.CylinderGeometry(0.08, 0.1, 0.16, 8), glass, "Clarity phial neck");
   neck.position.y = 0.74;
   const stopper = mesh(
     new THREE.CylinderGeometry(0.09, 0.08, 0.11, 8),
@@ -1656,10 +1645,7 @@ export function createPhoenixEggRelic(materials: DungeonMaterials): THREE.Group 
 }
 
 /** Compact cursed phial: dark glass, cracked iron ring, colored core. */
-export function createCurseVessel(
-  materials: DungeonMaterials,
-  kind: CursePickupKind,
-): THREE.Group {
+export function createCurseVessel(materials: DungeonMaterials, kind: CursePickupKind): THREE.Group {
   const palette = CURSE_PICKUP_COLORS[kind];
   const root = new THREE.Group();
   root.name = palette.label;
@@ -1689,11 +1675,7 @@ export function createCurseVessel(
     `${palette.label} glass`,
   );
   bottle.position.y = 0.42;
-  const charge = mesh(
-    new THREE.IcosahedronGeometry(0.14, 0),
-    core,
-    `${palette.label} core`,
-  );
+  const charge = mesh(new THREE.IcosahedronGeometry(0.14, 0), core, `${palette.label} core`);
   charge.position.y = 0.4;
   const neck = mesh(
     new THREE.CylinderGeometry(0.09, 0.12, 0.16, 8),
@@ -1739,8 +1721,44 @@ export function preparePickupOpacity(object: THREE.Object3D): void {
   object.userData.pickupOpacityPrepared = true;
 }
 
+/** Mark a reward template/material graph as shared until a runtime mutation. */
+export function markPickupMaterialsShared(object: THREE.Object3D): void {
+  object.traverse((child) => {
+    if (!(child instanceof THREE.Mesh)) return;
+    const materials = Array.isArray(child.material) ? child.material : [child.material];
+    for (const material of materials) {
+      material.userData.pickupSharedTemplate = true;
+      // Resident roots borrow this material; the template is the disposer.
+      material.userData.sharedDungeonMaterial = true;
+    }
+  });
+  object.userData.pickupMaterialsShared = true;
+  object.userData.pickupMaterialsOwned = false;
+}
+
+/** Detach all shared reward materials once before a mutable presentation write. */
+export function ensurePickupMaterialOwnership(object: THREE.Object3D): void {
+  if (object.userData.pickupMaterialsOwned === true) return;
+  object.traverse((child) => {
+    if (!(child instanceof THREE.Mesh)) return;
+    const detach = (material: THREE.Material): THREE.Material => {
+      if (material.userData.pickupSharedTemplate !== true) return material;
+      const owned = material.clone();
+      owned.userData.pickupSharedTemplate = false;
+      owned.userData.sharedDungeonMaterial = false;
+      return owned;
+    };
+    child.material = Array.isArray(child.material)
+      ? child.material.map(detach)
+      : detach(child.material);
+  });
+  object.userData.pickupMaterialsOwned = true;
+  object.userData.pickupMaterialsShared = false;
+}
+
 export function setPickupOpacity(object: THREE.Object3D, opacity: number): void {
   if (object.userData.pickupOpacityPrepared !== true) preparePickupOpacity(object);
+  ensurePickupMaterialOwnership(object);
   object.traverse((child) => {
     if (!(child instanceof THREE.Mesh)) return;
     const materials = Array.isArray(child.material) ? child.material : [child.material];

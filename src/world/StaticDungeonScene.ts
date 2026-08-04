@@ -2,8 +2,14 @@ import * as THREE from "three";
 import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 
 import { createSeededRandom } from "../core/random";
+import { MAX_DUNGEON_FLOORS } from "../dungeon/generateDungeonFloors";
 import { FLOOR, WALL } from "../dungeon/generateDungeon";
-import { gridToWorld, worldToGrid, type WorldCollider } from "../dungeon/gridCollision";
+import {
+  createFloorDeckColliders,
+  gridToWorld,
+  worldToGrid,
+  type WorldCollider,
+} from "../dungeon/gridCollision";
 import type {
   DungeonData,
   DungeonDoorway,
@@ -18,20 +24,25 @@ import { createWallLantern, createWallTorch } from "./WallTorchFactory";
 import {
   applyBiomeMapsToDungeonMaterials,
   applyMoodToDungeonMaterials,
-  dungeonMaterialsCacheToken,
   getDungeonMaterialVariant,
   type DungeonMaterials,
 } from "./MaterialLibrary";
 import { createDungeonArch, createDungeonDoor, doorwayPlacement } from "./DoorFactory";
-import { createDungeonProp, propFamiliesForTheme } from "./DungeonPropKit";
+import { createDungeonProp, propFamiliesForTheme, type PropFamily } from "./DungeonPropKit";
 import { roomTheme } from "./RoomArtDirection";
 import {
   applyBiomeMaps,
   applyMoodToSurfaceMaterials,
   type RoomSurfaceSet,
+  type SceneTextureCloneSink,
   type SurfaceTheme,
 } from "./RoomSurfaceMaterials";
-import { createForgeChest, createForgeProp, getForgePropScale } from "./ForgePropFactory";
+import {
+  createForgeChest,
+  createForgeProp,
+  getForgePropScale,
+  type ForgeChestKit,
+} from "./ForgePropFactory";
 import { createLightingPropBase } from "./LightingPropFactory";
 import {
   createNoiseFlame,
@@ -42,9 +53,10 @@ import {
 } from "./ProceduralFlameVfx";
 import {
   batchDoorFramesForRuntime,
+  batchForgeChestForRuntime,
   batchForgeChestsForRuntime,
   batchWallFireFixturesForRuntime,
-  type RuntimeChestInstanceHandle,
+  type RuntimeModelBatchingGeometryStrategy,
   type RuntimeWallFireFixture,
   type RuntimeWallFireFixtureHandle,
 } from "./RuntimeModelBatching";
@@ -68,6 +80,7 @@ import {
   PHOENIX_EGG_PICKUP_GLOW_OPACITY,
   PHOENIX_EGG_PICKUP_LIGHT_INTENSITY,
   preparePickupOpacity,
+  markPickupMaterialsShared,
   setPickupDormant,
   TIME_FREEZE_PICKUP_LIGHT_INTENSITY,
 } from "./ItemFactory";
@@ -104,6 +117,7 @@ import {
   FLOOR_FURNITURE_KINDS,
   isProtectedTraversalCell,
   pickSpreadSeats,
+  selectPhoenixEggSeat,
   WALL_HUGGING_KINDS,
   wallHugWorldOffset,
 } from "./PropPlacement";
@@ -113,32 +127,72 @@ import {
   hasValidMagicStonePlacementContract,
   hasValidPortalPlacementContract,
   magicStoneClearanceCells,
-  selectMagicStonePlacements,
   type MagicStonePlacement,
 } from "./MagicStonePlacement";
 import type { StoneId } from "../ui/copy";
 import { selectDistributedTorchIndices } from "./TorchDistribution";
-import {
-  createLiquidSectionKit,
-  disposeLiquidSectionKit,
-  type LiquidSectionKit,
-} from "./LiquidSectionKit";
+import { createLiquidSectionKit, type LiquidSectionKit } from "./LiquidSectionKit";
 import { createSpecialRoomSignals } from "./SpecialRoomSignalKit";
 import { getBiomeDecorationProfile } from "./BiomeDecorationProfile";
+import { BIOME_CORNER_PROP_MAX_TURN, type BiomeSpritePlacement } from "./BiomeSpriteDecorKit";
+import { biomeSpriteDecorCatalog } from "./BiomeSpriteDecorCatalogs.generated";
 import {
-  BIOME_SPRITE_PROPS,
-  BIOME_CORNER_PROP_MAX_TURN,
-  biomeSpriteFloorGroundGap,
-  type BiomeSpritePlacement,
-  type BiomeSpritePropDefinition,
-} from "./BiomeSpriteDecorKit";
+  biomeSpriteDecorAtlasFrame,
+  BIOME_SPRITE_DECOR_ATLAS_SIZE,
+  type BiomeSpriteDecorDefinition,
+  type BiomeSpriteDecorPlacement,
+} from "./BiomeSpriteDecorContract";
 import {
-  buildStairFlight,
-  DUNGEON_STAIR_STEP_COUNT,
-  worldTreadColliders,
-} from "./StaircaseKit";
+  balancedBiomeDecorItem,
+  selectFairBiomeDecorPlacements,
+} from "./BiomeSpriteDecorDistribution";
+import {
+  biomeSurfacePalette,
+  type BiomeSurfacePaletteRole,
+} from "./BiomeSurfacePalettes.generated";
+import { buildStairFlight, DUNGEON_STAIR_STEP_COUNT, worldTreadColliders } from "./StaircaseKit";
 import { floorSlabY } from "./StoryMetrics";
-import { ThreeResourceDisposer } from "./ThreeResourceDisposer";
+import { hasTaggedOwnedMaterialTextures, ThreeResourceDisposer } from "./ThreeResourceDisposer";
+import { StaticResourceCatalog } from "./StaticResourceCatalog";
+import { ResidentFloorRuntimeOwner, type ResidentFloorRuntime } from "./ResidentFloorRuntime";
+import {
+  createResidentMinimapProjection,
+  type MinimapStairDto,
+  type ResidentMinimapPickupBinding,
+} from "../ui/projectMinimapFeatures";
+import type {
+  ChestRewardKind,
+  StaticChestActor,
+  StaticDoorActor,
+  StaticPickupActor,
+  StaticStairActor,
+} from "./StaticDungeonActorTypes";
+export type {
+  ChestRewardKind,
+  StaticChestActor,
+  StaticDoorActor,
+  StaticPickupActor,
+  StaticPickupKind,
+  StaticStairActor,
+} from "./StaticDungeonActorTypes";
+import {
+  FloorOccupancyOverlay,
+  createFloorOccupancyReport,
+  FloorOccupancyBit,
+  FloorOccupancyGrid,
+  type CellOccupancyQuery,
+  type FloorOccupancyReport,
+} from "./FloorOccupancyGrid";
+import {
+  createResidentDungeonPlan,
+  type ResidentDungeonFloorPlan,
+  type ResidentDungeonPlan,
+  type ResidentDungeonFreePickupPlan,
+} from "./ResidentDungeonPlan";
+import {
+  ResidentDungeonRenderer,
+  type ResidentDungeonRenderReceipt,
+} from "./ResidentDungeonRenderer";
 
 export interface StaticDungeonSceneStats {
   floorTiles: number;
@@ -175,103 +229,6 @@ export function dungeonWallUvOffset(
   return [intoDy !== 0 ? cell.x * intoDy : cell.y * -intoDx, 0] as const;
 }
 
-export interface StaticDoorActor {
-  root: THREE.Group;
-  left: THREE.Group;
-  right: THREE.Group;
-  openness: number;
-  targetOpen: boolean;
-}
-
-export type StaticPickupKind =
-  | "stone"
-  | "resolve"
-  | "time-freeze"
-  | "luminous-ward"
-  | "annihilation-pulse"
-  | "cull-brand"
-  | "phoenix-egg"
-  | "map"
-  | "mobility"
-  | "clarity"
-  | "swarm-curse"
-  | "slow-curse"
-  | "frenzy-curse"
-  | "gloom-curse"
-  | "mirror-curse"
-  | "spin-curse";
-
-export interface StaticPickupActor {
-  kind: StaticPickupKind;
-  stoneId?: StoneId;
-  object: THREE.Object3D;
-  collected: boolean;
-  collectTime: number;
-  /** World origin captured when the collect flourish starts. */
-  collectOriginX: number;
-  collectOriginY: number;
-  collectOriginZ: number;
-  available: boolean;
-  revealTime: number;
-  baseY: number;
-  baseScale: THREE.Vector3;
-  autoCollect?: boolean;
-  stoneSignal?: {
-    light: THREE.PointLight;
-    glow: THREE.Mesh;
-    crown: THREE.Mesh;
-    crystalAssembly: THREE.Group;
-    effectColor: number;
-    baseLightIntensity: number;
-    baseGlowOpacity: number;
-  };
-  timeFreezeSignal?: {
-    light: THREE.PointLight;
-    baseIntensity: number;
-  };
-  luminousWardSignal?: {
-    light: THREE.PointLight;
-    glow: THREE.Mesh;
-    baseIntensity: number;
-    baseGlowOpacity: number;
-  };
-  annihilationPulseSignal?: {
-    light: THREE.PointLight;
-    glow: THREE.Mesh;
-    baseIntensity: number;
-    baseGlowOpacity: number;
-  };
-  cullBrandSignal?: {
-    light: THREE.PointLight;
-    glow: THREE.Mesh;
-    baseIntensity: number;
-    baseGlowOpacity: number;
-  };
-  phoenixEggSignal?: {
-    light: THREE.PointLight;
-    glow: THREE.Mesh;
-    baseIntensity: number;
-    baseGlowOpacity: number;
-  };
-}
-
-export interface StaticChestActor {
-  id: string;
-  root: THREE.Group;
-  lid: THREE.Group;
-  reward: StaticPickupActor;
-  opened: boolean;
-  openness: number;
-  runtimeBatch: RuntimeChestInstanceHandle | null;
-}
-
-export interface StaticStairActor {
-  root: THREE.Group;
-  direction: "up" | "down";
-  targetFloor: number;
-  cell: GridCell;
-}
-
 export interface StaticFireEffect {
   root: THREE.Group;
   flame: THREE.Mesh;
@@ -297,7 +254,26 @@ export interface StaticFloorBiomeSprite {
   x: number;
   z: number;
   baseYaw: number;
-  placement: BiomeSpritePlacement;
+  placement: BiomeSpritePlacement | BiomeSpriteDecorPlacement;
+  maxWallTurn?: number;
+  maxDistance?: number;
+  hysteresis?: number;
+  sharedMaterial?: boolean;
+}
+
+export interface StaticCeilingBiomeSprite {
+  mesh: THREE.Mesh;
+  material: THREE.MeshStandardMaterial;
+  baseOpacity: number;
+  x: number;
+  z: number;
+  baseYaw: number;
+  maxDistance: number;
+  hysteresis: number;
+  sharedMaterial?: boolean;
+  animationPhase: number;
+  animationSpeed: number;
+  swayAmplitude: number;
 }
 
 export interface StaticDungeonSceneHandles {
@@ -310,8 +286,12 @@ export interface StaticDungeonSceneHandles {
   objectOccupiedCells: Set<string>;
   solidColliders: WorldCollider[];
   objectiveClearanceCells: Set<string>;
-  hazardCells: Set<string>;
+  /** Active-floor compatibility alias. Read `allHazardCells` only for diagnostics. */
+  hazardCells: ReadonlySet<string>;
+  /** Aggregate diagnostic only; never a gameplay or placement source. */
+  allHazardCells: Set<string>;
   floorBiomeSprites: StaticFloorBiomeSprite[];
+  ceilingBiomeSprites: StaticCeilingBiomeSprite[];
   wallSpriteOccupiedCells: Set<string>;
   exitPosition: THREE.Vector3;
   portalRoot: THREE.Group | null;
@@ -322,6 +302,12 @@ export interface StaticDungeonSceneHandles {
   liquidKit: LiquidSectionKit | null;
   hazardTiles: HazardTileSystem | null;
   stonePlacements: MagicStonePlacement[];
+  /** Resident floor owners. Aggregate actor handles remain transitional adapters. */
+  readonly residentFloors: readonly ResidentFloorRuntime[];
+  /** Dense dungeon-local occupancy state, one grid for every resident floor. */
+  readonly floorOccupancyGrids: readonly FloorOccupancyGrid[];
+  /** Optional build diagnostics; no logging happens on the production path. */
+  readonly occupancyReport: FloorOccupancyReport;
 }
 
 export interface StaticDungeonSceneOptions {
@@ -332,9 +318,34 @@ export interface StaticDungeonSceneOptions {
   tileSize: number;
   wallHeight: number;
   stoneTextures: ReadonlyMap<StoneId, THREE.Texture>;
+  resourceCatalog?: StaticResourceCatalog;
+  textureSink?: SceneTextureCloneSink;
 }
 
-function createHandles(): StaticDungeonSceneHandles {
+interface MutableStaticDungeonSceneHandles extends Omit<
+  StaticDungeonSceneHandles,
+  "residentFloors" | "floorOccupancyGrids" | "occupancyReport"
+> {
+  residentFloors: ResidentFloorRuntime[];
+  floorOccupancyGrids: FloorOccupancyGrid[];
+  occupancyReport: FloorOccupancyReport;
+}
+
+interface FloorBuildContext {
+  floorIndex: number;
+  runtime: ResidentFloorRuntimeOwner;
+  occupancy: FloorOccupancyGrid;
+  plan: ResidentDungeonFloorPlan;
+}
+
+type RoomWallSeat = { cell: GridCell; intoDx: number; intoDy: number };
+
+interface PendingChestBatch {
+  kit: ForgeChestKit;
+  chest: StaticChestActor;
+}
+
+function createHandles(): MutableStaticDungeonSceneHandles {
   return {
     doors: [],
     pickups: [],
@@ -346,7 +357,9 @@ function createHandles(): StaticDungeonSceneHandles {
     solidColliders: [],
     objectiveClearanceCells: new Set(),
     hazardCells: new Set(),
+    allHazardCells: new Set(),
     floorBiomeSprites: [],
+    ceilingBiomeSprites: [],
     wallSpriteOccupiedCells: new Set(),
     exitPosition: new THREE.Vector3(),
     portalRoot: null,
@@ -357,6 +370,9 @@ function createHandles(): StaticDungeonSceneHandles {
     liquidKit: null,
     hazardTiles: null,
     stonePlacements: [],
+    residentFloors: [],
+    floorOccupancyGrids: [],
+    occupancyReport: createFloorOccupancyReport([]),
   };
 }
 
@@ -382,6 +398,11 @@ export class StaticDungeonScene {
   private readonly tileSize: number;
   private readonly wallHeight: number;
   private readonly stoneTextures: ReadonlyMap<StoneId, THREE.Texture>;
+  private readonly resourceCatalog: StaticResourceCatalog;
+  private readonly ownsResourceCatalog: boolean;
+  private readonly textureSink?: SceneTextureCloneSink;
+  private torchFloorPoolTexture: THREE.Texture | null = null;
+  private staticContactShadowTexture: THREE.Texture | null = null;
   private readonly buildRoots: THREE.Object3D[] = [];
   private readonly biomeWallDecalMaterials = new Map<string, THREE.MeshStandardMaterial>();
   private readonly biomeFloorSpriteMaterials = new Map<string, THREE.MeshStandardMaterial>();
@@ -391,6 +412,16 @@ export class StaticDungeonScene {
     width: number;
     depth: number;
   }> = [];
+  /** Seat topology is immutable for a generated dungeon; reuse it across
+   * doors, objectives and atmosphere passes instead of rescanning each room. */
+  private readonly roomWallSeatCache = new WeakMap<
+    DungeonData,
+    Map<number, readonly RoomWallSeat[]>
+  >();
+  private readonly roomInteriorSeatCache = new WeakMap<
+    DungeonData,
+    Map<number, readonly GridCell[]>
+  >();
   private handles = createHandles();
   private activeMood: DungeonMood = getDungeonMood("ash");
   private decorDensity = 0.6;
@@ -398,20 +429,97 @@ export class StaticDungeonScene {
   private disposed = false;
   /** World Y offset for the floor slab currently being built (multi-floor stack). */
   private floorWorldY = 0;
-  /** Cells with open ceiling/floor for stair shafts on the active build floor. */
-  private openVerticalKeys = new Set<string>();
-  /** When true, only descending flights are placed (one mesh per shaft). */
-  private stairsDownOnly = false;
+  /** Dense occupancy for the floor currently passing through the build seams. */
+  private activeFloorOccupancy: FloorOccupancyGrid | null = null;
+  /** When true, only flights rooted on a lower slab are placed. */
+  private stackBuildActive = false;
+  /** Stable canonical lookup for resident floors. Never use adapter array scans at runtime. */
+  private readonly residentFloorsByIndex = new Map<number, ResidentFloorRuntimeOwner>();
+  /** Build-only owner for render roots and collider publication. */
+  private currentResidentFloor: ResidentFloorRuntimeOwner | null = null;
+  /** Last logical active floor, retained without scanning aggregate adapters. */
+  private activeResidentFloor: ResidentFloorRuntimeOwner | null = null;
+  /** Pure topology/shaft contract captured before Three.js commit. */
+  private residentDungeonPlan: ResidentDungeonPlan | null = null;
+  /** Scalar receipt proving the committed dungeon still matches the plan. */
+  private residentDungeonRenderReceipt: ResidentDungeonRenderReceipt | null = null;
+  /** Compatibility adapter while callers still inspect render groups directly. */
+  private readonly floorRenderGroups: THREE.Group[] = [];
+  private currentFloorRenderGroup: THREE.Group | null = null;
   private readonly tempPosition = new THREE.Vector3();
   private readonly tempScale = new THREE.Vector3();
   private readonly tempQuaternion = new THREE.Quaternion();
   private readonly tempEuler = new THREE.Euler(0, 0, 0, "YXZ");
   private readonly tempMatrix = new THREE.Matrix4();
-  private readonly pendingChestKits: ReturnType<typeof createForgeChest>[] = [];
+  /** Pending source trees are committed only with other actors from their floor. */
+  private readonly pendingChestBatchesByRuntime = new Map<
+    ResidentFloorRuntimeOwner,
+    PendingChestBatch[]
+  >();
+  private readonly pendingDoorActorsByRuntime = new Map<
+    ResidentFloorRuntimeOwner,
+    StaticDoorActor[]
+  >();
+  private runtimeChestTemplate: ForgeChestKit | null = null;
+  private readonly runtimeDoorTemplates = new Map<string, THREE.Group>();
+  private readonly runtimeDoorTemplateGeometries = new Set<THREE.BufferGeometry>();
+  private readonly runtimeClassicPropBatches = new Map<
+    string,
+    readonly StaticPropTemplateBatch[]
+  >();
+  private readonly runtimeForgePropBatches = new Map<
+    string,
+    {
+      bounds: THREE.Box3;
+      batches: readonly StaticPropTemplateBatch[];
+    }
+  >();
+  private readonly runtimeRewardTemplates = new Map<ChestRewardKind, THREE.Object3D>();
+  private readonly runtimeClassicPropTemplates = new Map<
+    string,
+    {
+      family: PropFamily;
+      variant: number;
+      template: THREE.Group | null;
+      bounds: THREE.Box3;
+    }
+  >();
+  private readonly runtimeWeaponRackBatches = new Map<string, readonly StaticPropTemplateBatch[]>();
+  /** Atmosphere templates/batches are world-owned, so later resident floors
+   * skip repeated merge and normalization work for identical prop families. */
+  private readonly runtimeAtmosphereTemplates = new Map<string, THREE.Group>();
+  private readonly runtimeAtmosphereBatches = new Map<string, readonly StaticPropTemplateBatch[]>();
+  private readonly runtimeModelBatchingGeometryStrategy: RuntimeModelBatchingGeometryStrategy;
   private readonly pendingWallFireFixtures: Array<{
     fixture: RuntimeWallFireFixture;
     effect: StaticFireEffect;
   }> = [];
+
+  private getRoomWallSeats(dungeon: DungeonData, room: DungeonRoom): readonly RoomWallSeat[] {
+    let byRoom = this.roomWallSeatCache.get(dungeon);
+    if (!byRoom) {
+      byRoom = new Map();
+      this.roomWallSeatCache.set(dungeon, byRoom);
+    }
+    const cached = byRoom.get(room.id);
+    if (cached) return cached;
+    const seats = collectRoomWallSeats(dungeon, room);
+    byRoom.set(room.id, seats);
+    return seats;
+  }
+
+  private getRoomInteriorSeats(dungeon: DungeonData, room: DungeonRoom): readonly GridCell[] {
+    let byRoom = this.roomInteriorSeatCache.get(dungeon);
+    if (!byRoom) {
+      byRoom = new Map();
+      this.roomInteriorSeatCache.set(dungeon, byRoom);
+    }
+    const cached = byRoom.get(room.id);
+    if (cached) return cached;
+    const seats = collectRoomInteriorSeats(dungeon, room);
+    byRoom.set(room.id, seats);
+    return seats;
+  }
 
   constructor(options: StaticDungeonSceneOptions) {
     this.group = options.group;
@@ -421,6 +529,40 @@ export class StaticDungeonScene {
     this.tileSize = options.tileSize;
     this.wallHeight = options.wallHeight;
     this.stoneTextures = options.stoneTextures;
+    this.resourceCatalog = options.resourceCatalog ?? new StaticResourceCatalog();
+    this.ownsResourceCatalog = options.resourceCatalog === undefined;
+    this.textureSink = options.textureSink;
+    this.runtimeModelBatchingGeometryStrategy = {
+      borrowGeometry: (stableKey, factory, resourceType) =>
+        this.resourceCatalog.borrowGeometry(stableKey, factory, resourceType),
+      isBorrowedGeometry: (geometry) => this.isBorrowedStaticGeometry(geometry),
+      materialKey: (material) => this.staticMaterialKey(material),
+    };
+  }
+
+  private getTorchFloorPoolTexture(): THREE.Texture {
+    if (!this.torchFloorPoolTexture) {
+      this.torchFloorPoolTexture = createTorchFloorPoolTexture();
+      if (this.torchFloorPoolTexture.image) this.textureSink?.register(this.torchFloorPoolTexture);
+    }
+    return this.torchFloorPoolTexture;
+  }
+
+  private getStaticContactShadowTexture(): THREE.Texture {
+    if (!this.staticContactShadowTexture) {
+      this.staticContactShadowTexture = createStaticContactShadowTexture();
+      if (this.staticContactShadowTexture.image) {
+        this.textureSink?.register(this.staticContactShadowTexture);
+      }
+    }
+    return this.staticContactShadowTexture;
+  }
+
+  private isBorrowedStaticGeometry(geometry: THREE.BufferGeometry): boolean {
+    return (
+      this.resourceCatalog.ownsGeometry(geometry) ||
+      this.runtimeDoorTemplateGeometries.has(geometry)
+    );
   }
 
   static emptyHandles(): StaticDungeonSceneHandles {
@@ -431,15 +573,148 @@ export class StaticDungeonScene {
     return this.handles;
   }
 
-  build(dungeon: DungeonData, mood: DungeonMood, decorDensity: number): StaticDungeonSceneHandles {
+  get floorOccupancyReport(): FloorOccupancyReport {
+    return this.handles.occupancyReport;
+  }
+
+  private validateResidentStack(floors: readonly DungeonData[]): void {
+    if (floors.length > MAX_DUNGEON_FLOORS) {
+      throw new RangeError(
+        `StaticDungeonScene buildStack supports at most ${MAX_DUNGEON_FLOORS} resident floors.`,
+      );
+    }
+
+    const indices: number[] = [];
+    for (const dungeon of floors) {
+      const floor = dungeon.floor;
+      if (!floor) {
+        throw new Error(
+          "StaticDungeonScene buildStack requires floor metadata for every resident floor.",
+        );
+      }
+      if (!Number.isSafeInteger(floor.index)) {
+        throw new Error(
+          "StaticDungeonScene buildStack requires every floor index to be an integer.",
+        );
+      }
+      if (!Number.isSafeInteger(floor.number) || floor.number !== floor.index + 1) {
+        throw new Error(
+          `StaticDungeonScene buildStack requires floor number ${floor.index + 1} for floor index ${floor.index}.`,
+        );
+      }
+      if (
+        !Number.isSafeInteger(floor.count) ||
+        floor.count < 1 ||
+        floor.count > MAX_DUNGEON_FLOORS
+      ) {
+        throw new Error(
+          `StaticDungeonScene buildStack requires a supported floor count from 1 to ${MAX_DUNGEON_FLOORS}.`,
+        );
+      }
+      if (floor.count !== floors.length) {
+        throw new Error(
+          `StaticDungeonScene buildStack requires floor count ${floors.length}; floor ${floor.index} declares ${floor.count}.`,
+        );
+      }
+      indices.push(floor.index);
+    }
+
+    const expected = Array.from({ length: floors.length }, (_, index) => index);
+    if (indices.some((floorIndex, position) => floorIndex !== expected[position])) {
+      throw new Error(
+        `StaticDungeonScene buildStack requires ordered contiguous floor indices 0..${floors.length - 1}; received [${indices.join(", ")}].`,
+      );
+    }
+  }
+
+  /** Register the owner before any floor content can allocate or mount roots. */
+  private createFloorBuildContext(
+    dungeon: DungeonData,
+    slabY: number,
+    plan: ResidentDungeonFloorPlan,
+  ): FloorBuildContext {
+    const floorIndex = dungeon.floor?.index ?? 0;
+    if (this.residentFloorsByIndex.has(floorIndex)) {
+      throw new Error("StaticDungeonScene cannot build two resident runtimes for one floor.");
+    }
+    const runtime = new ResidentFloorRuntimeOwner(floorIndex, dungeon.width, dungeon.height, slabY);
+    this.group.add(runtime.root);
+    this.residentFloorsByIndex.set(floorIndex, runtime);
+    this.pendingChestBatchesByRuntime.set(runtime, []);
+    this.pendingDoorActorsByRuntime.set(runtime, []);
+    this.handles.residentFloors.push(runtime);
+    this.handles.floorOccupancyGrids.push(runtime.occupancy);
+    this.floorRenderGroups.push(runtime.root);
+    return {
+      floorIndex,
+      runtime,
+      occupancy: runtime.occupancy,
+      plan,
+    };
+  }
+
+  private refreshOccupancyReport(): void {
+    this.handles.occupancyReport = createFloorOccupancyReport(this.handles.floorOccupancyGrids);
+  }
+
+  /**
+   * A failed construction must leave this reusable scene in the same empty state
+   * as a completed clear. Cleanup is deliberately best-effort here: a disposal
+   * failure cannot replace the construction error that the caller needs to see.
+   */
+  private abortFailedBuild(): void {
+    try {
+      this.clear();
+    } catch {
+      // Preserve the original construction error even if best-effort cleanup fails.
+    }
+  }
+
+  build(
+    dungeon: DungeonData,
+    mood: DungeonMood,
+    decorDensity: number,
+    preparedPlan?: ResidentDungeonPlan,
+  ): StaticDungeonSceneHandles {
     if (this.disposed) throw new Error("StaticDungeonScene has been disposed.");
+    const residentPlan =
+      preparedPlan ??
+      createResidentDungeonPlan([dungeon], undefined, {
+        moodId: mood.id,
+        decorDensity,
+        phoenixArmed: this.pendingPhoenixArmed,
+      });
+    const residentReceipt = new ResidentDungeonRenderer(residentPlan).confirm([dungeon]);
     this.clear();
-    this.floorWorldY = 0;
-    this.stairsDownOnly = false;
-    this.openVerticalKeys = openVerticalKeySet(dungeon);
-    this.applyMoodMaterials(mood, decorDensity);
-    this.buildFloorContents(dungeon, mood);
-    return this.handles;
+    let built = false;
+    try {
+      this.residentDungeonPlan = residentPlan;
+      this.residentDungeonRenderReceipt = residentReceipt;
+      // A one-floor build is an isolated compatibility path: metadata must not
+      // turn its local presentation frame into a stacked world slab.
+      this.floorWorldY = 0;
+      this.stackBuildActive = false;
+      this.applyMoodMaterials(mood, decorDensity);
+      const floorPlan = residentPlan.floors[0];
+      if (!floorPlan) throw new Error("StaticDungeonScene build lost its resident floor plan.");
+      const floorBuild = this.createFloorBuildContext(dungeon, this.floorWorldY, floorPlan);
+      this.currentResidentFloor = floorBuild.runtime;
+      this.currentFloorRenderGroup = floorBuild.runtime.root;
+      this.buildFloorContents(dungeon, mood, floorBuild);
+      this.currentResidentFloor = null;
+      this.currentFloorRenderGroup = null;
+      this.commitResidentInteractiveBatches();
+      this.setActiveFloor(floorBuild.floorIndex);
+      this.refreshOccupancyReport();
+      built = true;
+      return this.handles;
+    } finally {
+      this.currentResidentFloor = null;
+      this.currentFloorRenderGroup = null;
+      this.floorWorldY = 0;
+      this.stackBuildActive = false;
+      if (!built) this.abortFailedBuild();
+    }
   }
 
   /**
@@ -450,32 +725,72 @@ export class StaticDungeonScene {
     floors: readonly DungeonData[],
     mood: DungeonMood,
     decorDensity: number,
+    preparedPlan?: ResidentDungeonPlan,
   ): StaticDungeonSceneHandles {
     if (this.disposed) throw new Error("StaticDungeonScene has been disposed.");
     if (floors.length === 0) throw new Error("buildStack requires at least one floor.");
-    if (floors.length === 1) return this.build(floors[0]!, mood, decorDensity);
+    // Validate metadata-backed stacks before clear, including a one-floor
+    // stack. A legacy single dungeon without floor metadata still uses build().
+    if (floors.length > 1 || floors[0]!.floor) this.validateResidentStack(floors);
+    if (floors.length === 1) {
+      return this.build(floors[0]!, mood, decorDensity, preparedPlan);
+    }
+
+    // Freeze the pure plan and verify the generated topology before clearing a
+    // valid scene. The renderer seam is intentionally Three.js-free here;
+    // object/material allocation starts only after this contract is accepted.
+    const residentPlan =
+      preparedPlan ??
+      createResidentDungeonPlan(floors, undefined, {
+        moodId: mood.id,
+        decorDensity,
+        phoenixArmed: this.pendingPhoenixArmed,
+      });
+    const residentReceipt = new ResidentDungeonRenderer(residentPlan).confirm(floors);
 
     this.clear();
-    this.applyMoodMaterials(mood, decorDensity);
-    let totalFloorCells = 0;
-    let totalWallCells = 0;
-    for (let index = 0; index < floors.length; index += 1) {
-      const dungeon = floors[index]!;
-      this.floorWorldY = floorSlabY(index);
-      this.stairsDownOnly = true;
-      this.openVerticalKeys = openVerticalKeySet(dungeon);
-      const counts = this.buildFloorContents(dungeon, mood);
-      totalFloorCells += counts.floorCells;
-      totalWallCells += counts.wallCells;
+    let built = false;
+    try {
+      this.residentDungeonPlan = residentPlan;
+      this.residentDungeonRenderReceipt = residentReceipt;
+      this.applyMoodMaterials(mood, decorDensity);
+      let totalFloorCells = 0;
+      let totalWallCells = 0;
+      for (const dungeon of floors) {
+        const floorIndex = dungeon.floor!.index;
+        this.floorWorldY = floorSlabY(floorIndex);
+        const floorPlan = residentPlan.floors[floorIndex];
+        if (!floorPlan) {
+          throw new Error(`StaticDungeonScene build lost floor plan ${floorIndex}.`);
+        }
+        const floorBuild = this.createFloorBuildContext(dungeon, this.floorWorldY, floorPlan);
+        this.currentResidentFloor = floorBuild.runtime;
+        this.currentFloorRenderGroup = floorBuild.runtime.root;
+        this.stackBuildActive = true;
+        const counts = this.buildFloorContents(dungeon, mood, floorBuild);
+        totalFloorCells += counts.floorCells;
+        totalWallCells += counts.wallCells;
+      }
+      this.currentResidentFloor = null;
+      this.currentFloorRenderGroup = null;
+      this.floorWorldY = 0;
+      this.stackBuildActive = false;
+      this.commitResidentInteractiveBatches();
+      this.setActiveFloor(floors[0]!.floor!.index);
+      this.stats.floorTiles = totalFloorCells;
+      this.stats.wallTiles = totalWallCells;
+      this.stats.ceilingTiles = totalFloorCells;
+      this.stats.pickups = this.pickups.length;
+      this.refreshOccupancyReport();
+      built = true;
+      return this.handles;
+    } finally {
+      this.currentResidentFloor = null;
+      this.currentFloorRenderGroup = null;
+      this.floorWorldY = 0;
+      this.stackBuildActive = false;
+      if (!built) this.abortFailedBuild();
     }
-    this.floorWorldY = 0;
-    this.stairsDownOnly = false;
-    this.openVerticalKeys = new Set();
-    this.stats.floorTiles = totalFloorCells;
-    this.stats.wallTiles = totalWallCells;
-    this.stats.ceilingTiles = totalFloorCells;
-    this.stats.pickups = this.pickups.length;
-    return this.handles;
   }
 
   private applyMoodMaterials(mood: DungeonMood, decorDensity: number): void {
@@ -500,125 +815,175 @@ export class StaticDungeonScene {
   private buildFloorContents(
     dungeon: DungeonData,
     mood: DungeonMood,
+    floorBuild: FloorBuildContext,
   ): { floorCells: number; wallCells: number } {
-    if (!hasValidPortalPlacementContract(dungeon)) {
-      throw new Error("Dungeon cannot start Play without a reachable exit portal seat.");
-    }
-    const allStonePlacements = selectMagicStonePlacements(dungeon);
-    if (!hasValidMagicStonePlacementContract(dungeon, allStonePlacements)) {
-      throw new Error("Dungeon cannot start Play without four distinct reachable magic stones.");
-    }
-    const stonePlacements =
-      dungeon.floor && dungeon.floor.count > 1
-        ? allStonePlacements.filter(
-            (_, stoneIndex) => stoneIndex % dungeon.floor!.count === dungeon.floor!.index,
-          )
-        : allStonePlacements;
-    this.handles.stonePlacements.push(...stonePlacements);
-    for (const cell of magicStoneClearanceCells(dungeon, stonePlacements)) {
-      this.objectiveClearanceCells.add(`${cell.x},${cell.y}`);
-    }
-    for (const stair of dungeon.floor?.stairs ?? []) {
-      this.objectiveClearanceCells.add(`${stair.cell.x},${stair.cell.y}`);
-      for (const cell of stair.footprint ?? []) {
-        this.objectiveClearanceCells.add(`${cell.x},${cell.y}`);
+    const previousOccupancy = this.activeFloorOccupancy;
+    this.activeFloorOccupancy = floorBuild.occupancy;
+    try {
+      if (!hasValidPortalPlacementContract(dungeon)) {
+        throw new Error("Dungeon cannot start Play without a reachable exit portal seat.");
       }
-    }
-    const floorCells: GridCell[] = [];
-    for (let y = 0; y < dungeon.height; y += 1) {
-      for (let x = 0; x < dungeon.width; x += 1) {
-        if (dungeon.grid[y]?.[x] === FLOOR) floorCells.push({ x, y });
+      const roomById = new Map(dungeon.rooms.map((room) => [room.id, room]));
+      const allStonePlacements: MagicStonePlacement[] = floorBuild.plan.objectives.map(
+        (objective) => {
+          const room = roomById.get(objective.roomId);
+          if (!room) {
+            throw new Error(`Resident dungeon plan lost objective room ${objective.roomId}.`);
+          }
+          return {
+            stoneId: objective.stoneId,
+            room,
+            cell: { ...objective.cell },
+            offsetX: objective.offsetX,
+            offsetZ: objective.offsetZ,
+          };
+        },
+      );
+      if (!hasValidMagicStonePlacementContract(dungeon, allStonePlacements)) {
+        throw new Error("Dungeon cannot start Play without four distinct reachable magic stones.");
       }
-    }
-    const wallCells = collectBoundaryWalls(dungeon);
-    this.addArchitecture(dungeon, floorCells, wallCells);
-    const hazardExclusions = new Set([
-      ...this.objectiveClearanceCells,
-      ...this.solidCells.keys(),
-      `${dungeon.spawn.x},${dungeon.spawn.y}`,
-      `${dungeon.exit.x},${dungeon.exit.y}`,
-    ]);
-    // Hazards stay on the first/active floor slab only in multi-stack builds for budget.
-    if (this.floorWorldY === 0 || !this.stairsDownOnly) {
-      this.hazardTiles = new HazardTileSystem(dungeon, mood, this.tileSize, hazardExclusions);
-      this.hazardTiles.placements.forEach((placement) => {
+      const stonePlacements =
+        dungeon.floor && dungeon.floor.count > 1
+          ? allStonePlacements.filter(
+              (_, stoneIndex) => stoneIndex % dungeon.floor!.count === dungeon.floor!.index,
+            )
+          : allStonePlacements;
+      this.handles.stonePlacements.push(...stonePlacements);
+      for (const cell of magicStoneClearanceCells(dungeon, stonePlacements))
+        this.reserveObjectiveClearanceCell(cell);
+      for (const stair of dungeon.floor?.stairs ?? []) {
+        this.reserveObjectiveClearanceCell(stair.cell, FloorOccupancyBit.Stair);
+        for (const cell of stair.footprint ?? [])
+          this.reserveObjectiveClearanceCell(cell, FloorOccupancyBit.Stair);
+      }
+      const floorCells: GridCell[] = [];
+      for (let y = 0; y < dungeon.height; y += 1) {
+        for (let x = 0; x < dungeon.width; x += 1) {
+          if (dungeon.grid[y]?.[x] === FLOOR) floorCells.push({ x, y });
+        }
+      }
+      const wallCells = collectBoundaryWalls(dungeon);
+      this.addArchitecture(dungeon, floorCells, wallCells);
+      const hazardExclusions = this.createHazardExclusionQuery(dungeon, floorBuild.occupancy);
+      // Every resident slab owns its visual and traversal state. The old
+      // plan-only upper floors leaked a flat hazard set and made same-XZ traps
+      // indistinguishable at runtime.
+      const hazardTiles = new HazardTileSystem(
+        dungeon,
+        mood,
+        this.tileSize,
+        hazardExclusions,
+        this.textureSink,
+      );
+      floorBuild.runtime.setHazardTileSystem(hazardTiles);
+      hazardTiles.placements.forEach((placement) => {
         const key = `${placement.cell.x},${placement.cell.y}`;
-        this.hazardCells.add(key);
-        this.objectiveClearanceCells.add(key);
+        floorBuild.runtime.registerHazardCell(key);
+        this.handles.allHazardCells.add(key);
+        this.reserveObjectiveClearanceCell(placement.cell, FloorOccupancyBit.Hazard);
       });
-      this.add(this.hazardTiles.root);
-      this.stats.hazardTiles += this.hazardTiles.placements.length;
-    }
-    if (!dungeon.forge) this.addCaveProps(dungeon);
-    this.addDoorsAndRoomProps(dungeon);
-    this.commitDoorFrameBatches();
-    this.commitStaticContactShadows();
-    const specialSignals = createSpecialRoomSignals(dungeon, this.materials, this.tileSize);
-    if (specialSignals) {
-      this.add(specialSignals);
-      this.stats.props += specialSignals.children.length;
-      for (const signal of specialSignals.children) {
-        const room = dungeon.rooms.find((candidate) => candidate.id === signal.userData.roomId);
-        if (room) this.reserveObjectCell(room.center);
+      this.add(hazardTiles.root);
+      this.stats.hazardTiles += hazardTiles.placements.length;
+      if (!dungeon.forge) {
+        this.addCaveProps(dungeon);
+        // Practical lights own their planned wall anchors. Claim them before
+        // decorative atlas props so prioritising generated assets never
+        // silently lowers the fire/light budget.
+        this.addLightProps(dungeon, floorBuild.plan);
       }
-    }
-    this.addLightProps(dungeon);
-    this.commitWallFireBatches();
-    this.addAtmosphereProps(dungeon);
-    this.addAmbientGodrays(dungeon, mood);
-    this.addMarkers(dungeon, mood);
-    this.addStaircases(dungeon);
-    this.addStaticObjectives(dungeon, stonePlacements);
-    this.commitChestBatches();
-    const stonePickups = this.pickups.filter((pickup) => pickup.kind === "stone");
-    // Stack builds accumulate stones across floors; only enforce on single-floor builds.
-    if (this.floorWorldY === 0 && !this.stairsDownOnly) {
-      if (stonePickups.length !== stonePlacements.length) {
-        throw new Error(
-          `Dungeon completeness failed: expected ${stonePlacements.length} stone pickups, built ${stonePickups.length}.`,
-        );
+      this.addDoorsAndRoomProps(dungeon, floorBuild, floorBuild.plan);
+      // Gameplay, doors, practical lights, and authored furniture keep first
+      // claim on their seats. The biome pass then fills every remaining room
+      // from a much larger candidate pool without deleting playable content.
+      if (dungeon.forge) {
+        this.addLightProps(dungeon, floorBuild.plan);
       }
-      const finalFloor = !dungeon.floor || dungeon.floor.index === dungeon.floor.count - 1;
-      if (finalFloor && !this.portalRoot) {
-        throw new Error("Dungeon completeness failed: exit portal mesh was not created.");
+      this.commitStaticContactShadows();
+      const specialSignals = createSpecialRoomSignals(dungeon, this.materials, this.tileSize);
+      if (specialSignals) {
+        this.add(specialSignals);
+        this.stats.props += specialSignals.children.length;
+        for (const signal of specialSignals.children) {
+          const room = dungeon.rooms.find((candidate) => candidate.id === signal.userData.roomId);
+          if (room) this.reserveObjectCell(room.center);
+        }
       }
+      this.commitWallFireBatches();
+      this.addAmbientGodrays(dungeon, mood, floorBuild.plan);
+      this.addMarkers(dungeon, mood, floorBuild.plan);
+      this.addStaircases(dungeon, floorBuild.plan);
+      this.addStaticObjectives(dungeon, stonePlacements, floorBuild.plan);
+      const stonePickups = this.pickups.filter((pickup) => pickup.kind === "stone");
+      // Stack builds accumulate stones across floors; only enforce on single-floor builds.
+      if (this.floorWorldY === 0 && !this.stackBuildActive) {
+        if (stonePickups.length !== stonePlacements.length) {
+          throw new Error(
+            `Dungeon completeness failed: expected ${stonePlacements.length} stone pickups, built ${stonePickups.length}.`,
+          );
+        }
+        const finalFloor = !dungeon.floor || dungeon.floor.index === dungeon.floor.count - 1;
+        if (finalFloor && !this.portalRoot) {
+          throw new Error("Dungeon completeness failed: exit portal mesh was not created.");
+        }
+      }
+      this.addAtmosphereProps(dungeon, floorBuild.plan);
+      // Decorative density is resolved only after every playable object has
+      // claimed its cell. The enlarged candidate pools still complete all 84
+      // placements without trading away doors, objectives, or furniture.
+      this.scatterBiomeSpriteProps(dungeon);
+      this.applyMoodToPracticalLights(mood);
+      this.cacheResidentMinimapProjection(dungeon, floorBuild.runtime);
+      if (!this.stackBuildActive) {
+        this.stats.floorTiles = floorCells.length;
+        this.stats.wallTiles = wallCells.length;
+        this.stats.ceilingTiles = floorCells.length;
+        this.stats.pickups = this.pickups.length;
+      }
+      return { floorCells: floorCells.length, wallCells: wallCells.length };
+    } finally {
+      this.activeFloorOccupancy = previousOccupancy;
     }
-    this.applyMoodToPracticalLights(mood);
-    if (!this.stairsDownOnly) {
-      this.stats.floorTiles = floorCells.length;
-      this.stats.wallTiles = wallCells.length;
-      this.stats.ceilingTiles = floorCells.length;
-      this.stats.pickups = this.pickups.length;
-    }
-    return { floorCells: floorCells.length, wallCells: wallCells.length };
   }
 
   clear(): void {
     const expired = this.handles;
-    const separatelyDisposed = new Set<THREE.Object3D>();
-    const resourceDisposer = new ThreeResourceDisposer();
-    if (expired.liquidKit) {
-      this.group.remove(expired.liquidKit.root);
-      disposeLiquidSectionKit(expired.liquidKit);
-      separatelyDisposed.add(expired.liquidKit.root);
-      expired.liquidKit = null;
+    const resourceDisposer = new ThreeResourceDisposer((geometry) =>
+      this.isBorrowedStaticGeometry(geometry),
+    );
+    let cleanupError: unknown;
+    let hasCleanupError = false;
+    const clean = (operation: () => void): void => {
+      try {
+        operation();
+      } catch (error) {
+        if (!hasCleanupError) {
+          hasCleanupError = true;
+          cleanupError = error;
+        }
+      }
+    };
+    this.currentFloorRenderGroup = null;
+    this.currentResidentFloor = null;
+    this.activeResidentFloor = null;
+    this.residentDungeonPlan = null;
+    this.residentDungeonRenderReceipt = null;
+    this.floorWorldY = 0;
+    this.stackBuildActive = false;
+    this.activeFloorOccupancy = null;
+    for (const runtime of this.residentFloorsByIndex.values()) {
+      clean(() => runtime.dispose(resourceDisposer));
     }
-    if (expired.hazardTiles) {
-      this.group.remove(expired.hazardTiles.root);
-      expired.hazardTiles.dispose();
-      separatelyDisposed.add(expired.hazardTiles.root);
-      expired.hazardTiles = null;
-    }
+    this.residentFloorsByIndex.clear();
+    this.floorRenderGroups.length = 0;
     for (const root of this.buildRoots.splice(0)) {
-      if (separatelyDisposed.has(root)) continue;
-      this.group.remove(root);
-      resourceDisposer.dispose(root);
+      root.parent?.remove(root);
+      clean(() => resourceDisposer.dispose(root));
     }
     for (const material of this.biomeWallDecalMaterials.values()) {
-      resourceDisposer.disposeOwnedMaterial(material);
+      clean(() => resourceDisposer.disposeOwnedMaterial(material));
     }
     for (const material of this.biomeFloorSpriteMaterials.values()) {
-      resourceDisposer.disposeOwnedMaterial(material);
+      clean(() => resourceDisposer.disposeOwnedMaterial(material));
     }
     this.biomeWallDecalMaterials.clear();
     this.biomeFloorSpriteMaterials.clear();
@@ -631,8 +996,12 @@ export class StaticDungeonScene {
     expired.objectOccupiedCells.clear();
     expired.solidColliders.length = 0;
     expired.objectiveClearanceCells.clear();
-    expired.hazardCells.clear();
+    expired.allHazardCells.clear();
+    expired.hazardTiles = null;
+    expired.hazardCells = new Set();
+    expired.liquidKit = null;
     expired.floorBiomeSprites.length = 0;
+    expired.ceilingBiomeSprites.length = 0;
     expired.wallSpriteOccupiedCells.clear();
     expired.exitPosition.set(0, 0, 0);
     expired.portalRoot = null;
@@ -641,30 +1010,123 @@ export class StaticDungeonScene {
     expired.stoneBeams.length = 0;
     expired.ambientBeams.length = 0;
     expired.stonePlacements.length = 0;
+    // Runtime disposal clears the grids and collider arrays. The aggregate
+    // arrays are compatibility adapters, so clear them only after their owners.
+    expired.residentFloors.length = 0;
+    expired.floorOccupancyGrids.length = 0;
     this.staticContactShadowPlacements.length = 0;
-    this.pendingChestKits.length = 0;
+    this.pendingChestBatchesByRuntime.clear();
+    this.pendingDoorActorsByRuntime.clear();
     this.pendingWallFireFixtures.length = 0;
     this.dynamicFireLightCount = 0;
     this.resetStats();
     this.handles = createHandles();
+    if (hasCleanupError) throw cleanupError;
   }
 
   dispose(): void {
     if (this.disposed) return;
     this.clear();
+    const resourceDisposer = new ThreeResourceDisposer((geometry) =>
+      this.isBorrowedStaticGeometry(geometry),
+    );
+    for (const template of this.runtimeRewardTemplates.values()) {
+      resourceDisposer.dispose(template);
+      template.traverse((object) => {
+        if (!(object instanceof THREE.Mesh)) return;
+        const materials = Array.isArray(object.material) ? object.material : [object.material];
+        for (const material of materials) resourceDisposer.disposeOwnedMaterial(material);
+      });
+    }
+    this.runtimeRewardTemplates.clear();
+    for (const source of this.runtimeClassicPropTemplates.values()) {
+      this.disposeClassicPropSource(source);
+    }
+    this.runtimeClassicPropTemplates.clear();
+    this.runtimeClassicPropBatches.clear();
+    for (const cached of this.runtimeForgePropBatches.values()) {
+      for (const batch of cached.batches) {
+        const materials = Array.isArray(batch.material) ? batch.material : [batch.material];
+        for (const material of materials) {
+          if (hasTaggedOwnedMaterialTextures(material)) {
+            resourceDisposer.disposeOwnedMaterial(material);
+          }
+        }
+      }
+    }
+    this.runtimeForgePropBatches.clear();
+    for (const template of this.runtimeAtmosphereTemplates.values()) {
+      disposeTemplateGeometries(template);
+    }
+    this.runtimeAtmosphereTemplates.clear();
+    this.runtimeAtmosphereBatches.clear();
+    this.runtimeWeaponRackBatches.clear();
+    this.disposeRuntimeDoorTemplates();
+    this.runtimeChestTemplate = null;
+    for (const texture of [this.torchFloorPoolTexture, this.staticContactShadowTexture]) {
+      if (!texture) continue;
+      this.textureSink?.unregister(texture);
+      texture.dispose();
+    }
+    this.torchFloorPoolTexture = null;
+    this.staticContactShadowTexture = null;
+    if (this.ownsResourceCatalog) this.resourceCatalog.dispose();
     this.disposed = true;
   }
 
-  isObjectiveClearanceCell(cell: GridCell): boolean {
-    return this.objectiveClearanceCells.has(`${cell.x},${cell.y}`);
+  getResidentFloorRuntime(floorIndex: number): ResidentFloorRuntime | null {
+    return this.residentFloorsByIndex.get(floorIndex) ?? null;
   }
 
-  isObjectOccupiedCell(cell: GridCell): boolean {
-    const key = `${cell.x},${cell.y}`;
+  get residentPlan(): ResidentDungeonPlan | null {
+    return this.residentDungeonPlan;
+  }
+
+  get residentRenderReceipt(): ResidentDungeonRenderReceipt | null {
+    return this.residentDungeonRenderReceipt;
+  }
+
+  getFloorOccupancyGrid(floorIndex: number): FloorOccupancyGrid | null {
+    return this.getResidentFloorRuntime(floorIndex)?.occupancy ?? null;
+  }
+
+  isObjectiveClearanceCell(cell: GridCell, floorIndex?: number): boolean {
+    const occupancy = this.occupancyForQuery(floorIndex);
+    return occupancy?.hasAny(cell.x, cell.y, FloorOccupancyBit.Objective) ?? false;
+  }
+
+  /**
+   * Keep the active slab and its direct neighbors renderable. All floor scene
+   * graphs stay resident; the overlap keeps stair traversal visually seamless.
+   */
+  setActiveFloor(floorIndex: number): void {
+    if (this.residentFloorsByIndex.size === 0) return;
+    const requested = Number.isFinite(floorIndex) ? Math.floor(floorIndex) : 0;
+    const active = this.residentFloorsByIndex.has(requested)
+      ? requested
+      : Math.min(this.residentFloorsByIndex.size - 1, Math.max(0, requested));
+    const activeRuntime = this.residentFloorsByIndex.get(active);
+    if (!activeRuntime) return;
+    this.activeResidentFloor = activeRuntime;
+    // Transitional scene handles are active-owner aliases, never a latest
+    // build winner or a flat aggregate. The aggregate arrays remain outputs.
+    this.handles.hazardTiles = activeRuntime.hazardTileSystem;
+    this.handles.hazardCells = activeRuntime.hazardCells;
+    this.handles.liquidKit = activeRuntime.liquidKit;
+    for (const runtime of this.residentFloorsByIndex.values()) {
+      const visible = Math.abs(runtime.floorIndex - activeRuntime.floorIndex) <= 1;
+      if (runtime.root.visible !== visible) runtime.root.visible = visible;
+    }
+  }
+
+  isObjectOccupiedCell(cell: GridCell, floorIndex?: number): boolean {
+    const occupancy = this.occupancyForQuery(floorIndex);
     return (
-      this.objectOccupiedCells.has(key) ||
-      this.solidCells.has(key) ||
-      this.wallSpriteOccupiedCells.has(key)
+      occupancy?.hasAny(
+        cell.x,
+        cell.y,
+        FloorOccupancyBit.Object | FloorOccupancyBit.Solid | FloorOccupancyBit.WallDecoration,
+      ) ?? false
     );
   }
 
@@ -683,26 +1145,83 @@ export class StaticDungeonScene {
   }
 
   private add(...objects: THREE.Object3D[]): void {
-    if (this.floorWorldY !== 0) {
-      for (const object of objects) {
-        object.position.y += this.floorWorldY;
-      }
-    }
+    const runtime = this.currentResidentFloor;
+    (this.currentFloorRenderGroup ?? runtime?.root ?? this.group).add(...objects);
+    if (!runtime) this.buildRoots.push(...objects);
+  }
+
+  /** Scene-owned effects without a resident owner stay outside floor roots. */
+  private addGlobal(...objects: THREE.Object3D[]): void {
     this.group.add(...objects);
     this.buildRoots.push(...objects);
+  }
+
+  /** Publish one collider reference to its owner and the compatibility adapter. */
+  private addSolidColliders(...colliders: WorldCollider[]): void {
+    const runtime = this.requireCurrentResidentFloor("Collider registration");
+    runtime.addColliders(colliders);
+    this.handles.solidColliders.push(...colliders);
+  }
+
+  private requireCurrentResidentFloor(consumer: string): ResidentFloorRuntimeOwner {
+    const runtime = this.currentResidentFloor;
+    if (!runtime) throw new Error(`${consumer} requires a resident floor runtime.`);
+    return runtime;
   }
 
   private worldY(localY: number): number {
     return localY + this.floorWorldY;
   }
 
+  private markActiveFloorOccupancy(cell: GridCell, bits: number): void {
+    this.activeFloorOccupancy?.mark(cell.x, cell.y, bits);
+  }
+
+  private reserveObjectiveClearanceCell(cell: GridCell, extraBit?: FloorOccupancyBit): void {
+    // Legacy aggregate handles remain a public output only. Placement reads
+    // below always query the active per-floor grid.
+    this.handles.objectiveClearanceCells.add(`${cell.x},${cell.y}`);
+    this.markActiveFloorOccupancy(cell, FloorOccupancyBit.Objective | (extraBit ?? 0));
+  }
+
+  private createHazardExclusionQuery(
+    dungeon: DungeonData,
+    occupancy: FloorOccupancyGrid,
+  ): CellOccupancyQuery {
+    const explicitExclusions = new FloorOccupancyOverlay(dungeon.width, dungeon.height);
+    explicitExclusions.mark(dungeon.spawn.x, dungeon.spawn.y, FloorOccupancyBit.Object);
+    explicitExclusions.mark(dungeon.exit.x, dungeon.exit.y, FloorOccupancyBit.Object);
+    const reservationBits = FloorOccupancyBit.Objective | FloorOccupancyBit.Solid;
+    return {
+      isOccupied: (x, y) =>
+        explicitExclusions.isOccupied(x, y) || occupancy.hasAny(x, y, reservationBits),
+    };
+  }
+
   private reserveObjectCell(cell: GridCell): void {
-    this.objectOccupiedCells.add(`${cell.x},${cell.y}`);
+    this.handles.objectOccupiedCells.add(`${cell.x},${cell.y}`);
+    this.markActiveFloorOccupancy(cell, FloorOccupancyBit.Object);
   }
 
   private reserveWallObjectCell(cell: GridCell): void {
-    this.wallSpriteOccupiedCells.add(`${cell.x},${cell.y}`);
+    this.handles.wallSpriteOccupiedCells.add(`${cell.x},${cell.y}`);
+    this.markActiveFloorOccupancy(cell, FloorOccupancyBit.WallDecoration);
     this.reserveObjectCell(cell);
+  }
+
+  private reserveCeilingObjectCell(cell: GridCell): void {
+    this.markActiveFloorOccupancy(cell, FloorOccupancyBit.CeilingDecoration);
+    this.reserveObjectCell(cell);
+  }
+
+  private occupancyForQuery(floorIndex?: number): FloorOccupancyGrid | null {
+    if (floorIndex !== undefined) return this.getFloorOccupancyGrid(floorIndex);
+    return this.activeFloorOccupancy ?? this.activeResidentFloor?.occupancy ?? null;
+  }
+
+  private requireActiveFloorOccupancy(consumer: string): FloorOccupancyGrid {
+    if (this.activeFloorOccupancy) return this.activeFloorOccupancy;
+    throw new Error(`${consumer} requires an active floor occupancy grid.`);
   }
 
   private get doors(): StaticDoorActor[] {
@@ -721,32 +1240,33 @@ export class StaticDungeonScene {
     return this.handles.fireEffects;
   }
 
-  private get solidCells(): Map<string, GridCell> {
-    return this.handles.solidCells;
-  }
-
-  private get objectOccupiedCells(): Set<string> {
-    return this.handles.objectOccupiedCells;
-  }
-
-  private get solidColliders(): WorldCollider[] {
-    return this.handles.solidColliders;
-  }
-
-  private get objectiveClearanceCells(): Set<string> {
-    return this.handles.objectiveClearanceCells;
-  }
-
-  private get hazardCells(): Set<string> {
-    return this.handles.hazardCells;
+  /** Publish a floor-owned fire and retain the legacy aggregate as output only. */
+  private registerFireEffect(effect: StaticFireEffect): void {
+    // Direct scene-kit probes may build one fire without a resident slab. The
+    // production build path always has an owner; keep this compatibility seam
+    // isolated from stack ownership rather than fabricating a floor runtime.
+    this.currentResidentFloor?.registerFire(effect);
+    this.fireEffects.push(effect);
   }
 
   private get floorBiomeSprites(): StaticFloorBiomeSprite[] {
     return this.handles.floorBiomeSprites;
   }
 
-  private get wallSpriteOccupiedCells(): Set<string> {
-    return this.handles.wallSpriteOccupiedCells;
+  private registerFloorBiomeSprite(sprite: StaticFloorBiomeSprite): void {
+    this.requireCurrentResidentFloor("Biome sprite registration").registerFloorBiomeSprite(sprite);
+    this.floorBiomeSprites.push(sprite);
+  }
+
+  private get ceilingBiomeSprites(): StaticCeilingBiomeSprite[] {
+    return this.handles.ceilingBiomeSprites;
+  }
+
+  private registerCeilingBiomeSprite(sprite: StaticCeilingBiomeSprite): void {
+    this.requireCurrentResidentFloor(
+      "Ceiling biome sprite registration",
+    ).registerCeilingBiomeSprite(sprite);
+    this.ceilingBiomeSprites.push(sprite);
   }
 
   private get exitPosition(): THREE.Vector3 {
@@ -781,24 +1301,48 @@ export class StaticDungeonScene {
     return this.handles.stoneBeams;
   }
 
+  private registerStoneBeam(beam: THREE.Mesh): void {
+    this.requireCurrentResidentFloor("Stone beam registration").registerStoneBeam(beam);
+    this.stoneBeams.push(beam);
+  }
+
   private get ambientBeams(): THREE.Mesh[] {
     return this.handles.ambientBeams;
   }
 
-  private get liquidKit(): LiquidSectionKit | null {
-    return this.handles.liquidKit;
+  private registerAmbientBeam(beam: THREE.Mesh): void {
+    this.requireCurrentResidentFloor("Ambient beam registration").registerAmbientBeam(beam);
+    this.ambientBeams.push(beam);
   }
 
-  private set liquidKit(value: LiquidSectionKit | null) {
-    this.handles.liquidKit = value;
-  }
-
-  private get hazardTiles(): HazardTileSystem | null {
-    return this.handles.hazardTiles;
-  }
-
-  private set hazardTiles(value: HazardTileSystem | null) {
-    this.handles.hazardTiles = value;
+  /**
+   * Build one minimap layer while actor positions are still resident-local.
+   * Rebinding later swaps this object; it never projects every floor again.
+   */
+  private cacheResidentMinimapProjection(
+    dungeon: DungeonData,
+    runtime: ResidentFloorRuntimeOwner,
+  ): void {
+    const toCell = (position: THREE.Vector3Like): GridCell =>
+      worldToGrid(dungeon, { x: position.x, z: position.z }, this.tileSize);
+    const pickups: ResidentMinimapPickupBinding[] = runtime.pickups.map((pickup) => ({
+      source: pickup,
+      cell: toCell(pickup.object.position),
+    }));
+    const stairs: MinimapStairDto[] = runtime.staircases.map((stair) => ({
+      cell: { ...stair.cell },
+      direction: stair.direction,
+    }));
+    runtime.setMinimapProjection(
+      createResidentMinimapProjection({
+        doors: runtime.doors.map((door) => toCell(door.root.position)),
+        fires: runtime.fires.map((fire) => toCell(fire.root.position)),
+        hazards: runtime.hazardTileSystem?.placements.map((hazard) => ({ ...hazard.cell })) ?? [],
+        pickups,
+        stairs,
+        spawn: { ...dungeon.spawn },
+      }),
+    );
   }
 
   private addArchitecture(
@@ -818,15 +1362,24 @@ export class StaticDungeonScene {
 
     // Clone only the base surface templates per theme (instance UV attrs differ).
     // makeInstance reuses scratch matrices so tile fills do not allocate per cell.
-    // Shaft cells: open ceiling always; open floor on upper mouths (has up stair).
-    const hasUpShaft = (dungeon.floor?.stairs ?? []).some((stair) => stair.direction === "up");
+    // Shaft cells open ceilings on both ends, but floors only where a flight
+    // arrives from the story below. Outgoing flights retain their lower deck.
+    const floorIndex = dungeon.floor?.index ?? 0;
+    // Floor and ceiling openings cannot share the public Stair bit: a lower
+    // landing opens its ceiling while an arriving flight opens its deck.
+    const openFloorCells = new FloorOccupancyOverlay(dungeon.width, dungeon.height);
+    const openCeilingCells = new FloorOccupancyOverlay(dungeon.width, dungeon.height);
+    for (const stair of dungeon.floor?.stairs ?? []) {
+      const target = stair.targetFloor;
+      const openings = stair.footprint;
+      const targetMask =
+        target < floorIndex ? openFloorCells : target > floorIndex ? openCeilingCells : null;
+      if (!targetMask) continue;
+      for (const cell of openings) targetMask.mark(cell.x, cell.y, FloorOccupancyBit.Stair);
+    }
     for (const [theme, cells] of partitionCells(dungeon, floorCells)) {
-      const floorSeats = cells.filter(
-        (cell) => !(hasUpShaft && this.openVerticalKeys.has(`${cell.x},${cell.y}`)),
-      );
-      const ceilingSeats = cells.filter(
-        (cell) => !this.openVerticalKeys.has(`${cell.x},${cell.y}`),
-      );
+      const floorSeats = cells.filter((cell) => !openFloorCells.isOccupied(cell.x, cell.y));
+      const ceilingSeats = cells.filter((cell) => !openCeilingCells.isOccupied(cell.x, cell.y));
       if (floorSeats.length === 0 && ceilingSeats.length === 0) continue;
 
       if (floorSeats.length > 0) {
@@ -847,24 +1400,10 @@ export class StaticDungeonScene {
         floor.receiveShadow = true;
         floorSeats.forEach((cell, instance) => {
           const p = gridToWorld(dungeon, cell, this.tileSize);
-          makeInstance(floor, instance, { x: p.x, y: this.worldY(-0.05), z: p.z });
-          // Ground slab keeps virtual support at Y=0; raised slabs need deck colliders.
-          if (this.floorWorldY > 0) {
-            const half = this.tileSize * 0.5;
-            this.solidColliders.push({
-              minX: p.x - half,
-              maxX: p.x + half,
-              minZ: p.z - half,
-              maxZ: p.z + half,
-              minY: this.worldY(-0.06),
-              maxY: this.worldY(0.02),
-            });
-          }
+          makeInstance(floor, instance, { x: p.x, y: -0.05, z: p.z });
         });
         floor.instanceMatrix.needsUpdate = true;
         this.add(floor);
-        // add() also shifts position.y for groups; InstancedMesh uses matrices — undo add offset.
-        if (this.floorWorldY !== 0) floor.position.y -= this.floorWorldY;
       }
 
       if (ceilingSeats.length > 0) {
@@ -887,15 +1426,22 @@ export class StaticDungeonScene {
           makeInstance(
             ceiling,
             instance,
-            { x: p.x, y: this.worldY(this.wallHeight - 0.01), z: p.z },
+            { x: p.x, y: this.wallHeight - 0.01, z: p.z },
             { x: 1, y: 1, z: 1 },
             ceilingOrientation,
           );
         });
         ceiling.instanceMatrix.needsUpdate = true;
         this.add(ceiling);
-        if (this.floorWorldY !== 0) ceiling.position.y -= this.floorWorldY;
       }
+    }
+
+    // The ground slab uses virtual support at Y=0. Raised slabs use compact
+    // row spans so support queries do not carry one collider per floor cell.
+    if (this.floorWorldY > 0) {
+      this.addSolidColliders(
+        ...createFloorDeckColliders(dungeon, this.tileSize, this.worldY(-0.06), this.worldY(0.02)),
+      );
     }
 
     // Masonry as exposed face panels (not solid cubes) — kills the grid of vertical seams.
@@ -939,14 +1485,13 @@ export class StaticDungeonScene {
         makeInstance(
           walls,
           instance,
-          { x, y: this.worldY(this.wallHeight / 2), z },
+          { x, y: this.wallHeight / 2, z },
           { x: 1, y: 1, z: 1 },
           rotation,
         );
       });
       walls.instanceMatrix.needsUpdate = true;
       this.add(walls);
-      if (this.floorWorldY !== 0) walls.position.y -= this.floorWorldY;
     }
 
     // Thin solid fill inside wall cells so tops/corners don't show sky through masonry.
@@ -986,6 +1531,15 @@ export class StaticDungeonScene {
 
   private addCaveProps(dungeon: DungeonData): void {
     const random = createSeededRandom(`${dungeon.seed}:props`);
+    const occupancy = this.activeFloorOccupancy;
+    const isCurrentFloorClearance = (cell: GridCell): boolean =>
+      occupancy
+        ? occupancy.hasAny(
+            cell.x,
+            cell.y,
+            FloorOccupancyBit.Objective | FloorOccupancyBit.Hazard | FloorOccupancyBit.Stair,
+          )
+        : this.isObjectiveClearanceCell(cell);
     const rooms = dungeon.rooms.filter((room) => room.role === "room");
     const rockGeometry = new THREE.DodecahedronGeometry(0.3, 0);
     const rockCells = rooms.flatMap((room) => {
@@ -993,8 +1547,7 @@ export class StaticDungeonScene {
       for (let y = room.y + 1; y < room.y + room.height - 1; y += 1)
         for (let x = room.x + 1; x < room.x + room.width - 1; x += 1) {
           const cell = { x, y };
-          if (dungeon.grid[y]?.[x] === FLOOR && !this.isObjectiveClearanceCell(cell))
-            cells.push(cell);
+          if (dungeon.grid[y]?.[x] === FLOOR && !isCurrentFloorClearance(cell)) cells.push(cell);
         }
       return cells;
     });
@@ -1034,7 +1587,7 @@ export class StaticDungeonScene {
     const floorCells: GridCell[] = [];
     for (let y = 0; y < dungeon.height; y += 1) {
       for (let x = 0; x < dungeon.width; x += 1)
-        if (dungeon.grid[y]?.[x] === FLOOR && !this.isObjectiveClearanceCell({ x, y }))
+        if (dungeon.grid[y]?.[x] === FLOOR && !isCurrentFloorClearance({ x, y }))
           floorCells.push({ x, y });
     }
     if (floorCells.length > 0) {
@@ -1084,7 +1637,20 @@ export class StaticDungeonScene {
     if (!(left instanceof THREE.Group) || !(right instanceof THREE.Group)) return;
     door.position.set(position.x, 0, position.z);
     door.rotation.y = rotation;
-    this.doors.push({ root: door, left, right, openness: 0, targetOpen: false });
+    const runtime = this.requireCurrentResidentFloor("Door registration");
+    const actor: StaticDoorActor = {
+      root: door,
+      left,
+      right,
+      openness: 0,
+      targetOpen: false,
+      runtimeBatch: null,
+    };
+    runtime.registerDoor(actor);
+    this.doors.push(actor);
+    const pending = this.pendingDoorActorsByRuntime.get(runtime);
+    if (!pending) throw new Error("Door registration requires a pending resident batch.");
+    pending.push(actor);
     this.add(door);
   }
 
@@ -1113,7 +1679,11 @@ export class StaticDungeonScene {
         material.normalScale.set(0.72, 0.72);
         material.color.setHex(this.activeMood.id === "obsidian" ? 0x686b72 : 0xffffff);
         material.roughness = doorSurface.roughness ? 1 : profile.doorRoughness;
-        material.metalness = doorSurface.metalness ? 1 : this.activeMood.id === "iron" ? 0.42 : 0.03;
+        material.metalness = doorSurface.metalness
+          ? 1
+          : this.activeMood.id === "iron"
+            ? 0.42
+            : 0.03;
         material.envMapIntensity = this.activeMood.id === "iron" ? 0.78 : 0.34;
         material.userData.sharedDungeonMaterial = false;
         material.userData.doorLeaf = true;
@@ -1147,16 +1717,172 @@ export class StaticDungeonScene {
     };
   }
 
-  private addDoorsAndRoomProps(dungeon: DungeonData): void {
+  private staticMaterialKey(material: THREE.Material): string {
+    for (const [role, candidate] of Object.entries(this.materials)) {
+      if (candidate === material) return `role:${role}`;
+    }
+    for (const [theme, surfaces] of Object.entries(this.surfaceMaterials)) {
+      for (const [surface, candidate] of Object.entries(surfaces)) {
+        if (candidate === material) return `surface:${theme}:${surface}`;
+      }
+    }
+    const variantKey = material.userData.variantKey;
+    if (typeof variantKey === "string") {
+      const separator = variantKey.indexOf("::");
+      return `variant:${separator >= 0 ? variantKey.slice(separator + 2) : variantKey}`;
+    }
+    const standard = material as THREE.MeshStandardMaterial;
+    const color = standard.color instanceof THREE.Color ? standard.color.getHexString() : "none";
+    return [
+      "material",
+      material.type,
+      material.name || "unnamed",
+      color,
+      Number.isFinite(standard.roughness) ? standard.roughness.toFixed(4) : "na",
+      Number.isFinite(standard.metalness) ? standard.metalness.toFixed(4) : "na",
+      material.transparent ? "transparent" : "opaque",
+    ].join(":");
+  }
+
+  private staticPropCatalogKey(family: "classic" | "forge", topology: string): string {
+    return `static-prop/v2:family:${family}:bake:normalized:topology:${encodeURIComponent(topology)}`;
+  }
+
+  private runtimeChestCatalogKey(): string {
+    return "rigid-prop/v2:family:forge-chest:topology:image-sculpted-iron-bound-treasure-chest-v2:bake:normalized";
+  }
+
+  private registerRuntimeDoorTemplateGeometry(template: THREE.Object3D): void {
+    template.traverse((object) => {
+      if (object instanceof THREE.Mesh) {
+        this.runtimeDoorTemplateGeometries.add(object.geometry);
+      }
+    });
+  }
+
+  private disposeRuntimeDoorTemplates(): void {
+    for (const geometry of this.runtimeDoorTemplateGeometries) geometry.dispose();
+    this.runtimeDoorTemplateGeometries.clear();
+    this.runtimeDoorTemplates.clear();
+  }
+
+  private createRuntimeDoor(width: number): THREE.Group {
+    const appearance = this.createDoorAppearance();
+    const topology = [
+      "door-frame/v2",
+      `style:${appearance.style}`,
+      `curved:${Number(appearance.curvedArch)}`,
+      `width:${width.toFixed(4)}`,
+      `height:${this.wallHeight.toFixed(4)}`,
+      "opening:2.3500",
+      "depth:0.4200",
+    ].join(":");
+    const key = `${this.activeMood.id}:${topology}`;
+    let template = this.runtimeDoorTemplates.get(key);
+    if (!template) {
+      template = createDungeonDoor(this.materials, width, this.wallHeight, appearance);
+      template.userData.staticDoorFrameTopology = topology;
+      this.registerRuntimeDoorTemplateGeometry(template);
+      this.runtimeDoorTemplates.set(key, template);
+    }
+    return template.clone(true);
+  }
+
+  private getClassicPropTemplateBatches(
+    groupKey: string,
+    source: {
+      family: PropFamily;
+      variant: number;
+      template: THREE.Group | null;
+    },
+  ): readonly StaticPropTemplateBatch[] {
+    const cacheKey = `classic:${groupKey}`;
+    const cached = groupKey.startsWith("weapon-rack:")
+      ? this.runtimeWeaponRackBatches.get(cacheKey)
+      : this.runtimeClassicPropBatches.get(cacheKey);
+    if (cached) return cached;
+
+    const template =
+      source.template ?? createDungeonProp(source.family, this.materials, source.variant);
+    source.template = template;
+    const batches = createStaticPropTemplateBatches(template, {
+      resourceCatalog: this.resourceCatalog,
+      catalogKey: this.staticPropCatalogKey(
+        "classic",
+        `${source.family}:variant:${Math.abs(source.variant) % 3}:group:${groupKey}`,
+      ),
+      materialKey: (material) => this.staticMaterialKey(material),
+      resourceType: "classic-static-prop-batch-geometry/v2",
+    });
+    if (groupKey.startsWith("weapon-rack:")) this.runtimeWeaponRackBatches.set(cacheKey, batches);
+    else this.runtimeClassicPropBatches.set(cacheKey, batches);
+    return batches;
+  }
+
+  private getForgePropTemplateBatches(
+    groupKey: string,
+    source: ForgePropMetadata,
+  ): { bounds: THREE.Box3; batches: readonly StaticPropTemplateBatch[] } | null {
+    const cacheKey = `forge:${groupKey}`;
+    const cached = this.runtimeForgePropBatches.get(cacheKey);
+    if (cached) return cached;
+
+    const template = createForgeProp(source, this.materials, this.textureSink);
+    if (!template) return null;
+    template.updateMatrixWorld(true);
+    const bounds = new THREE.Box3().setFromObject(template);
+    try {
+      const batches = createStaticPropTemplateBatches(template, {
+        resourceCatalog: this.resourceCatalog,
+        catalogKey: this.staticPropCatalogKey(
+          "forge",
+          `${source.kind}:variant:${Math.abs(source.v ?? 0) % 3}:group:${groupKey}`,
+        ),
+        materialKey: (material) => this.staticMaterialKey(material),
+        resourceType: "forge-static-prop-batch-geometry/v2",
+      });
+      const result = { bounds, batches };
+      this.runtimeForgePropBatches.set(cacheKey, result);
+      return result;
+    } finally {
+      // The catalog receives only normalized batch geometry, never this mutable recipe tree.
+      disposeTemplateGeometries(template);
+    }
+  }
+
+  private disposeClassicPropSource(source: { template: THREE.Group | null }): void {
+    const template = source.template;
+    if (!template) return;
+    source.template = null;
+    disposeTemplateGeometries(template);
+  }
+
+  private addDoorsAndRoomProps(
+    dungeon: DungeonData,
+    floorBuild?: FloorBuildContext,
+    floorPlan?: ResidentDungeonFloorPlan,
+  ): void {
     if (dungeon.forge) {
       this.addForgeDoorsAndProps(dungeon);
       return;
     }
-    const random = createSeededRandom(`${dungeon.seed}:room-dressing`);
-    const occupiedDoorCells = new Set<string>();
+    const random = createSeededRandom(
+      floorPlan?.rooms[0]?.dressingSeed ?? `${dungeon.seed}:room-dressing`,
+    );
+    const occupancy = floorBuild?.occupancy ?? this.activeFloorOccupancy;
+    if (!occupancy)
+      throw new Error("Classic room dressing requires an active floor occupancy grid.");
+    const occupiedBits =
+      FloorOccupancyBit.Solid | FloorOccupancyBit.Object | FloorOccupancyBit.WallDecoration;
+    const clearanceBits =
+      FloorOccupancyBit.Objective | FloorOccupancyBit.Hazard | FloorOccupancyBit.Stair;
+    const isOccupied = (cell: GridCell): boolean =>
+      (occupancy.getMask(cell.x, cell.y) & occupiedBits) !== 0;
+    const isClearance = (cell: GridCell): boolean =>
+      (occupancy.getMask(cell.x, cell.y) & clearanceBits) !== 0;
     let heroReliquaryPlaced = false;
     const doorwaysByRoom = new Map<number, DungeonDoorway[]>();
-    for (const doorway of dungeon.topology?.doorways ?? []) {
+    for (const doorway of floorPlan?.doorways ?? dungeon.topology?.doorways ?? []) {
       const roomDoorways = doorwaysByRoom.get(doorway.roomId) ?? [];
       roomDoorways.push(doorway);
       doorwaysByRoom.set(doorway.roomId, roomDoorways);
@@ -1164,48 +1890,64 @@ export class StaticDungeonScene {
     const classicPropPlacements = new Map<
       string,
       {
-        template: THREE.Group;
+        source: {
+          family: PropFamily;
+          variant: number;
+          template: THREE.Group | null;
+          bounds: THREE.Box3;
+        };
         bounds: THREE.Box3;
         matrices: THREE.Matrix4[];
       }
     >();
     const classicWallArtPlacements = new Map<number, THREE.Matrix4[]>();
+    const plannedWallArtByRoom = new Map(
+      (floorPlan?.roomWallArt ?? []).map((placement) => [placement.roomId, placement]),
+    );
 
     for (const room of dungeon.rooms) {
       const theme = roomTheme(dungeon, room);
+      const wallSeats = this.getRoomWallSeats(dungeon, room);
       const candidates = doorwaysByRoom.get(room.id) ?? [];
       const doorway =
         candidates[Math.abs(room.id * 7 + dungeon.seedHash) % Math.max(candidates.length, 1)];
       if (
         doorway &&
-        !occupiedDoorCells.has(`${doorway.cell.x},${doorway.cell.y}`) &&
+        (occupancy.getMask(doorway.cell.x, doorway.cell.y) & FloorOccupancyBit.Object) === 0 &&
         room.role !== "entrance"
       ) {
         const cellWorld = gridToWorld(dungeon, doorway.cell, this.tileSize);
         const placement = doorwayPlacement(cellWorld, doorway.outDx, doorway.outDy, this.tileSize);
         // Slightly wider than one tile so posts bite into the side masonry.
-        const door = createDungeonDoor(
-          this.materials,
-          this.tileSize * 1.12,
-          this.wallHeight,
-          this.createDoorAppearance(),
-        );
+        const door = this.createRuntimeDoor(this.tileSize * 1.12);
         door.userData.roomId = room.id;
         door.userData.edgeIndex = doorway.edgeIndex;
         door.userData.connectedRoomId = doorway.connectedRoomId;
         this.registerDoor(door, placement, placement.rotation);
-        occupiedDoorCells.add(`${doorway.cell.x},${doorway.cell.y}`);
+        occupancy.mark(doorway.cell.x, doorway.cell.y, FloorOccupancyBit.Object);
         this.stats.props += 1;
       }
 
       if (room.role === "entrance" || room.width < 5 || room.height < 5) continue;
       if (room.id % 2 === 0) {
         // Paintings share a shallow real frame and one instanced batch per map.
+        const plannedWall = plannedWallArtByRoom.get(room.id);
         const north = { x: room.center.x, y: room.y - 1 };
         const south = { x: room.center.x, y: room.y + room.height };
         const west = { x: room.x - 1, y: room.center.y };
-        const wall =
-          dungeon.grid[north.y]?.[north.x] === WALL
+        const wall = plannedWall
+          ? {
+              cell: plannedWall.wall,
+              angle: plannedWall.angle,
+              offsetX: plannedWall.angle === Math.PI / 2 ? this.tileSize * 0.505 : 0,
+              offsetZ:
+                plannedWall.angle === 0
+                  ? this.tileSize * 0.505
+                  : plannedWall.angle === Math.PI
+                    ? -this.tileSize * 0.505
+                    : 0,
+            }
+          : dungeon.grid[north.y]?.[north.x] === WALL
             ? {
                 cell: north,
                 angle: 0,
@@ -1236,11 +1978,11 @@ export class StaticDungeonScene {
             this.tempQuaternion.clone(),
             new THREE.Vector3(1, 1, 1),
           );
-          const mapIndex = Math.abs(room.id) % 4;
+          const mapIndex = plannedWall?.mapIndex ?? Math.abs(room.id) % 4;
           const artMatrices = classicWallArtPlacements.get(mapIndex) ?? [];
           artMatrices.push(artMatrix);
           classicWallArtPlacements.set(mapIndex, artMatrices);
-          for (const seat of collectRoomWallSeats(dungeon, room)) {
+          for (const seat of wallSeats) {
             if (
               seat.cell.x - seat.intoDx === wall.cell.x &&
               seat.cell.y - seat.intoDy === wall.cell.y
@@ -1256,13 +1998,7 @@ export class StaticDungeonScene {
         2,
         Math.min(5, Math.round(((room.width * room.height) / 22) * this.decorDensity)),
       );
-      const wallSeats = collectRoomWallSeats(dungeon, room);
-      const interiorSeats = collectRoomInteriorSeats(dungeon, room);
-      const occupied = new Set<string>([
-        ...this.objectOccupiedCells,
-        ...this.solidCells.keys(),
-        ...this.wallSpriteOccupiedCells,
-      ]);
+      const interiorSeats = this.getRoomInteriorSeats(dungeon, room);
       let wallCursor = 0;
       let floorCursor = 0;
       for (let index = 0; index < propCount; index += 1) {
@@ -1278,11 +2014,10 @@ export class StaticDungeonScene {
           // Scan wall seats until one is free; bookcases/lecterns face into the room.
           for (let attempt = 0; attempt < wallSeats.length && !cell; attempt += 1) {
             const seat = wallSeats[(wallCursor + room.id * 3 + attempt) % wallSeats.length]!;
-            const key = `${seat.cell.x},${seat.cell.y}`;
             if (
-              occupied.has(key) ||
+              isOccupied(seat.cell) ||
               dungeon.grid[seat.cell.y]?.[seat.cell.x] !== FLOOR ||
-              this.isObjectiveClearanceCell(seat.cell)
+              isClearance(seat.cell)
             )
               continue;
             cell = seat.cell;
@@ -1300,12 +2035,7 @@ export class StaticDungeonScene {
         } else if (FLOOR_FURNITURE_KINDS.has(family) && interiorSeats.length > 0) {
           for (let attempt = 0; attempt < interiorSeats.length && !cell; attempt += 1) {
             const seat = interiorSeats[(floorCursor + index * 2 + attempt) % interiorSeats.length]!;
-            const key = `${seat.x},${seat.y}`;
-            if (
-              occupied.has(key) ||
-              dungeon.grid[seat.y]?.[seat.x] !== FLOOR ||
-              this.isObjectiveClearanceCell(seat)
-            )
+            if (isOccupied(seat) || dungeon.grid[seat.y]?.[seat.x] !== FLOOR || isClearance(seat))
               continue;
             cell = seat;
             // Face roughly toward room center so chairs/tables read as usable.
@@ -1322,25 +2052,34 @@ export class StaticDungeonScene {
           };
           if (
             dungeon.grid[fallback.y]?.[fallback.x] === FLOOR &&
-            !occupied.has(`${fallback.x},${fallback.y}`) &&
+            !isOccupied(fallback) &&
             !isProtectedTraversalCell(dungeon, fallback) &&
-            !this.isObjectiveClearanceCell(fallback)
+            !isClearance(fallback)
           ) {
             cell = fallback;
           }
         }
-        if (!cell || isProtectedTraversalCell(dungeon, cell) || this.isObjectiveClearanceCell(cell))
-          continue;
+        if (!cell || isProtectedTraversalCell(dungeon, cell) || isClearance(cell)) continue;
 
         const variant = Math.abs(room.id + index) % 3;
         const groupKey = `${family}:${family === "reliquary" ? 0 : variant}`;
         let placementGroup = classicPropPlacements.get(groupKey);
         if (!placementGroup) {
-          const template = createDungeonProp(family, this.materials, variant);
-          template.updateMatrixWorld(true);
+          let cachedTemplate = this.runtimeClassicPropTemplates.get(groupKey);
+          if (!cachedTemplate) {
+            const template = createDungeonProp(family, this.materials, variant);
+            template.updateMatrixWorld(true);
+            cachedTemplate = {
+              family,
+              variant,
+              template,
+              bounds: new THREE.Box3().setFromObject(template),
+            };
+            this.runtimeClassicPropTemplates.set(groupKey, cachedTemplate);
+          }
           placementGroup = {
-            template,
-            bounds: new THREE.Box3().setFromObject(template),
+            source: cachedTemplate,
+            bounds: cachedTemplate.bounds,
             matrices: [],
           };
           classicPropPlacements.set(groupKey, placementGroup);
@@ -1355,13 +2094,20 @@ export class StaticDungeonScene {
           new THREE.Vector3(scale, scale, scale),
         );
         placementGroup.matrices.push(rootMatrix);
-        this.registerSolidBounds(placementGroup.bounds.clone().applyMatrix4(rootMatrix), cell);
-        occupied.add(`${cell.x},${cell.y}`);
+        this.registerSolidBounds(
+          placementGroup.bounds.clone().applyMatrix4(rootMatrix),
+          cell,
+          true,
+        );
         this.stats.props += 1;
       }
     }
 
-    const artGeometry = new THREE.PlaneGeometry(2.3, 2.3);
+    const artGeometry = this.resourceCatalog.borrowGeometry(
+      "rigid-prop/v2:family:classic-wall-art:topology:plane:width:2.3000:height:2.3000",
+      () => new THREE.PlaneGeometry(2.3, 2.3),
+      "classic-wall-art-geometry/v2",
+    );
     const wallSpriteRoughness = getBiomeDecorationProfile(this.activeMood.id).doorRoughness + 0.04;
     for (const [mapIndex, matrices] of classicWallArtPlacements) {
       const material = createWallSpriteMaterial(
@@ -1383,12 +2129,14 @@ export class StaticDungeonScene {
     // Keep InstancedMesh per classic family:variant. Global material bake was
     // measured and raised mapLoadWorldMs (~+20%) for a modest draw reduction.
     // Shared finish variants (PERF-13) still cut unique materials/programs.
-    const materialsToken = dungeonMaterialsCacheToken(this.materials);
     for (const [groupKey, placement] of classicPropPlacements) {
-      const templateBatches = createStaticPropTemplateBatches(placement.template, {
-        cacheKey: `classic:${groupKey}:${materialsToken}`,
-      });
-      disposeTemplateGeometries(placement.template);
+      let templateBatches: readonly StaticPropTemplateBatch[];
+      try {
+        templateBatches = this.getClassicPropTemplateBatches(groupKey, placement.source);
+      } finally {
+        // Final normalized batches belong to the catalog. Source templates are recipes only.
+        this.disposeClassicPropSource(placement.source);
+      }
       for (const [partIndex, part] of templateBatches.entries()) {
         const batch = new THREE.InstancedMesh(
           part.geometry,
@@ -1459,14 +2207,41 @@ export class StaticDungeonScene {
     }
     for (const [length, arches] of archesByLength) {
       // +0.2 tiles so posts embed in the side wall cells and close the jamb.
-      const template = createDungeonArch(this.materials, {
-        width: (length + 0.2) * this.tileSize,
-        wallHeight: this.wallHeight,
-        ...this.createArchAppearance(),
-      });
-      const frame = template.getObjectByName("Joined stone door frame");
-      if (!(frame instanceof THREE.Mesh)) continue;
-      const batch = new THREE.InstancedMesh(frame.geometry, frame.material, arches.length);
+      const width = (length + 0.2) * this.tileSize;
+      const appearance = this.createArchAppearance();
+      const materialLayout = staticPropMaterialLayout(appearance.frameMaterial, (material) =>
+        this.staticMaterialKey(material),
+      );
+      const geometry = this.resourceCatalog.borrowGeometry(
+        [
+          "rigid-prop/v2",
+          "family:creation-passable-arch",
+          "topology:door-arch/v2",
+          `width:${width.toFixed(4)}`,
+          `height:${this.wallHeight.toFixed(4)}`,
+          "opening:2.3500",
+          "depth:0.4200",
+          `style:${appearance.style}`,
+          `curved:${Number(appearance.curvedArch)}`,
+          "bake:factory-final",
+          `layout:${materialLayout}`,
+        ].join(":"),
+        () => {
+          const template = createDungeonArch(this.materials, {
+            width,
+            wallHeight: this.wallHeight,
+            ...appearance,
+          });
+          const frame = template.getObjectByName("Joined stone door frame");
+          if (!(frame instanceof THREE.Mesh)) {
+            disposeTemplateGeometries(template);
+            throw new Error(`Passable arch ${length} lost its joined frame geometry.`);
+          }
+          return frame.geometry;
+        },
+        `creation-passable-arch-geometry/v2:${materialLayout}`,
+      );
+      const batch = new THREE.InstancedMesh(geometry, appearance.frameMaterial, arches.length);
       batch.name = `Creation passable arch batch ${length}`;
       arches.forEach((arch, index) => {
         const position = positionForArch(arch);
@@ -1490,12 +2265,7 @@ export class StaticDungeonScene {
     }
     for (const { arch } of closedArches) {
       const position = positionForArch(arch);
-      const door = createDungeonDoor(
-        this.materials,
-        (arch.len + 0.2) * this.tileSize,
-        this.wallHeight,
-        this.createDoorAppearance(),
-      );
+      const door = this.createRuntimeDoor((arch.len + 0.2) * this.tileSize);
       this.registerDoor(door, position, arch.px === 1 ? 0 : Math.PI / 2);
       this.stats.props += 1;
     }
@@ -1506,13 +2276,17 @@ export class StaticDungeonScene {
   private buildForgeRoomDressing(dungeon: DungeonData): ForgePropMetadata[] {
     const forge = dungeon.forge;
     if (!forge) return [];
-    const occupied = new Set<string>([
-      ...this.objectOccupiedCells,
-      ...this.solidCells.keys(),
-      ...this.wallSpriteOccupiedCells,
-    ]);
+    const occupancy = this.requireActiveFloorOccupancy("Forge room dressing");
+    const selected = new FloorOccupancyOverlay(dungeon.width, dungeon.height);
+    const occupiedBits =
+      FloorOccupancyBit.Object |
+      FloorOccupancyBit.Solid |
+      FloorOccupancyBit.WallDecoration |
+      FloorOccupancyBit.Objective;
+    const isOccupied = (x: number, y: number): boolean =>
+      occupancy.hasAny(x, y, occupiedBits) || selected.isOccupied(x, y);
     const reserve = (x: number, y: number): void => {
-      occupied.add(`${x},${y}`);
+      selected.mark(x, y, FloorOccupancyBit.Object);
     };
     forge.props.forEach((prop) => reserve(prop.x, prop.y));
     forge.spawns.forEach((spawn) => reserve(spawn.x, spawn.y));
@@ -1522,7 +2296,6 @@ export class StaticDungeonScene {
     forge.doorways.forEach((value, index) => {
       if (value) reserve(index % dungeon.width, Math.floor(index / dungeon.width));
     });
-    this.objectiveClearanceCells.forEach((key) => occupied.add(key));
     const dressing: ForgePropMetadata[] = [];
     const families: Record<string, readonly string[]> = {
       entrance: ["pillar", "bench", "high-chair", "bookshelf"],
@@ -1545,8 +2318,8 @@ export class StaticDungeonScene {
             ? "library"
             : (metadata?.type?.toLowerCase() ?? "combat");
       const roomFamilies = families[theme] ?? families.combat!;
-      const wallSeats = collectRoomWallSeats(dungeon, room);
-      const interiorSeats = collectRoomInteriorSeats(dungeon, room);
+      const wallSeats = this.getRoomWallSeats(dungeon, room);
+      const interiorSeats = this.getRoomInteriorSeats(dungeon, room);
       const roomArea = room.width * room.height;
       const targetProps = roomArea <= 40 ? 2 : roomArea <= 70 ? 3 : 4;
       const wallPicks = pickSpreadSeats(wallSeats, targetProps, room.id * 11 + dungeon.seedHash);
@@ -1571,10 +2344,9 @@ export class StaticDungeonScene {
           // Only place wall-huggers on free wall seats — never float mid-room.
           while (wallIndex < wallPicks.length && !ok) {
             const seat = wallPicks[wallIndex++]!;
-            const key = `${seat.cell.x},${seat.cell.y}`;
             const seatIndex = seat.cell.y * dungeon.width + seat.cell.x;
             if (
-              occupied.has(key) ||
+              isOccupied(seat.cell.x, seat.cell.y) ||
               dungeon.grid[seat.cell.y]?.[seat.cell.x] !== FLOOR ||
               forge.roomIds[seatIndex] !== room.id ||
               forge.corridors[seatIndex] ||
@@ -1593,10 +2365,9 @@ export class StaticDungeonScene {
         } else {
           while (floorIndex < floorPicks.length && !ok) {
             const seat = floorPicks[floorIndex++]!;
-            const key = `${seat.x},${seat.y}`;
             const seatIndex = seat.y * dungeon.width + seat.x;
             if (
-              occupied.has(key) ||
+              isOccupied(seat.x, seat.y) ||
               dungeon.grid[seat.y]?.[seat.x] !== FLOOR ||
               forge.roomIds[seatIndex] !== room.id ||
               forge.corridors[seatIndex] ||
@@ -1619,7 +2390,7 @@ export class StaticDungeonScene {
           forge.corridors[index] ||
           forge.doorways[index] ||
           forge.lakeMask[index] ||
-          occupied.has(`${x},${y}`)
+          isOccupied(x, y)
         )
           continue;
         dressing.push({
@@ -1650,34 +2421,33 @@ export class StaticDungeonScene {
 
   private addInstancedForgeProps(dungeon: DungeonData, props: readonly ForgePropMetadata[]): void {
     const groups = new Map<string, ForgePropMetadata[]>();
-    const occupied = new Set([
-      ...this.objectOccupiedCells,
-      ...this.solidCells.keys(),
-      ...this.wallSpriteOccupiedCells,
-    ]);
+    const occupancy = this.requireActiveFloorOccupancy("Forge props");
+    const selected = new FloorOccupancyOverlay(dungeon.width, dungeon.height);
+    const occupiedBits =
+      FloorOccupancyBit.Object | FloorOccupancyBit.Solid | FloorOccupancyBit.WallDecoration;
+    const occupied: CellOccupancyQuery = {
+      isOccupied: (x, y) => occupancy.hasAny(x, y, occupiedBits) || selected.isOccupied(x, y),
+    };
+    const isObjective = (cell: GridCell): boolean =>
+      occupancy.hasAny(cell.x, cell.y, FloorOccupancyBit.Objective);
     for (const prop of props) {
       if (prop.kind === "brazier" || prop.kind === "candle" || prop.kind === "campfire") continue;
       const solid = SOLID_PROP_KINDS.has(prop.kind);
-      const propKey = `${prop.x},${prop.y}`;
-      const objectiveConflict = this.isObjectiveClearanceCell(prop);
+      const objectiveConflict = isObjective(prop);
       const protectedTraversal = isProtectedTraversalCell(dungeon, prop) || objectiveConflict;
       const needsRelocation =
-        occupied.has(propKey) || objectiveConflict || (solid && protectedTraversal);
+        occupied.isOccupied(prop.x, prop.y) || objectiveConflict || (solid && protectedTraversal);
       const relocatedCell = needsRelocation
-        ? findNearestPropCell(dungeon, prop, occupied, 4, (cell) =>
-            this.isObjectiveClearanceCell(cell),
-          )
+        ? findNearestPropCell(dungeon, prop, occupied, 4, (cell) => isObjective(cell))
         : null;
       if (needsRelocation && !relocatedCell) continue;
       const placedProp = relocatedCell ? { ...prop, ...relocatedCell } : prop;
-      if (relocatedCell) occupied.add(`${relocatedCell.x},${relocatedCell.y}`);
-      const placedKey = `${placedProp.x},${placedProp.y}`;
+      selected.mark(placedProp.x, placedProp.y, FloorOccupancyBit.Object);
       this.reserveObjectCell(placedProp);
-      occupied.add(placedKey);
       if (solid) {
         const cell = { x: placedProp.x, y: placedProp.y };
-        occupied.add(`${cell.x},${cell.y}`);
-        this.solidCells.set(`${cell.x},${cell.y}`, cell);
+        this.handles.solidCells.set(`${cell.x},${cell.y}`, cell);
+        this.markActiveFloorOccupancy(cell, FloorOccupancyBit.Solid);
         this.reserveObjectCell(cell);
       }
       if (placedProp.kind === "chest") {
@@ -1689,83 +2459,38 @@ export class StaticDungeonScene {
       list.push(placedProp);
       groups.set(groupKey, list);
     }
-    const mergedByMaterial = new Map<
-      string,
-      {
-        material: THREE.Material;
-        castShadow: boolean;
-        receiveShadow: boolean;
-        geometries: THREE.BufferGeometry[];
-      }
-    >();
+    let batchIndex = 0;
     for (const [, instances] of groups) {
-      const template = createForgeProp(instances[0]!, this.materials);
+      const groupKey = `${instances[0]!.kind}:${Math.abs(instances[0]!.v ?? 0) % 3}`;
+      const template = this.getForgePropTemplateBatches(groupKey, instances[0]!);
       if (!template) continue;
-      template.updateMatrixWorld(true);
-      const templateBounds = new THREE.Box3().setFromObject(template);
       const instanceMatrices = instances.map((prop) => this.forgePropRootMatrix(dungeon, prop));
       for (const prop of instances) {
-        if (!SOLID_PROP_KINDS.has(prop.kind) || !this.solidCells.has(`${prop.x},${prop.y}`))
+        if (
+          !SOLID_PROP_KINDS.has(prop.kind) ||
+          !occupancy.hasAny(prop.x, prop.y, FloorOccupancyBit.Solid)
+        )
           continue;
         this.registerSolidBounds(
-          templateBounds.clone().applyMatrix4(this.forgePropRootMatrix(dungeon, prop)),
+          template.bounds.clone().applyMatrix4(this.forgePropRootMatrix(dungeon, prop)),
           { x: prop.x, y: prop.y },
+          true,
         );
       }
-      const groupKey = `${instances[0]!.kind}:${Math.abs(instances[0]!.v ?? 0) % 3}`;
-      const templateBatches = createStaticPropTemplateBatches(template, {
-        cacheKey: `forge:${groupKey}:${dungeonMaterialsCacheToken(this.materials)}`,
-      });
-      disposeTemplateGeometries(template);
-      for (const part of templateBatches) {
-        if (Array.isArray(part.material)) {
-          const batch = new THREE.InstancedMesh(part.geometry, part.material, instances.length);
-          batch.name = "Forge static multi-material batch";
-          batch.castShadow = part.castShadow;
-          batch.receiveShadow = part.receiveShadow;
-          instanceMatrices.forEach((matrix, index) => batch.setMatrixAt(index, matrix));
-          batch.instanceMatrix.needsUpdate = true;
-          this.add(batch);
-          continue;
-        }
-        const key = `${part.material.uuid}:${Number(part.castShadow)}:${Number(part.receiveShadow)}`;
-        const merged = mergedByMaterial.get(key) ?? {
-          material: part.material,
-          castShadow: part.castShadow,
-          receiveShadow: part.receiveShadow,
-          geometries: [],
-        };
-        instanceMatrices.forEach((matrix) => {
-          merged.geometries.push(part.geometry.clone().applyMatrix4(matrix));
-        });
-        mergedByMaterial.set(key, merged);
-        part.geometry.dispose();
+      for (const part of template.batches) {
+        const batch = new THREE.InstancedMesh(part.geometry, part.material, instances.length);
+        batch.name = `Forge static material batch ${batchIndex + 1}`;
+        batch.castShadow = part.castShadow;
+        batch.receiveShadow = part.receiveShadow;
+        batch.frustumCulled = true;
+        instanceMatrices.forEach((matrix, index) => batch.setMatrixAt(index, matrix));
+        batch.instanceMatrix.needsUpdate = true;
+        batch.computeBoundingBox();
+        batch.computeBoundingSphere();
+        this.add(batch);
+        batchIndex += 1;
       }
       this.stats.props += instances.length;
-    }
-    for (const [index, merged] of [...mergedByMaterial.values()].entries()) {
-      const geometry =
-        merged.geometries.length === 1
-          ? merged.geometries[0]!
-          : mergeGeometries(merged.geometries, false);
-      if (!geometry) {
-        merged.geometries.forEach((candidate, partIndex) => {
-          const fallback = new THREE.Mesh(candidate, merged.material);
-          fallback.name = `Forge static fallback ${index + 1}.${partIndex + 1}`;
-          fallback.castShadow = merged.castShadow;
-          fallback.receiveShadow = merged.receiveShadow;
-          this.add(fallback);
-        });
-        continue;
-      }
-      if (merged.geometries.length > 1)
-        merged.geometries.forEach((candidate) => candidate.dispose());
-      const batch = new THREE.Mesh(geometry, merged.material);
-      batch.name = `Forge static material batch ${index + 1}`;
-      batch.castShadow = merged.castShadow;
-      batch.receiveShadow = merged.receiveShadow;
-      batch.frustumCulled = true;
-      this.add(batch);
     }
   }
 
@@ -1809,10 +2534,13 @@ export class StaticDungeonScene {
     dungeon: DungeonData,
     prop: ForgePropMetadata,
     rewardKind: ChestRewardKind = "resolve",
+    stableId?: string,
   ): void {
-    const kit = createForgeChest(this.materials);
+    const runtime = this.requireCurrentResidentFloor("Chest registration");
+    const kit = this.createRuntimeChestKit();
     kit.root.name = `${rewardKind} chest ${prop.x},${prop.y}`;
     kit.root.userData.rewardKind = rewardKind;
+    if (stableId) kit.root.userData.catalogKey = stableId;
     kit.root.userData.autoActivatesReward = chestRewardAutoActivates(rewardKind);
     this.forgePropRootMatrix(dungeon, prop).decompose(
       kit.root.position,
@@ -1825,9 +2553,15 @@ export class StaticDungeonScene {
 
     const anchor = new THREE.Vector3(0, 0.91, 0.02);
     kit.root.localToWorld(anchor);
+    // Rewards mount beside the chest under the same resident root. Convert the
+    // authored chest socket back to that local frame so upper slabs do not
+    // bake their world height into the reward's transform.
+    (this.currentFloorRenderGroup ?? this.currentResidentFloor?.root)?.worldToLocal(anchor);
     const item = this.createRewardObject(rewardKind);
     preparePickupOpacity(item);
     item.name = `${rewardKind} reward from chest`;
+    item.userData.floorIndex = runtime.floorIndex;
+    if (stableId) item.userData.catalogKey = stableId;
     const rewardScale = this.rewardScaleForKind(rewardKind);
     const baseScale = new THREE.Vector3(rewardScale, rewardScale, rewardScale);
     // Sit clearly above the open lid so idle rewards do not clip the chest.
@@ -1837,6 +2571,8 @@ export class StaticDungeonScene {
     // of the render list until reveal.
     setPickupDormant(item, true);
     const reward: StaticPickupActor = {
+      floorIndex: runtime.floorIndex,
+      id: stableId ?? `${dungeon.seedHash}:floor:${runtime.floorIndex}:reward:${prop.x},${prop.y}`,
       kind: rewardKind,
       object: item,
       collected: false,
@@ -1894,36 +2630,108 @@ export class StaticDungeonScene {
         baseGlowOpacity: PHOENIX_EGG_PICKUP_GLOW_OPACITY,
       };
     }
+    runtime.registerPickup(reward);
     this.pickups.push(reward);
-    this.chests.push({
-      id: `${dungeon.seedHash}:${prop.x},${prop.y}`,
+    const chest: StaticChestActor = {
+      id: stableId ?? `${dungeon.seedHash}:floor:${runtime.floorIndex}:${prop.x},${prop.y}`,
       root: kit.root,
       lid: kit.lid,
       reward,
       opened: false,
       openness: 0,
       runtimeBatch: null,
-    });
-    this.pendingChestKits.push(kit);
+    };
+    runtime.registerChest(chest);
+    this.chests.push(chest);
+    const pending = this.pendingChestBatchesByRuntime.get(runtime);
+    if (!pending) throw new Error("Chest registration requires a pending resident batch.");
+    pending.push({ kit, chest });
     this.add(item);
     this.stats.props += 1;
   }
 
-  private commitChestBatches(): void {
-    if (this.pendingChestKits.length === 0) return;
-    const result = batchForgeChestsForRuntime(this.pendingChestKits, this.group);
-    this.add(result.root);
-    result.handles.forEach((handle, index) => {
-      const chest = this.chests[index];
-      if (chest) chest.runtimeBatch = handle;
-    });
-    this.pendingChestKits.length = 0;
+  /**
+   * Clone a pre-merged five-mesh chest instead of rebuilding its authored
+   * hundred-mesh carpentry tree for every reward seat in a resident stack.
+   */
+  private createRuntimeChestKit(): ForgeChestKit {
+    if (!this.runtimeChestTemplate) {
+      this.runtimeChestTemplate = createForgeChest(this.materials);
+      batchForgeChestForRuntime(this.runtimeChestTemplate, {
+        geometryStrategy: this.runtimeModelBatchingGeometryStrategy,
+        geometryKeyPrefix: this.runtimeChestCatalogKey(),
+      });
+      const authoringRuntime = this.runtimeChestTemplate.root.userData.sculptRuntime as
+        | Record<string, unknown>
+        | undefined;
+      if (authoringRuntime) {
+        // These authoring maps point at the original mesh tree. Runtime uses the
+        // preserved semantic groups and sockets directly, so cloning stale
+        // Object3D references would add cost and expose the wrong nodes.
+        delete authoringRuntime.nodes;
+        delete authoringRuntime.meshes;
+        delete authoringRuntime.sockets;
+        delete authoringRuntime.parts;
+      }
+    }
+    const root = this.runtimeChestTemplate.root.clone(true);
+    const lid = root.getObjectByName(this.runtimeChestTemplate.lid.name);
+    if (!(lid instanceof THREE.Group)) {
+      throw new Error("Runtime chest template lost its lid hinge.");
+    }
+    return { root, lid };
   }
 
-  private commitDoorFrameBatches(): void {
-    if (this.doors.length === 0) return;
-    const result = batchDoorFramesForRuntime(this.doors, this.group);
-    this.add(result.root);
+  /** Commit only source kits that share one resident-local coordinate frame. */
+  private commitChestBatches(runtime: ResidentFloorRuntimeOwner): void {
+    const pending = this.pendingChestBatchesByRuntime.get(runtime);
+    if (!pending || pending.length === 0) return;
+    const result = batchForgeChestsForRuntime(
+      pending.map(({ kit }) => kit),
+      runtime.root,
+      {
+        geometryStrategy: this.runtimeModelBatchingGeometryStrategy,
+        geometryKeyPrefix: this.runtimeChestCatalogKey(),
+      },
+    );
+    result.root.name = `Runtime chest floor ${runtime.floorIndex + 1} batches`;
+    result.root.userData.floorIndex = runtime.floorIndex;
+    result.root.userData.runtimeBatchOwner = "resident-chests";
+    runtime.root.add(result.root);
+    runtime.registerChestBatchRoot(result.root);
+    result.handles.forEach((handle, index) => {
+      const chest = pending[index]?.chest;
+      if (chest) chest.runtimeBatch = handle;
+    });
+    pending.length = 0;
+  }
+
+  /** Commit only frame sources from one floor so no instance crosses a slab. */
+  private commitDoorFrameBatches(runtime: ResidentFloorRuntimeOwner): void {
+    const pending = this.pendingDoorActorsByRuntime.get(runtime);
+    if (!pending || pending.length === 0) return;
+    const result = batchDoorFramesForRuntime(pending, runtime.root, {
+      geometryStrategy: this.runtimeModelBatchingGeometryStrategy,
+      geometryKeyPrefix: "rigid-prop/v2:family:door-frame:bake:normalized",
+      keyForDoor: (door) => String(door.root.userData.staticDoorFrameTopology ?? "unknown"),
+    });
+    result.root.name = `Runtime door frame floor ${runtime.floorIndex + 1} batches`;
+    result.root.userData.floorIndex = runtime.floorIndex;
+    result.root.userData.runtimeBatchOwner = "resident-door-frames";
+    runtime.root.add(result.root);
+    runtime.registerDoorBatchRoot(result.root);
+    result.handles.forEach((handle, index) => {
+      const door = pending[index];
+      if (door) door.runtimeBatch = handle;
+    });
+    pending.length = 0;
+  }
+
+  private commitResidentInteractiveBatches(): void {
+    for (const runtime of this.residentFloorsByIndex.values()) {
+      this.commitDoorFrameBatches(runtime);
+      this.commitChestBatches(runtime);
+    }
   }
 
   private registerSolidObject(object: THREE.Object3D, cell: GridCell): void {
@@ -1931,8 +2739,15 @@ export class StaticDungeonScene {
     this.registerSolidBounds(new THREE.Box3().setFromObject(object), cell);
   }
 
-  private registerSolidBounds(bounds: THREE.Box3, cell: GridCell): void {
+  private registerSolidBounds(
+    bounds: THREE.Box3,
+    cell: GridCell,
+    boundsAreFloorLocal = false,
+  ): void {
     if (bounds.isEmpty()) return;
+    if (boundsAreFloorLocal && this.floorWorldY !== 0) {
+      bounds.translate(this.tempPosition.set(0, this.floorWorldY, 0));
+    }
     // Inset the solid slightly so decorative edges and fat AABBs do not glue the
     // player to a prop after a jump. Keep a usable core for low crates/benches.
     const inset = 0.05;
@@ -1953,9 +2768,10 @@ export class StaticDungeonScene {
     const minY = bounds.min.y;
     // Slightly lower than visual max so feet clear the bulk of jumpable props.
     const maxY = Math.max(minY + 0.1, bounds.max.y - 0.05);
-    this.solidCells.set(`${cell.x},${cell.y}`, { ...cell });
+    this.handles.solidCells.set(`${cell.x},${cell.y}`, { ...cell });
+    this.markActiveFloorOccupancy(cell, FloorOccupancyBit.Solid);
     this.reserveObjectCell(cell);
-    this.solidColliders.push({
+    this.addSolidColliders({
       minX,
       maxX,
       minY,
@@ -1976,10 +2792,14 @@ export class StaticDungeonScene {
   private commitStaticContactShadows(): void {
     const placements = this.staticContactShadowPlacements;
     if (placements.length === 0) return;
-    const geometry = new THREE.CircleGeometry(0.5, 18);
+    const geometry = this.resourceCatalog.borrowGeometry(
+      "rigid-prop/v2:family:contact-shadow:topology:circle:radius:0.5000:segments:18",
+      () => new THREE.CircleGeometry(0.5, 18),
+      "static-contact-shadow-geometry/v2",
+    );
     const material = new THREE.MeshBasicMaterial({
       name: "Static prop contact shadow material",
-      map: getStaticContactShadowTexture(),
+      map: this.getStaticContactShadowTexture(),
       color: new THREE.Color(this.activeMood.surfaceTint).multiplyScalar(0.08),
       transparent: true,
       opacity: this.activeMood.id === "backrooms" ? 0.19 : 0.26,
@@ -2014,16 +2834,16 @@ export class StaticDungeonScene {
     this.add(batch);
   }
 
-  private addLightProps(dungeon: DungeonData): void {
+  private addLightProps(dungeon: DungeonData, floorPlan?: ResidentDungeonFloorPlan): void {
     if (this.activeMood.id === "backrooms") {
-      this.addBackroomsLightProps(dungeon);
+      this.addBackroomsLightProps(dungeon, floorPlan);
       return;
     }
     if (dungeon.forge) {
       this.addForgeLightProps(dungeon);
       return;
     }
-    const random = createSeededRandom(`${dungeon.seed}:fire-props`);
+    const random = createSeededRandom(floorPlan?.light.seed ?? `${dungeon.seed}:fire-props`);
     const candidates: Array<{ wall: GridCell; floor: GridCell }> = [];
     for (const wall of collectBoundaryWalls(dungeon)) {
       for (const [dx, dy] of CARDINAL_NEIGHBORS) {
@@ -2043,9 +2863,19 @@ export class StaticDungeonScene {
       [candidates[index], candidates[swap]] = [candidates[swap]!, candidates[index]!];
     }
     // Even coverage across the map — no preferential ring around the player spawn.
-    const target = Math.max(6, Math.round((8 + dungeon.rooms.length * 0.45) * this.decorDensity));
+    const target =
+      floorPlan?.light.mode === "classic"
+        ? floorPlan.light.torchTarget
+        : Math.max(6, Math.round((8 + dungeon.rooms.length * 0.45) * this.decorDensity));
     const torches: typeof candidates = [];
     for (const candidate of candidates) {
+      if (
+        dungeon.grid[candidate.floor.y]?.[candidate.floor.x] !== FLOOR ||
+        this.isObjectiveClearanceCell(candidate.floor) ||
+        this.isObjectOccupiedCell(candidate.floor)
+      ) {
+        continue;
+      }
       if (
         torches.some(
           (placed) =>
@@ -2104,7 +2934,10 @@ export class StaticDungeonScene {
     let placedBraziers = 0;
     farRooms.forEach((room, index) => {
       const p = gridToWorld(dungeon, room.center, this.tileSize);
-      const position = { x: p.x + 1.15, z: p.z - 0.8 };
+      const position = {
+        x: p.x + 1.15,
+        z: p.z - 0.8,
+      };
       const cell = worldToGrid(dungeon, position, this.tileSize);
       if (this.isObjectOccupiedCell(cell)) return;
       this.reserveObjectCell(cell);
@@ -2124,12 +2957,18 @@ export class StaticDungeonScene {
    * Replace fantasy fire with a fixed-budget fluorescent ceiling kit. Each
    * fixture uses the same distance/LOS light path as a torch, but stays silent.
    */
-  private addBackroomsLightProps(dungeon: DungeonData): void {
-    const cells = [
-      dungeon.spawn,
-      dungeon.exit,
-      ...dungeon.rooms.filter((room) => room.role === "room").map((room) => room.center),
-    ];
+  private addBackroomsLightProps(dungeon: DungeonData, floorPlan?: ResidentDungeonFloorPlan): void {
+    const plannedCells = floorPlan?.light.fixtures
+      .filter((fixture) => fixture.kind === "backrooms")
+      .map((fixture) => fixture.cell);
+    const cells =
+      plannedCells && plannedCells.length > 0
+        ? plannedCells
+        : [
+            dungeon.spawn,
+            dungeon.exit,
+            ...dungeon.rooms.filter((room) => room.role === "room").map((room) => room.center),
+          ];
     const seen = new Set<string>();
     const anchors = cells.filter((cell) => {
       const key = `${cell.x},${cell.y}`;
@@ -2137,9 +2976,18 @@ export class StaticDungeonScene {
       seen.add(key);
       return dungeon.grid[cell.y]?.[cell.x] === FLOOR;
     });
-    const target = Math.min(MAX_DYNAMIC_FIRE_LIGHTS, anchors.length);
+    // This budget belongs to the whole resident stack, not each visible slab.
+    // A Backrooms campaign otherwise created ten detached practicals per floor.
+    const target = Math.min(
+      Math.max(0, MAX_DYNAMIC_FIRE_LIGHTS - this.dynamicFireLightCount),
+      anchors.length,
+    );
     for (let index = 0; index < target; index += 1) {
       const cell = anchors[index]!;
+      const plannedPhase = floorPlan?.light.fixtures.find(
+        (fixture) =>
+          fixture.kind === "backrooms" && fixture.cell.x === cell.x && fixture.cell.y === cell.y,
+      )?.phase;
       const position = gridToWorld(dungeon, cell, this.tileSize);
       const root = new THREE.Group();
       root.name = "Backrooms fluorescent ceiling fixture";
@@ -2168,7 +3016,7 @@ export class StaticDungeonScene {
       root.add(light);
       this.add(root);
       const detachedLight = this.detachFireLight(root, light);
-      this.fireEffects.push({
+      this.registerFireEffect({
         root,
         flame: panel,
         flameDetails: [],
@@ -2179,14 +3027,14 @@ export class StaticDungeonScene {
         baseFlameScaleY: panel.scale.y,
         currentLightFactor: 1,
         cutoffDistance: 14,
-        phase: index * 2.47,
+        phase: plannedPhase ?? index * 2.47,
         losOpen: true,
-        losAge: deterministicLosAge(index * 2.47),
+        losAge: deterministicLosAge(plannedPhase ?? index * 2.47),
         audio: false,
       });
     }
     this.stats.props += target;
-    this.stats.lights = target + 4;
+    this.stats.lights = this.dynamicFireLightCount + 4;
   }
 
   private addForgeLightProps(dungeon: DungeonData): void {
@@ -2269,7 +3117,7 @@ export class StaticDungeonScene {
       const keepDynamicLight = dynamicLight && this.dynamicFireLightCount < MAX_DYNAMIC_FIRE_LIGHTS;
       if (keepDynamicLight) {
         // Fake light pooling on the floor — LOD-faded with the other halos.
-        const pool = createTorchFloorPool(position, facing);
+        const pool = createTorchFloorPool(position, facing, this.getTorchFloorPoolTexture());
         torch.halos.push(pool);
         this.add(pool);
       }
@@ -2292,7 +3140,7 @@ export class StaticDungeonScene {
         losOpen: true,
         losAge: deterministicLosAge(phase),
       };
-      this.fireEffects.push(effect);
+      this.registerFireEffect(effect);
       this.pendingWallFireFixtures.push({
         fixture: { kind: fixtureKind, root: torch.root },
         effect,
@@ -2306,7 +3154,7 @@ export class StaticDungeonScene {
       const light = keepDynamicLight
         ? this.detachFireLight(campfire.root, campfire.light)
         : this.removeFireLight(campfire.root, campfire.light, campfire.halos);
-      this.fireEffects.push({
+      this.registerFireEffect({
         root: campfire.root,
         flame: campfire.flame,
         flameDetails: campfire.flameDetails,
@@ -2388,7 +3236,7 @@ export class StaticDungeonScene {
     }
     this.add(root);
     const detachedLight = this.detachFireLight(root, light);
-    this.fireEffects.push({
+    this.registerFireEffect({
       root,
       flame,
       flameDetails: flameVfx.details,
@@ -2407,11 +3255,18 @@ export class StaticDungeonScene {
 
   private commitWallFireBatches(): void {
     if (this.pendingWallFireFixtures.length === 0) return;
+    const runtime = this.requireCurrentResidentFloor("Wall-fire batch registration");
     const result = batchWallFireFixturesForRuntime(
       this.pendingWallFireFixtures.map((entry) => entry.fixture),
-      this.group,
+      runtime.root,
     );
-    this.add(result.root);
+    result.root.name = `Runtime wall-fire floor ${runtime.floorIndex + 1} batches`;
+    result.root.userData.floorIndex = runtime.floorIndex;
+    result.root.userData.runtimeBatchOwner = "resident-wall-fire";
+    // Matrices above are already relative to this resident root. Mounting the
+    // batch here applies exactly one slab transform on upper floors.
+    runtime.root.add(result.root);
+    runtime.registerWallFireBatchRoot(result.root);
     result.handles.forEach((handle, index) => {
       const entry = this.pendingWallFireFixtures[index];
       if (entry) entry.effect.runtimeFixture = handle;
@@ -2424,12 +3279,25 @@ export class StaticDungeonScene {
     light: THREE.PointLight | null,
   ): THREE.PointLight | null {
     if (!light) return null;
+    const runtime = this.currentResidentFloor;
     root.updateWorldMatrix(true, true);
     light.getWorldPosition(this.tempPosition);
     light.removeFromParent();
+    if (!runtime) {
+      light.position.copy(this.tempPosition);
+      light.visible = true;
+      this.addGlobal(light);
+      this.dynamicFireLightCount += 1;
+      return light;
+    }
+    runtime.root.updateWorldMatrix(true, false);
+    runtime.root.worldToLocal(this.tempPosition);
+    // Preserve the authored world location while keeping the light owned by
+    // the resident slab. This avoids both a global orphan and a double slab.
     light.position.copy(this.tempPosition);
     light.visible = true;
-    this.add(light);
+    runtime.root.add(light);
+    runtime.registerDynamicFireLight(light);
     this.dynamicFireLightCount += 1;
     return light;
   }
@@ -2457,18 +3325,33 @@ export class StaticDungeonScene {
    * calls and add no per-frame GC pressure. Density is gated by decorDensity.
    * Runs for both forge and classic dungeons.
    */
-  private addAtmosphereProps(dungeon: DungeonData): void {
-    const random = createSeededRandom(`${dungeon.seed}:atmosphere`);
+  private addAtmosphereProps(dungeon: DungeonData, floorPlan?: ResidentDungeonFloorPlan): void {
+    const random = createSeededRandom(floorPlan?.atmosphere.seed ?? `${dungeon.seed}:atmosphere`);
     this.scatterCobwebs(dungeon, random);
-    this.scatterWallDecor(dungeon, random);
-    this.scatterBiomeSpriteProps(dungeon);
+    // Restore the batched 3D ambience. This does not re-enable the retired 2D
+    // wall atlas: chains, vines, bones and rubble are geometry-based families.
     this.scatterRoomAtmosphereProps(dungeon, random);
+    void this.scatterWallDecor;
+  }
+
+  private getAtmosphereTemplate(key: string, factory: () => THREE.Group): THREE.Group {
+    const existing = this.runtimeAtmosphereTemplates.get(key);
+    if (existing) return existing;
+    const template = factory();
+    this.runtimeAtmosphereTemplates.set(key, template);
+    return template;
   }
 
   /** Sparse ceiling shafts: one quiet light cue per large dungeon wing. */
-  private addAmbientGodrays(dungeon: DungeonData, mood: DungeonMood): void {
+  private addAmbientGodrays(
+    dungeon: DungeonData,
+    mood: DungeonMood,
+    floorPlan?: ResidentDungeonFloorPlan,
+  ): void {
     if (this.decorDensity < 0.18) return;
-    const random = createSeededRandom(`${dungeon.seed}:ambient-godrays`);
+    const random = createSeededRandom(
+      floorPlan?.atmosphere.ambientSeed ?? `${dungeon.seed}:ambient-godrays`,
+    );
     const candidates = dungeon.rooms
       .filter(
         (room) =>
@@ -2505,7 +3388,7 @@ export class StaticDungeonScene {
         center.z + (random.next() - 0.5) * this.tileSize * 0.7,
       );
       beam.rotation.y = random.next() * Math.PI;
-      this.ambientBeams.push(beam);
+      this.registerAmbientBeam(beam);
       this.add(beam);
       this.stats.beams += 1;
     }
@@ -2534,7 +3417,8 @@ export class StaticDungeonScene {
         }
       }
     };
-    this.group.traverse((object) => {
+    const runtime = this.currentResidentFloor;
+    (runtime?.root ?? this.group).traverse((object) => {
       if (object instanceof THREE.PointLight) {
         object.color.setHex(biomeTintedLightColor(object.color.getHex(), mood));
       }
@@ -2542,7 +3426,7 @@ export class StaticDungeonScene {
       const materials = Array.isArray(object.material) ? object.material : [object.material];
       for (const material of materials) tintMaterial(material, lantern, 0.48);
     });
-    for (const effect of this.fireEffects) {
+    for (const effect of runtime?.fires ?? this.fireEffects) {
       effect.light?.color.copy(lantern);
       const tintedFlameMaterials = new Set<THREE.Material>();
       const flameObjects: THREE.Object3D[] = [effect.flame, ...effect.flameDetails];
@@ -2682,29 +3566,27 @@ export class StaticDungeonScene {
       [],
       [],
     ];
-    const occupied = new Set<string>([
-      ...this.objectOccupiedCells,
-      ...this.solidCells.keys(),
-      ...this.objectiveClearanceCells,
-      ...this.wallSpriteOccupiedCells,
-    ]);
+    const occupancy = this.requireActiveFloorOccupancy("Wall decor");
+    const placementOverlay = new FloorOccupancyOverlay(dungeon.width, dungeon.height);
+    const occupiedBits =
+      FloorOccupancyBit.Object |
+      FloorOccupancyBit.Solid |
+      FloorOccupancyBit.Objective |
+      FloorOccupancyBit.WallDecoration;
+    const isOccupied = (cell: GridCell): boolean =>
+      occupancy.hasAny(cell.x, cell.y, occupiedBits) || placementOverlay.isOccupied(cell.x, cell.y);
     for (const room of dungeon.rooms) {
       if (room.role !== "room") continue;
-      const seats = collectRoomWallSeats(dungeon, room).filter(
-        (seat) =>
-          !occupied.has(`${seat.cell.x},${seat.cell.y}`) &&
-          !this.isObjectiveClearanceCell(seat.cell),
-      );
+      const seats = this.getRoomWallSeats(dungeon, room).filter((seat) => !isOccupied(seat.cell));
       if (seats.length === 0) continue;
       const area = room.width * room.height;
       const count = Math.min(
         3,
         Math.max(1, Math.round((area / 42) * this.decorDensity * profile.wallDecorDensity)),
       );
-      const selected = pickSeparatedWallSeats(seats, count, dungeon.seedHash + room.id * 41);
-      selected.forEach((seat, index) => {
-        const key = `${seat.cell.x},${seat.cell.y}`;
-        occupied.add(key);
+      const selectedSeats = pickSeparatedWallSeats(seats, count, dungeon.seedHash + room.id * 41);
+      selectedSeats.forEach((seat, index) => {
+        placementOverlay.mark(seat.cell.x, seat.cell.y, FloorOccupancyBit.WallDecoration);
         this.reserveWallObjectCell(seat.cell);
         const frame = Math.abs(room.id * 3 + index + Math.floor(random.next() * 4)) % 4;
         placements[frame]!.push({ seat });
@@ -2760,307 +3642,559 @@ export class StaticDungeonScene {
 
     const profile = getBiomeDecorationProfile(this.activeMood.id);
     const random = createSeededRandom(`${dungeon.seed}:biome-sprite-props`);
-    const definitions = BIOME_SPRITE_PROPS[this.activeMood.id];
-    const wallDefinitions = definitions.filter(
-      (definition) => definition.placement === "wall-decal",
+    const catalog = biomeSpriteDecorCatalog(this.activeMood.id);
+    const atlas = this.assets.biomeSpriteDecorAtlas(this.activeMood.id);
+    const wallDefinitions = catalog.props.filter((definition) => definition.surface === "wall");
+    const floorDefinitions = catalog.props.filter((definition) => definition.surface === "floor");
+    const ceilingDefinitions = catalog.props.filter(
+      (definition) => definition.surface === "ceiling",
     );
-    const floorDefinitions = definitions.filter((definition) => definition.surface === "floor");
-    const floorDecalDefinitions = floorDefinitions.filter(
-      (definition) => definition.placement === "floor-decal",
-    );
-    const floorStandingDefinitions = floorDefinitions.filter(
-      (definition) => definition.placement === "floor-standing",
-    );
-    const cornerDefinitions = floorDefinitions.filter(
-      (definition) => definition.placement === "corner-standing",
-    );
-    const floorRenderableDefinitions = floorDefinitions.filter(
-      (definition) => definition.placement !== "corner-standing",
-    );
-    const chooseDefinition = (
-      candidates: readonly BiomeSpritePropDefinition[],
-      roomId: number,
-      index: number,
-    ): BiomeSpritePropDefinition =>
-      candidates[
-        (roomId * 17 + index + Math.floor(random.next() * candidates.length)) % candidates.length
-      ]!;
-    const occupied = new Set<string>([
-      ...this.objectOccupiedCells,
-      ...this.solidCells.keys(),
-      ...this.objectiveClearanceCells,
-      ...this.wallSpriteOccupiedCells,
-    ]);
-    const wallPlacements: Array<{
+    const occupancy = this.requireActiveFloorOccupancy("Biome sprite props");
+    const occupiedBits =
+      FloorOccupancyBit.Object |
+      FloorOccupancyBit.Solid |
+      FloorOccupancyBit.Objective |
+      FloorOccupancyBit.WallDecoration |
+      FloorOccupancyBit.Hazard |
+      FloorOccupancyBit.Stair |
+      FloorOccupancyBit.CeilingDecoration;
+    const placementOverlay = new FloorOccupancyOverlay(dungeon.width, dungeon.height);
+    const isOccupied = (cell: GridCell): boolean =>
+      occupancy.hasAny(cell.x, cell.y, occupiedBits) || placementOverlay.isOccupied(cell.x, cell.y);
+    const isWallOccupied = (cell: GridCell): boolean =>
+      occupancy.hasAny(
+        cell.x,
+        cell.y,
+        occupiedBits & ~FloorOccupancyBit.Object & ~FloorOccupancyBit.CeilingDecoration,
+      ) || placementOverlay.isOccupied(cell.x, cell.y);
+    const isCeilingOccupied = (cell: GridCell): boolean =>
+      occupancy.hasAny(
+        cell.x,
+        cell.y,
+        FloorOccupancyBit.Solid |
+          FloorOccupancyBit.Objective |
+          FloorOccupancyBit.Hazard |
+          FloorOccupancyBit.Stair |
+          FloorOccupancyBit.CeilingDecoration,
+      );
+    const rooms = dungeon.rooms.filter((room) => room.role === "room" || room.role === "entrance");
+    const corridorCells = collectDecorCorridorCells(dungeon);
+    const corridorRoomId = (cell: GridCell): number =>
+      -1 -
+      (Math.floor(cell.x / 6) + Math.floor(cell.y / 6) * Math.max(1, Math.ceil(dungeon.width / 6)));
+    const entranceRoomId = rooms.find((room) => room.role === "entrance")?.id;
+    const selectWithEntrance = <T extends { roomId: number; corridor: boolean }>(
+      candidates: readonly T[],
+      count: number,
+      salt: number,
+    ): T[] => {
+      if (count <= 0 || candidates.length === 0) return [];
+      const corridorTarget = Math.min(
+        candidates.filter((candidate) => candidate.corridor).length,
+        Math.max(2, Math.round(count * 0.24)),
+      );
+      const corridor = selectFairBiomeDecorPlacements(
+        candidates.filter((candidate) => candidate.corridor),
+        corridorTarget,
+        salt + 7,
+      );
+      const corridorSet = new Set(corridor);
+      const entranceCandidates =
+        entranceRoomId === undefined
+          ? []
+          : candidates.filter(
+              (candidate) => candidate.roomId === entranceRoomId && !corridorSet.has(candidate),
+            );
+      const entrance = selectFairBiomeDecorPlacements(entranceCandidates, 1, salt)[0];
+      const remaining = candidates.filter(
+        (candidate) => candidate !== entrance && !corridorSet.has(candidate),
+      );
+      const selected = selectFairBiomeDecorPlacements(
+        remaining,
+        count - corridor.length - (entrance ? 1 : 0),
+        salt + 17,
+      );
+      return [...corridor, ...(entrance ? [entrance] : []), ...selected];
+    };
+    // Wall decals batch cheaply, while hanging cards remain individual animated
+    // meshes. Bias density toward architecture without returning floor clutter.
+    const copiesPerDefinition = Object.freeze({ wall: 5, floor: 3, ceiling: 4 });
+    const wallBudget = wallDefinitions.length * copiesPerDefinition.wall;
+    const floorBudget = floorDefinitions.length * copiesPerDefinition.floor;
+    const ceilingBudget = ceilingDefinitions.length * copiesPerDefinition.ceiling;
+    const maxProps = wallBudget + floorBudget + ceilingBudget;
+    const wallCandidatesPerRoom = Math.ceil(wallBudget / Math.max(rooms.length, 1)) + 1;
+    const floorCandidatesPerRoom = Math.ceil(floorBudget / Math.max(rooms.length, 1)) + 2;
+    const ceilingCandidatesPerRoom = Math.ceil(ceilingBudget / Math.max(rooms.length, 1)) + 3;
+
+    const wallCandidates: Array<{
       seat: ReturnType<typeof collectRoomWallSeats>[number];
-      definition: BiomeSpritePropDefinition;
+      roomId: number;
+      corridor: boolean;
     }> = [];
-    const cornerPlacements: Array<{
-      seat: DungeonCornerSeat;
-      definition: BiomeSpritePropDefinition;
-    }> = [];
-    const floorPlacements: Array<{
-      cell: GridCell;
-      definition: BiomeSpritePropDefinition;
-    }> = [];
-
-    for (const room of dungeon.rooms) {
-      if (room.role !== "room") continue;
-      const area = room.width * room.height;
-      const wallSeats = collectRoomWallSeats(dungeon, room).filter(
-        (seat) => !occupied.has(`${seat.cell.x},${seat.cell.y}`),
+    for (const room of rooms) {
+      const isEntrance = room.role === "entrance";
+      const wallSeats = this.getRoomWallSeats(dungeon, room).filter(
+        (seat) => !isWallOccupied(seat.cell) && !isProtectedTraversalCell(dungeon, seat.cell),
       );
-      const wallCount = Math.min(
-        2,
-        Math.max(1, Math.round((area / 68) * this.decorDensity * profile.wallDecorDensity)),
+      const wallCount = Math.min(wallSeats.length, wallCandidatesPerRoom);
+      wallCandidates.push(
+        ...pickSeparatedWallSeats(
+          wallSeats,
+          isEntrance ? Math.max(1, wallCount) : wallCount,
+          dungeon.seedHash + room.id * 67,
+        ).map((seat) => ({ seat, roomId: room.id, corridor: false })),
       );
-      for (const [index, seat] of pickSeparatedWallSeats(
-        wallSeats,
-        wallCount,
-        dungeon.seedHash + room.id * 67,
-      ).entries()) {
-        const key = `${seat.cell.x},${seat.cell.y}`;
-        if (occupied.has(key)) continue;
-        occupied.add(key);
-        this.reserveWallObjectCell(seat.cell);
-        wallPlacements.push({
-          seat,
-          definition: chooseDefinition(wallDefinitions, room.id, index),
-        });
+    }
+    for (const cell of corridorCells) {
+      for (const [wallDx, wallDy] of CARDINAL_NEIGHBORS) {
+        if (dungeon.grid[cell.y + wallDy]?.[cell.x + wallDx] !== WALL) continue;
+        const seat = { cell, intoDx: -wallDx, intoDy: -wallDy };
+        if (!isWallOccupied(cell)) {
+          wallCandidates.push({ seat, roomId: corridorRoomId(cell), corridor: true });
+        }
       }
+    }
+    const selectedWalls = selectWithEntrance(wallCandidates, wallBudget, dungeon.seedHash + 101);
+    selectedWalls.forEach(({ seat }) =>
+      placementOverlay.mark(seat.cell.x, seat.cell.y, FloorOccupancyBit.WallDecoration),
+    );
 
-      const floorCount = Math.min(
-        2,
-        Math.max(1, Math.round((area / 78) * this.decorDensity * profile.wallDecorDensity)),
-      );
+    const cornerCandidates: Array<{
+      seat: DungeonCornerSeat;
+      roomId: number;
+      corridor: boolean;
+    }> = [];
+    const floorCandidates: Array<{
+      cell: GridCell;
+      roomId: number;
+      corridor: boolean;
+      wallSeat?: DungeonWallSeat;
+    }> = [];
+    for (const room of rooms) {
+      const isEntrance = room.role === "entrance";
+      const floorCount = floorCandidatesPerRoom;
       const cornerSeats = collectRoomCornerSeats(dungeon, room).filter(
-        (seat) => !occupied.has(`${seat.cell.x},${seat.cell.y}`),
+        (seat) => !isOccupied(seat.cell) && !isProtectedTraversalCell(dungeon, seat.cell),
       );
       const cornerCount =
-        cornerDefinitions.length > 0 &&
+        floorDefinitions.length > 0 &&
         cornerSeats.length > 0 &&
-        (floorCount > 1 || room.id % 3 === 0)
+        (isEntrance || floorCount > 1 || room.id % 3 === 0)
           ? 1
           : 0;
-      const cornerCellKeys = new Set<string>();
-      for (const [index, seat] of pickSeparatedWallSeats(
+      const reservedCornerCandidates = new Set<string>();
+      for (const seat of pickSeparatedWallSeats(
         cornerSeats,
         cornerCount,
         dungeon.seedHash + room.id * 73,
-      ).entries()) {
-        const key = `${seat.cell.x},${seat.cell.y}`;
-        if (occupied.has(key)) continue;
-        occupied.add(key);
-        cornerCellKeys.add(key);
-        this.reserveWallObjectCell(seat.cell);
-        cornerPlacements.push({
-          seat,
-          definition: chooseDefinition(cornerDefinitions, room.id, index),
-        });
+      )) {
+        if (isOccupied(seat.cell)) continue;
+        reservedCornerCandidates.add(`${seat.cell.x},${seat.cell.y}`);
+        cornerCandidates.push({ seat, roomId: room.id, corridor: false });
       }
-
-      const floorSeats = collectRoomInteriorSeats(dungeon, room).filter((cell) => {
-        const key = `${cell.x},${cell.y}`;
-        return !occupied.has(key) && !cornerCellKeys.has(key);
-      });
-      for (const [index, cell] of pickSpreadSeats(
-        floorSeats,
+      const edgeSeats = this.getRoomWallSeats(dungeon, room).filter(
+        (seat) =>
+          !isOccupied(seat.cell) &&
+          !reservedCornerCandidates.has(`${seat.cell.x},${seat.cell.y}`) &&
+          !isProtectedTraversalCell(dungeon, seat.cell),
+      );
+      const uniqueEdgeSeats = new Map<number, DungeonWallSeat>();
+      for (const seat of edgeSeats) {
+        uniqueEdgeSeats.set(seat.cell.y * dungeon.width + seat.cell.x, seat);
+      }
+      const selectedEdgeSeats = pickSeparatedWallSeats(
+        [...uniqueEdgeSeats.values()],
         floorCount - cornerCount,
         dungeon.seedHash + room.id * 71,
-      ).entries()) {
-        const key = `${cell.x},${cell.y}`;
-        if (occupied.has(key)) continue;
-        occupied.add(key);
-        const preferFloorDecal = (room.id + index) % 2 === 0;
-        const candidates =
-          preferFloorDecal && floorDecalDefinitions.length > 0
-            ? floorDecalDefinitions
-            : floorStandingDefinitions.length > 0
-              ? floorStandingDefinitions
-              : floorRenderableDefinitions;
-        floorPlacements.push({
-          cell,
-          definition: chooseDefinition(candidates, room.id, index),
+      );
+      for (const wallSeat of selectedEdgeSeats) {
+        if (isOccupied(wallSeat.cell)) continue;
+        floorCandidates.push({
+          cell: wallSeat.cell,
+          roomId: room.id,
+          corridor: false,
+          wallSeat,
         });
       }
     }
-
-    const maxProps = Math.min(
-      48,
-      Math.max(8, Math.round(dungeon.rooms.length * 2.8 * this.decorDensity)),
+    // Corridors intentionally carry only wall and ceiling decoration. Floor
+    // silhouettes narrow the route and are too easy to read as gameplay items.
+    const desiredCornerBudget =
+      cornerCandidates.length > 0 ? Math.max(1, Math.round(floorBudget * 0.24)) : 0;
+    const selectedCorners = selectWithEntrance(
+      cornerCandidates,
+      Math.min(desiredCornerBudget, floorBudget),
+      dungeon.seedHash + 211,
     );
-    let added = 0;
+    selectedCorners.forEach(({ seat }) =>
+      placementOverlay.mark(seat.cell.x, seat.cell.y, FloorOccupancyBit.WallDecoration),
+    );
+    const selectedFloors = selectWithEntrance(
+      floorCandidates.filter(({ cell }) => !isOccupied(cell)),
+      floorBudget - selectedCorners.length,
+      dungeon.seedHash + 223,
+    );
+    selectedFloors.forEach(({ cell }) =>
+      placementOverlay.mark(cell.x, cell.y, FloorOccupancyBit.Object),
+    );
 
-    // Batch the three wall frames. The same art and placements now cost at
-    // most three draw calls instead of one call per decal.
-    const wallBatches = new Map<number, THREE.Matrix4[]>();
+    const ceilingCandidates: Array<{ cell: GridCell; roomId: number; corridor: boolean }> = [];
+    for (const room of rooms) {
+      const ceilingSeats = collectRoomInteriorSeats(dungeon, room, 1).filter(
+        (cell) => !isCeilingOccupied(cell) && !isProtectedTraversalCell(dungeon, cell),
+      );
+      const ceilingCount = Math.min(ceilingSeats.length, ceilingCandidatesPerRoom);
+      ceilingCandidates.push(
+        ...pickSpreadSeats(
+          ceilingSeats,
+          room.role === "entrance" ? Math.max(1, ceilingCount) : ceilingCount,
+          dungeon.seedHash + room.id * 79,
+        ).map((cell) => ({ cell, roomId: room.id, corridor: false })),
+      );
+    }
+    for (const cell of corridorCells) {
+      if (!isCeilingOccupied(cell)) {
+        ceilingCandidates.push({ cell, roomId: corridorRoomId(cell), corridor: true });
+      }
+    }
+    const selectedCeilings = selectWithEntrance(
+      ceilingCandidates,
+      ceilingBudget,
+      dungeon.seedHash + 307,
+    );
+    selectedCeilings.forEach(({ cell }) =>
+      placementOverlay.mark(cell.x, cell.y, FloorOccupancyBit.CeilingDecoration),
+    );
+
+    const wallPlacements = selectedWalls.map((candidate, index) => ({
+      ...candidate,
+      definition: balancedBiomeDecorItem(wallDefinitions, index, dungeon.seedHash + 401),
+    }));
+    const cornerPlacements = selectedCorners.map((candidate, index) => ({
+      ...candidate,
+      definition: balancedBiomeDecorItem(floorDefinitions, index, dungeon.seedHash + 409),
+    }));
+    const floorPlacements = selectedFloors.map((candidate, index) => ({
+      ...candidate,
+      definition: balancedBiomeDecorItem(
+        floorDefinitions,
+        index + cornerPlacements.length,
+        dungeon.seedHash + 409,
+      ),
+    }));
+    const ceilingPlacements = selectedCeilings.map((candidate, index) => ({
+      ...candidate,
+      definition: balancedBiomeDecorItem(ceilingDefinitions, index, dungeon.seedHash + 431),
+    }));
+
+    wallPlacements.forEach(({ seat }) => this.reserveWallObjectCell(seat.cell));
+    cornerPlacements.forEach(({ seat }) => this.reserveWallObjectCell(seat.cell));
+    floorPlacements.forEach(({ cell }) => this.reserveObjectCell(cell));
+    ceilingPlacements.forEach(({ cell }) => this.reserveCeilingObjectCell(cell));
+
+    this.requireCurrentResidentFloor(
+      "Biome decor diagnostics",
+    ).root.userData.biomeSpriteDecorDistribution = {
+      biome: this.activeMood.id,
+      copiesPerDefinition,
+      requestedTotal: maxProps,
+      budget: { wall: wallBudget, floor: floorBudget, ceiling: ceilingBudget },
+      placements: [
+        ...wallPlacements.map(({ seat, roomId, corridor, definition }) => ({
+          roomId,
+          corridor,
+          cell: { ...seat.cell },
+          surface: "wall",
+          slot: definition.slot,
+          id: definition.id,
+        })),
+        ...cornerPlacements.map(({ seat, roomId, corridor, definition }) => ({
+          roomId,
+          corridor,
+          cell: { ...seat.cell },
+          surface: "floor",
+          placement: "corner-standing",
+          slot: definition.slot,
+          id: definition.id,
+        })),
+        ...floorPlacements.map(({ cell, roomId, corridor, wallSeat, definition }) => ({
+          roomId,
+          corridor,
+          nearWall: wallSeat !== undefined,
+          cell: { ...cell },
+          surface: "floor",
+          placement: definition.placement,
+          slot: definition.slot,
+          id: definition.id,
+        })),
+        ...ceilingPlacements.map(({ cell, roomId, corridor, definition }) => ({
+          roomId,
+          corridor,
+          cell: { ...cell },
+          surface: "ceiling",
+          slot: definition.slot,
+          id: definition.id,
+        })),
+      ],
+    };
+
+    let added = 0;
+    const wallBatches = new Map<
+      string,
+      { definition: BiomeSpriteDecorDefinition; matrices: THREE.Matrix4[] }
+    >();
     for (const { seat, definition } of wallPlacements) {
-      if (added >= maxProps) break;
       const p = gridToWorld(dungeon, seat.cell, this.tileSize);
-      const scale = 1.55 * profile.wallDecorScale * (0.92 + random.next() * 0.16);
+      const scale = profile.wallDecorScale * (0.96 + random.next() * 0.08);
       const offset = wallHugWorldOffset(
         seat.intoDx,
         seat.intoDy,
         this.tileSize,
-        BIOME_WALL_DECAL_OFFSET,
+        Math.max(BIOME_WALL_DECAL_OFFSET, definition.mount.planeOffset),
       );
-      this.tempPosition.set(p.x + offset.x, 1.72 + random.next() * 0.34, p.z + offset.z);
+      const range = definition.mount.heightRange ?? [1.2, 2.4];
+      const centerY = THREE.MathUtils.clamp(
+        range[0] + random.next() * (range[1] - range[0]),
+        definition.worldSize.height * scale * 0.5,
+        this.wallHeight - definition.worldSize.height * scale * 0.5,
+      );
+      this.tempPosition.set(p.x + offset.x, centerY, p.z + offset.z);
       this.tempEuler.set(0, facingRotation(seat.intoDx, seat.intoDy), 0, "YXZ");
       this.tempQuaternion.setFromEuler(this.tempEuler);
       this.tempScale.set(scale, scale, scale);
       this.tempMatrix.compose(this.tempPosition, this.tempQuaternion, this.tempScale);
-      const matrices = wallBatches.get(definition.frame) ?? [];
-      matrices.push(this.tempMatrix.clone());
-      wallBatches.set(definition.frame, matrices);
-      added += 1;
+      // Five quads per definition are cheaper as one instanced draw than as
+      // sparse spatial chunks. Their combined geometry is negligible, and the
+      // batch still receives one conservative world-space bounding volume.
+      const key = `${definition.slot}`;
+      const batch = wallBatches.get(key) ?? { definition, matrices: [] };
+      batch.matrices.push(this.tempMatrix.clone());
+      wallBatches.set(key, batch);
     }
-    for (const [frame, matrices] of wallBatches) {
-      const definition = definitions[frame]!;
-      const texture = this.assets.biomeSpriteProp(this.activeMood.id, frame);
+    for (const { definition, matrices } of wallBatches.values()) {
+      const geometry = new THREE.PlaneGeometry(
+        definition.worldSize.width,
+        definition.worldSize.height,
+      );
+      geometry.translate(
+        (0.5 - definition.anchor.x) * definition.worldSize.width,
+        (definition.anchor.y - 0.5) * definition.worldSize.height,
+        0,
+      );
+      applyBiomeDecorAtlasUv(geometry, definition.slot);
       const batch = new THREE.InstancedMesh(
-        new THREE.PlaneGeometry(1, 1),
-        this.getBiomeWallDecalMaterial(frame, texture),
+        geometry,
+        this.getBiomeWallDecalMaterial(atlas, catalog.runtime.occlusion.alphaTest),
         matrices.length,
       );
-      batch.name = `${this.activeMood.label} ${definition.label} wall decal batch`;
+      batch.name = `${this.activeMood.label} ${definition.label} wall-mounted batch`;
       batch.renderOrder = 5;
       batch.castShadow = false;
       batch.receiveShadow = true;
-      batch.frustumCulled = false;
-      batch.userData.biomeSpriteProp = {
+      batch.frustumCulled = catalog.runtime.culling.frustum;
+      const metadata = {
         biome: this.activeMood.id,
         id: definition.id,
-        frame,
+        slot: definition.slot,
         surface: "wall",
         placement: definition.placement,
-        billboard: "wall-normal",
-        distanceLod: "disabled",
+        orientation: definition.orientation,
+        view: definition.view,
+        anchor: definition.anchor,
+        culling: catalog.runtime.culling,
+        occlusion: catalog.runtime.occlusion,
         batched: true,
       };
+      batch.userData.biomeSpriteDecor = metadata;
+      batch.userData.biomeSpriteProp = metadata;
       matrices.forEach((matrix, index) => batch.setMatrixAt(index, matrix));
       batch.instanceMatrix.setUsage(THREE.StaticDrawUsage);
       batch.instanceMatrix.needsUpdate = true;
+      batch.computeBoundingBox();
+      batch.computeBoundingSphere();
       this.add(batch);
+      added += matrices.length;
     }
 
     const addFloorSprite = (
       cell: GridCell,
-      definition: BiomeSpritePropDefinition,
+      definition: BiomeSpriteDecorDefinition,
       corner?: DungeonCornerSeat,
+      wallSeat?: DungeonWallSeat,
     ): void => {
-      if (added >= maxProps) return;
-      const texture = this.assets.biomeSpriteProp(this.activeMood.id, definition.frame);
       const p = gridToWorld(dungeon, cell, this.tileSize);
-      const isFloorDecal = definition.placement === "floor-decal";
-      const isCorner = definition.placement === "corner-standing";
-      const scale =
-        (isFloorDecal ? 1.18 : isCorner ? 1.22 : 1.34) *
-        profile.wallDecorScale *
-        (0.92 + random.next() * 0.16);
-      const geometry = new THREE.PlaneGeometry(1, 1);
-      if (!isFloorDecal) geometry.translate(0, 0.5, 0);
+      const isCorner = corner !== undefined;
+      const runtimePlacement: BiomeSpriteDecorPlacement = isCorner
+        ? "corner-standing"
+        : definition.placement;
+      const scale = profile.wallDecorScale * (0.96 + random.next() * 0.08);
+      const width = definition.worldSize.width * scale;
+      const height = definition.worldSize.height * scale;
+      const geometry = new THREE.PlaneGeometry(width, height);
+      geometry.translate(
+        (0.5 - definition.anchor.x) * width,
+        (definition.anchor.y - 0.5) * height,
+        0,
+      );
+      applyBiomeDecorAtlasUv(geometry, definition.slot);
       const material = this.getBiomeFloorSpriteMaterial(
-        definition.frame,
-        texture,
-        definition.placement,
-      ).clone();
-      material.userData = {
-        ...material.userData,
-        sharedDungeonMaterial: false,
-        biomeSpriteFloorFade: true,
-      };
+        atlas,
+        runtimePlacement,
+        catalog.runtime.occlusion.alphaTest,
+      );
       const sprite = new THREE.Mesh(geometry, material);
-      const groundGap = isFloorDecal
-        ? 0
-        : biomeSpriteFloorGroundGap(this.activeMood.id, definition.frame);
-      const baseYaw =
-        isCorner && corner
-          ? facingRotation(corner.intoDx, corner.intoDy)
-          : isFloorDecal
-            ? random.next() * Math.PI * 2
-            : 0;
-      if (isFloorDecal) {
-        sprite.position.set(p.x, 0.045, p.z);
-        sprite.rotation.order = "YXZ";
-        sprite.rotation.x = -Math.PI / 2;
-        sprite.rotation.y = baseYaw;
-      } else if (isCorner && corner) {
+      const edgeSeat = corner ?? wallSeat;
+      const baseYaw = edgeSeat ? facingRotation(edgeSeat.intoDx, edgeSeat.intoDy) : 0;
+      const maxWallTurn =
+        runtimePlacement === "corner-standing"
+          ? (definition.maxYawTurn ?? BIOME_CORNER_PROP_MAX_TURN)
+          : undefined;
+      if (isCorner) {
         const offset = cornerHugWorldOffset(corner, this.tileSize, BIOME_CORNER_PROP_INSET);
-        sprite.position.set(p.x + offset.x, 0.02 - groundGap * scale, p.z + offset.z);
-        sprite.rotation.order = "YXZ";
-        sprite.rotation.y = baseYaw;
+        sprite.position.set(p.x + offset.x, definition.mount.planeOffset, p.z + offset.z);
+      } else if (wallSeat) {
+        const offset = wallHugWorldOffset(
+          wallSeat.intoDx,
+          wallSeat.intoDy,
+          this.tileSize,
+          BIOME_FLOOR_PROP_WALL_INSET,
+        );
+        sprite.position.set(p.x + offset.x, definition.mount.planeOffset, p.z + offset.z);
       } else {
-        sprite.position.set(p.x, 0.02 - groundGap * scale, p.z);
+        sprite.position.set(p.x, definition.mount.planeOffset, p.z);
       }
-      sprite.scale.setScalar(scale);
-      sprite.name = `${this.activeMood.label} ${definition.label} ${isFloorDecal ? "floor decal" : isCorner ? "corner card" : "floor card"}`;
+      sprite.rotation.order = "YXZ";
+      sprite.rotation.y = baseYaw;
+      sprite.name = `${this.activeMood.label} ${definition.label} ${edgeSeat ? "edge card" : "floor card"}`;
       sprite.castShadow = false;
-      sprite.receiveShadow = isFloorDecal;
-      sprite.renderOrder = isFloorDecal ? 1 : isCorner ? 2 : 3;
-      sprite.frustumCulled = false;
-      sprite.userData.groundGap = groundGap;
-      sprite.userData.biomeSpriteProp = {
+      sprite.receiveShadow = true;
+      sprite.renderOrder = isCorner ? 2 : 3;
+      sprite.frustumCulled = catalog.runtime.culling.frustum;
+      const metadata = {
         biome: this.activeMood.id,
         id: definition.id,
-        frame: definition.frame,
+        slot: definition.slot,
         surface: "floor",
-        placement: definition.placement,
-        billboard: isFloorDecal
-          ? "floor-fixed"
-          : isCorner
-            ? "yaw-to-player-constrained"
-            : "yaw-to-player",
-        distanceLod: "disabled",
-        ...(isCorner ? { maxWallTurn: BIOME_CORNER_PROP_MAX_TURN } : {}),
+        placement: runtimePlacement,
+        orientation: definition.orientation,
+        view: definition.view,
+        anchor: definition.anchor,
+        culling: catalog.runtime.culling,
+        occlusion: catalog.runtime.occlusion,
+        ...(maxWallTurn !== undefined ? { maxWallTurn } : {}),
       };
-      this.floorBiomeSprites.push({
+      sprite.userData.biomeSpriteDecor = metadata;
+      sprite.userData.biomeSpriteProp = metadata;
+      this.registerFloorBiomeSprite({
         mesh: sprite,
         material,
         baseOpacity: material.opacity,
         x: sprite.position.x,
         z: sprite.position.z,
         baseYaw,
-        placement: definition.placement,
+        placement: runtimePlacement,
+        maxWallTurn,
+        maxDistance: catalog.runtime.culling.maxDistance.floor,
+        hysteresis: catalog.runtime.culling.hysteresis,
+        sharedMaterial: true,
       });
-      this.reserveObjectCell(cell);
       this.add(sprite);
       added += 1;
     };
 
     for (const placement of cornerPlacements) {
-      if (added >= maxProps) break;
       addFloorSprite(placement.seat.cell, placement.definition, placement.seat);
     }
     for (const placement of floorPlacements) {
-      if (added >= maxProps) break;
-      addFloorSprite(placement.cell, placement.definition);
+      addFloorSprite(placement.cell, placement.definition, undefined, placement.wallSeat);
+    }
+
+    for (const { cell, definition } of ceilingPlacements) {
+      const p = gridToWorld(dungeon, cell, this.tileSize);
+      const scale = profile.wallDecorScale * (0.96 + random.next() * 0.08);
+      const width = definition.worldSize.width * scale;
+      const height = definition.worldSize.height * scale;
+      const geometry = new THREE.PlaneGeometry(width, height);
+      geometry.translate(
+        (0.5 - definition.anchor.x) * width,
+        (definition.anchor.y - 0.5) * height,
+        0,
+      );
+      applyBiomeDecorAtlasUv(geometry, definition.slot);
+      const material = this.getBiomeFloorSpriteMaterial(
+        atlas,
+        definition.placement,
+        catalog.runtime.occlusion.alphaTest,
+      );
+      const motion = biomeDecorMotion(this.activeMood, definition.slot, cell);
+      const sprite = new THREE.Mesh(geometry, material);
+      sprite.position.set(p.x, this.wallHeight - definition.mount.planeOffset, p.z);
+      sprite.rotation.order = "YXZ";
+      sprite.name = `${this.activeMood.label} ${definition.label} ceiling hanging`;
+      sprite.castShadow = false;
+      sprite.receiveShadow = true;
+      sprite.renderOrder = 4;
+      sprite.frustumCulled = catalog.runtime.culling.frustum;
+      const metadata = {
+        biome: this.activeMood.id,
+        id: definition.id,
+        slot: definition.slot,
+        surface: "ceiling",
+        placement: definition.placement,
+        orientation: definition.orientation,
+        view: definition.view,
+        anchor: definition.anchor,
+        culling: catalog.runtime.culling,
+        occlusion: catalog.runtime.occlusion,
+        animated: true,
+        animation: "biome-sway",
+      };
+      sprite.userData.biomeSpriteDecor = metadata;
+      sprite.userData.biomeSpriteProp = metadata;
+      this.registerCeilingBiomeSprite({
+        mesh: sprite,
+        material,
+        baseOpacity: material.opacity,
+        x: sprite.position.x,
+        z: sprite.position.z,
+        baseYaw: 0,
+        maxDistance: catalog.runtime.culling.maxDistance.ceiling,
+        hysteresis: catalog.runtime.culling.hysteresis,
+        sharedMaterial: true,
+        animationPhase: motion.phase,
+        animationSpeed: motion.speed,
+        swayAmplitude: motion.amplitude,
+      });
+      this.add(sprite);
+      added += 1;
     }
     this.stats.props += added;
   }
 
   private getBiomeWallDecalMaterial(
-    frame: number,
     texture: THREE.Texture,
+    alphaTest: number,
   ): THREE.MeshStandardMaterial {
-    const key = `${this.activeMood.id}:${frame}`;
+    const key = `${this.activeMood.id}:v2-wall:${alphaTest}`;
     const cached = this.biomeWallDecalMaterials.get(key);
     if (cached) return cached;
-    const material = createBiomeWallDecalMaterial(texture, this.activeMood);
-    material.name = `${this.activeMood.label} biome wall decal ${frame + 1}`;
+    const material = createBiomeWallDecalMaterial(texture, this.activeMood, alphaTest);
+    material.name = `${this.activeMood.label} v2 biome wall props`;
     this.biomeWallDecalMaterials.set(key, material);
     return material;
   }
 
   private getBiomeFloorSpriteMaterial(
-    frame: number,
     texture: THREE.Texture,
-    placement: BiomeSpritePlacement,
+    placement: BiomeSpritePlacement | BiomeSpriteDecorPlacement,
+    alphaTest: number,
   ): THREE.MeshStandardMaterial {
-    const key = `${this.activeMood.id}:${frame}:${placement}`;
+    const key = `${this.activeMood.id}:v2:${placement}:${alphaTest}`;
     const cached = this.biomeFloorSpriteMaterials.get(key);
     if (cached) return cached;
-    const material = createBiomeFloorSpriteMaterial(texture, this.activeMood, placement);
-    material.name = `${this.activeMood.label} ${placement} biome prop ${frame + 1}`;
+    const material = createBiomeFloorSpriteMaterial(texture, this.activeMood, placement, alphaTest);
+    material.name = `${this.activeMood.label} v2 ${placement} biome props`;
     this.biomeFloorSpriteMaterials.set(key, material);
     return material;
   }
@@ -3089,8 +4223,8 @@ export class StaticDungeonScene {
     for (const room of dungeon.rooms) {
       if (room.role !== "room") continue;
       const theme = this.atmosphereRoomTheme(dungeon, room);
-      const wallSeats = collectRoomWallSeats(dungeon, room);
-      const interior = collectRoomInteriorSeats(dungeon, room);
+      const wallSeats = this.getRoomWallSeats(dungeon, room);
+      const interior = this.getRoomInteriorSeats(dungeon, room);
       if (wallSeats.length === 0 && interior.length === 0) continue;
 
       // Skull/bone weight follows both room purpose and biome identity.
@@ -3111,7 +4245,10 @@ export class StaticDungeonScene {
         const cells = this.pickAtmosphereCells(dungeon, wallSeats, interior, count, random);
         if (cells.length > 0) {
           bonePlacements.push({
-            template: (boneTemplate ??= createBonePile(this.materials, profile.boneVariant)),
+            template: (boneTemplate ??= this.getAtmosphereTemplate(
+              `bone:${this.activeMood.id}:${profile.boneVariant}`,
+              () => createBonePile(this.materials, profile.boneVariant),
+            )),
             cells: cells.map((cell) => ({
               cell: cell.cell,
               rot: random.next() * Math.PI * 2,
@@ -3131,7 +4268,10 @@ export class StaticDungeonScene {
         const cells = this.pickAtmosphereCells(dungeon, wallSeats, interior, rubbleCount, random);
         if (cells.length > 0) {
           rubblePlacements.push({
-            template: (rubbleTemplate ??= createRubblePile(this.materials, profile.rubbleVariant)),
+            template: (rubbleTemplate ??= this.getAtmosphereTemplate(
+              `rubble:${this.activeMood.id}:${profile.rubbleVariant}`,
+              () => createRubblePile(this.materials, profile.rubbleVariant),
+            )),
             cells: cells.map((cell) => ({
               cell: cell.cell,
               rot: random.next() * Math.PI * 2,
@@ -3154,10 +4294,16 @@ export class StaticDungeonScene {
             ),
           ),
         );
-        const cells = this.pickAtmosphereCells(dungeon, wallSeats, interior, count, random);
+        const cells = this.pickAtmosphereCells(
+          dungeon,
+          wallSeats,
+          interior,
+          count,
+          random,
+          "ceiling",
+        );
         if (cells.length > 0) {
-          const hangPool =
-            profile.hangingKinds.length > 0 ? profile.hangingKinds : [profile.hangingKind];
+          const hangPool = [...new Set([profile.hangingKind, ...profile.hangingKinds])].slice(0, 2);
           // Length varies per instance. Kind and style keep the useful shape
           // range without multiplying the draw calls by five length templates.
           const byTemplate = new Map<
@@ -3168,15 +4314,22 @@ export class StaticDungeonScene {
           for (const seat of cells) {
             // Bias toward the primary kind, but mix the full biome hang pool.
             const kind =
-              random.next() < 0.42
+              random.next() < 0.68
                 ? profile.hangingKind
                 : hangPool[random.integer(0, hangPool.length - 1)]!;
-            const style = random.integer(0, 3);
+            let kindHash = 0;
+            for (let index = 0; index < kind.length; index += 1) {
+              kindHash = (kindHash * 31 + kind.charCodeAt(index)) >>> 0;
+            }
+            const style = kindHash % 2;
             const lengthScale = lengthScales[random.integer(0, lengthScales.length - 1)]!;
             const key = `${kind}:${style}`;
             let template = hangingTemplates.get(key);
             if (!template) {
-              template = createHanging(this.materials, kind, profile.hangingLength, style);
+              template = this.getAtmosphereTemplate(
+                `hanging:${this.activeMood.id}:${kind}:${profile.hangingLength}:${style}`,
+                () => createHanging(this.materials, kind, profile.hangingLength, style),
+              );
               hangingTemplates.set(key, template);
             }
             const list = byTemplate.get(template) ?? [];
@@ -3193,6 +4346,46 @@ export class StaticDungeonScene {
           }
         }
       }
+    }
+
+    const corridorHangSeats = collectDecorCorridorCells(dungeon).filter(
+      (cell) =>
+        !this.requireActiveFloorOccupancy("Corridor hanging props").hasAny(
+          cell.x,
+          cell.y,
+          FloorOccupancyBit.Solid |
+            FloorOccupancyBit.Objective |
+            FloorOccupancyBit.Hazard |
+            FloorOccupancyBit.Stair |
+            FloorOccupancyBit.CeilingDecoration,
+        ),
+    );
+    const corridorHangCount = Math.min(
+      12,
+      Math.max(0, Math.round((corridorHangSeats.length / 8) * this.decorDensity)),
+    );
+    const selectedCorridorHangs = pickSpreadSeats(
+      corridorHangSeats,
+      corridorHangCount,
+      dungeon.seedHash + 887,
+    );
+    if (selectedCorridorHangs.length > 0) {
+      const kind = profile.hangingKind;
+      const style = Math.abs(dungeon.seedHash) % 4;
+      const template = this.getAtmosphereTemplate(
+        `hanging:${this.activeMood.id}:${kind}:${profile.hangingLength}:${style}`,
+        () => createHanging(this.materials, kind, profile.hangingLength, style),
+      );
+      for (const cell of selectedCorridorHangs) this.reserveCeilingObjectCell(cell);
+      hangingPlacements.push({
+        template,
+        cells: selectedCorridorHangs.map((cell, index) => ({
+          cell,
+          rot: (index * 2.399963 + random.next() * 0.35) % (Math.PI * 2),
+          y: this.wallHeight,
+          scaleY: 0.62 + (index % 4) * 0.18,
+        })),
+      });
     }
 
     this.commitAtmosphereBatch(dungeon, bonePlacements);
@@ -3222,25 +4415,39 @@ export class StaticDungeonScene {
     interior: ReadonlyArray<GridCell>,
     count: number,
     random: ReturnType<typeof createSeededRandom>,
+    surface: "floor" | "ceiling" = "floor",
   ): Array<{ cell: GridCell }> {
+    const occupancy = this.requireActiveFloorOccupancy("Atmosphere prop seats");
     const pool = [...wallSeats.map((s) => s.cell), ...interior].filter(
       (cell) =>
         !isProtectedTraversalCell(dungeon, cell) &&
         !this.isObjectiveClearanceCell(cell) &&
-        !this.isObjectOccupiedCell(cell),
+        (surface === "ceiling"
+          ? !occupancy.hasAny(
+              cell.x,
+              cell.y,
+              FloorOccupancyBit.Solid |
+                FloorOccupancyBit.Objective |
+                FloorOccupancyBit.Hazard |
+                FloorOccupancyBit.Stair |
+                FloorOccupancyBit.CeilingDecoration,
+            )
+          : !this.isObjectOccupiedCell(cell)),
     );
     const picked: GridCell[] = [];
-    const shuffled = [...pool];
-    for (let i = shuffled.length - 1; i > 0; i -= 1) {
+    // `pool` is already a fresh array from filter; shuffle it in place to
+    // avoid a second full copy for every room/family on the cold stack build.
+    for (let i = pool.length - 1; i > 0; i -= 1) {
       const j = random.integer(0, i);
-      [shuffled[i], shuffled[j]] = [shuffled[j]!, shuffled[i]!];
+      [pool[i], pool[j]] = [pool[j]!, pool[i]!];
     }
-    for (const cell of shuffled) {
+    for (const cell of pool) {
       if (picked.length >= count) break;
       if (picked.some((p) => Math.max(Math.abs(p.x - cell.x), Math.abs(p.y - cell.y)) < 2))
         continue;
       picked.push(cell);
-      this.reserveObjectCell(cell);
+      if (surface === "ceiling") this.reserveCeilingObjectCell(cell);
+      else this.reserveObjectCell(cell);
     }
     return picked.map((cell) => ({ cell }));
   }
@@ -3278,10 +4485,17 @@ export class StaticDungeonScene {
     for (const [template, cells] of grouped) {
       if (cells.length === 0) continue;
       const templateName = template.name;
-      const templateBatches = createStaticPropTemplateBatches(template, {
-        cacheKey: `atmosphere:${templateName}:${dungeonMaterialsCacheToken(this.materials)}`,
-      });
-      disposeTemplateGeometries(template);
+      const batchKey = `${this.activeMood.id}:${templateName}`;
+      let templateBatches = this.runtimeAtmosphereBatches.get(batchKey);
+      if (!templateBatches) {
+        templateBatches = createStaticPropTemplateBatches(template, {
+          resourceCatalog: this.resourceCatalog,
+          catalogKey: `atmosphere/v2:${encodeURIComponent(templateName)}`,
+          materialKey: (material) => this.staticMaterialKey(material),
+          resourceType: "atmosphere-static-prop-batch-geometry/v2",
+        });
+        this.runtimeAtmosphereBatches.set(batchKey, templateBatches);
+      }
       const instanceCount = cells.length;
       for (const [partIndex, part] of templateBatches.entries()) {
         const batch = new THREE.InstancedMesh(part.geometry, part.material, instanceCount);
@@ -3304,9 +4518,14 @@ export class StaticDungeonScene {
     }
   }
 
-  private addMarkers(dungeon: DungeonData, mood: DungeonMood): void {
+  private addMarkers(
+    dungeon: DungeonData,
+    mood: DungeonMood,
+    floorPlan?: ResidentDungeonFloorPlan,
+  ): void {
     const entrance = gridToWorld(dungeon, dungeon.spawn, this.tileSize);
-    const exit = gridToWorld(dungeon, dungeon.exit, this.tileSize);
+    const portalCell = floorPlan?.portal.cell ?? dungeon.exit;
+    const exit = gridToWorld(dungeon, portalCell, this.tileSize);
     this.exitPosition.set(exit.x, this.floorWorldY, exit.z);
 
     const entranceRing = new THREE.Mesh(new THREE.RingGeometry(0.46, 0.66, 8), this.materials.iron);
@@ -3316,7 +4535,8 @@ export class StaticDungeonScene {
     entranceLight.position.set(entrance.x, 1.7, entrance.z);
 
     const finalFloor = !dungeon.floor || dungeon.floor.index === dungeon.floor.count - 1;
-    if (!finalFloor) {
+    const portalRequired = floorPlan?.portal.required ?? finalFloor;
+    if (!finalFloor || !portalRequired) {
       this.add(entranceRing, entranceLight);
       return;
     }
@@ -3327,6 +4547,7 @@ export class StaticDungeonScene {
     const portal = magicPortal.root;
     portal.position.set(exit.x, 0, exit.z);
     portal.rotation.y = magicPortalApproachYaw(dungeon);
+    portal.userData.catalogKey = floorPlan?.portal.catalogKey ?? "portal/v2:runtime";
     this.portalRoot = portal;
 
     const exitBeam = createVolumetricBeam(magicPortal.profile.beamColor, 4.15, 1.05, 0.18);
@@ -3340,23 +4561,26 @@ export class StaticDungeonScene {
     this.stats.beams += 1;
   }
 
-  private addStaircases(dungeon: DungeonData): void {
-    for (const stair of dungeon.floor?.stairs ?? []) {
+  private addStaircases(dungeon: DungeonData, floorPlan?: ResidentDungeonFloorPlan): void {
+    const stairs =
+      floorPlan?.stairs.map((stair) => ({ ...stair, cell: stair.anchor })) ??
+      dungeon.floor?.stairs ??
+      [];
+    for (const stair of stairs) {
       // Multi-slab stacks place one physical flight on the lower mouth only.
-      if (this.stairsDownOnly && stair.direction !== "down") continue;
+      if (this.stackBuildActive && stair.targetFloor <= (dungeon.floor?.index ?? 0)) continue;
       const position = gridToWorld(dungeon, stair.cell, this.tileSize);
       const flight = buildStairFlight(stair.direction, this.materials, this.tileSize);
+      this.borrowStairFlightGeometries(flight);
       const root = flight.root;
-      // Flight climbs local +Z from the lower landing; world Y is slab base.
-      root.position.set(position.x, this.floorWorldY, position.z);
+      // The resident root owns slab height; flights stay in lower-slab local space.
+      root.position.set(position.x, 0, position.z);
       root.rotation.y = stair.yaw;
       root.userData.stairId = stair.id;
       root.userData.targetFloor = stair.targetFloor;
       root.userData.shaftId = stair.shaftId;
       root.userData.walkable = true;
-      // Bypass add() Y offset — position already includes floorWorldY.
-      this.group.add(root);
-      this.buildRoots.push(root);
+      this.add(root);
       const colliders = worldTreadColliders(
         flight.treadColliders,
         position.x,
@@ -3364,22 +4588,72 @@ export class StaticDungeonScene {
         position.z,
         stair.yaw,
       );
-      this.solidColliders.push(...colliders);
-      this.handles.staircases.push({
+      this.addSolidColliders(...colliders);
+      const actor: StaticStairActor = {
         root,
         direction: stair.direction,
         targetFloor: stair.targetFloor,
         cell: { ...stair.cell },
-      });
-      this.objectiveClearanceCells.add(`${stair.cell.x},${stair.cell.y}`);
+      };
+      this.requireCurrentResidentFloor("Stair registration").registerStaircase(actor);
+      this.handles.staircases.push(actor);
+      this.reserveObjectiveClearanceCell(stair.cell, FloorOccupancyBit.Stair);
       this.stats.props += DUNGEON_STAIR_STEP_COUNT;
     }
+  }
+
+  /**
+   * Stair flights are authored from the same three immutable primitive shapes
+   * on every floor. Borrow them once per world while keeping each flight's
+   * materials and transforms independent.
+   */
+  private borrowStairFlightGeometries(flight: ReturnType<typeof buildStairFlight>): void {
+    const keyFor = (mesh: THREE.Mesh): string => {
+      if (mesh.name.includes("stair tread")) {
+        return [
+          "staircase/v2",
+          "tread",
+          flight.stepWidth.toFixed(4),
+          flight.stepRise.toFixed(4),
+          flight.stepRun.toFixed(4),
+        ].join(":");
+      }
+      if (mesh.name.includes("stair side rail")) {
+        return [
+          "staircase/v2",
+          "rail",
+          flight.stepWidth.toFixed(4),
+          flight.stepRise.toFixed(4),
+          flight.stepRun.toFixed(4),
+          flight.stepCount,
+        ].join(":");
+      }
+      if (mesh.name.includes("stair direction sigil")) {
+        return ["staircase/v2", "landing", this.tileSize.toFixed(4)].join(":");
+      }
+      return "";
+    };
+    flight.root.traverse((object) => {
+      if (!(object instanceof THREE.Mesh)) return;
+      const key = keyFor(object);
+      if (!key) return;
+      const generated = object.geometry;
+      const borrowed = this.resourceCatalog.borrowGeometry(
+        key,
+        () => generated,
+        "staircase-static-geometry/v2",
+      );
+      if (borrowed !== generated) generated.dispose();
+      object.geometry = borrowed;
+    });
   }
 
   private addStaticObjectives(
     dungeon: DungeonData,
     stonePlacements: readonly MagicStonePlacement[],
+    floorPlan?: ResidentDungeonFloorPlan,
   ): void {
+    const runtime = this.requireCurrentResidentFloor("Static objective registration");
     const rankedRooms = dungeon.rooms
       .filter((room) => room.role === "room")
       .sort((left, right) => roomDistance(dungeon, left) - roomDistance(dungeon, right));
@@ -3389,9 +4663,13 @@ export class StaticDungeonScene {
       const { stoneId } = placement;
       const stone = createMagicStone(stoneId, this.materials, this.stoneTextures.get(stoneId));
       preparePickupOpacity(stone.root);
+      stone.root.userData.floorIndex = runtime.floorIndex;
+      stone.root.userData.catalogKey = `floor:${runtime.floorIndex}:stone:${stoneId}`;
       const p = gridToWorld(dungeon, placement.cell, this.tileSize);
       stone.root.position.set(p.x + placement.offsetX, 0, p.z + placement.offsetZ);
-      this.pickups.push({
+      const pickup: StaticPickupActor = {
+        floorIndex: runtime.floorIndex,
+        id: `floor:${runtime.floorIndex}:stone:${stoneId}`,
         kind: "stone",
         stoneId,
         object: stone.root,
@@ -3404,6 +4682,7 @@ export class StaticDungeonScene {
         revealTime: 1,
         baseY: 0,
         baseScale: new THREE.Vector3(1, 1, 1),
+        autoCollect: false,
         stoneSignal: {
           light: stone.light,
           glow: stone.glow,
@@ -3413,29 +4692,33 @@ export class StaticDungeonScene {
           baseLightIntensity: stone.baseLightIntensity,
           baseGlowOpacity: stone.baseGlowOpacity,
         },
-      });
+      };
+      runtime.registerPickup(pickup);
+      this.pickups.push(pickup);
       const beam = createVolumetricBeam(stone.effectColor, 3.8, 0.5, 0.095, {
         signalStyle: "objective",
         topRadius: 0.1,
       });
       beam.position.set(stone.root.position.x, this.wallHeight - 0.03, stone.root.position.z);
       beam.name = `${stoneId} magic stone beacon`;
-      this.stoneBeams.push(beam);
+      this.registerStoneBeam(beam);
       // PointLight stays parented to the pickup so its world position follows the stone.
       this.add(stone.root, beam);
       this.stats.beams += 1;
     });
 
     const stoneRoomSet = new Set(stoneRooms);
-
-    const pickupExcluded = new Set([
-      ...this.objectOccupiedCells,
-      ...this.solidCells.keys(),
-      ...this.wallSpriteOccupiedCells,
-      ...this.hazardCells,
-      ...this.objectiveClearanceCells,
-      ...stonePlacements.map((placement) => `${placement.cell.x},${placement.cell.y}`),
-    ]);
+    const occupancy = this.requireActiveFloorOccupancy("Static objectives");
+    const selected = new FloorOccupancyOverlay(dungeon.width, dungeon.height);
+    const excludedBits =
+      FloorOccupancyBit.Object |
+      FloorOccupancyBit.Solid |
+      FloorOccupancyBit.WallDecoration |
+      FloorOccupancyBit.Hazard |
+      FloorOccupancyBit.Objective;
+    const pickupExcluded: CellOccupancyQuery = {
+      isOccupied: (x, y) => occupancy.hasAny(x, y, excludedBits) || selected.isOccupied(x, y),
+    };
     // Power chests: two time-freeze + two wards + one annihilation pulse, spread along route
     // depth so pressure relief is not stacked in one wing of the map.
     const usedPowerRooms = new Set<DungeonRoom>();
@@ -3443,6 +4726,7 @@ export class StaticDungeonScene {
       rewardKind: Exclude<ChestRewardKind, "resolve">,
       depthFraction: number,
       salt: number,
+      stableId?: string,
     ): void => {
       const candidatesRooms = rankedRooms.filter(
         (room) => !stoneRoomSet.has(room) && !usedPowerRooms.has(room),
@@ -3455,9 +4739,9 @@ export class StaticDungeonScene {
       if (!room) return;
 
       let cell: GridCell | null = null;
-      const seats = collectRoomInteriorSeats(dungeon, room).filter(
+      const seats = this.getRoomInteriorSeats(dungeon, room).filter(
         (seat) =>
-          !pickupExcluded.has(`${seat.x},${seat.y}`) && !isProtectedTraversalCell(dungeon, seat),
+          !pickupExcluded.isOccupied(seat.x, seat.y) && !isProtectedTraversalCell(dungeon, seat),
       );
       cell =
         pickSpreadSeats(seats, 1, dungeon.seedHash + room.id * salt)[0] ??
@@ -3467,7 +4751,7 @@ export class StaticDungeonScene {
           for (let x = 0; x < dungeon.width; x += 1) {
             const candidate = { x, y };
             if (dungeon.grid[y]?.[x] !== FLOOR) continue;
-            if (pickupExcluded.has(`${x},${y}`) || isProtectedTraversalCell(dungeon, candidate)) {
+            if (pickupExcluded.isOccupied(x, y) || isProtectedTraversalCell(dungeon, candidate)) {
               continue;
             }
             cell = candidate;
@@ -3478,8 +4762,8 @@ export class StaticDungeonScene {
       if (!cell) return;
 
       usedPowerRooms.add(room);
-      pickupExcluded.add(`${cell.x},${cell.y}`);
-      this.objectiveClearanceCells.add(`${cell.x},${cell.y}`);
+      selected.mark(cell.x, cell.y, FloorOccupancyBit.Objective);
+      this.reserveObjectiveClearanceCell(cell);
       this.addInteractiveChest(
         dungeon,
         {
@@ -3492,53 +4776,64 @@ export class StaticDungeonScene {
           v: room.id % 3,
         },
         rewardKind,
+        stableId,
       );
     };
 
-    for (const fraction of [0.28, 0.72] as const) {
-      placePowerChest("time-freeze", fraction, 43);
-    }
-    placePowerChest("map", 0.18, 37);
-    placePowerChest("mobility", 0.54, 53);
-    placePowerChest("clarity", 0.36, 71);
-    for (const fraction of [0.42, 0.88] as const) {
-      placePowerChest("luminous-ward", fraction, 61);
-    }
-    // One offense slot: annihilation pulse or cull brand (keeps 8 positive chests).
-    placePowerChest(
-      planOffensePowerKind(dungeon.seed),
-      OFFENSE_POWER_DEPTH_FRACTION,
-      OFFENSE_POWER_SALT,
+    const legacyRewardSlots: Array<{
+      kind: Exclude<ChestRewardKind, "resolve" | "phoenix-egg">;
+      depthFraction: number;
+      salt: number;
+    }> = [
+      { kind: "time-freeze", depthFraction: 0.28, salt: 43 },
+      { kind: "time-freeze", depthFraction: 0.72, salt: 43 },
+      { kind: "map", depthFraction: 0.18, salt: 37 },
+      { kind: "mobility", depthFraction: 0.54, salt: 53 },
+      { kind: "clarity", depthFraction: 0.36, salt: 71 },
+      { kind: "luminous-ward", depthFraction: 0.42, salt: 61 },
+      { kind: "luminous-ward", depthFraction: 0.88, salt: 61 },
+      {
+        kind: planOffensePowerKind(dungeon.seed),
+        depthFraction: OFFENSE_POWER_DEPTH_FRACTION,
+        salt: OFFENSE_POWER_SALT,
+      },
+      ...planCurseChestPlacements(dungeon.seed, this.activeMood.id),
+    ];
+    const rewardSlots = (floorPlan?.rewards.slots ?? legacyRewardSlots).filter(
+      (slot) =>
+        !dungeon.forge || !("catalogKey" in slot) || !slot.catalogKey.includes(":extra-support:"),
     );
-
-    // Rare cursed chests: never early biomes, mid/late route only, hard-capped
-    // below the eight positive power rewards (see planCurseChestPlacements).
-    for (const curse of planCurseChestPlacements(dungeon.seed, this.activeMood.id)) {
-      placePowerChest(curse.kind, curse.depthFraction, curse.salt);
+    for (const slot of rewardSlots) {
+      placePowerChest(slot.kind, slot.depthFraction, slot.salt, "id" in slot ? slot.id : undefined);
     }
 
     // Rank-scaled free loot + health: harder biomes get more recoverability.
     // Forge imports keep authored layout only (no free floor spray).
     if (!dungeon.forge) {
-      const loot = planBiomeLootBudget(this.activeMood.id, dungeon.seed, {
+      const fallbackLoot = planBiomeLootBudget(this.activeMood.id, dungeon.seed, {
         // World may already hold a phoenix charge from a prior floor; skip spawn then.
         phoenixArmed: this.pendingPhoenixArmed,
       });
-
-      for (const [index, kind] of loot.extraSupportChests.entries()) {
-        placePowerChest(kind, 0.33 + index * 0.18, 131 + index * 17);
-      }
+      const loot = floorPlan
+        ? {
+            healthChests: floorPlan.rewards.healthDepths.length,
+            freeFlasks: floorPlan.rewards.freeFlasks,
+            corridorFlasks: floorPlan.rewards.corridorFlasks,
+            freePowers: floorPlan.rewards.freePowers,
+            placePhoenix: floorPlan.rewards.placePhoenix,
+          }
+        : fallbackLoot;
 
       const healthRooms = rankedRooms.filter((room) => !stoneRoomSet.has(room));
-      const healthDepths = spreadDepthFractions(loot.healthChests, 0.15, 0.75);
+      const healthDepths =
+        floorPlan?.rewards.healthDepths ?? spreadDepthFractions(loot.healthChests, 0.15, 0.75);
       healthDepths.forEach((depth, index) => {
         const room =
           healthRooms[Math.floor(healthRooms.length * depth)] ?? healthRooms[index] ?? null;
         if (!room) return;
-        const candidates = collectRoomInteriorSeats(dungeon, room).filter(
+        const candidates = this.getRoomInteriorSeats(dungeon, room).filter(
           (cell) =>
-            !pickupExcluded.has(`${cell.x},${cell.y}`) &&
-            !isProtectedTraversalCell(dungeon, cell),
+            !pickupExcluded.isOccupied(cell.x, cell.y) && !isProtectedTraversalCell(dungeon, cell),
         );
         const cell = pickSpreadSeats(candidates, 1, dungeon.seedHash + room.id * 29)[0];
         if (!cell) return;
@@ -3554,16 +4849,45 @@ export class StaticDungeonScene {
             v: room.id % 3,
           },
           "resolve",
+          floorPlan?.rewards.healthChestIds[index],
         );
-        pickupExcluded.add(`${cell.x},${cell.y}`);
+        selected.mark(cell.x, cell.y, FloorOccupancyBit.Objective);
       });
+
+      const placeFloor = (
+        kind: ChestRewardKind,
+        cell: GridCell | undefined,
+        plannedPickup?: ResidentDungeonFreePickupPlan,
+      ): void => {
+        if (!cell) return;
+        if (pickupExcluded.isOccupied(cell.x, cell.y)) return;
+        selected.mark(cell.x, cell.y, FloorOccupancyBit.Objective);
+        this.reserveObjectiveClearanceCell(cell);
+        this.addFloorPickup(dungeon, cell, kind, plannedPickup?.id);
+      };
+
+      // Phoenix first among free floor loot: claims a free corner far from spawn
+      // so later flasks/powers cannot stack on the same cell.
+      if (loot.placePhoenix) {
+        const seat = selectPhoenixEggSeat(
+          dungeon,
+          healthRooms,
+          pickupExcluded,
+          dungeon.seedHash + 907,
+        );
+        placeFloor(
+          "phoenix-egg",
+          seat ?? undefined,
+          floorPlan?.rewards.freePickups.find((pickup) => pickup.source === "phoenix"),
+        );
+      }
 
       const corridorCells = collectCorridorPickupSeats(dungeon, pickupExcluded);
       const roomFreeCells: GridCell[] = [];
       for (const room of healthRooms) {
-        for (const seat of collectRoomInteriorSeats(dungeon, room)) {
+        for (const seat of this.getRoomInteriorSeats(dungeon, room)) {
           if (
-            pickupExcluded.has(`${seat.x},${seat.y}`) ||
+            pickupExcluded.isOccupied(seat.x, seat.y) ||
             isProtectedTraversalCell(dungeon, seat)
           ) {
             continue;
@@ -3572,77 +4896,58 @@ export class StaticDungeonScene {
         }
       }
 
-      const placeFloor = (kind: ChestRewardKind, cell: GridCell | undefined): void => {
-        if (!cell) return;
-        const key = `${cell.x},${cell.y}`;
-        if (pickupExcluded.has(key)) return;
-        pickupExcluded.add(key);
-        this.objectiveClearanceCells.add(key);
-        this.addFloorPickup(dungeon, cell, kind);
-      };
-
       const corridorFlaskCells = pickSpreadSeats(
         corridorCells,
         loot.corridorFlasks,
         dungeon.seedHash + 401,
       );
-      corridorFlaskCells.forEach((cell) => placeFloor("resolve", cell));
+      const corridorPickups = floorPlan?.rewards.freePickups.filter(
+        (pickup) => pickup.source === "corridor-flask",
+      );
+      corridorFlaskCells.forEach((cell, index) =>
+        placeFloor("resolve", cell, corridorPickups?.[index]),
+      );
 
       const remainingFlasks = Math.max(0, loot.freeFlasks - corridorFlaskCells.length);
       const roomFlaskCells = pickSpreadSeats(
-        roomFreeCells.filter((cell) => !pickupExcluded.has(`${cell.x},${cell.y}`)),
+        roomFreeCells.filter((cell) => !pickupExcluded.isOccupied(cell.x, cell.y)),
         remainingFlasks,
         dungeon.seedHash + 409,
       );
-      roomFlaskCells.forEach((cell) => placeFloor("resolve", cell));
+      const roomPickups = floorPlan?.rewards.freePickups.filter(
+        (pickup) => pickup.source === "room-flask",
+      );
+      roomFlaskCells.forEach((cell, index) => placeFloor("resolve", cell, roomPickups?.[index]));
 
       const freePowerDepths = spreadDepthFractions(loot.freePowers.length, 0.22, 0.6);
+      const freePowerPickups = floorPlan?.rewards.freePickups.filter(
+        (pickup) => pickup.source === "free-power",
+      );
       loot.freePowers.forEach((kind: FloorFreePowerKind, index) => {
         const depth = freePowerDepths[index] ?? 0.4;
         // Prefer corridors for free powers so they read as route finds.
         const fromCorridor = pickSpreadSeats(
-          corridorCells.filter((cell) => !pickupExcluded.has(`${cell.x},${cell.y}`)),
+          corridorCells.filter((cell) => !pickupExcluded.isOccupied(cell.x, cell.y)),
           1,
           dungeon.seedHash + 420 + index * 13,
         )[0];
         if (fromCorridor) {
-          placeFloor(kind, fromCorridor);
+          placeFloor(kind, fromCorridor, freePowerPickups?.[index]);
           return;
         }
-        const room =
-          healthRooms[Math.floor(healthRooms.length * depth)] ?? healthRooms[0] ?? null;
+        const room = healthRooms[Math.floor(healthRooms.length * depth)] ?? healthRooms[0] ?? null;
         if (!room) return;
         const seat = pickSpreadSeats(
-          collectRoomInteriorSeats(dungeon, room).filter(
+          this.getRoomInteriorSeats(dungeon, room).filter(
             (cell) =>
-              !pickupExcluded.has(`${cell.x},${cell.y}`) &&
+              !pickupExcluded.isOccupied(cell.x, cell.y) &&
               !isProtectedTraversalCell(dungeon, cell),
           ),
           1,
           dungeon.seedHash + room.id * 51 + index,
         )[0];
-        placeFloor(kind, seat);
+        placeFloor(kind, seat, freePowerPickups?.[index]);
       });
-
-      if (loot.placePhoenix) {
-        const phoenixRoom =
-          healthRooms[Math.floor(healthRooms.length * 0.55)] ??
-          healthRooms[Math.floor(healthRooms.length * 0.5)] ??
-          healthRooms[0] ??
-          null;
-        if (phoenixRoom) {
-          const seat = pickSpreadSeats(
-            collectRoomInteriorSeats(dungeon, phoenixRoom).filter(
-              (cell) =>
-                !pickupExcluded.has(`${cell.x},${cell.y}`) &&
-                !isProtectedTraversalCell(dungeon, cell),
-            ),
-            1,
-            dungeon.seedHash + phoenixRoom.id * 97,
-          )[0];
-          placeFloor("phoenix-egg", seat);
-        }
-      }
     }
   }
 
@@ -3653,17 +4958,110 @@ export class StaticDungeonScene {
     this.pendingPhoenixArmed = armed === true;
   }
 
+  private cloneRuntimeRewardTemplate(template: THREE.Object3D): THREE.Object3D {
+    const originalUserData: Array<readonly [THREE.Object3D, Record<string, unknown>]> = [];
+    template.traverse((object) => {
+      originalUserData.push([object, object.userData]);
+      const runtimeUserData: Record<string, unknown> = {};
+      for (const key of ["pickupKind", "vfxOnly", "componentId", "closedProfile"] as const) {
+        const value = object.userData[key];
+        if (typeof value === "string" || typeof value === "boolean") runtimeUserData[key] = value;
+      }
+      object.userData = runtimeUserData;
+    });
+
+    let clone: THREE.Object3D;
+    try {
+      clone = template.clone(true);
+    } finally {
+      for (const [object, userData] of originalUserData) object.userData = userData;
+    }
+
+    // Geometry and materials stay shared with the resident template until a
+    // mutable opacity/glow path calls the explicit pickup COW seam.
+    markPickupMaterialsShared(clone);
+    return clone;
+  }
+
   private createRewardObject(rewardKind: ChestRewardKind): THREE.Object3D {
-    if (rewardKind === "time-freeze") return createTimeFreezeRelic(this.materials);
-    if (rewardKind === "luminous-ward") return createLuminousWardStone(this.materials);
-    if (rewardKind === "annihilation-pulse") return createAnnihilationPulseRelic(this.materials);
-    if (rewardKind === "cull-brand") return createCullBrandRelic(this.materials);
-    if (rewardKind === "phoenix-egg") return createPhoenixEggRelic(this.materials);
-    if (rewardKind === "map") return createDungeonMapPickup(this.materials);
-    if (rewardKind === "mobility") return createMobilityDraught(this.materials);
-    if (rewardKind === "clarity") return createClarityPhial(this.materials);
-    if (isCurseRewardKind(rewardKind)) return createCurseVessel(this.materials, rewardKind);
-    return createResolveFlask(this.materials);
+    let template = this.runtimeRewardTemplates.get(rewardKind);
+    if (!template) {
+      if (rewardKind === "time-freeze") template = createTimeFreezeRelic(this.materials);
+      else if (rewardKind === "luminous-ward") {
+        template = createLuminousWardStone(this.materials, this.textureSink);
+      } else if (rewardKind === "annihilation-pulse") {
+        template = createAnnihilationPulseRelic(this.materials);
+      } else if (rewardKind === "cull-brand") template = createCullBrandRelic(this.materials);
+      else if (rewardKind === "phoenix-egg") template = createPhoenixEggRelic(this.materials);
+      else if (rewardKind === "map") template = createDungeonMapPickup(this.materials);
+      else if (rewardKind === "mobility") template = createMobilityDraught(this.materials);
+      else if (rewardKind === "clarity") template = createClarityPhial(this.materials);
+      else if (isCurseRewardKind(rewardKind)) {
+        template = createCurseVessel(this.materials, rewardKind);
+      } else template = createResolveFlask(this.materials);
+      this.detachRewardTemplateMaterials(template);
+      preparePickupOpacity(template);
+      this.catalogRewardTemplateGeometries(rewardKind, template);
+      markPickupMaterialsShared(template);
+      this.runtimeRewardTemplates.set(rewardKind, template);
+    }
+    return this.cloneRuntimeRewardTemplate(template);
+  }
+
+  /** Keep reward templates isolated from the world material palette once. */
+  private detachRewardTemplateMaterials(template: THREE.Object3D): void {
+    template.traverse((object) => {
+      if (!(object instanceof THREE.Mesh)) return;
+      const clone = (material: THREE.Material): THREE.Material => {
+        // Tagged materials own runtime textures through a non-enumerable
+        // lifecycle seam. Three.js material.clone() does not copy that tag,
+        // so cloning here would orphan those textures from the disposer. The
+        // luminous-ward material is created per template and is already
+        // detached from the shared palette; retain it as the explicit owner.
+        if (hasTaggedOwnedMaterialTextures(material)) return material;
+        const owned = material.clone();
+        owned.userData.sharedDungeonMaterial = false;
+        owned.userData.pickupSharedTemplate = false;
+        return owned;
+      };
+      object.material = Array.isArray(object.material)
+        ? object.material.map(clone)
+        : clone(object.material);
+    });
+  }
+
+  /** Catalog immutable reward geometry; runtime clones detach materials on write. */
+  private catalogRewardTemplateGeometries(
+    rewardKind: ChestRewardKind,
+    template: THREE.Object3D,
+  ): void {
+    const seen = new Map<THREE.BufferGeometry, THREE.BufferGeometry>();
+    let meshIndex = 0;
+    template.traverse((object) => {
+      if (!(object instanceof THREE.Mesh)) return;
+      const generated = object.geometry;
+      const existing = seen.get(generated);
+      if (existing) {
+        object.geometry = existing;
+        return;
+      }
+      const key = [
+        "pickup/v2",
+        encodeURIComponent(rewardKind),
+        "part",
+        meshIndex,
+        encodeURIComponent(object.name || "mesh"),
+      ].join(":");
+      meshIndex += 1;
+      const borrowed = this.resourceCatalog.borrowGeometry(
+        key,
+        () => generated,
+        "pickup-reward-geometry/v2",
+      );
+      if (borrowed !== generated) generated.dispose();
+      seen.set(generated, borrowed);
+      object.geometry = borrowed;
+    });
   }
 
   private rewardScaleForKind(rewardKind: ChestRewardKind): number {
@@ -3736,16 +5134,20 @@ export class StaticDungeonScene {
     }
   }
 
-  /** Floor-spawned auto-collect pickup (no chest lid). */
+  /** Floor-spawned pickup (no chest lid); collection is proximity-based. */
   private addFloorPickup(
     dungeon: DungeonData,
     cell: GridCell,
     rewardKind: ChestRewardKind,
+    stableId?: string,
   ): void {
+    const runtime = this.requireCurrentResidentFloor("Floor pickup registration");
     const world = gridToWorld(dungeon, cell, this.tileSize);
     const item = this.createRewardObject(rewardKind);
     preparePickupOpacity(item);
     item.name = `${rewardKind} floor pickup ${cell.x},${cell.y}`;
+    item.userData.floorIndex = runtime.floorIndex;
+    if (stableId) item.userData.catalogKey = stableId;
     const rewardScale = this.rewardScaleForKind(rewardKind) * 0.92;
     const baseScale = new THREE.Vector3(rewardScale, rewardScale, rewardScale);
     const baseY = rewardKind === "resolve" ? 0.42 : 0.48;
@@ -3753,6 +5155,8 @@ export class StaticDungeonScene {
     item.scale.copy(baseScale);
     setPickupDormant(item, false);
     const reward: StaticPickupActor = {
+      floorIndex: runtime.floorIndex,
+      id: stableId ?? `${dungeon.seedHash}:floor:${runtime.floorIndex}:pickup:${cell.x},${cell.y}`,
       kind: rewardKind,
       object: item,
       collected: false,
@@ -3764,7 +5168,11 @@ export class StaticDungeonScene {
       revealTime: 1,
       baseY,
       baseScale,
-      autoCollect: true,
+      // Loose map loot must be collected by walking over it.  `autoCollect`
+      // is reserved for a chest reward after its explicit reveal; leaving it
+      // enabled here makes DungeonWorld accept any horizontal distance and
+      // pulls every free pickup to the player on the first frame.
+      autoCollect: false,
     };
     this.attachRewardSignals(reward, rewardKind, item);
     // Floor free powers keep lights live; flasks stay unlit for budget.
@@ -3777,16 +5185,23 @@ export class StaticDungeonScene {
     if (reward.phoenixEggSignal) {
       reward.phoenixEggSignal.light.intensity = reward.phoenixEggSignal.baseIntensity * 0.9;
     }
+    runtime.registerPickup(reward);
     this.pickups.push(reward);
     this.add(item);
     this.stats.props += 1;
   }
 
   private addForgeLiquids(dungeon: DungeonData): void {
-    this.liquidKit = createLiquidSectionKit(dungeon, this.materials, this.tileSize);
-    if (!this.liquidKit) return;
-    this.add(this.liquidKit.root);
-    this.stats.props += this.liquidKit.stats.cells + this.liquidKit.stats.boundaryEdges;
+    const liquidKit = createLiquidSectionKit(
+      dungeon,
+      this.materials,
+      this.tileSize,
+      this.textureSink,
+    );
+    if (!liquidKit) return;
+    this.requireCurrentResidentFloor("Liquid section registration").setLiquidKit(liquidKit);
+    this.add(liquidKit.root);
+    this.stats.props += liquidKit.stats.cells + liquidKit.stats.boundaryEdges;
   }
 
   // STATIC_SCENE_METHODS
@@ -3800,6 +5215,50 @@ const CARDINAL_NEIGHBORS: ReadonlyArray<readonly [number, number]> = [
 ];
 const BIOME_WALL_DECAL_OFFSET = 0.026;
 const BIOME_CORNER_PROP_INSET = 0.66;
+const BIOME_FLOOR_PROP_WALL_INSET = 0.58;
+
+/** Corridor cells usable by scenery. Unlike pickup seats, Forge corridor tiles
+ * are intentionally allowed; door mouths, stairs, spawn and exit remain clear. */
+function collectDecorCorridorCells(dungeon: DungeonData): GridCell[] {
+  const seats: GridCell[] = [];
+  const blocked = new Uint8Array(dungeon.width * dungeon.height);
+  const block = (cell: GridCell): void => {
+    if (cell.x < 0 || cell.y < 0 || cell.x >= dungeon.width || cell.y >= dungeon.height) return;
+    blocked[cell.y * dungeon.width + cell.x] = 1;
+  };
+  block(dungeon.spawn);
+  block(dungeon.exit);
+  for (const doorway of dungeon.topology?.doorways ?? []) {
+    block(doorway.cell);
+    block(doorway.outside);
+  }
+  for (const stair of dungeon.floor?.stairs ?? []) {
+    block(stair.cell);
+    for (const cell of stair.footprint) block(cell);
+  }
+  for (const cell of dungeon.floor?.openVerticalCells ?? []) block(cell);
+
+  for (let y = 1; y < dungeon.height - 1; y += 1) {
+    for (let x = 1; x < dungeon.width - 1; x += 1) {
+      const index = y * dungeon.width + x;
+      if (dungeon.grid[y]?.[x] !== FLOOR || blocked[index]) continue;
+      if (dungeon.forge?.doorways[index] || dungeon.forge?.pools[index]) continue;
+      const structuralRoomId =
+        dungeon.forge?.roomIds[index] ?? dungeon.topology?.roomIds[index] ?? -1;
+      if (structuralRoomId >= 0) continue;
+      const authoredCorridor = Boolean(
+        dungeon.forge?.corridors[index] || dungeon.topology?.corridors[index],
+      );
+      let floorNeighbors = 0;
+      for (const [dx, dy] of CARDINAL_NEIGHBORS) {
+        if (dungeon.grid[y + dy]?.[x + dx] === FLOOR) floorNeighbors += 1;
+      }
+      if (!authoredCorridor && (floorNeighbors === 0 || floorNeighbors > 2)) continue;
+      seats.push({ x, y });
+    }
+  }
+  return seats;
+}
 
 /**
  * Corridor-like floor seats for free pickups: forge corridor mask, or floor
@@ -3807,7 +5266,7 @@ const BIOME_CORNER_PROP_INSET = 0.66;
  */
 function collectCorridorPickupSeats(
   dungeon: DungeonData,
-  excluded: ReadonlySet<string>,
+  excluded: CellOccupancyQuery,
 ): GridCell[] {
   const seats: GridCell[] = [];
   const width = dungeon.width;
@@ -3815,8 +5274,7 @@ function collectCorridorPickupSeats(
   for (let y = 1; y < height - 1; y += 1) {
     for (let x = 1; x < width - 1; x += 1) {
       if (dungeon.grid[y]?.[x] !== FLOOR) continue;
-      const key = `${x},${y}`;
-      if (excluded.has(key)) continue;
+      if (excluded.isOccupied(x, y)) continue;
       const cell = { x, y };
       if (isProtectedTraversalCell(dungeon, cell)) continue;
       const forgeCorridor = dungeon.forge?.corridors?.[y * width + x];
@@ -3853,17 +5311,14 @@ function pickSeparatedWallSeats<T extends DungeonWallSeat>(
   return picked;
 }
 
-/** Shared radial pool texture for fake light pooling under wall fires. */
-let torchFloorPoolTexture: THREE.Texture | null = null;
-function getTorchFloorPoolTexture(): THREE.Texture {
-  if (torchFloorPoolTexture) return torchFloorPoolTexture;
+/** Per-world radial pool texture for fake light pooling under wall fires. */
+function createTorchFloorPoolTexture(): THREE.Texture {
   const canvas = document.createElement("canvas");
   canvas.width = 128;
   canvas.height = 128;
   const context = canvas.getContext("2d");
   if (!context) {
-    torchFloorPoolTexture = new THREE.Texture();
-    return torchFloorPoolTexture;
+    return new THREE.Texture();
   }
   const gradient = context.createRadialGradient(64, 64, 4, 64, 64, 63);
   gradient.addColorStop(0, "rgba(255, 196, 128, 0.5)");
@@ -3871,21 +5326,18 @@ function getTorchFloorPoolTexture(): THREE.Texture {
   gradient.addColorStop(1, "rgba(120, 70, 34, 0)");
   context.fillStyle = gradient;
   context.fillRect(0, 0, 128, 128);
-  torchFloorPoolTexture = new THREE.CanvasTexture(canvas);
-  torchFloorPoolTexture.colorSpace = THREE.SRGBColorSpace;
-  return torchFloorPoolTexture;
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  return texture;
 }
 
-let staticContactShadowTexture: THREE.Texture | null = null;
-function getStaticContactShadowTexture(): THREE.Texture {
-  if (staticContactShadowTexture) return staticContactShadowTexture;
+function createStaticContactShadowTexture(): THREE.Texture {
   const canvas = document.createElement("canvas");
   canvas.width = 96;
   canvas.height = 96;
   const context = canvas.getContext("2d");
   if (!context) {
-    staticContactShadowTexture = new THREE.Texture();
-    return staticContactShadowTexture;
+    return new THREE.Texture();
   }
   const gradient = context.createRadialGradient(48, 48, 4, 48, 48, 47);
   gradient.addColorStop(0, "rgba(0, 0, 0, 0.62)");
@@ -3893,17 +5345,21 @@ function getStaticContactShadowTexture(): THREE.Texture {
   gradient.addColorStop(1, "rgba(0, 0, 0, 0)");
   context.fillStyle = gradient;
   context.fillRect(0, 0, 96, 96);
-  staticContactShadowTexture = new THREE.CanvasTexture(canvas);
-  staticContactShadowTexture.colorSpace = THREE.SRGBColorSpace;
-  return staticContactShadowTexture;
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  return texture;
 }
 
 /** Cheap warm pool where torchlight lands on the floor — sells range without a real shadow pass. */
-function createTorchFloorPool(position: THREE.Vector3, facing: THREE.Vector3): THREE.Mesh {
+function createTorchFloorPool(
+  position: THREE.Vector3,
+  facing: THREE.Vector3,
+  texture: THREE.Texture,
+): THREE.Mesh {
   const pool = new THREE.Mesh(
     new THREE.CircleGeometry(1.55, 20),
     new THREE.MeshBasicMaterial({
-      map: getTorchFloorPoolTexture(),
+      map: texture,
       color: 0xd89a58,
       transparent: true,
       opacity: 0.45,
@@ -4027,10 +5483,10 @@ function createWallSpriteMaterial(
   // Keep the sprite planar. Depth remains available for later parallax work.
   material.normalScale.set(0.24, 0.24);
   material.onBeforeCompile = muteBiomePropShader;
-  material.customProgramCacheKey = () => "environment-sprite-muted-fog-v3";
+  material.customProgramCacheKey = () => "environment-sprite-muted-fog-v4";
   material.userData.depthTexture = textures.depth;
   material.userData.wallSpritePbr = true;
-  material.userData.environmentSpriteTreatment = "muted-biome-fog-v3";
+  material.userData.environmentSpriteTreatment = "muted-biome-fog-v4";
   return material;
 }
 
@@ -4057,46 +5513,118 @@ function muteBiomePropShader(shader: { fragmentShader: string }): void {
     fogChunk,
     `${fogChunk}
   #ifdef USE_FOG
-    float biomePropFogPull = 1.0 - fogFactor;
-    gl_FragColor.rgb = mix(gl_FragColor.rgb, fogColor, biomePropFogPull * biomePropFogPull * 0.72);
-    gl_FragColor.a *= mix(1.0, fogFactor * fogFactor, 0.88);
+    float biomePropFogVisibility = 1.0 - smoothstep(0.24, 0.62, fogFactor);
+    gl_FragColor.a *= biomePropFogVisibility;
   #endif`,
   );
 }
 
-function biomePropTint(mood: DungeonMood): THREE.Color {
-  return new THREE.Color(mood.surfaceTint).lerp(new THREE.Color(0xffffff), 0.58);
+/** Remap a plane's local UVs into one slot of the shared v2 biome atlas. */
+function applyBiomeDecorAtlasUv(geometry: THREE.BufferGeometry, slot: number): void {
+  const uv = geometry.getAttribute("uv");
+  if (!(uv instanceof THREE.BufferAttribute)) return;
+  const frame = biomeSpriteDecorAtlasFrame(slot);
+  const atlasWidth = BIOME_SPRITE_DECOR_ATLAS_SIZE[0];
+  const atlasHeight = BIOME_SPRITE_DECOR_ATLAS_SIZE[1];
+  const offsetX = frame.x / atlasWidth;
+  const offsetY = 1 - (frame.y + frame.h) / atlasHeight;
+  const repeatX = frame.w / atlasWidth;
+  const repeatY = frame.h / atlasHeight;
+  for (let index = 0; index < uv.count; index += 1) {
+    uv.setXY(index, offsetX + uv.getX(index) * repeatX, offsetY + uv.getY(index) * repeatY);
+  }
+  uv.needsUpdate = true;
+}
+
+function biomeDecorTint(mood: DungeonMood, surface: BiomeSurfacePaletteRole): THREE.Color {
+  return new THREE.Color(biomeSurfacePalette(mood.id, surface).propTint);
+}
+
+/** Distinct, restrained hanging motion for every biome without per-frame allocation. */
+function biomeDecorMotion(
+  mood: DungeonMood,
+  slot: number,
+  cell: GridCell,
+): { phase: number; speed: number; amplitude: number } {
+  let biomeHash = 0;
+  for (let index = 0; index < mood.id.length; index += 1) {
+    biomeHash = (biomeHash * 31 + mood.id.charCodeAt(index)) >>> 0;
+  }
+  return {
+    phase: (slot * 2.399963 + cell.x * 0.37 + cell.y * 0.61) % (Math.PI * 2),
+    speed: 0.42 + (biomeHash % 7) * 0.055,
+    amplitude: 0.006 + (biomeHash % 4) * 0.002,
+  };
+}
+
+/** Pull authored sprite color and value toward the extracted surface palette. */
+function integrateBiomeDecorShader(shader: { fragmentShader: string }): void {
+  const mapChunk = "#include <map_fragment>";
+  if (shader.fragmentShader.includes(mapChunk)) {
+    shader.fragmentShader = shader.fragmentShader.replace(
+      mapChunk,
+      `${mapChunk}
+      float biomeDecorLuma = dot(diffuseColor.rgb, vec3(0.2126, 0.7152, 0.0722));
+      float biomeDecorTintLuma = max(dot(diffuse, vec3(0.2126, 0.7152, 0.0722)), 0.001);
+      float biomeDecorRelativeLuma = clamp(biomeDecorLuma / biomeDecorTintLuma, 0.0, 1.0);
+      float biomeDecorSurfaceValue = mix(0.32, 0.82, smoothstep(0.08, 0.92, biomeDecorRelativeLuma));
+      vec3 biomeDecorSurfaceTone = diffuse * biomeDecorSurfaceValue;
+      diffuseColor.rgb = mix(biomeDecorSurfaceTone, diffuseColor.rgb, 0.28);
+      diffuseColor.rgb *= 0.86;`,
+    );
+  }
+  const fogChunk = "#include <fog_fragment>";
+  if (shader.fragmentShader.includes(fogChunk)) {
+    shader.fragmentShader = shader.fragmentShader.replace(
+      fogChunk,
+      `${fogChunk}
+  #ifdef USE_FOG
+    float biomeDecorFogVisibility = 1.0 - smoothstep(0.24, 0.62, fogFactor);
+    gl_FragColor.a *= biomeDecorFogVisibility;
+  #endif`,
+    );
+  }
 }
 
 /** Lit wall decal material. The shared flag keeps rebuilds from disposing cached maps. */
 function createBiomeWallDecalMaterial(
   texture: THREE.Texture,
   mood: DungeonMood,
+  alphaTest: number,
 ): THREE.MeshStandardMaterial {
+  const palette = biomeSurfacePalette(mood.id, "wall");
   const material = new THREE.MeshStandardMaterial({
     map: texture,
-    color: biomePropTint(mood),
+    color: biomeDecorTint(mood, "wall"),
+    emissive: new THREE.Color(palette.base),
+    emissiveMap: texture,
+    emissiveIntensity: 0.045,
     transparent: true,
-    opacity: 0.76,
-    alphaTest: 0.12,
+    opacity: 1,
+    alphaTest,
     depthWrite: false,
     depthTest: true,
     polygonOffset: true,
     polygonOffsetFactor: -2,
     polygonOffsetUnits: -2,
     side: THREE.DoubleSide,
-    roughness: 0.96,
+    roughness: 0.92,
     metalness: 0,
+    envMapIntensity: THREE.MathUtils.clamp(mood.environmentIntensity, 0.08, 0.28),
     fog: true,
   });
   material.toneMapped = true;
-  material.onBeforeCompile = muteBiomePropShader;
-  material.customProgramCacheKey = () => "biome-prop-wall-decal-muted-fog-v4";
+  material.onBeforeCompile = integrateBiomeDecorShader;
+  material.customProgramCacheKey = () => "biome-prop-v2-wall-integrated-v6";
   material.userData.sharedDungeonMaterial = true;
   material.userData.biomeSpriteWallDecal = true;
-  material.userData.saturation = 0.38;
-  material.userData.brightness = 0.78;
-  material.userData.mapBlend = "wall-muted-alpha";
+  material.userData.authoredColorWeight = 0.28;
+  material.userData.brightness = 0.86;
+  material.userData.mapBlend = "authored-v2-biome-surface-tone-v6";
+  material.userData.biomeMood = mood.id;
+  material.userData.biomeSurfacePalette = palette;
+  material.userData.biomeSurfacePaletteRole = "wall";
+  material.userData.visibilityBoost = 0.06;
   return material;
 }
 
@@ -4104,16 +5632,22 @@ function createBiomeWallDecalMaterial(
 function createBiomeFloorSpriteMaterial(
   texture: THREE.Texture,
   mood: DungeonMood,
-  placement: BiomeSpritePlacement,
+  placement: BiomeSpritePlacement | BiomeSpriteDecorPlacement,
+  alphaTest: number,
 ): THREE.MeshStandardMaterial {
   const isFloorDecal = placement === "floor-decal";
-  const isCorner = placement === "corner-standing";
+  const paletteRole: BiomeSurfacePaletteRole =
+    placement === "ceiling-hanging" ? "ceiling" : "floor";
+  const palette = biomeSurfacePalette(mood.id, paletteRole);
   const material = new THREE.MeshStandardMaterial({
     map: texture,
-    color: biomePropTint(mood),
+    color: biomeDecorTint(mood, paletteRole),
+    emissive: new THREE.Color(palette.base),
+    emissiveMap: texture,
+    emissiveIntensity: 0.045,
     transparent: true,
-    opacity: isFloorDecal ? 0.56 : isCorner ? 0.72 : 0.76,
-    alphaTest: isFloorDecal ? 0.08 : 0.12,
+    opacity: 1,
+    alphaTest,
     depthWrite: false,
     depthTest: true,
     polygonOffset: isFloorDecal,
@@ -4122,19 +5656,23 @@ function createBiomeFloorSpriteMaterial(
     side: THREE.DoubleSide,
     roughness: isFloorDecal ? 1 : 0.98,
     metalness: 0,
-    envMapIntensity: 0.08,
+    envMapIntensity: THREE.MathUtils.clamp(mood.environmentIntensity * 0.8, 0.06, 0.22),
     fog: true,
   });
   material.toneMapped = true;
-  material.onBeforeCompile = muteBiomePropShader;
-  material.customProgramCacheKey = () => `biome-prop-floor-${placement}-muted-fog-v4`;
+  material.onBeforeCompile = integrateBiomeDecorShader;
+  material.customProgramCacheKey = () => `biome-prop-v2-${placement}-integrated-v6`;
   material.userData.sharedDungeonMaterial = true;
   material.userData.biomeSpritePlacement = placement;
   material.userData.biomeSpriteBillboard =
     placement === "floor-decal" ? "floor-fixed" : "yaw-to-player";
-  material.userData.saturation = 0.38;
-  material.userData.brightness = 0.78;
-  material.userData.mapBlend = isFloorDecal ? "floor-contact-alpha" : "floor-muted-alpha";
+  material.userData.authoredColorWeight = 0.28;
+  material.userData.brightness = 0.86;
+  material.userData.mapBlend = "authored-v2-biome-surface-tone-v6";
+  material.userData.biomeMood = mood.id;
+  material.userData.biomeSurfacePalette = palette;
+  material.userData.biomeSurfacePaletteRole = paletteRole;
+  material.userData.visibilityBoost = 0.06;
   return material;
 }
 
@@ -4169,8 +5707,16 @@ interface CachedStaticPropTemplateBatch {
 const staticPropTemplateBatchCache = new Map<string, CachedStaticPropTemplateBatch[]>();
 
 export interface StaticPropTemplateBatchOptions {
-  /** When set, skip toNonIndexed/merge work on later builds with the same key. */
+  /** Legacy process-global clone cache for callers that own every returned geometry. */
   cacheKey?: string;
+  /** Per-world owner for immutable final batches. Mutually exclusive with the clone cache. */
+  resourceCatalog?: StaticResourceCatalog;
+  /** Stable family/topology key; part index and material layout are appended here. */
+  catalogKey?: string;
+  /** Stable material role/layout token; do not return ephemeral material UUIDs. */
+  materialKey?: (material: THREE.Material) => string;
+  /** Diagnostic collision namespace for catalog entries. */
+  resourceType?: string;
 }
 
 /** Test/helper: drop cached template batches (does not dispose live scene meshes). */
@@ -4194,6 +5740,60 @@ function cloneStaticPropTemplateBatches(
     castShadow: batch.castShadow,
     receiveShadow: batch.receiveShadow,
   }));
+}
+
+function cloneCachedStaticPropTemplateBatches(cacheKey: string): StaticPropTemplateBatch[] | null {
+  const cached = staticPropTemplateBatchCache.get(cacheKey);
+  return cached ? cloneStaticPropTemplateBatches(cached) : null;
+}
+
+function staticPropMaterialLayout(
+  material: THREE.Material | THREE.Material[],
+  materialKey: ((material: THREE.Material) => string) | undefined,
+): string {
+  const role = (candidate: THREE.Material) =>
+    encodeURIComponent(
+      materialKey?.(candidate) ?? `${candidate.type}:${candidate.name || "unnamed"}`,
+    );
+  return Array.isArray(material)
+    ? `array:${material.length}:${material.map(role).join(",")}`
+    : `single:${role(material)}`;
+}
+
+function borrowStaticPropTemplateBatches(
+  batches: readonly StaticPropTemplateBatch[],
+  options: StaticPropTemplateBatchOptions,
+): StaticPropTemplateBatch[] {
+  const catalog = options.resourceCatalog;
+  const catalogKey = options.catalogKey?.trim();
+  if (!catalog || !catalogKey) return [...batches];
+
+  const resourceType = options.resourceType?.trim() || "static-prop-template-batch/v2";
+  const borrowed: StaticPropTemplateBatch[] = [];
+  const released = new Set<THREE.BufferGeometry>();
+  try {
+    for (const [partIndex, part] of batches.entries()) {
+      const layout = staticPropMaterialLayout(part.material, options.materialKey);
+      const geometry = catalog.borrowGeometry(
+        `${catalogKey}:part:${partIndex}:layout:${layout}`,
+        () => part.geometry,
+        `${resourceType}:${layout}`,
+      );
+      if (geometry !== part.geometry) {
+        part.geometry.dispose();
+        released.add(part.geometry);
+      }
+      borrowed.push({ ...part, geometry });
+    }
+  } catch (error) {
+    for (const part of batches) {
+      if (!catalog.ownsGeometry(part.geometry) && !released.has(part.geometry)) {
+        part.geometry.dispose();
+      }
+    }
+    throw error;
+  }
+  return borrowed;
 }
 
 function prepareStaticPropGeometry(part: THREE.Mesh): THREE.BufferGeometry {
@@ -4294,13 +5894,25 @@ export function createStaticPropTemplateBatches(
   options?: StaticPropTemplateBatchOptions,
 ): StaticPropTemplateBatch[] {
   const cacheKey = options?.cacheKey?.trim() || "";
+  const catalogKey = options?.catalogKey?.trim() || "";
+  if (options?.resourceCatalog && !catalogKey) {
+    throw new Error("Static prop catalog consumers require a stable catalogKey.");
+  }
+  if (cacheKey && options?.resourceCatalog) {
+    throw new Error(
+      "Static prop batches cannot use the clone cache and a resource catalog together.",
+    );
+  }
   if (cacheKey) {
-    const hit = staticPropTemplateBatchCache.get(cacheKey);
-    if (hit) return cloneStaticPropTemplateBatches(hit);
+    const hit = cloneCachedStaticPropTemplateBatches(cacheKey);
+    if (hit) return hit;
   }
 
   template.updateMatrixWorld(true);
-  const batches = buildStaticPropTemplateBatches(template);
+  const built = buildStaticPropTemplateBatches(template);
+  const batches = options?.resourceCatalog
+    ? borrowStaticPropTemplateBatches(built, options)
+    : built;
   if (cacheKey) {
     staticPropTemplateBatchCache.set(
       cacheKey,
@@ -4344,19 +5956,6 @@ function collectExposedWallFaces(
   return faces;
 }
 
-function openVerticalKeySet(dungeon: DungeonData): Set<string> {
-  const keys = new Set<string>();
-  for (const cell of dungeon.floor?.openVerticalCells ?? []) {
-    keys.add(`${cell.x},${cell.y}`);
-  }
-  for (const stair of dungeon.floor?.stairs ?? []) {
-    for (const cell of stair.footprint ?? []) {
-      keys.add(`${cell.x},${cell.y}`);
-    }
-  }
-  return keys;
-}
-
 function collectBoundaryWalls(dungeon: DungeonData): GridCell[] {
   const walls: GridCell[] = [];
   for (let y = 0; y < dungeon.height; y += 1) {
@@ -4388,23 +5987,6 @@ export {
   PICKUP_COLLECTION_DISTANCE,
   STONE_COLLECTION_DISTANCE,
 } from "./InteractionReach";
-
-export type ChestRewardKind =
-  | "resolve"
-  | "time-freeze"
-  | "luminous-ward"
-  | "annihilation-pulse"
-  | "cull-brand"
-  | "phoenix-egg"
-  | "map"
-  | "mobility"
-  | "clarity"
-  | "swarm-curse"
-  | "slow-curse"
-  | "frenzy-curse"
-  | "gloom-curse"
-  | "mirror-curse"
-  | "spin-curse";
 
 export function chestRewardAutoActivates(kind: ChestRewardKind): boolean {
   // Phoenix arms a charge without firing; still auto-collects on contact.

@@ -3,6 +3,8 @@ import {
   portraitForIndex,
   randomPortraitIndex,
 } from "./leaderboard/portraits";
+import { loadLeaderboard } from "./leaderboard/client";
+import { renderWelcomeLeaderboard } from "./leaderboard/render";
 import { hashSeed } from "./core/random";
 import { canContinueLocalRun, readLocalRunSave } from "./game/LocalRunSave";
 import { shouldLoadDungeonRuntime } from "./shellRoute";
@@ -20,8 +22,14 @@ function element<T extends HTMLElement>(id: string): T {
 
 const shell = document.querySelector<HTMLElement>(".app-shell");
 const welcome = element<HTMLElement>("welcome-screen");
+const welcomeContent = element<HTMLElement>("welcome-content");
 const welcomeHome = element<HTMLElement>("welcome-home");
+const welcomeSave = element<HTMLElement>("welcome-save");
 const welcomeProfile = element<HTMLElement>("welcome-profile");
+const welcomeLeaderboard = element<HTMLElement>("welcome-leaderboard");
+const leaderboardList = element<HTMLOListElement>("leaderboard-list");
+const leaderboardStatus = element<HTMLElement>("leaderboard-status");
+const hallToggle = element<HTMLButtonElement>("welcome-hall-toggle");
 const welcomeProfileForm = element<HTMLFormElement>("welcome-profile-form");
 const profileName = element<HTMLInputElement>("welcome-profile-name");
 const profileAvatar = element<HTMLImageElement>("welcome-profile-avatar-image");
@@ -65,11 +73,15 @@ function readShellProfile(): { name: string; avatarIndex: number } | null {
 function showHome(): void {
   welcomeHome.hidden = false;
   welcomeProfile.hidden = true;
+  welcomeLeaderboard.hidden = false;
+  welcomeContent.classList.add("is-ranked");
 }
 
 function showProfile(required: boolean): void {
   welcomeHome.hidden = true;
   welcomeProfile.hidden = false;
+  welcomeLeaderboard.hidden = false;
+  welcomeContent.classList.add("is-ranked");
   profileBack.hidden = required;
   profileSubmit.textContent = required ? "START NEW GAME" : "SAVE CHANGES";
   window.requestAnimationFrame(() => profileName.focus());
@@ -79,6 +91,35 @@ function updateAvatar(): void {
   const portrait = portraitForIndex(avatarDraft);
   profileAvatar.src = portrait.src;
   profileAvatar.title = `Change avatar · ${portrait.title}`;
+}
+
+async function refreshLeaderboard(): Promise<void> {
+  leaderboardStatus.textContent = "Reading records…";
+  try {
+    const response = await loadLeaderboard();
+    renderWelcomeLeaderboard({
+      list: leaderboardList,
+      entries: response.entries,
+      playerBiomeStars: response.playerBiomeStars ?? {},
+      onPlaySeed: (entry) => {
+        void loadRuntime({ type: "leaderboard-seed", seed: entry.seed, biome: entry.biome });
+      },
+    });
+    hallToggle.hidden = response.entries.length <= 3;
+    leaderboardStatus.textContent = response.entries.length
+      ? `${response.entries.length} record${response.entries.length === 1 ? "" : "s"} in the hall.`
+      : "No escapes recorded yet.";
+  } catch (error) {
+    renderWelcomeLeaderboard({
+      list: leaderboardList,
+      entries: [],
+      playerBiomeStars: {},
+      onPlaySeed: () => undefined,
+    });
+    hallToggle.hidden = true;
+    leaderboardStatus.textContent = "Leaderboard unavailable.";
+    console.warn("Leaderboard could not be loaded", error);
+  }
 }
 
 function hydrateWelcome(): void {
@@ -99,6 +140,7 @@ function hydrateWelcome(): void {
   const save = readLocalRunSave();
   const canContinue = canContinueLocalRun(save);
   continueButton.disabled = !canContinue;
+  welcomeSave.hidden = !canContinue;
   if (canContinue && save) {
     const biomeId = save.resume?.campaignBiomeId?.trim().toLowerCase();
     const biomeLabel =
@@ -108,14 +150,16 @@ function hydrateWelcome(): void {
             { seed: save.state.seed, seedHash: hashSeed(save.state.seed) } as DungeonData,
             save.state.profile,
           ).label;
-    element<HTMLElement>("welcome-save-title").textContent =
-      `${save.state.seed} · ${biomeLabel}`;
+    element<HTMLElement>("welcome-save-title").textContent = biomeLabel;
     element<HTMLElement>("welcome-save-details").textContent =
       `Floor ${save.state.floor} · Saved descent ready.`;
     element<HTMLElement>("welcome-save-meta").textContent = "CONTINUE AVAILABLE";
     status.textContent = "Choose Continue or begin a new descent.";
   } else {
-    status.textContent = "No active saved run. Start a new descent.";
+    element<HTMLElement>("welcome-save-title").textContent = "";
+    element<HTMLElement>("welcome-save-details").textContent = "";
+    element<HTMLElement>("welcome-save-meta").textContent = "";
+    status.textContent = "";
   }
   const musicButton = element<HTMLButtonElement>("welcome-music-toggle");
   let musicEnabled = true;
@@ -203,6 +247,7 @@ if (shouldLoadDungeonRuntime(window.location.search)) {
   void loadRuntime();
 } else {
   hydrateWelcome();
+  void refreshLeaderboard();
   shell?.classList.add("is-welcome");
   shell?.setAttribute("data-runtime-state", "deferred");
   welcome.hidden = false;

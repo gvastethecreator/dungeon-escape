@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import type { DungeonMoodId } from "../systems/DungeonMood";
+import type { SceneTextureSink } from "../systems/SceneTextureRegistry";
 import type { BiomeLayerTextures, BiomeSurfaceTextures } from "./AssetLibrary";
 import {
   enableDungeonSurfaceShader,
@@ -108,6 +109,15 @@ export interface RoomSurfaceTextures {
   semanticWalls?: Partial<Record<SurfaceTheme, THREE.Texture>>;
 }
 
+export interface SceneTextureCloneSink extends SceneTextureSink {
+  registerClone<T extends THREE.Texture>(source: THREE.Texture, clone: T): T;
+}
+
+const roomSurfaceTextureSinks = new WeakMap<
+  Record<SurfaceTheme, RoomSurfaceSet>,
+  SceneTextureCloneSink
+>();
+
 /** Color-only theme variation — no UV offset (offsets break continuous world UV seams). */
 const PALETTES: Record<SurfaceTheme, { floor: number; wall: number; ceiling: number }> = {
   corridor: { floor: 0x96958f, wall: 0x83817c, ceiling: 0x767775 },
@@ -125,6 +135,7 @@ function themedTexture(
   source: THREE.Texture,
   theme: SurfaceTheme,
   surface: "floor" | "wall" | "ceiling",
+  textureSink?: SceneTextureCloneSink,
 ): THREE.Texture {
   const texture = source.clone();
   texture.name = `${source.name}#${theme}-${surface}`;
@@ -137,7 +148,7 @@ function themedTexture(
   texture.magFilter = source.magFilter ?? THREE.LinearFilter;
   texture.minFilter = source.minFilter ?? THREE.LinearMipmapLinearFilter;
   texture.generateMipmaps = true;
-  texture.needsUpdate = true;
+  textureSink?.registerClone(source, texture);
   return texture;
 }
 
@@ -184,21 +195,24 @@ function makeSurfaceMaterial(
 
 export function createRoomSurfaceMaterials(
   textures: RoomSurfaceTextures,
+  textureSink?: SceneTextureCloneSink,
 ): Record<SurfaceTheme, RoomSurfaceSet> {
-  return Object.fromEntries(
+  const materials = Object.fromEntries(
     (Object.keys(PALETTES) as SurfaceTheme[]).map((theme) => {
       const palette = PALETTES[theme];
       const floorMap = themedTexture(
         textures.semanticFloors?.[theme] ?? textures.floor,
         theme,
         "floor",
+        textureSink,
       );
       const wallMap = themedTexture(
         textures.semanticWalls?.[theme] ?? textures.wall,
         theme,
         "wall",
+        textureSink,
       );
-      const ceilingMap = themedTexture(textures.ceiling, theme, "ceiling");
+      const ceilingMap = themedTexture(textures.ceiling, theme, "ceiling", textureSink);
       const set = {
         floor: makeSurfaceMaterial(floorMap, palette.floor, 0x101110, 0.2, 0.88),
         wall: makeSurfaceMaterial(
@@ -227,6 +241,8 @@ export function createRoomSurfaceMaterials(
       return [theme, set];
     }),
   ) as Record<SurfaceTheme, RoomSurfaceSet>;
+  if (textureSink) roomSurfaceTextureSinks.set(materials, textureSink);
+  return materials;
 }
 
 function assignLayerMaps(
@@ -235,6 +251,7 @@ function assignLayerMaps(
   _theme: SurfaceTheme,
   surface: "floor" | "wall" | "ceiling",
   moodId: DungeonMoodId,
+  textureSink?: SceneTextureCloneSink,
 ): void {
   // Share AssetLibrary textures directly (no clone-before-load, which left blank maps).
   // Themes only differ by color/emissive multiply, not UV, so sharing is safe.
@@ -264,6 +281,7 @@ function assignLayerMaps(
   if (!wasOwned) {
     for (const texture of [previousMap, previousNormal, previousRough]) {
       if (!texture) continue;
+      textureSink?.unregister(texture);
       unlinkTextureClone(texture);
       texture.dispose();
     }
@@ -277,11 +295,12 @@ export function applyBiomeMaps(
   biome: BiomeSurfaceTextures,
   moodId: DungeonMoodId = "ash",
 ): void {
+  const textureSink = roomSurfaceTextureSinks.get(materials);
   for (const theme of Object.keys(PALETTES) as SurfaceTheme[]) {
     const set = materials[theme]!;
-    assignLayerMaps(set.floor, biome.floor, theme, "floor", moodId);
-    assignLayerMaps(set.wall, biome.wall, theme, "wall", moodId);
-    assignLayerMaps(set.ceiling, biome.ceiling, theme, "ceiling", moodId);
+    assignLayerMaps(set.floor, biome.floor, theme, "floor", moodId, textureSink);
+    assignLayerMaps(set.wall, biome.wall, theme, "wall", moodId, textureSink);
+    assignLayerMaps(set.ceiling, biome.ceiling, theme, "ceiling", moodId, textureSink);
   }
 }
 
@@ -326,6 +345,7 @@ export function applyMoodToSurfaceMaterials(
 }
 
 export function disposeRoomSurfaceMaterials(materials: Record<SurfaceTheme, RoomSurfaceSet>): void {
+  const textureSink = roomSurfaceTextureSinks.get(materials);
   const disposed = new Set<THREE.Texture>();
   for (const set of Object.values(materials)) {
     for (const material of Object.values(set)) {
@@ -333,6 +353,8 @@ export function disposeRoomSurfaceMaterials(materials: Record<SurfaceTheme, Room
       if (!material.userData.mapsOwnedByAssetLibrary) {
         for (const map of [material.map, material.normalMap, material.roughnessMap]) {
           if (map && !disposed.has(map)) {
+            textureSink?.unregister(map);
+            unlinkTextureClone(map);
             map.dispose();
             disposed.add(map);
           }
@@ -341,4 +363,5 @@ export function disposeRoomSurfaceMaterials(materials: Record<SurfaceTheme, Room
       material.dispose();
     }
   }
+  roomSurfaceTextureSinks.delete(materials);
 }

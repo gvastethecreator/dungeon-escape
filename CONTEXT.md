@@ -8,10 +8,10 @@ Dungeon Escape is a first-person run through a generated dungeon. Creation, Play
 A connected set of rooms, corridors, features, entry, objectives, and exit used by Creation and Play.
 
 **Dungeon floor stack**:
-A deterministic campaign-level collection of one to three sibling dungeons that share map size and aligned stair shafts. Play builds the whole stack as stacked slabs in one scene.
+Una colección determinista de nivel de campaña de uno a cuatro pisos hermanos con el mismo tamaño de mapa y `Stair shaft` alineados. Play genera y construye todo el stack residente como pisos apilados en una escena antes de liberar input.
 
 **Dungeon floor campaign**:
-The deterministic cache that materializes every floor of the active campaign level so stair shafts stay aligned. Floor count is capped at three for continuous residency.
+La campaña determinista que genera todos los pisos del `Dungeon floor stack` desde una semilla raíz de campaña para mantener los `Stair shaft` alineados. Todos los pisos se construyen y quedan residentes antes de input; subir nunca materializa un piso.
 
 **Stair shaft**:
 An aligned vertical opening with walkable tread colliders linking floor `i` to `i+1`. Players climb the steps; there is no interact prompt and no floor-load transition.
@@ -20,7 +20,7 @@ An aligned vertical opening with walkable tread colliders linking floor `i` to `
 Shared vertical constants for story height, step rise/run, and shaft footprint used by generation, the stair kit, and vertical motion.
 
 **Active floor**:
-The floor under the player feet, derived from support height. It drives exploration, minimap, and the logical dungeon grid without rebuilding the scene.
+El piso bajo los pies del jugador, derivado de la altura de soporte. Sólo selecciona la lógica, visibilidad y updates de ese piso, incluidos `Floor exploration`, minimap y la grilla lógica del `Dungeon`. Nunca reconstruye ni materializa la escena.
 
 **Creation**:
 The shell mode for building and previewing a map (`engineMode: "editor"` in code). UI label is Creation, not Authority.
@@ -104,7 +104,7 @@ The frame update for decorative actors that do not own gameplay state: fires, li
 The asynchronous owner of Hall comparison loading, timeout retry, stale-response rejection, saved rank, and the result states rendered by the round-results screen.
 
 **Floor transition transaction**:
-Legacy fade/rebuild path retained only for recovery tooling. Normal play no longer uses it for stairs; walkable shafts replace it.
+Ruta legacy de fade/rebuild conservada sólo para recovery. Play normal nunca la usa para escaleras; los `Stair shaft` caminables la reemplazan.
 
 **Forge frame client**:
 The browser boundary for the Forge iframe source, trusted messages, versioned presentation commands, waits, cancellation, and cleanup.
@@ -125,7 +125,7 @@ The live run state for health, rewards, outcome, and elapsed time.
 The four-stone objective state, stone timing, and portal readiness within a run.
 
 **Static dungeon scene**:
-The fixed scene, collision, occupied seats, and cleanup produced from one dungeon before Play updates begin.
+La escena fija, colisión, occupied seats y cleanup producidos desde un `Dungeon floor stack` antes de que comiencen los updates de Play.
 
 **Enemy biome mods**:
 Live combat stats and pursuit behavior resolved from the base enemy archetype, active biome profile, and run difficulty (`applyBiomeEnemyMods`). Presentation size stays on the base archetype.
@@ -149,4 +149,4 @@ Deterministic per-floor budgets for health chests, free corridor/room flasks, fr
 A collectible reward placed on the floor without a chest (resolve flasks and ranked support powers such as time-freeze, ward, clarity).
 
 **Phoenix egg**:
-A map-found run charge. Picking it up only equips a silent HUD state (no ambient particles). Lethal damage spends the charge to revive at fixed resolve and ignite an annihilation pulse for the rebirth visuals. At most one charge; a second egg does not spawn while armed. New runs never start with the egg active.
+A map-found floor pickup (never inside a chest). Placed in a free room corner when possible, far from player spawn, and never stacked on props, chests, stones, or other loot. Picking it up only equips a silent HUD state (no ambient particles). Lethal damage spends the charge to revive at fixed resolve and ignite an annihilation pulse for the rebirth visuals. At most one charge; a second egg does not spawn while armed. New runs never start with the egg active.
