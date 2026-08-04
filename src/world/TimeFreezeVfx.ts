@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import type { SceneTextureSink } from "../systems/SceneTextureRegistry";
 
 import { TIME_FREEZE_DURATION_SECONDS } from "../game/TimeFreeze";
 
@@ -57,13 +58,19 @@ export class TimeFreezeVfx {
   private readonly particleCount: number;
   private readonly positions: Float32Array;
   private readonly seeds: Float32Array;
-  private readonly crystalTexture = createTimeFreezeCrystalTexture();
+  private readonly crystalTexture: THREE.DataTexture;
+  private disposed = false;
   private buffersActive = false;
 
-  constructor(capacity: number) {
+  constructor(
+    capacity: number,
+    private readonly textureSink?: SceneTextureSink,
+  ) {
     this.capacity = Math.max(1, Math.trunc(capacity));
     this.particleCount = this.capacity * PARTICLES_PER_ENEMY;
     this.root.name = "Time freeze enemy frost field";
+    this.crystalTexture = createTimeFreezeCrystalTexture();
+    this.textureSink?.register(this.crystalTexture);
 
     this.positions = new Float32Array(this.particleCount * 3);
     this.seeds = new Float32Array(this.particleCount);
@@ -179,7 +186,16 @@ export class TimeFreezeVfx {
     }
   }
 
+  /** Hide stale local-space motes during an active-floor handoff. */
+  resetForRebind(): void {
+    this.buffersActive = false;
+    this.motes.visible = false;
+  }
+
   dispose(): void {
+    if (this.disposed) return;
+    this.disposed = true;
+    this.textureSink?.unregister(this.crystalTexture);
     this.motes.geometry.dispose();
     this.motes.material.dispose();
     this.crystalTexture.dispose();

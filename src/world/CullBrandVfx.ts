@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import type { SceneTextureSink } from "../systems/SceneTextureRegistry";
 
 import { CULL_BRAND_DURATION_SECONDS } from "../game/CullBrand";
 
@@ -55,10 +56,12 @@ export class CullBrandVfx {
   private readonly positions: Float32Array;
   private readonly texture: THREE.Texture;
   private active = false;
+  private disposed = false;
 
-  constructor() {
+  constructor(private readonly textureSink?: SceneTextureSink) {
     this.root.name = "Cull brand field";
     this.texture = createEmberTexture();
+    this.textureSink?.register(this.texture);
     this.positions = new Float32Array(EMBER_COUNT * 3);
     // Park off-screen until first update.
     for (let i = 0; i < EMBER_COUNT; i += 1) {
@@ -131,6 +134,9 @@ export class CullBrandVfx {
   }
 
   dispose(): void {
+    if (this.disposed) return;
+    this.disposed = true;
+    this.textureSink?.unregister(this.texture);
     this.embers.geometry.dispose();
     this.embers.material.dispose();
     this.texture.dispose();

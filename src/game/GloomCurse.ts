@@ -1,5 +1,11 @@
 /** Timed darkness curse: denser fog and a dimmer lantern. */
 
+import {
+  activateTimedSeconds,
+  isTimedSecondsActive,
+  tickTimedSeconds,
+} from "./TimedSeconds";
+
 export const GLOOM_CURSE_DURATION_SECONDS = 20;
 /**
  * Multiplies exploration fog density while active.
@@ -13,13 +19,13 @@ export function activateGloomCurse(
   currentSeconds = 0,
   durationSeconds = GLOOM_CURSE_DURATION_SECONDS,
 ): number {
-  return Math.max(Math.max(0, currentSeconds), Math.max(0, durationSeconds));
+  return activateTimedSeconds(currentSeconds, durationSeconds);
 }
 
 export function tickGloomCurse(remainingSeconds: number, deltaSeconds: number): number {
-  return Math.max(0, remainingSeconds - Math.max(0, deltaSeconds));
+  return tickTimedSeconds(remainingSeconds, deltaSeconds);
 }
 
 export function isGloomCurseActive(remainingSeconds: number): boolean {
-  return remainingSeconds > 0;
+  return isTimedSecondsActive(remainingSeconds);
 }

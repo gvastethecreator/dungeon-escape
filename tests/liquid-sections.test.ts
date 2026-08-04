@@ -3,6 +3,7 @@ import * as THREE from "three";
 
 import { generateDungeon } from "../src/dungeon/generateDungeon";
 import type { DungeonData, DungeonForgeMetadata } from "../src/dungeon/types";
+import { SceneTextureRegistry } from "../src/systems/SceneTextureRegistry";
 import {
   collectLiquidSections,
   countLiquidBoundaryEdges,
@@ -70,7 +71,8 @@ describe("connected liquid sections", () => {
 
     const dungeon = dungeonWithLiquids();
     const materials = createDungeonMaterials({ compact: true });
-    const kit = createLiquidSectionKit(dungeon, materials, 2.4);
+    const registry = new SceneTextureRegistry(true);
+    const kit = createLiquidSectionKit(dungeon, materials, 2.4, registry);
     expect(kit).not.toBeNull();
     expect(kit!.surfaces.length).toBeGreaterThanOrEqual(1);
     for (const surface of kit!.surfaces) {
@@ -80,7 +82,11 @@ describe("connected liquid sections", () => {
         expect(positions.getY(i)).toBe(0);
       }
     }
+    expect(registry.diagnostics().registered).toBe(
+      new Set(kit!.surfaces.map((surface) => surface.material.map)).size,
+    );
     if (kit) disposeLiquidSectionKit(kit);
+    expect(registry.diagnostics().registered).toBe(0);
     disposeDungeonMaterials(materials);
   });
 });

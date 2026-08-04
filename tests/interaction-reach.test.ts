@@ -19,9 +19,13 @@ import {
 describe("InteractionReach", () => {
   test("range helpers match chest and pickup limits", () => {
     const player = { x: 0, z: 0 };
-    expect(inInteractionRange(player, { x: CHEST_INTERACTION_DISTANCE, z: 0 }, CHEST_INTERACTION_DISTANCE)).toBe(
-      true,
-    );
+    expect(
+      inInteractionRange(
+        player,
+        { x: CHEST_INTERACTION_DISTANCE, z: 0 },
+        CHEST_INTERACTION_DISTANCE,
+      ),
+    ).toBe(true);
     expect(
       canInteractWithChestAt(player, { x: CHEST_INTERACTION_DISTANCE + 0.05, z: 0 }, false),
     ).toBe(false);
@@ -41,7 +45,15 @@ describe("InteractionReach", () => {
 
   test("picks the nearest in-range target", () => {
     expect(
-      nearestInRangeIndex({ x: 0, z: 0 }, [{ x: 2, z: 0 }, { x: 1, z: 0 }, { x: 3, z: 0 }], 1.5),
+      nearestInRangeIndex(
+        { x: 0, z: 0 },
+        [
+          { x: 2, z: 0 },
+          { x: 1, z: 0 },
+          { x: 3, z: 0 },
+        ],
+        1.5,
+      ),
     ).toBe(1);
     expect(nearestInRangeIndex({ x: 0, z: 0 }, [{ x: 3, z: 0 }], 1)).toBeNull();
   });
@@ -59,5 +71,12 @@ describe("InteractionReach", () => {
     expect(canInteractWithChestAt(player, otherSlab, false)).toBe(false);
     expect(canCollectPickupAt(player, { x: 0.5, y: 1.7, z: 0 }, false, "stone")).toBe(true);
   });
-});
 
+  test("keeps auto-collect rewards inside the vertical interaction band", () => {
+    expect(canCollectPickup(10_000, true, "clarity", 0.5)).toBe(true);
+    expect(canCollectPickup(0, true, "clarity", 2.21)).toBe(false);
+    expect(
+      canCollectPickupAt({ x: 0, y: 1.5, z: 0 }, { x: 0, y: 5.9, z: 0 }, true, "clarity"),
+    ).toBe(false);
+  });
+});

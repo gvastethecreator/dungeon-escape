@@ -23,6 +23,7 @@ MANIFEST = ROOT / "assets-source" / "runtime-optimization-manifest.json"
 RASTER_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp"}
 NEAREST_PREFIXES = (
     "assets/sprites/biome-props/",
+    "assets/sprites/biome-props-v2/",
     "assets/sprites/enemies-v8/",
     "assets/sprites/keyed/",
     "assets/textures/hazards/",
@@ -30,6 +31,12 @@ NEAREST_PREFIXES = (
     "assets/ui/portraits/",
 )
 NEAREST_FILES = {"assets/sprites/iron-ash-items.png"}
+EXTERNAL_RUNTIME_SOURCES = (
+    (
+        ROOT / "assets-source" / "runtime-metadata" / "sprites" / "biome-props-v2",
+        PUBLIC / "assets" / "sprites" / "biome-props-v2",
+    ),
+)
 
 
 def sha256(path: Path) -> str:
@@ -73,15 +80,20 @@ def save_webp(image: Image.Image, target: Path, *, lossless: bool) -> None:
 
 def main() -> int:
     previous = load_previous()
-    sources = sorted(
+    public_sources = sorted(
         path
         for path in PUBLIC.rglob("*")
         if path.is_file() and path.suffix.lower() in RASTER_EXTENSIONS
     )
     source_targets: dict[Path, Path] = {}
-    for source in sources:
+    for source_root, target_root in EXTERNAL_RUNTIME_SOURCES:
+        for source in sorted(source_root.glob("*.png")):
+            source_targets[target_root / f"{source.stem}.webp"] = source
+    for source in public_sources:
         target = target_for(source)
         owner = source_targets.get(target)
+        if owner is not None and source == target:
+            continue
         if owner is not None and owner != source:
             raise RuntimeError(f"output collision: {relative(owner)} and {relative(source)}")
         source_targets[target] = source
@@ -96,7 +108,17 @@ def main() -> int:
         target_key = relative(target)
         prior = previous.get(target_key)
         current_sha = sha256(source)
-        if source == target and prior and prior.get("targetSha256") == current_sha:
+        if (
+            prior
+            and target.exists()
+            and (
+                (source == target and prior.get("targetSha256") == current_sha)
+                or (
+                    prior.get("sourceSha256") == current_sha
+                    and prior.get("targetSha256") == sha256(target)
+                )
+            )
+        ):
             images.append(prior)
             original_bytes += int(prior["sourceBytes"])
             optimized_bytes += source.stat().st_size
@@ -104,7 +126,7 @@ def main() -> int:
             continue
 
         source_size_bytes = source.stat().st_size
-        public_path = source.relative_to(PUBLIC).as_posix()
+        public_path = target.relative_to(PUBLIC).as_posix()
         with Image.open(source) as loaded:
             loaded.load()
             source_dimensions = [loaded.width, loaded.height]
@@ -118,7 +140,7 @@ def main() -> int:
                 optimized = optimized.convert("RGBA" if has_alpha else "RGB")
             save_webp(optimized, target, lossless=lossless)
 
-        if source != target:
+        if source != target and source.is_relative_to(PUBLIC):
             source.unlink()
         entry = {
             "source": relative(source),

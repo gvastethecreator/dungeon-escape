@@ -1,4 +1,4 @@
-import { isFloorCell } from "./generateDungeon";
+import { FLOOR, isFloorCell } from "./generateDungeon";
 import type { DungeonData, GridCell } from "./types";
 
 export interface WorldPoint {
@@ -28,6 +28,60 @@ export interface CollisionResult {
   position: WorldPoint;
   blockedX: boolean;
   blockedZ: boolean;
+}
+
+/**
+ * Merge a raised floor slab into row spans instead of one support AABB per cell.
+ * Upper shaft mouths remain open so the player can move through the stairwell.
+ */
+export function createFloorDeckColliders(
+  dungeon: DungeonData,
+  tileSize: number,
+  minY: number,
+  maxY: number,
+): WorldCollider[] {
+  const openMask = new Uint8Array(dungeon.width * dungeon.height);
+  const floorIndex = dungeon.floor?.index ?? 0;
+  for (const stair of dungeon.floor?.stairs ?? []) {
+    // Only the mouth reached from the lower story opens this slab. The outgoing
+    // upward flight keeps normal support beneath its lower landing and treads.
+    if (stair.targetFloor >= floorIndex) continue;
+    for (const cell of stair.footprint) {
+      if (cell.x < 0 || cell.y < 0 || cell.x >= dungeon.width || cell.y >= dungeon.height) continue;
+      openMask[cell.y * dungeon.width + cell.x] = 1;
+    }
+  }
+
+  const colliders: WorldCollider[] = [];
+  const half = tileSize * 0.5;
+  const originX = -((dungeon.width - 1) * tileSize) * 0.5;
+  const originZ = -((dungeon.height - 1) * tileSize) * 0.5;
+  for (let y = 0; y < dungeon.height; y += 1) {
+    let runStart = -1;
+    for (let x = 0; x <= dungeon.width; x += 1) {
+      const supported =
+        x < dungeon.width &&
+        dungeon.grid[y]?.[x] === FLOOR &&
+        openMask[y * dungeon.width + x] === 0;
+      if (supported && runStart < 0) {
+        runStart = x;
+        continue;
+      }
+      if (supported || runStart < 0) continue;
+      const runEnd = x - 1;
+      const centerZ = originZ + y * tileSize;
+      colliders.push({
+        minX: originX + runStart * tileSize - half,
+        maxX: originX + runEnd * tileSize + half,
+        minZ: centerZ - half,
+        maxZ: centerZ + half,
+        minY,
+        maxY,
+      });
+      runStart = -1;
+    }
+  }
+  return colliders;
 }
 
 /** Static broadphase for authored prop/chest colliders. */

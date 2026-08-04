@@ -13,12 +13,24 @@ function materialTextures(material: THREE.Material): THREE.Texture[] {
   return [...textures];
 }
 
-function textureHasRenderableImage(texture: THREE.Texture): boolean {
-  const image = texture.image as { width?: number; height?: number } | undefined;
+export function textureHasRenderableImage(texture: THREE.Texture): boolean {
+  const image = texture.image as
+    | {
+        width?: number;
+        height?: number;
+        naturalWidth?: number;
+        naturalHeight?: number;
+        videoWidth?: number;
+        videoHeight?: number;
+      }
+    | undefined;
   if (!image) return false;
-  const width = Number(image.width);
-  const height = Number(image.height);
-  return Number.isFinite(width) && Number.isFinite(height) && width > 0 && height > 0;
+  const widths = [image.width, image.naturalWidth, image.videoWidth].map(Number);
+  const heights = [image.height, image.naturalHeight, image.videoHeight].map(Number);
+  return (
+    widths.some((value) => Number.isFinite(value) && value > 0) &&
+    heights.some((value) => Number.isFinite(value) && value > 0)
+  );
 }
 
 /** Resolve the sampling filters for one texture under the current smoothing policy. */
@@ -37,10 +49,25 @@ export function resolveTextureSmoothingFilters(
   }
   return {
     magFilter: THREE.LinearFilter,
-    minFilter: texture.generateMipmaps
-      ? THREE.LinearMipmapLinearFilter
-      : THREE.LinearFilter,
+    minFilter: texture.generateMipmaps ? THREE.LinearMipmapLinearFilter : THREE.LinearFilter,
   };
+}
+
+/** Apply the current policy to one ready texture, returning whether filters changed. */
+export function applyTextureSmoothingToTexture(texture: THREE.Texture, enabled: boolean): boolean {
+  if (!textureHasRenderableImage(texture)) return false;
+  const next = resolveTextureSmoothingFilters(texture, enabled);
+  let changed = false;
+  if (texture.magFilter !== next.magFilter) {
+    texture.magFilter = next.magFilter;
+    changed = true;
+  }
+  if (texture.minFilter !== next.minFilter) {
+    texture.minFilter = next.minFilter;
+    changed = true;
+  }
+  if (changed) texture.needsUpdate = true;
+  return changed;
 }
 
 /**
@@ -60,18 +87,7 @@ export function applyTextureSmoothing(scene: THREE.Scene, enabled: boolean): num
   for (const texture of textures) {
     // Incomplete TextureLoader placeholders: changing filters + needsUpdate can
     // poison the first GPU upload and leave the map untextured until reload.
-    if (!textureHasRenderableImage(texture)) continue;
-    const next = resolveTextureSmoothingFilters(texture, enabled);
-    let changed = false;
-    if (texture.magFilter !== next.magFilter) {
-      texture.magFilter = next.magFilter;
-      changed = true;
-    }
-    if (texture.minFilter !== next.minFilter) {
-      texture.minFilter = next.minFilter;
-      changed = true;
-    }
-    if (changed) texture.needsUpdate = true;
+    applyTextureSmoothingToTexture(texture, enabled);
   }
   return textures.size;
 }

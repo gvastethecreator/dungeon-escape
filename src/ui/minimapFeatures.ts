@@ -34,6 +34,8 @@ export interface MinimapFeatures {
   doors: MinimapCell[];
   /** Wall torches, campfires, braziers — any active fire source. */
   fires: MinimapCell[];
+  /** Floor-local traps and damaging surfaces. */
+  hazards?: MinimapCell[];
   /** Live enemies (already-collected/defeated ones are filtered upstream). */
   enemies: MinimapEnemy[];
   /** The four magic-stone quest objectives. */

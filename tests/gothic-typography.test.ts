@@ -32,9 +32,10 @@ describe("Dungeon gothic typography", () => {
         expect(block).not.toMatch(/font-variant-caps:\s*small-caps/);
       }
     }
-    expect(host).toContain('id="welcome-save-title">No active descent</strong>');
-    expect(main).toContain('welcomeSaveTitle.textContent = "No active descent"');
-    // Continue title is seed · biome in pixel font (not gothic fantasy halls).
+    expect(host).toContain('id="welcome-save-title"></strong>');
+    expect(host).not.toContain("No active descent");
+    expect(main).toContain("elements.welcomeSave.hidden = state === null");
+    // Continue title is the biome in pixel font (not a gothic fantasy name).
     expect(main).toContain("continueDungeonLabel");
     expect(main).toContain("getBiomeIdentity");
     expect(shell).toContain("getBiomeIdentity");

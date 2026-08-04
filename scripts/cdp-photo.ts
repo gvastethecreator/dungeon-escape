@@ -1,3 +1,9 @@
+import { mkdir, rename } from "node:fs/promises";
+import { isAbsolute, join } from "node:path";
+
+import { validateDungeonLoadTrace, type DungeonLoadTraceSnapshot } from "./capture-dungeon-load-g0";
+import { listBiomeIds } from "../src/systems/BiomeIdentity";
+
 /**
  * CDP photo tool: headless Chrome screenshots with in-scene teleports.
  * Requires the Dungeon Escape dev server running on :24211.
@@ -16,6 +22,7 @@
  * Set env PHOTO_SIMULATION=off only when a frozen pre-play frame is required; live capture is the default.
  * Set env QA_STATE=portal to open the real four-stone portal for capture.
  * Set env PERF_SECONDS=12 to record live p95/p99/max frame gaps after the shots.
+ * Set env PHOTO_BASE_URL to profile a production preview on a different port.
  */
 
 interface CdpTarget {
@@ -24,11 +31,17 @@ interface CdpTarget {
 
 const CHROME = "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe";
 const PORT = 9300 + (process.pid % 500);
-const BASE = "http://127.0.0.1:24211";
+const BASE = (process.env.PHOTO_BASE_URL ?? "http://127.0.0.1:24211").replace(/\/$/, "");
 const PROFILE = `${process.env.TEMP ?? "."}\\dungeon-escape-cdp-${process.pid}`;
+const G0_HIGHEST_UNLOCKED_RANK = listBiomeIds().length - 1;
 const PERF_SECONDS = Number.parseFloat(process.env.PERF_SECONDS ?? "0");
 if (!Number.isFinite(PERF_SECONDS) || PERF_SECONDS < 0 || PERF_SECONDS > 120)
   throw new Error(`PERF_SECONDS must be between 0 and 120; received ${String(PERF_SECONDS)}.`);
+const CDP_COMMAND_TIMEOUT_MS = Number.parseInt(process.env.CDP_COMMAND_TIMEOUT_MS ?? "15000", 10);
+if (!Number.isFinite(CDP_COMMAND_TIMEOUT_MS) || CDP_COMMAND_TIMEOUT_MS < 1000)
+  throw new Error(
+    `CDP_COMMAND_TIMEOUT_MS must be at least 1000; received ${String(CDP_COMMAND_TIMEOUT_MS)}.`,
+  );
 const CRT = (process.env.CRT ?? "").trim().toLowerCase();
 if (CRT && CRT !== "on" && CRT !== "off")
   throw new Error(`CRT must be "on" or "off"; received ${JSON.stringify(CRT)}.`);
@@ -38,14 +51,88 @@ if (PHOTO_SIMULATION !== "on" && PHOTO_SIMULATION !== "off")
     `PHOTO_SIMULATION must be "on" or "off"; received ${JSON.stringify(PHOTO_SIMULATION)}.`,
   );
 
+type G0Workload = "backrooms" | "frost";
+type G0Status = "passed" | "failed" | "timed_out" | "cleanup_failed";
+
+interface G0Config {
+  readonly sampleDir: string;
+  readonly sampleId: string;
+  readonly workload: G0Workload;
+}
+
+interface G0Diagnostics {
+  readonly dataset: Record<string, string>;
+  readonly mapLoad: Record<string, string>;
+  readonly userAgent: string | null;
+  readonly location: string | null;
+  readonly devicePixelRatio: number | null;
+  readonly canvas: {
+    width: number;
+    height: number;
+    clientWidth: number;
+    clientHeight: number;
+  } | null;
+  readonly renderer: unknown;
+  readonly runtime: unknown;
+  readonly floorCount: number | null;
+  readonly traceLiteral: string | null;
+  readonly webgl: {
+    readonly version: string | null;
+    readonly vendor: string | null;
+    readonly renderer: string | null;
+    readonly unmaskedVendor: string | null;
+    readonly unmaskedRenderer: string | null;
+  };
+}
+
+class G0TraceTimeoutError extends Error {}
+
+class CdpCommandTimeoutError extends Error {
+  readonly phase: string;
+
+  constructor(method: string, phase: string, timeoutMs: number) {
+    super(`CDP command ${method} timed out during ${phase} after ${timeoutMs} ms.`);
+    this.name = "CdpCommandTimeoutError";
+    this.phase = phase;
+  }
+}
+
+const moodParam = (process.env.MOOD ?? process.env.THEME ?? "").trim().toLowerCase();
+const biomeParam = (process.env.BIOME ?? moodParam).trim().toLowerCase();
+const qaState = (process.env.QA_STATE ?? "").trim().toLowerCase();
+
+function readG0Config(): G0Config | null {
+  const sampleDir = process.env.DUNGEON_LOAD_G0_SAMPLE_DIR;
+  if (sampleDir === undefined) return null;
+  if (!isAbsolute(sampleDir))
+    throw new Error("DUNGEON_LOAD_G0_SAMPLE_DIR must be an absolute directory.");
+  const sampleId = (process.env.DUNGEON_LOAD_G0_SAMPLE_ID ?? "").trim();
+  if (!sampleId) throw new Error("DUNGEON_LOAD_G0_SAMPLE_ID is required in G0 mode.");
+  const workload = (process.env.DUNGEON_LOAD_G0_WORKLOAD ?? "").trim().toLowerCase();
+  if (workload !== "backrooms" && workload !== "frost")
+    throw new Error("DUNGEON_LOAD_G0_WORKLOAD must be backrooms or frost.");
+  const explicitBiome = (process.env.BIOME ?? "").trim().toLowerCase();
+  if (explicitBiome !== workload)
+    throw new Error("DUNGEON_LOAD_G0_WORKLOAD must match the explicit BIOME.");
+  if (qaState) throw new Error("G0 mode does not permit QA_STATE.");
+  if (CRT !== "off") throw new Error("G0 mode requires CRT=off.");
+  return { sampleDir, sampleId, workload };
+}
+
+const g0 = readG0Config();
+
 const seed = process.argv[2] ?? "ash-demo";
-const outDir = process.argv[3] ?? ".proof-hud";
+const outDir = g0?.sampleDir ?? process.argv[3] ?? ".proof-hud";
 const shotSpecs = process.argv.slice(4);
 
 let messageId = 0;
 const pending = new Map<
   number,
-  { resolve: (value: unknown) => void; reject: (reason: unknown) => void }
+  {
+    resolve: (value: unknown) => void;
+    reject: (reason: unknown) => void;
+    timeout: ReturnType<typeof setTimeout>;
+  }
 >();
 const browserErrors: string[] = [];
 const networkErrors: string[] = [];
@@ -56,14 +143,198 @@ function send(
   ws: WebSocket,
   method: string,
   params: Record<string, unknown> = {},
+  phase = method,
 ): Promise<unknown> {
   const id = ++messageId;
   ws.send(JSON.stringify({ id, method, params }));
-  return new Promise((resolve, reject) => pending.set(id, { resolve, reject }));
+  return new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      pending.delete(id);
+      reject(new CdpCommandTimeoutError(method, phase, CDP_COMMAND_TIMEOUT_MS));
+    }, CDP_COMMAND_TIMEOUT_MS);
+    pending.set(id, { resolve, reject, timeout });
+  });
 }
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function writeG0JsonAtomically(
+  fileName: "started.json" | "result.json",
+  value: unknown,
+): Promise<void> {
+  if (!g0) return;
+  const destination = join(g0.sampleDir, fileName);
+  const temporary = join(g0.sampleDir, `.${fileName}.${process.pid}.${Date.now()}.tmp`);
+  await Bun.write(temporary, `${JSON.stringify(value, null, 2)}\n`);
+  await rename(temporary, destination);
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+async function waitForG0Trace(
+  ws: WebSocket,
+): Promise<{ readonly literal: string; readonly trace: DungeonLoadTraceSnapshot }> {
+  const deadline = Date.now() + 90_000;
+  let lastState: unknown = null;
+  while (Date.now() < deadline) {
+    const result = (await send(
+      ws,
+      "Runtime.evaluate",
+      {
+        expression: `(() => {
+          const scene = document.querySelector('#scene');
+          if (!(scene instanceof HTMLElement)) return { dataset: {}, traceLiteral: null };
+          return {
+            dataset: { ...scene.dataset },
+            traceLiteral: scene.dataset.dungeonLoadTrace ?? null,
+          };
+        })()`,
+        returnByValue: true,
+      },
+      "trace",
+    )) as {
+      result?: { value?: { dataset?: Record<string, string>; traceLiteral?: string | null } };
+    };
+    const observed = result.result?.value ?? {};
+    const dataset = observed.dataset ?? {};
+    const terminal = dataset.dungeonLoadTerminal ?? null;
+    lastState = { dataset, traceLiteral: observed.traceLiteral ?? null };
+    if (terminal && terminal !== "complete")
+      throw new Error(`G0 dungeon load ended as ${terminal}.`);
+    if (terminal === "complete" && observed.traceLiteral === null)
+      throw new Error("G0 dungeon load completed without dungeonLoadTrace.");
+    if (observed.traceLiteral !== null && observed.traceLiteral !== undefined) {
+      if (!dataset.dungeonLoadId)
+        throw new Error("G0 dungeon load trace is missing dungeonLoadId.");
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(observed.traceLiteral);
+      } catch {
+        throw new Error("G0 dungeonLoadTrace is not valid JSON.");
+      }
+      const validation = validateDungeonLoadTrace(parsed, dataset.dungeonLoadId);
+      if (!validation.ok) throw new Error(`G0 dungeonLoadTrace is invalid: ${validation.error}`);
+      return { literal: observed.traceLiteral, trace: validation.value };
+    }
+    await sleep(250);
+  }
+  throw new G0TraceTimeoutError(`G0 dungeon load trace timed out: ${JSON.stringify(lastState)}`);
+}
+
+async function collectG0Diagnostics(ws: WebSocket): Promise<G0Diagnostics> {
+  const result = (await send(
+    ws,
+    "Runtime.evaluate",
+    {
+      expression: `(() => {
+        const diag = window.__THREE_GAME_DIAGNOSTICS__;
+        const canvas = document.querySelector('#scene');
+        const dataset = canvas instanceof HTMLElement ? { ...canvas.dataset } : {};
+        const mapLoad = Object.fromEntries(
+          Object.entries(dataset).filter(([key]) => key.startsWith('mapLoad')),
+        );
+        const runtime = diag?.getState?.() ?? null;
+        const residentFloorCount = diag?.getResidentFloorCount?.();
+        const gl = canvas instanceof HTMLCanvasElement
+          ? canvas.getContext('webgl2') || canvas.getContext('webgl')
+          : null;
+        const debugRendererInfo = gl?.getExtension('WEBGL_debug_renderer_info') ?? null;
+        const readString = (parameter) => {
+          if (!gl || parameter === null || parameter === undefined) return null;
+          const value = gl.getParameter(parameter);
+          return typeof value === 'string' ? value : null;
+        };
+        return {
+          dataset,
+          mapLoad,
+          userAgent: navigator.userAgent ?? null,
+          location: location.href ?? null,
+          devicePixelRatio: Number.isFinite(window.devicePixelRatio) ? window.devicePixelRatio : null,
+          canvas: canvas instanceof HTMLCanvasElement
+            ? { width: canvas.width, height: canvas.height, clientWidth: canvas.clientWidth, clientHeight: canvas.clientHeight }
+            : null,
+          renderer: diag?.getRenderer?.() ?? null,
+          runtime,
+          floorCount: Number.isInteger(residentFloorCount) && residentFloorCount > 0
+            ? residentFloorCount
+            : null,
+          traceLiteral: canvas instanceof HTMLElement ? canvas.dataset.dungeonLoadTrace ?? null : null,
+          webgl: {
+            version: readString(gl?.VERSION),
+            vendor: readString(gl?.VENDOR),
+            renderer: readString(gl?.RENDERER),
+            unmaskedVendor: readString(debugRendererInfo?.UNMASKED_VENDOR_WEBGL),
+            unmaskedRenderer: readString(debugRendererInfo?.UNMASKED_RENDERER_WEBGL),
+          },
+        };
+      })()`,
+      returnByValue: true,
+    },
+    "diagnostics",
+  )) as { result?: { value?: G0Diagnostics } };
+  return (
+    result.result?.value ?? {
+      dataset: {},
+      mapLoad: {},
+      userAgent: null,
+      location: null,
+      devicePixelRatio: null,
+      canvas: null,
+      renderer: null,
+      runtime: null,
+      floorCount: null,
+      traceLiteral: null,
+      webgl: {
+        version: null,
+        vendor: null,
+        renderer: null,
+        unmaskedVendor: null,
+        unmaskedRenderer: null,
+      },
+    }
+  );
+}
+
+function validateG0DiagnosticsTrace(diagnostics: G0Diagnostics): {
+  readonly literal: string;
+  readonly trace: DungeonLoadTraceSnapshot;
+} {
+  if (!diagnostics.traceLiteral)
+    throw new Error("G0 final diagnostics did not contain dungeonLoadTrace.");
+  const datasetId = diagnostics.dataset.dungeonLoadId;
+  if (!datasetId) throw new Error("G0 final diagnostics did not contain dungeonLoadId.");
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(diagnostics.traceLiteral);
+  } catch {
+    throw new Error("G0 final dungeonLoadTrace is not valid JSON.");
+  }
+  const validation = validateDungeonLoadTrace(parsed, datasetId);
+  if (!validation.ok) throw new Error(`G0 final dungeonLoadTrace is invalid: ${validation.error}`);
+  return { literal: diagnostics.traceLiteral, trace: validation.value };
+}
+
+function g0TraceMetrics(trace: DungeonLoadTraceSnapshot): Record<string, unknown> {
+  return {
+    totalMs: trace.totalMs,
+    firstUsableFrameMs: trace.firstUsableFrame?.atMs ?? null,
+    inputReadyMs: trace.inputReady?.atMs ?? null,
+    spans: {
+      generation: trace.generation?.durationMs ?? null,
+      plan: trace.plan?.durationMs ?? null,
+      sceneCommit: trace.sceneCommit?.durationMs ?? null,
+      actors: trace.actors?.durationMs ?? null,
+      colliderIndex: trace.colliderIndex?.durationMs ?? null,
+      texturePolicy: trace.texturePolicy?.durationMs ?? null,
+      atmosphere: trace.atmosphere?.durationMs ?? null,
+      editorProjection: trace.editorProjection?.durationMs ?? null,
+      warmup: trace.warmup?.durationMs ?? null,
+    },
+  };
 }
 
 async function waitForDebugger(): Promise<string> {
@@ -81,19 +352,27 @@ async function waitForDebugger(): Promise<string> {
   throw new Error("Chrome debugger did not come up.");
 }
 
-async function readReadyState(ws: WebSocket): Promise<{
+async function readReadyState(
+  ws: WebSocket,
+  phase: "app-ready" | "renderer-ready",
+): Promise<{
   diagnostics?: boolean;
   bootHidden?: boolean;
   rendererReady?: string;
 }> {
-  const state = (await send(ws, "Runtime.evaluate", {
-    expression: `(() => ({
-      diagnostics: Boolean(window.__THREE_GAME_DIAGNOSTICS__),
-      bootHidden: Boolean(document.querySelector('#boot-screen')?.hidden),
-      rendererReady: document.querySelector('.app-shell')?.dataset.rendererReady ?? '',
-    }))()`,
-    returnByValue: true,
-  })) as {
+  const state = (await send(
+    ws,
+    "Runtime.evaluate",
+    {
+      expression: `(() => ({
+        diagnostics: Boolean(window.__THREE_GAME_DIAGNOSTICS__),
+        bootHidden: Boolean(document.querySelector('#boot-screen')?.hidden),
+        rendererReady: document.querySelector('.app-shell')?.dataset.rendererReady ?? '',
+      }))()`,
+      returnByValue: true,
+    },
+    phase,
+  )) as {
     result?: { value?: { diagnostics?: boolean; bootHidden?: boolean; rendererReady?: string } };
   };
   return state.result?.value ?? {};
@@ -103,7 +382,7 @@ async function waitForAppReady(ws: WebSocket, timeoutMs = 25_000): Promise<void>
   const deadline = Date.now() + timeoutMs;
   let lastValue: unknown = null;
   while (Date.now() < deadline) {
-    const value = await readReadyState(ws);
+    const value = await readReadyState(ws, "app-ready");
     lastValue = value;
     if (value.diagnostics && (value.bootHidden || value.rendererReady === "true")) return;
     await sleep(500);
@@ -117,7 +396,7 @@ async function waitForGameReady(ws: WebSocket, timeoutMs = 25_000): Promise<void
   const deadline = Date.now() + timeoutMs;
   let lastValue: unknown = null;
   while (Date.now() < deadline) {
-    const value = await readReadyState(ws);
+    const value = await readReadyState(ws, "renderer-ready");
     lastValue = value;
     if (value.diagnostics && value.rendererReady === "true") return;
     await sleep(500);
@@ -127,22 +406,79 @@ async function waitForGameReady(ws: WebSocket, timeoutMs = 25_000): Promise<void
   );
 }
 
-const chrome = Bun.spawn(
-  [
-    CHROME,
-    `--remote-debugging-port=${PORT}`,
-    `--user-data-dir=${PROFILE}`,
-    "--headless=new",
-    "--disable-gpu-sandbox",
-    "--no-first-run",
-    "--window-size=1600,900",
-    "--hide-scrollbars",
-    "about:blank",
-  ],
-  { stdout: "ignore", stderr: "ignore" },
-);
+async function setRequestedCrt(ws: WebSocket): Promise<void> {
+  if (!CRT) return;
+  const crtStatus = (await send(
+    ws,
+    "Runtime.evaluate",
+    {
+      expression: `(() => {
+        const toggle = document.querySelector('#crt-toggle');
+        if (!(toggle instanceof HTMLButtonElement) || toggle.disabled) return 'MISSING';
+        const desired = ${JSON.stringify(CRT)} === 'on';
+        const current = toggle.getAttribute('aria-pressed') === 'true';
+        if (current !== desired) toggle.click();
+        return toggle.getAttribute('aria-pressed') === String(desired) ? 'OK' : 'MISMATCH';
+      })()`,
+      returnByValue: true,
+    },
+    "crt",
+  )) as { result?: { value?: string } };
+  if (crtStatus.result?.value !== "OK")
+    throw new Error(`CRT state could not be set (${crtStatus.result?.value ?? "unknown"}).`);
+  await sleep(300);
+}
+
+let g0StartedAt: string | null = null;
+if (g0) {
+  await mkdir(g0.sampleDir, { recursive: true });
+  g0StartedAt = new Date().toISOString();
+  await writeG0JsonAtomically("started.json", {
+    schema: "dungeon-load-g0-browser-started/v1",
+    sampleId: g0.sampleId,
+    workload: g0.workload,
+    bunPid: process.pid,
+    chromePid: null,
+    startedAt: g0StartedAt,
+  });
+}
+
+const chromeArgs = [
+  CHROME,
+  `--remote-debugging-port=${PORT}`,
+  `--user-data-dir=${PROFILE}`,
+  "--headless=new",
+  "--disable-gpu-sandbox",
+  "--no-first-run",
+  "--window-size=1600,900",
+  "--hide-scrollbars",
+  "about:blank",
+];
+let chrome: ReturnType<typeof Bun.spawn> | null = null;
+let g0ChromePid: number | null = null;
+let g0ChromeExitCode: number | null = null;
+let g0CleanupError: string | null = null;
+let g0RunError: unknown = null;
+let g0FinalizationError: Error | null = null;
+let g0TimedOut = false;
+let g0FailurePhase: string | null = null;
+let g0Trace: DungeonLoadTraceSnapshot | null = null;
+let g0Diagnostics: G0Diagnostics | null = null;
+let g0BrowserVersion: unknown = null;
 
 try {
+  chrome = Bun.spawn(chromeArgs, { stdout: "ignore", stderr: "ignore" });
+  if (g0) {
+    g0ChromePid = chrome.pid;
+    await writeG0JsonAtomically("started.json", {
+      schema: "dungeon-load-g0-browser-started/v1",
+      sampleId: g0.sampleId,
+      workload: g0.workload,
+      bunPid: process.pid,
+      chromePid: g0ChromePid,
+      startedAt: g0StartedAt,
+    });
+  }
   const wsUrl = await waitForDebugger();
   const ws = new WebSocket(wsUrl);
   ws.onmessage = (event) => {
@@ -162,6 +498,7 @@ try {
     if (msg.id && pending.has(msg.id)) {
       const entry = pending.get(msg.id)!;
       pending.delete(msg.id);
+      clearTimeout(entry.timeout);
       if (msg.error) entry.reject(new Error(JSON.stringify(msg.error)));
       else entry.resolve(msg.result);
       return;
@@ -192,10 +529,25 @@ try {
     deviceScaleFactor: 1,
     mobile: false,
   });
-  const moodParam = (process.env.MOOD ?? process.env.THEME ?? "").trim().toLowerCase();
-  const biomeParam = (process.env.BIOME ?? moodParam).trim().toLowerCase();
+  if (g0) {
+    g0BrowserVersion = await send(ws, "Browser.getVersion");
+    await send(ws, "Page.addScriptToEvaluateOnNewDocument", {
+      source: `(() => {
+        try {
+          localStorage.setItem('blackflag.dungeon.player.v1', JSON.stringify({
+            version: 1,
+            name: 'unlock',
+            avatarIndex: 0,
+            hasCompletedRun: true,
+            highestUnlockedRank: ${JSON.stringify(G0_HIGHEST_UNLOCKED_RANK)},
+            clears: { ancient: 1 },
+            updatedAt: Date.now(),
+          }));
+        } catch (_) {}
+      })()`,
+    });
+  }
   const moodQuery = moodParam ? `&mood=${encodeURIComponent(moodParam)}` : "";
-  const qaState = (process.env.QA_STATE ?? "").trim().toLowerCase();
   // Every photo run is a QA run. The flag keeps the requested campaign seed
   // deterministic while normal New Game continues to generate fresh seeds.
   const qaQuery = `&perfAudit=1${qaState ? `&qaState=${encodeURIComponent(qaState)}` : ""}`;
@@ -205,22 +557,33 @@ try {
   });
   await sleep(1000);
   await waitForAppReady(ws);
+  if (g0) await setRequestedCrt(ws);
 
   const openedPicker = qaState
     ? null
-    : ((await send(ws, "Runtime.evaluate", {
-        expression: `(() => {
+    : ((await send(
+        ws,
+        "Runtime.evaluate",
+        {
+          expression: `(() => {
       const button = document.querySelector("#welcome-new");
       if (!(button instanceof HTMLButtonElement) || button.disabled) return false;
       button.click();
       return true;
     })()`,
-        returnByValue: true,
-      })) as { result?: { value?: boolean } });
+          returnByValue: true,
+        },
+        "welcome-picker",
+      )) as { result?: { value?: boolean } });
+  if (g0 && openedPicker?.result?.value !== true)
+    throw new Error("G0 did not open the real biome picker.");
   if (openedPicker?.result?.value) {
     await sleep(250);
-    const started = (await send(ws, "Runtime.evaluate", {
-      expression: `(() => {
+    const started = (await send(
+      ws,
+      "Runtime.evaluate",
+      {
+        expression: `(() => {
         const preferred = ${JSON.stringify(biomeParam)};
         const option = preferred
           ? document.querySelector('.biome-picker-option[data-biome-id="' + preferred + '"]')
@@ -229,44 +592,43 @@ try {
         option.click();
         return true;
       })()`,
-      returnByValue: true,
-    })) as { result?: { value?: boolean } };
+        returnByValue: true,
+      },
+      "biome-start",
+    )) as { result?: { value?: boolean } };
     if (!started.result?.value) throw new Error("Biome picker did not start a new game.");
     await sleep(2500);
   }
 
   await waitForGameReady(ws);
+  if (g0) {
+    const observedTrace = await waitForG0Trace(ws);
+    g0Trace = observedTrace.trace;
+  }
 
   if (qaState) {
-    await send(ws, "Runtime.evaluate", {
-      expression: `(() => {
-        const boot = document.querySelector('#boot-screen');
-        document.body.classList.remove('is-booting');
-        if (boot instanceof HTMLElement) boot.hidden = true;
-      })()`,
-    });
+    await send(
+      ws,
+      "Runtime.evaluate",
+      {
+        expression: `(() => {
+          const boot = document.querySelector('#boot-screen');
+          document.body.classList.remove('is-booting');
+          if (boot instanceof HTMLElement) boot.hidden = true;
+        })()`,
+      },
+      "qa-state",
+    );
   }
 
-  if (CRT) {
-    const crtStatus = (await send(ws, "Runtime.evaluate", {
-      expression: `(() => {
-        const toggle = document.querySelector('#crt-toggle');
-        if (!(toggle instanceof HTMLButtonElement) || toggle.disabled) return 'MISSING';
-        const desired = ${JSON.stringify(CRT)} === 'on';
-        const current = toggle.getAttribute('aria-pressed') === 'true';
-        if (current !== desired) toggle.click();
-        return toggle.getAttribute('aria-pressed') === String(desired) ? 'OK' : 'MISMATCH';
-      })()`,
-      returnByValue: true,
-    })) as { result?: { value?: string } };
-    if (crtStatus.result?.value !== "OK")
-      throw new Error(`CRT state could not be set (${crtStatus.result?.value ?? "unknown"}).`);
-    await sleep(300);
-  }
+  if (!g0) await setRequestedCrt(ws);
 
   if (PHOTO_SIMULATION === "on") {
-    const simulationStatus = (await send(ws, "Runtime.evaluate", {
-      expression: `(() => {
+    const simulationStatus = (await send(
+      ws,
+      "Runtime.evaluate",
+      {
+        expression: `(() => {
         const diag = window.__THREE_GAME_DIAGNOSTICS__;
         const prompt = document.querySelector('#interaction-prompt');
         if (!diag || !(prompt instanceof HTMLElement)) return 'MISSING';
@@ -279,8 +641,10 @@ try {
         diag.getController().setEnabled(true);
         return 'STARTED';
       })()`,
-      returnByValue: true,
-    })) as { result?: { value?: string } };
+        returnByValue: true,
+      },
+      "simulation-start",
+    )) as { result?: { value?: string } };
     if (simulationStatus.result?.value !== "STARTED")
       throw new Error(
         `Live photo simulation could not start (${simulationStatus.result?.value ?? "unknown"}).`,
@@ -348,7 +712,12 @@ try {
       return 'OK ' + v.x.toFixed(1) + ',' + v.z.toFixed(1)
         + (resolvedIndex === null ? '' : ' instance=' + resolvedIndex);
     })()`;
-    const result = (await send(ws, "Runtime.evaluate", { expression, returnByValue: true })) as {
+    const result = (await send(
+      ws,
+      "Runtime.evaluate",
+      { expression, returnByValue: true },
+      "teleport",
+    )) as {
       result?: { value?: string };
       exceptionDetails?: { text?: string };
     };
@@ -392,8 +761,11 @@ try {
   }
 
   if (PERF_SECONDS > 0) {
-    const started = (await send(ws, "Runtime.evaluate", {
-      expression: `(() => {
+    const started = (await send(
+      ws,
+      "Runtime.evaluate",
+      {
+        expression: `(() => {
         const diag = window.__THREE_GAME_DIAGNOSTICS__;
         const prompt = document.querySelector('#interaction-prompt');
         if (!diag || !(prompt instanceof HTMLElement)) return 'MISSING_DIAGNOSTICS';
@@ -410,16 +782,21 @@ try {
         ctrl.setVirtualAction('turnRight', true);
         return 'STARTED';
       })()`,
-      returnByValue: true,
-    })) as { result?: { value?: string } };
+        returnByValue: true,
+      },
+      "performance-start",
+    )) as { result?: { value?: string } };
     if (started.result?.value !== "STARTED")
       throw new Error(`Performance audit could not start (${started.result?.value ?? "unknown"}).`);
 
     // The runtime resets its ring when simulation starts and ignores its first
     // 1.8 seconds. Keep that warmup outside the requested measurement window.
     await sleep(2_200 + PERF_SECONDS * 1_000);
-    const result = (await send(ws, "Runtime.evaluate", {
-      expression: `(() => {
+    const result = (await send(
+      ws,
+      "Runtime.evaluate",
+      {
+        expression: `(() => {
         const diag = window.__THREE_GAME_DIAGNOSTICS__;
         const ctrl = diag.getController();
         ctrl.setVirtualAction('forward', false);
@@ -433,8 +810,10 @@ try {
           url: location.href,
         };
       })()`,
-      returnByValue: true,
-    })) as {
+        returnByValue: true,
+      },
+      "performance-results",
+    )) as {
       result?: {
         value?: {
           renderer?: { frameGaps?: { samples?: number; p95?: number; p99?: number; max?: number } };
@@ -474,22 +853,42 @@ try {
     );
     console.log(`saved ${auditPath} ${JSON.stringify(gaps)}`);
   }
-  const diagnosticsResult = (await send(ws, "Runtime.evaluate", {
-    expression: `(() => {
-      const diag = window.__THREE_GAME_DIAGNOSTICS__;
-      const canvas = document.querySelector('#scene');
-      return {
-        renderer: diag?.getRenderer?.() ?? null,
-        runtime: diag?.getState?.() ?? null,
-        canvas: canvas instanceof HTMLCanvasElement
-          ? { width: canvas.width, height: canvas.height, clientWidth: canvas.clientWidth, clientHeight: canvas.clientHeight }
-          : null,
-        dataset: canvas instanceof HTMLElement ? { ...canvas.dataset } : {},
-        url: location.href,
-      };
-    })()`,
-    returnByValue: true,
-  })) as { result?: { value?: unknown } };
+  let diagnosticsValue: unknown;
+  if (g0) {
+    g0Diagnostics = await collectG0Diagnostics(ws);
+    const finalTrace = validateG0DiagnosticsTrace(g0Diagnostics);
+    g0Trace = finalTrace.trace;
+    if (
+      g0.workload === "backrooms" &&
+      g0Diagnostics.floorCount !== null &&
+      g0Diagnostics.floorCount !== 4
+    )
+      throw new Error(`G0 Backrooms reported ${g0Diagnostics.floorCount} floors instead of 4.`);
+    diagnosticsValue = g0Diagnostics;
+  } else {
+    const diagnosticsResult = (await send(
+      ws,
+      "Runtime.evaluate",
+      {
+        expression: `(() => {
+        const diag = window.__THREE_GAME_DIAGNOSTICS__;
+        const canvas = document.querySelector('#scene');
+        return {
+          renderer: diag?.getRenderer?.() ?? null,
+          runtime: diag?.getState?.() ?? null,
+          canvas: canvas instanceof HTMLCanvasElement
+            ? { width: canvas.width, height: canvas.height, clientWidth: canvas.clientWidth, clientHeight: canvas.clientHeight }
+            : null,
+          dataset: canvas instanceof HTMLElement ? { ...canvas.dataset } : {},
+          url: location.href,
+        };
+      })()`,
+        returnByValue: true,
+      },
+      "diagnostics",
+    )) as { result?: { value?: unknown } };
+    diagnosticsValue = diagnosticsResult.result?.value ?? null;
+  }
   const manifestPath = `${outDir}/capture-manifest.json`;
   await Bun.write(
     manifestPath,
@@ -504,7 +903,7 @@ try {
         shots: captureRecords,
         browserErrors,
         networkErrors,
-        diagnostics: diagnosticsResult.result?.value ?? null,
+        diagnostics: diagnosticsValue,
       },
       null,
       2,
@@ -516,6 +915,81 @@ try {
     throw new Error(
       `Live photo browser gate failed: ${JSON.stringify({ browserErrors, networkErrors })}`,
     );
+} catch (error) {
+  if (g0) {
+    g0RunError = error;
+    g0TimedOut = error instanceof G0TraceTimeoutError || error instanceof CdpCommandTimeoutError;
+    g0FailurePhase =
+      error instanceof CdpCommandTimeoutError
+        ? error.phase
+        : error instanceof G0TraceTimeoutError
+          ? "trace"
+          : null;
+  }
+  throw error;
 } finally {
-  chrome.kill();
+  if (chrome) {
+    if (g0) {
+      try {
+        chrome.kill();
+        g0ChromeExitCode = await chrome.exited;
+      } catch (error) {
+        g0CleanupError = errorMessage(error);
+      }
+    } else {
+      chrome.kill();
+      await chrome.exited;
+    }
+  }
+  if (g0) {
+    const status: G0Status = g0CleanupError
+      ? "cleanup_failed"
+      : g0TimedOut
+        ? "timed_out"
+        : g0RunError || !g0Trace || !g0Diagnostics
+          ? "failed"
+          : "passed";
+    try {
+      await writeG0JsonAtomically("result.json", {
+        schema: "dungeon-load-g0-browser-sample/v1",
+        sampleId: g0.sampleId,
+        workload: g0.workload,
+        startedAt: g0StartedAt,
+        finishedAt: new Date().toISOString(),
+        status,
+        pids: { bun: process.pid, chrome: g0ChromePid },
+        exits: { bun: null, chrome: g0ChromeExitCode },
+        cleanup: {
+          chromeExited: chrome !== null && g0CleanupError === null,
+          error: g0CleanupError,
+        },
+        trace: g0Trace,
+        mapLoad: g0Diagnostics?.mapLoad ?? null,
+        renderer: g0Diagnostics?.renderer ?? null,
+        browser: {
+          version: g0BrowserVersion,
+          userAgent: g0Diagnostics?.userAgent ?? null,
+          location: g0Diagnostics?.location ?? null,
+          devicePixelRatio: g0Diagnostics?.devicePixelRatio ?? null,
+          canvas: g0Diagnostics?.canvas ?? null,
+          flags: chromeArgs,
+        },
+        gpu: g0Diagnostics?.webgl ?? null,
+        dataset: g0Diagnostics?.dataset ?? null,
+        floorCount: g0Diagnostics?.floorCount ?? null,
+        browserErrors,
+        networkErrors,
+        error: g0RunError === null ? null : errorMessage(g0RunError),
+        failurePhase: g0FailurePhase,
+        metrics: status === "passed" && g0Trace ? g0TraceMetrics(g0Trace) : null,
+      });
+    } catch (error) {
+      if (g0RunError === null)
+        g0FinalizationError = error instanceof Error ? error : new Error(errorMessage(error));
+    }
+    if (g0CleanupError && g0RunError === null)
+      g0FinalizationError ??= new Error(`G0 Chrome cleanup failed: ${g0CleanupError}`);
+  }
 }
+
+if (g0FinalizationError !== null) throw g0FinalizationError;

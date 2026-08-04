@@ -112,7 +112,7 @@ describe("integrated dungeon lighting", () => {
     expect(source).toContain('this.activeMood.id === "backrooms"');
     expect(source).toContain("private addBackroomsLightProps");
     expect(source).toContain("audio: false");
-    expect(source).toContain("Math.min(MAX_DYNAMIC_FIRE_LIGHTS, anchors.length)");
+    expect(source).toContain("MAX_DYNAMIC_FIRE_LIGHTS - this.dynamicFireLightCount");
   });
 
   test("every mood keeps interior IBL intensity low and fog usable", () => {
@@ -437,8 +437,9 @@ describe("integrated dungeon lighting", () => {
       }) => void
     )(shader);
     expect(shader.vertexShader).toContain("attribute float aEnemyVisibility");
+    expect(shader.vertexShader).toContain("attribute vec4 aEnemyAtlasFrame");
     expect(shader.vertexShader).toContain(
-      "#include <uv_vertex>\nvMapUv = uEnemyAtlasFrame.xy + vMapUv * uEnemyAtlasFrame.zw;",
+      "#include <uv_vertex>\nvMapUv = aEnemyAtlasFrame.xy + vMapUv * aEnemyAtlasFrame.zw;",
     );
     expect(shader.fragmentShader).toContain("diffuseColor.a *= clamp(vEnemyVisibility");
     expect(shader.fragmentShader).toContain("uEnemyFreeze");

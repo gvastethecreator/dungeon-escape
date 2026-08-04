@@ -10,6 +10,8 @@ export interface RuntimeChestBatchStats {
 }
 
 export interface RuntimeChestInstanceHandle {
+  /** The resident-owned root that contains this chest's instance batches. */
+  readonly root: THREE.Group;
   updateLidMatrix(): void;
 }
 
@@ -17,6 +19,12 @@ export interface RuntimeChestBatchResult {
   root: THREE.Group;
   handles: RuntimeChestInstanceHandle[];
   stats: RuntimeChestBatchStats & { instances: number };
+}
+
+/** Immutable door-frame batches do not need frame updates after construction. */
+export interface RuntimeDoorFrameInstanceHandle {
+  /** The resident-owned root that contains this door's frame instances. */
+  readonly root: THREE.Group;
 }
 
 export type RuntimeWallFireKind = "torch" | "lantern";
@@ -46,6 +54,28 @@ interface MeshBatch {
   castShadow: boolean;
   receiveShadow: boolean;
   meshes: THREE.Mesh[];
+}
+
+/**
+ * Explicit ownership boundary for final, immutable runtime-batch geometry.
+ * The batcher never owns catalog geometry; callers retain ownership of
+ * materials and decide which source geometry is externally borrowed.
+ */
+export interface RuntimeModelBatchingGeometryStrategy {
+  borrowGeometry?(
+    stableKey: string,
+    factory: () => THREE.BufferGeometry,
+    resourceType: string,
+  ): THREE.BufferGeometry;
+  isBorrowedGeometry?(geometry: THREE.BufferGeometry): boolean;
+  /** Stable material role, supplied by the material-library owner when needed. */
+  materialKey?(material: THREE.Material): string;
+}
+
+export interface RuntimeModelBatchingOptions {
+  geometryStrategy?: RuntimeModelBatchingGeometryStrategy;
+  /** Stable family/topology key; batch and material layout are appended here. */
+  geometryKeyPrefix?: string;
 }
 
 function isBelow(object: THREE.Object3D, ancestor: THREE.Object3D): boolean {
@@ -88,10 +118,46 @@ function geometriesRelativeTo(mesh: THREE.Mesh, anchor: THREE.Object3D): THREE.B
   });
 }
 
+function stableMaterialLayout(
+  material: THREE.Material,
+  strategy: RuntimeModelBatchingGeometryStrategy | undefined,
+): string {
+  const role =
+    strategy?.materialKey?.(material) ?? `${material.type}:${material.name || "unnamed"}`;
+  return `single:${encodeURIComponent(role)}`;
+}
+
+function borrowMergedGeometry(
+  anchor: THREE.Object3D,
+  meshes: readonly THREE.Mesh[],
+  label: string,
+  stableKey: string,
+  resourceType: string,
+  strategy: RuntimeModelBatchingGeometryStrategy,
+): THREE.BufferGeometry {
+  const borrow = strategy.borrowGeometry;
+  if (!borrow) throw new Error(`${label} requested catalog geometry without a borrow strategy.`);
+  return borrow(
+    stableKey,
+    () => {
+      const parts = meshes.flatMap((mesh) => geometriesRelativeTo(mesh, anchor));
+      const merged = parts.length === 1 ? parts[0]! : mergeGeometries(parts, false);
+      if (!merged) {
+        for (const part of parts) part.dispose();
+        throw new Error(`${label} could not create a canonical merged geometry.`);
+      }
+      if (parts.length > 1) parts.forEach((part) => part.dispose());
+      return merged;
+    },
+    resourceType,
+  );
+}
+
 function mergeAtAnchor(
   anchor: THREE.Object3D,
   meshes: readonly THREE.Mesh[],
   label: string,
+  options?: RuntimeModelBatchingOptions,
 ): THREE.Mesh[] {
   const groups = new Map<string, MeshBatch>();
   for (const source of meshes) {
@@ -111,6 +177,27 @@ function mergeAtAnchor(
   const result: THREE.Mesh[] = [];
   let batchIndex = 0;
   for (const batch of groups.values()) {
+    const strategy = options?.geometryStrategy;
+    const prefix = options?.geometryKeyPrefix?.trim();
+    if (strategy?.borrowGeometry && prefix) {
+      const layout = stableMaterialLayout(batch.material, strategy);
+      const geometry = borrowMergedGeometry(
+        anchor,
+        batch.meshes,
+        label,
+        `${prefix}:part:${batchIndex}:layout:${layout}`,
+        `runtime-model-batch-geometry/v2:${layout}`,
+        strategy,
+      );
+      const mesh = new THREE.Mesh(geometry, batch.material);
+      mesh.name = `${label} material batch ${batchIndex + 1}`;
+      mesh.castShadow = batch.castShadow;
+      mesh.receiveShadow = batch.receiveShadow;
+      result.push(mesh);
+      batchIndex += 1;
+      continue;
+    }
+
     const parts = batch.meshes.flatMap((mesh) => geometriesRelativeTo(mesh, anchor));
     const merged = parts.length === 1 ? parts[0]! : mergeGeometries(parts, false);
     if (!merged) {
@@ -134,12 +221,28 @@ function mergeAtAnchor(
   return result;
 }
 
+function disposeSourceMeshes(
+  meshes: readonly THREE.Mesh[],
+  strategy: RuntimeModelBatchingGeometryStrategy | undefined,
+): void {
+  const released = new Set<THREE.BufferGeometry>();
+  for (const mesh of meshes) {
+    mesh.parent?.remove(mesh);
+    if (released.has(mesh.geometry)) continue;
+    released.add(mesh.geometry);
+    if (!strategy?.isBorrowedGeometry?.(mesh.geometry)) mesh.geometry.dispose();
+  }
+}
+
 /**
  * Collapse the detailed interactive chest into one mesh per material and moving
  * section. The authored source tree stays available to the model lab, while the
  * play route keeps the real lid pivot with a bounded draw-call cost.
  */
-export function batchForgeChestForRuntime(kit: ForgeChestKit): RuntimeChestBatchStats {
+export function batchForgeChestForRuntime(
+  kit: ForgeChestKit,
+  options?: RuntimeModelBatchingOptions,
+): RuntimeChestBatchStats {
   kit.root.updateMatrixWorld(true);
   const sourceMeshes: THREE.Mesh[] = [];
   kit.root.traverse((object) => {
@@ -147,13 +250,17 @@ export function batchForgeChestForRuntime(kit: ForgeChestKit): RuntimeChestBatch
   });
   const lidMeshes = sourceMeshes.filter((mesh) => isBelow(mesh, kit.lid));
   const bodyMeshes = sourceMeshes.filter((mesh) => !isBelow(mesh, kit.lid));
-  const bodyBatches = mergeAtAnchor(kit.root, bodyMeshes, "Runtime chest body");
-  const lidBatches = mergeAtAnchor(kit.lid, lidMeshes, "Runtime chest lid");
+  const prefix = options?.geometryKeyPrefix?.trim();
+  const bodyBatches = mergeAtAnchor(kit.root, bodyMeshes, "Runtime chest body", {
+    ...options,
+    geometryKeyPrefix: prefix ? `${prefix}:body` : undefined,
+  });
+  const lidBatches = mergeAtAnchor(kit.lid, lidMeshes, "Runtime chest lid", {
+    ...options,
+    geometryKeyPrefix: prefix ? `${prefix}:lid` : undefined,
+  });
 
-  for (const mesh of sourceMeshes) {
-    mesh.parent?.remove(mesh);
-    mesh.geometry.dispose();
-  }
+  disposeSourceMeshes(sourceMeshes, options?.geometryStrategy);
   kit.root.add(...bodyBatches);
   kit.lid.add(...lidBatches);
   kit.root.userData.runtimeBatching = {
@@ -184,15 +291,16 @@ function relativeMatrix(
 }
 
 /**
- * Render every interactive chest through five shared instance batches while
- * keeping each authored root, hinge, socket, collision, and reward anchor.
+ * Render one resident floor's interactive chests through five shared instance
+ * batches while keeping each authored root, hinge, socket, collision, and reward anchor.
  */
 export function batchForgeChestsForRuntime(
   kits: readonly ForgeChestKit[],
   parent: THREE.Object3D,
+  options?: RuntimeModelBatchingOptions,
 ): RuntimeChestBatchResult {
   const root = new THREE.Group();
-  root.name = "Runtime chest global batches";
+  root.name = "Runtime chest batches";
   if (kits.length === 0) {
     return {
       root,
@@ -206,8 +314,15 @@ export function batchForgeChestsForRuntime(
   const templateMeshes = collectChestMeshes(kits[0]!);
   const templateLidMeshes = templateMeshes.filter((mesh) => isBelow(mesh, kits[0]!.lid));
   const templateBodyMeshes = templateMeshes.filter((mesh) => !isBelow(mesh, kits[0]!.lid));
-  const bodyTemplates = mergeAtAnchor(kits[0]!.root, templateBodyMeshes, "Runtime chest body");
-  const lidTemplates = mergeAtAnchor(kits[0]!.lid, templateLidMeshes, "Runtime chest lid");
+  const prefix = options?.geometryKeyPrefix?.trim();
+  const bodyTemplates = mergeAtAnchor(kits[0]!.root, templateBodyMeshes, "Runtime chest body", {
+    ...options,
+    geometryKeyPrefix: prefix ? `${prefix}:body` : undefined,
+  });
+  const lidTemplates = mergeAtAnchor(kits[0]!.lid, templateLidMeshes, "Runtime chest lid", {
+    ...options,
+    geometryKeyPrefix: prefix ? `${prefix}:lid` : undefined,
+  });
   const matrix = new THREE.Matrix4();
 
   const createInstances = (
@@ -217,7 +332,7 @@ export function batchForgeChestsForRuntime(
   ): THREE.InstancedMesh[] =>
     templates.map((template, batchIndex) => {
       const batch = new THREE.InstancedMesh(template.geometry, template.material, kits.length);
-      batch.name = `${dynamic ? "Runtime chest lid" : "Runtime chest body"} global batch ${batchIndex + 1}`;
+      batch.name = `${dynamic ? "Runtime chest lid" : "Runtime chest body"} batch ${batchIndex + 1}`;
       batch.castShadow = template.castShadow;
       batch.receiveShadow = template.receiveShadow;
       if (dynamic) batch.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
@@ -234,26 +349,23 @@ export function batchForgeChestsForRuntime(
 
   const bodyBatches = createInstances(bodyTemplates, (kit) => kit.root, false);
   const lidBatches = createInstances(lidTemplates, (kit) => kit.lid, true);
-  let sourceMeshes = 0;
-  for (const kit of kits) {
-    for (const mesh of collectChestMeshes(kit)) {
-      sourceMeshes += 1;
-      mesh.parent?.remove(mesh);
-      mesh.geometry.dispose();
-    }
-  }
+  const sourceMeshes = kits.flatMap((kit) => collectChestMeshes(kit));
+  disposeSourceMeshes(sourceMeshes, options?.geometryStrategy);
 
-  const handles = kits.map((kit, instance): RuntimeChestInstanceHandle => ({
-    updateLidMatrix(): void {
-      for (const batch of lidBatches) {
-        batch.setMatrixAt(instance, relativeMatrix(kit.lid, root, matrix));
-        batch.instanceMatrix.needsUpdate = true;
-      }
-    },
-  }));
+  const handles = kits.map(
+    (kit, instance): RuntimeChestInstanceHandle => ({
+      root,
+      updateLidMatrix(): void {
+        for (const batch of lidBatches) {
+          batch.setMatrixAt(instance, relativeMatrix(kit.lid, root, matrix));
+          batch.instanceMatrix.needsUpdate = true;
+        }
+      },
+    }),
+  );
   root.userData.runtimeBatching = {
     instances: kits.length,
-    sourceMeshes,
+    sourceMeshes: sourceMeshes.length,
     bodyBatches: bodyBatches.length,
     lidBatches: lidBatches.length,
   } satisfies RuntimeChestBatchResult["stats"];
@@ -316,11 +428,7 @@ export function batchWallFireFixturesForRuntime(
       relativeMatrix(entry.fixture.root, parent, new THREE.Matrix4()),
     );
     const batches = templates.map((template, batchIndex) => {
-      const batch = new THREE.InstancedMesh(
-        template.geometry,
-        template.material,
-        entries.length,
-      );
+      const batch = new THREE.InstancedMesh(template.geometry, template.material, entries.length);
       batch.name = `Runtime wall-fire ${kind} global batch ${batchIndex + 1}`;
       batch.castShadow = template.castShadow;
       batch.receiveShadow = template.receiveShadow;
@@ -375,64 +483,97 @@ export interface RuntimeDoorFrameBatchStats {
   batches: number;
 }
 
+export interface RuntimeDoorFrameSource {
+  root: THREE.Group;
+  left: THREE.Object3D;
+  right: THREE.Object3D;
+}
+
+export interface RuntimeDoorFrameBatchOptions extends RuntimeModelBatchingOptions {
+  /** Doors with different topology/dimensions must never share a frame template. */
+  keyForDoor?: (door: RuntimeDoorFrameSource) => string;
+}
+
+export interface RuntimeDoorFrameBatchResult {
+  root: THREE.Group;
+  handles: RuntimeDoorFrameInstanceHandle[];
+  stats: RuntimeDoorFrameBatchStats;
+}
+
 /**
- * Share rigid door-frame meshes across all doors. Leaf hinges stay per door so
- * openness animation keeps writing local rotations (strategy B).
+ * Share rigid door-frame meshes within one resident floor. Leaf hinges stay per
+ * door so openness animation keeps writing local rotations (strategy B).
  */
 export function batchDoorFramesForRuntime(
-  doors: readonly { root: THREE.Group; left: THREE.Object3D; right: THREE.Object3D }[],
+  doors: readonly RuntimeDoorFrameSource[],
   parent: THREE.Object3D,
-): { root: THREE.Group; stats: RuntimeDoorFrameBatchStats } {
+  options?: RuntimeDoorFrameBatchOptions,
+): RuntimeDoorFrameBatchResult {
   const root = new THREE.Group();
-  root.name = "Runtime door frame global batches";
+  root.name = "Runtime door frame batches";
+  const handles = doors.map<RuntimeDoorFrameInstanceHandle>(() => ({ root }));
   const stats: RuntimeDoorFrameBatchStats = {
     doors: doors.length,
     sourceMeshes: 0,
     batches: 0,
   };
-  if (doors.length === 0) return { root, stats };
+  if (doors.length === 0) return { root, handles, stats };
 
   parent.updateWorldMatrix(true, false);
   for (const door of doors) door.root.updateWorldMatrix(true, true);
 
-  const isUnderHinge = (mesh: THREE.Object3D, door: { left: THREE.Object3D; right: THREE.Object3D }) =>
+  const isUnderHinge = (mesh: THREE.Object3D, door: RuntimeDoorFrameSource) =>
     isBelow(mesh, door.left) || isBelow(mesh, door.right);
 
-  const frameMeshesPerDoor = doors.map((door) => {
-    const meshes: THREE.Mesh[] = [];
-    door.root.traverse((object) => {
-      if (object instanceof THREE.Mesh && !isUnderHinge(object, door)) meshes.push(object);
-    });
-    return meshes;
-  });
-  const templateMeshes = frameMeshesPerDoor[0] ?? [];
-  if (templateMeshes.length === 0) return { root, stats };
-
-  const templates = mergeAtAnchor(doors[0]!.root, templateMeshes, "Runtime door frame");
-  const matrix = new THREE.Matrix4();
-  for (const [batchIndex, template] of templates.entries()) {
-    const batch = new THREE.InstancedMesh(template.geometry, template.material, doors.length);
-    batch.name = `Runtime door frame global batch ${batchIndex + 1}`;
-    batch.castShadow = template.castShadow;
-    batch.receiveShadow = template.receiveShadow;
-    doors.forEach((door, instance) => {
-      batch.setMatrixAt(instance, relativeMatrix(door.root, parent, matrix));
-    });
-    batch.instanceMatrix.needsUpdate = true;
-    batch.computeBoundingBox();
-    batch.computeBoundingSphere();
-    root.add(batch);
-    stats.batches += 1;
+  const groups = new Map<string, RuntimeDoorFrameSource[]>();
+  for (const door of doors) {
+    const rawKey = options?.keyForDoor?.(door) ?? "default";
+    const key = rawKey.trim() || "default";
+    const group = groups.get(key) ?? [];
+    group.push(door);
+    groups.set(key, group);
   }
 
-  for (const meshes of frameMeshesPerDoor) {
-    for (const mesh of meshes) {
-      stats.sourceMeshes += 1;
-      mesh.parent?.remove(mesh);
-      mesh.geometry.dispose();
+  const matrix = new THREE.Matrix4();
+  for (const [groupKey, groupDoors] of groups) {
+    const frameMeshesPerDoor = groupDoors.map((door) => {
+      const meshes: THREE.Mesh[] = [];
+      door.root.traverse((object) => {
+        if (object instanceof THREE.Mesh && !isUnderHinge(object, door)) meshes.push(object);
+      });
+      return meshes;
+    });
+    const templateMeshes = frameMeshesPerDoor[0] ?? [];
+    if (templateMeshes.length === 0) continue;
+
+    const prefix = options?.geometryKeyPrefix?.trim();
+    const templates = mergeAtAnchor(groupDoors[0]!.root, templateMeshes, "Runtime door frame", {
+      ...options,
+      geometryKeyPrefix: prefix ? `${prefix}:topology:${encodeURIComponent(groupKey)}` : undefined,
+    });
+    for (const [batchIndex, template] of templates.entries()) {
+      const batch = new THREE.InstancedMesh(
+        template.geometry,
+        template.material,
+        groupDoors.length,
+      );
+      batch.name = `Runtime door frame batch ${stats.batches + batchIndex + 1}`;
+      batch.castShadow = template.castShadow;
+      batch.receiveShadow = template.receiveShadow;
+      groupDoors.forEach((door, instance) => {
+        batch.setMatrixAt(instance, relativeMatrix(door.root, parent, matrix));
+      });
+      batch.instanceMatrix.needsUpdate = true;
+      batch.computeBoundingBox();
+      batch.computeBoundingSphere();
+      root.add(batch);
     }
+    stats.batches += templates.length;
+    const sourceMeshes = frameMeshesPerDoor.flat();
+    stats.sourceMeshes += sourceMeshes.length;
+    disposeSourceMeshes(sourceMeshes, options?.geometryStrategy);
   }
 
   root.userData.runtimeBatching = stats;
-  return { root, stats };
+  return { root, handles, stats };
 }

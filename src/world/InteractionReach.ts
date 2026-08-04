@@ -17,12 +17,7 @@ export const INTERACTION_VERTICAL_BAND = 2.2;
 
 export type PickupReachKind = "stone" | "other" | string;
 
-export function horizontalDistance2(
-  ax: number,
-  az: number,
-  bx: number,
-  bz: number,
-): number {
+export function horizontalDistance2(ax: number, az: number, bx: number, bz: number): number {
   return Math.hypot(ax - bx, az - bz);
 }
 
@@ -113,9 +108,7 @@ export function canInteractWithChestAt(
   chest: { x: number; y?: number; z: number },
   opened: boolean,
 ): boolean {
-  return (
-    !opened && inInteractionRange3d(player, chest, CHEST_INTERACTION_DISTANCE)
-  );
+  return !opened && inInteractionRange3d(player, chest, CHEST_INTERACTION_DISTANCE);
 }
 
 export function canCollectPickup(
@@ -124,10 +117,6 @@ export function canCollectPickup(
   kind: PickupReachKind = "other",
   verticalDelta?: number,
 ): boolean {
-  if (autoCollect) return true;
-  if (!Number.isFinite(distance)) return false;
-  const limit = kind === "stone" ? STONE_COLLECTION_DISTANCE : PICKUP_COLLECTION_DISTANCE;
-  if (distance > limit) return false;
   if (
     verticalDelta !== undefined &&
     Number.isFinite(verticalDelta) &&
@@ -135,6 +124,10 @@ export function canCollectPickup(
   ) {
     return false;
   }
+  if (autoCollect) return true;
+  if (!Number.isFinite(distance)) return false;
+  const limit = kind === "stone" ? STONE_COLLECTION_DISTANCE : PICKUP_COLLECTION_DISTANCE;
+  if (distance > limit) return false;
   return true;
 }
 
@@ -144,6 +137,13 @@ export function canCollectPickupAt(
   autoCollect = false,
   kind: PickupReachKind = "other",
 ): boolean {
+  if (
+    player.y !== undefined &&
+    pickup.y !== undefined &&
+    !inVerticalInteractionBand(player.y, pickup.y)
+  ) {
+    return false;
+  }
   if (autoCollect) return true;
   const limit = kind === "stone" ? STONE_COLLECTION_DISTANCE : PICKUP_COLLECTION_DISTANCE;
   return inInteractionRange3d(player, pickup, limit);

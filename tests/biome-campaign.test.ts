@@ -69,11 +69,12 @@ describe("biome campaign difficulty ramp", () => {
       const count = biomeCampaignFloorCount(id);
       expect(count).toBeGreaterThanOrEqual(prior);
       expect(count).toBeGreaterThanOrEqual(1);
-      expect(count).toBeLessThanOrEqual(3);
+      expect(count).toBeLessThanOrEqual(4);
       prior = count;
     }
     expect(biomeCampaignFloorCount("ancient")).toBe(1);
-    expect(biomeCampaignFloorCount("backrooms")).toBe(3);
+    expect(biomeCampaignFloorCount("fungal")).toBe(3);
+    expect(biomeCampaignFloorCount("backrooms")).toBe(4);
   });
 
   test("can generate a Backrooms-scale dungeon from campaign params", () => {

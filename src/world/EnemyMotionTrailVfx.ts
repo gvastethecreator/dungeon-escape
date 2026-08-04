@@ -170,6 +170,7 @@ export class EnemyMotionTrailVfx {
   private readonly quaternion = new THREE.Quaternion();
   private readonly euler = new THREE.Euler(0, 0, 0, "YXZ");
   private updateFrame = 0;
+  private resetPending = false;
 
   constructor() {
     this.root.name = "Enemy motion trail field";
@@ -236,12 +237,27 @@ export class EnemyMotionTrailVfx {
     );
   }
 
+  /**
+   * A floor handoff hides stale local samples without allocating or composing
+   * matrices on the rebind path. The next active presentation frame clears and
+   * resumes this reusable field.
+   */
+  resetForRebind(): void {
+    this.resetPending = true;
+    this.root.visible = false;
+  }
+
   update(
     targets: readonly EnemyMotionTrailTarget[],
     delta: number,
     frozen = false,
     viewerPosition?: THREE.Vector3Like,
   ): void {
+    if (this.resetPending) {
+      for (const layer of this.layers.values()) this.resetLayer(layer);
+      this.resetPending = false;
+    }
+    this.root.visible = true;
     const safeDelta = Math.max(0, delta);
     const frame = (this.updateFrame += 1);
     for (const layer of this.layers.values()) {
@@ -545,5 +561,23 @@ export class EnemyMotionTrailVfx {
     }
     layer.mesh.instanceMatrix.needsUpdate = true;
     layer.alphaAttribute.needsUpdate = true;
+  }
+
+  private resetLayer(layer: KindTrailLayer): void {
+    layer.activeSlots.length = 0;
+    for (const slot of layer.slots) {
+      slot.writeIndex = 0;
+      slot.filled = 0;
+      slot.distanceSinceSample = 0;
+      slot.lastX = 0;
+      slot.lastZ = 0;
+      slot.hasLast = false;
+      slot.tracked = false;
+      slot.trackedIndex = -1;
+      slot.seenFrame = 0;
+      slot.rendered = false;
+      for (const sample of slot.samples) sample.strength = 0;
+    }
+    this.hideLayer(layer);
   }
 }

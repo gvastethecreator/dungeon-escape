@@ -11,10 +11,18 @@ import {
 } from "./RunSession";
 import { QuestState } from "./QuestState";
 import { STONE_ORDER, type StoneId } from "../ui/copy";
+import type { DungeonLoadPhaseObserver } from "../systems/DungeonLoadTrace";
 
 export type { PersistedRunSession } from "./RunSession";
 
 export type PlayPickupKind = NonNullable<SessionWorldUpdate["collectedPickupKind"]>;
+
+/** Optional, load-only observation that does not add a Play world method. */
+export interface PlayWorldLoadOptions<TDungeon> {
+  carryPhoenix?: boolean;
+  stack?: readonly TDungeon[];
+  loadTrace?: DungeonLoadPhaseObserver;
+}
 
 /**
  * The gameplay subset returned by the world. Presentation-only fields can stay
@@ -32,7 +40,7 @@ export interface PlayWorldPort<TDungeon, TMood, TPlayer, TWorldUpdate extends Pl
   setDungeon(
     dungeon: TDungeon,
     mood: TMood,
-    options?: { carryPhoenix?: boolean; stack?: readonly TDungeon[] },
+    options?: PlayWorldLoadOptions<TDungeon>,
   ): void;
   /**
    * Optional: clear the previous floor, yield once, then rebuild. Hosts use this
@@ -42,7 +50,7 @@ export interface PlayWorldPort<TDungeon, TMood, TPlayer, TWorldUpdate extends Pl
     dungeon: TDungeon,
     mood: TMood,
     yieldToMain: () => Promise<void>,
-    options?: { carryPhoenix?: boolean; stack?: readonly TDungeon[] },
+    options?: PlayWorldLoadOptions<TDungeon>,
   ): Promise<void>;
   update(
     delta: number,
@@ -85,6 +93,8 @@ export interface PlayRuntimeLoad<TDungeon, TMood> {
   mood: TMood;
   /** Optional multi-floor stack built into one resident scene. */
   stack?: readonly TDungeon[];
+  /** Optional load-only observer for concrete world build boundaries. */
+  loadTrace?: DungeonLoadPhaseObserver;
   persisted?: PersistedRunSession;
   runtimeProgress?: PlayRuntimeProgress;
   resolve?: number;
@@ -166,6 +176,7 @@ export class PlayRuntime<TDungeon, TMood, TPlayer, TWorldUpdate extends PlayWorl
     this.world.setDungeon(input.dungeon, input.mood, {
       carryPhoenix,
       stack: input.stack,
+      loadTrace: input.loadTrace,
     });
     return this.finishLoad(input);
   }
@@ -184,11 +195,13 @@ export class PlayRuntime<TDungeon, TMood, TPlayer, TWorldUpdate extends PlayWorl
       await this.world.setDungeonWithYield(input.dungeon, input.mood, yieldToMain, {
         carryPhoenix,
         stack: input.stack,
+        loadTrace: input.loadTrace,
       });
     } else {
       this.world.setDungeon(input.dungeon, input.mood, {
         carryPhoenix,
         stack: input.stack,
+        loadTrace: input.loadTrace,
       });
     }
     return this.finishLoad(input);

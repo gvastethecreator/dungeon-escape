@@ -1,75 +1,46 @@
 import * as THREE from "three";
 import type { CreatureVoice, DungeonAudioFrame } from "../audio/GameAudio";
-import { createSeededRandom } from "../core/random";
-import {
-  gridToWorld,
-  worldToGrid,
-  worldToGridInto,
-  WorldColliderSpatialIndex,
-  type WorldCollider,
-} from "../dungeon/gridCollision";
-import type { DungeonData, DungeonRoom, GridCell } from "../dungeon/types";
+import { gridToWorld, worldToGridInto, type WorldCollider } from "../dungeon/gridCollision";
+import type { DungeonData, GridCell } from "../dungeon/types";
 import { isPlayerAirborneFromJumpHeight } from "../player/CombatPose";
 import { creatureVoiceForEnemy, projectDungeonAudioFrame } from "./DungeonAudioFrame";
-import {
-  filterEnemyActivationCandidates,
-  preferEnemyActivationPool,
-  resolveSafeSpawnDistance,
-} from "./EnemyActivation";
 import {
   canCollectPickup,
   canInteractWithChest,
   horizontalDistance,
   shouldOpenChest,
 } from "./InteractionReach";
-import {
-  DOOR_DEFAULT_OPEN_DISTANCE,
-  isDoorClosed,
-  isDoorPassable,
-  resolveDoorTargetOpen,
-} from "./DoorOpenPolicy";
+import { DOOR_DEFAULT_OPEN_DISTANCE, resolveDoorTargetOpen } from "./DoorOpenPolicy";
+import { updateDoorLeafPresentation } from "./DoorLeafPresentation";
+import { beginChestRewardReveal, updateChestPresentation } from "./ChestPresentation";
+import { updateCollectedPickupMotion, updateIdlePickupMotion } from "./PickupMotionPresentation";
 import {
   composeDifficultyWithBiomeEvent,
   composeHazardWithBiomeEvent,
 } from "../systems/BiomeEventSurface";
-import { projectMinimapFeatures } from "../ui/projectMinimapFeatures";
+import type { ResidentMinimapProjection } from "../ui/projectMinimapFeatures";
 import { AssetLibrary } from "./AssetLibrary";
-import { ENEMY_ROSTER, enemyAnimationsForMood } from "./EnemySpriteAtlas";
-import {
-  buildDistributedEnemySpawns,
-  buildInitialRoomEnemyQuotas,
-  totalEnemySeatBudget,
-  selectEnemyKindsForSpawns,
-} from "./EnemySpawnPlan";
 import { createDungeonMaterials, disposeDungeonMaterials } from "./MaterialLibrary";
-import { createRoomSurfaceMaterials, disposeRoomSurfaceMaterials } from "./RoomSurfaceMaterials";
+import {
+  createRoomSurfaceMaterials,
+  disposeRoomSurfaceMaterials,
+  type SceneTextureCloneSink,
+} from "./RoomSurfaceMaterials";
 import { setPickupDormant, setPickupOpacity } from "./ItemFactory";
 import { PickupBurstPool } from "./PickupBurstPool";
 import {
-  enemyCeilingY,
-  enemyGroundY,
-  getEnemySpriteRenderMetrics,
-  type EnemyKind,
-} from "./EnemyArchetypes";
-import {
-  createEnemyBillboardMaterial,
   createEnemyContactShadowMaterial,
   disposeEnemyContactShadowMaterial,
-  setEnemyBillboardFrame,
 } from "./EnemyBillboardMaterial";
 import type { DungeonMood } from "../systems/DungeonMood";
 import { getDungeonMood } from "../systems/DungeonMood";
+import type { DungeonLoadPhaseObserver } from "../systems/DungeonLoadTrace";
 import { sampleBiomeEvent, type BiomeEventSnapshot } from "../systems/BiomeEventDirector";
 import {
   DEFAULT_DIFFICULTY,
-  ENEMY_ACTIVATION_SPREAD,
-  ENEMY_HARD_CAP,
-  isEnemyKindUnlocked,
   resolveDifficultySnapshot,
-  resolveDifficultyTuning,
   type DifficultySnapshot,
 } from "../game/DifficultyDirector";
-import { hasGridLineOfSight } from "./LightOcclusion";
 import type { HazardSurfaceEffect } from "./HazardTileSystem";
 import { magicStoneIds } from "./MagicStoneKit";
 import {
@@ -78,93 +49,76 @@ import {
   setMagicPortalWarmupVisible,
   updateMagicPortal,
 } from "./MagicPortalKit";
-import type { MagicStonePlacement } from "./MagicStonePlacement";
 import type { StoneId } from "../ui/copy";
 import { STONE_ORDER } from "../ui/copy";
-import type { MinimapCell, MinimapFeatures } from "../ui/minimapFeatures";
-import { tickEnemySim, type EnemySimBody } from "./EnemySim";
+import type { MinimapFeatures } from "../ui/minimapFeatures";
 import { WORLD_TILE_SIZE, WORLD_WALL_HEIGHT } from "./WorldMetrics";
 import { ThreeResourceDisposer } from "./ThreeResourceDisposer";
-import { activateTimeFreeze, isTimeFreezeActive, tickTimeFreeze } from "../game/TimeFreeze";
 import { TimeFreezeVfx } from "./TimeFreezeVfx";
 import { EnemyMotionTrailVfx } from "./EnemyMotionTrailVfx";
-import {
-  EnemyPresentation,
-  type EnemyAnimationBatch,
-  type EnemyPresentationActor,
-} from "./EnemyPresentation";
-import { FixedSceneEffects } from "./FixedSceneEffects";
 import {
   activateAnnihilationPulse,
   annihilationPulseHitsEnemy,
   ANNIHILATION_PULSE_REPEL_RADIUS,
   ANNIHILATION_PULSE_REPEL_SPEED_MULTIPLIER,
-  createAnnihilationPulseClock,
-  isAnnihilationPulseActive,
-  tickAnnihilationPulse,
 } from "../game/AnnihilationPulse";
 import { AnnihilationPulseVfx } from "./AnnihilationPulseVfx";
-import {
-  activateLuminousWard,
-  isLuminousWardActive,
-  LUMINOUS_WARD_REPEL_RADIUS,
-  tickLuminousWard,
-} from "../game/LuminousWard";
+import { LUMINOUS_WARD_REPEL_RADIUS } from "../game/LuminousWard";
 import { LuminousWardVfx } from "./LuminousWardVfx";
-import {
-  activateMobilityBoost,
-  isMobilityBoostActive,
-  tickMobilityBoost,
-} from "../game/MobilityBoost";
 import { MobilityBoostVfx } from "./MobilityBoostVfx";
-import { activateFogClear, isFogClearActive, tickFogClear } from "../game/FogClear";
-import { activateSlowCurse, isSlowCurseActive, tickSlowCurse } from "../game/SlowCurse";
 import {
-  activateFrenzyCurse,
   FRENZY_CURSE_ATTACK_RATE_MULTIPLIER,
   FRENZY_CURSE_DETECTION_MULTIPLIER,
   FRENZY_CURSE_SPEED_MULTIPLIER,
-  isFrenzyCurseActive,
-  tickFrenzyCurse,
 } from "../game/FrenzyCurse";
-import { activateGloomCurse, isGloomCurseActive, tickGloomCurse } from "../game/GloomCurse";
-import { activateSwarmCurse, isSwarmCurseActive, swarmTargetEnemies } from "../game/SwarmCurse";
+import { CULL_BRAND_MIN_PHASE_VISIBILITY, tryConsumeCullBrand } from "../game/CullBrand";
+import { clampPhoenixCharges, hasPhoenixCharge } from "../game/PhoenixEgg";
 import {
-  activateCullBrand,
-  CULL_BRAND_MIN_PHASE_VISIBILITY,
-  createCullBrandState,
-  isCullBrandActive,
-  restoreCullBrand,
-  tickCullBrand,
-  tryConsumeCullBrand,
-  type CullBrandState,
-} from "../game/CullBrand";
-import { activateMirrorCurse, isMirrorCurseActive, tickMirrorCurse } from "../game/MirrorCurse";
-import { activateSpinCurse, isSpinCurseActive, tickSpinCurse } from "../game/SpinCurse";
-import {
-  armPhoenixCharge,
-  clampPhoenixCharges,
-  hasPhoenixCharge,
-} from "../game/PhoenixEgg";
+  applyPickupToRunPowers,
+  createRunPowerRuntime,
+  isAnnihilationPulseOn,
+  isCullBrandOn,
+  isFogClearOn,
+  isFrenzyCurseOn,
+  isGloomCurseOn,
+  isLuminousWardOn,
+  isMirrorCurseOn,
+  isMobilityBoostOn,
+  isSlowCurseOn,
+  isSpinCurseOn,
+  isSwarmCurseOn,
+  isTimeFreezeOn,
+  resetRunPowerRuntime,
+  restoreRunPowerRuntime,
+  tickRunPowerRuntime,
+} from "../game/RunPowerRuntime";
 import { CullBrandVfx } from "./CullBrandVfx";
 import { ControlCurseVfx } from "./ControlCurseVfx";
 import { PhoenixEggVfx } from "./PhoenixEggVfx";
+import { StaticResourceCatalog, type StaticResourceCatalogSnapshot } from "./StaticResourceCatalog";
+import { type ResidentFloorRuntime, type ResidentFloorRuntimeOwner } from "./ResidentFloorRuntime";
+import { ENEMY_ROSTER } from "./EnemySpriteAtlas";
+import {
+  ResidentEnemyRuntimeOwner,
+  type ResidentEnemyActivationInput,
+  type ResidentEnemyActor,
+  type ResidentEnemyRuntime,
+} from "./ResidentEnemyRuntime";
 import {
   clearStaticPropTemplateBatchCache,
   StaticDungeonScene,
   type StaticChestActor,
-  type StaticDoorActor,
   type StaticDungeonSceneHandles,
   type StaticDungeonSceneStats,
   type StaticFireEffect,
   type StaticPickupActor,
   type StaticPickupKind,
-  type StaticStairActor,
 } from "./StaticDungeonScene";
+import { createResidentDungeonPlan, type ResidentDungeonPlan } from "./ResidentDungeonPlan";
 
 export { knockbackAwayFrom } from "./knockback";
 
-type EnemyActor = EnemyPresentationActor;
+type EnemyActor = ResidentEnemyActor;
 
 export interface WorldUpdate {
   /** @deprecated use collectedStoneId — kept for domain bridge “all stones” */
@@ -244,11 +198,24 @@ export interface WorldUpdate {
   nearestThreat: number | null;
 }
 
-export { creatureVoiceForEnemy } from "./DungeonAudioFrame";
-
-function roomDistance(dungeon: DungeonData, room: DungeonRoom): number {
-  return dungeon.distances[room.center.y * dungeon.width + room.center.x] ?? -1;
+interface DungeonWorldLoadOptions {
+  carryPhoenix?: boolean;
+  stack?: readonly DungeonData[];
+  loadTrace?: DungeonLoadPhaseObserver;
 }
+
+interface DungeonWorldTextureLifecycle {
+  active: boolean;
+  textureSink?: SceneTextureCloneSink;
+}
+
+interface DungeonWorldOptions {
+  tileSize?: number;
+  wallHeight?: number;
+  textureRegistry?: SceneTextureCloneSink;
+}
+
+export { creatureVoiceForEnemy } from "./DungeonAudioFrame";
 
 function nearestEnemyDistance(enemies: readonly EnemyActor[], player: THREE.Vector3): number {
   let nearest = Number.POSITIVE_INFINITY;
@@ -265,40 +232,23 @@ export class DungeonWorld {
   private readonly tileSize: number;
   private readonly wallHeight: number;
   private readonly group = new THREE.Group();
-  private readonly assets = new AssetLibrary();
-  private readonly materials = createDungeonMaterials({
-    compact: typeof window !== "undefined" && window.matchMedia("(max-width: 760px)").matches,
-  });
-  private readonly surfaceMaterials = createRoomSurfaceMaterials({
-    floor: this.assets.floor,
-    wall: this.assets.wall,
-    ceiling: this.assets.ceiling,
-    semanticFloors: {
-      grave: this.assets.floorCrypt,
-      shrine: this.assets.floorShrine,
-      treasure: this.assets.floorTreasure,
-      boss: this.assets.floorBoss,
-    },
-    semanticWalls: {
-      grave: this.assets.wallCrypt,
-      shrine: this.assets.wallShrine,
-      treasure: this.assets.wallTreasure,
-      elite: this.assets.wallBoss,
-      boss: this.assets.wallBoss,
-    },
-  });
+  private readonly assets: AssetLibrary;
+  private readonly materials: ReturnType<typeof createDungeonMaterials>;
+  private readonly surfaceMaterials: ReturnType<typeof createRoomSurfaceMaterials>;
+  private readonly textureLifecycle: DungeonWorldTextureLifecycle;
+  private readonly staticResourceCatalog = new StaticResourceCatalog();
   private readonly staticScene: StaticDungeonScene;
-  private solidColliderIndex: WorldColliderSpatialIndex | undefined;
+  private disposed = false;
   private staticHandles: StaticDungeonSceneHandles = StaticDungeonScene.emptyHandles();
-  private readonly enemies: EnemyActor[] = [];
-  private readonly enemyReserve: EnemyActor[] = [];
-  private readonly enemyBatches = new Set<THREE.InstancedMesh>();
-  private readonly enemyShadowBatches = new Set<THREE.InstancedMesh>();
-  private readonly enemyVisibilityAttributes = new Set<THREE.InstancedBufferAttribute>();
-  private readonly enemyAnimationBatches = new Map<EnemyKind, EnemyAnimationBatch>();
-  private readonly enemyPresentation = new EnemyPresentation();
-  private readonly fixedSceneEffects = new FixedSceneEffects();
-  private readonly enemyShadowMaterial = createEnemyContactShadowMaterial();
+  /** Canonical resident lookup for rebinds. Aggregate scene handles stay legacy-only. */
+  private readonly residentFloorRuntimesByIndex = new Map<number, ResidentFloorRuntime>();
+  /** Interactions update this owner only. Rebind changes this pointer without rebuilding. */
+  private activeFloorRuntime: ResidentFloorRuntime | null = null;
+  /** Enemy ownership follows the static resident floor owner exactly once. */
+  private readonly residentEnemyRuntimesByIndex = new Map<number, ResidentEnemyRuntimeOwner>();
+  /** Rebind swaps this pointer. Inactive slabs never simulate or present enemies. */
+  private activeEnemyRuntime: ResidentEnemyRuntimeOwner | null = null;
+  private readonly enemyShadowMaterial: THREE.MeshBasicMaterial;
   private pickupBurstPool: PickupBurstPool | null = null;
   private timeFreezeVfx: TimeFreezeVfx | null = null;
   private enemyMotionTrailVfx: EnemyMotionTrailVfx | null = null;
@@ -306,8 +256,10 @@ export class DungeonWorld {
   private mobilityBoostVfx: MobilityBoostVfx | null = null;
   private annihilationPulseVfx: AnnihilationPulseVfx | null = null;
   private readonly pickupBurstWarmupPosition = new THREE.Vector3();
+  /** Reused only for immediate world-coordinate reads from resident floor roots. */
+  private readonly residentWorldPosition = new THREE.Vector3();
   private dungeon: DungeonData | null = null;
-  private minimapFeatures: MinimapFeatures = {
+  private readonly emptyMinimapFeatures: MinimapFeatures = {
     doors: [],
     fires: [],
     enemies: [],
@@ -315,7 +267,9 @@ export class DungeonWorld {
     pickups: [],
     spawn: { x: 0, y: 0 },
   };
-  private minimapPickupStates: number[] = [];
+  private minimapFeatures: MinimapFeatures = this.emptyMinimapFeatures;
+  /** Active cached projection; rebinds replace only this pointer. */
+  private activeMinimapProjection: ResidentMinimapProjection | null = null;
   private minimapFeatureRevision = 0;
   private readonly collectedStones = new Set<StoneId>();
   private portalOpen = false;
@@ -328,37 +282,16 @@ export class DungeonWorld {
   };
   private lockedExitCooldown = 0;
   private elapsed = 0;
-  private enemySimulationElapsed = 0;
-  private enemyAnimationElapsed = 0;
-  private difficultyElapsed = 0;
-  private difficultySecond = -1;
-  private biomeEventCycle = -1;
-  private timeFreezeSeconds = 0;
-  private luminousWardSeconds = 0;
-  private mobilityBoostSeconds = 0;
-  private fogClearSeconds = 0;
-  private slowCurseSeconds = 0;
-  private frenzyCurseSeconds = 0;
-  private gloomCurseSeconds = 0;
-  private swarmCurseActive = false;
-  private mirrorCurseSeconds = 0;
-  private spinCurseSeconds = 0;
-  private readonly cullBrandState: CullBrandState = createCullBrandState();
-  private phoenixCharges = 0;
+  private readonly powers = createRunPowerRuntime();
   private cullBrandVfx: CullBrandVfx | null = null;
   private controlCurseVfx: ControlCurseVfx | null = null;
   private phoenixEggVfx: PhoenixEggVfx | null = null;
-  private mapRevealed = false;
   private playerAirborne = false;
-  private readonly annihilationPulseClock = createAnnihilationPulseClock();
-  private difficultyRoomCount = 1;
-  private enemyActivationRandom = createSeededRandom("difficulty-activation");
-  private enemyKindRotation = 0;
   private readonly stoneTextures = new Map<StoneId, THREE.Texture>();
   private activeMood: DungeonMood = getDungeonMood("ash");
   private decorDensity = 0.6;
   private difficulty = DEFAULT_DIFFICULTY;
-  private difficultyState: DifficultySnapshot = resolveDifficultySnapshot(
+  private readonly emptyDifficultyState: DifficultySnapshot = resolveDifficultySnapshot(
     DEFAULT_DIFFICULTY,
     0,
     1,
@@ -368,11 +301,43 @@ export class DungeonWorld {
 
   constructor(
     scene: THREE.Scene,
-    { tileSize = WORLD_TILE_SIZE, wallHeight = WORLD_WALL_HEIGHT } = {},
+    {
+      tileSize = WORLD_TILE_SIZE,
+      wallHeight = WORLD_WALL_HEIGHT,
+      textureRegistry,
+    }: DungeonWorldOptions = {},
   ) {
     this.scene = scene;
     this.tileSize = tileSize;
     this.wallHeight = wallHeight;
+    this.textureLifecycle = { active: true, textureSink: textureRegistry };
+    this.assets = new AssetLibrary(textureRegistry);
+    this.materials = createDungeonMaterials({
+      compact: typeof window !== "undefined" && window.matchMedia("(max-width: 760px)").matches,
+      textureSink: textureRegistry,
+    });
+    this.surfaceMaterials = createRoomSurfaceMaterials(
+      {
+        floor: this.assets.floor,
+        wall: this.assets.wall,
+        ceiling: this.assets.ceiling,
+        semanticFloors: {
+          grave: this.assets.floorCrypt,
+          shrine: this.assets.floorShrine,
+          treasure: this.assets.floorTreasure,
+          boss: this.assets.floorBoss,
+        },
+        semanticWalls: {
+          grave: this.assets.wallCrypt,
+          shrine: this.assets.wallShrine,
+          treasure: this.assets.wallTreasure,
+          elite: this.assets.wallBoss,
+          boss: this.assets.wallBoss,
+        },
+      },
+      textureRegistry,
+    );
+    this.enemyShadowMaterial = createEnemyContactShadowMaterial(textureRegistry);
     this.group.name = "Dungeon Escape world";
     this.scene.add(this.group);
     this.staticScene = new StaticDungeonScene({
@@ -383,65 +348,117 @@ export class DungeonWorld {
       tileSize: this.tileSize,
       wallHeight: this.wallHeight,
       stoneTextures: this.stoneTextures,
+      resourceCatalog: this.staticResourceCatalog,
+      textureSink: textureRegistry,
     });
     this.staticHandles = this.staticScene.currentHandles;
     this.stats = this.staticScene.stats;
   }
 
-  private borrowStaticHandles(handles: StaticDungeonSceneHandles): void {
+  private borrowStaticHandles(handles: StaticDungeonSceneHandles, activeFloorIndex: number): void {
     this.staticHandles = handles;
+    this.residentFloorRuntimesByIndex.clear();
+    for (const runtime of handles.residentFloors) {
+      this.residentFloorRuntimesByIndex.set(runtime.floorIndex, runtime);
+    }
+    this.bindActiveFloorRuntime(activeFloorIndex);
   }
 
   private releaseStaticHandles(): void {
+    this.activeFloorRuntime = null;
+    this.activeEnemyRuntime = null;
+    this.activeMinimapProjection = null;
+    this.residentFloorRuntimesByIndex.clear();
+    this.residentEnemyRuntimesByIndex.clear();
     this.staticHandles = StaticDungeonScene.emptyHandles();
   }
 
-  private get doors(): StaticDoorActor[] {
-    return this.staticHandles.doors;
+  private bindActiveFloorRuntime(floorIndex: number): void {
+    const requested = Number.isFinite(floorIndex) ? Math.floor(floorIndex) : 0;
+    const runtime = this.residentFloorRuntimesByIndex.get(requested) ?? null;
+    this.activeFloorRuntime = runtime;
+    this.staticScene.setActiveFloor(runtime?.floorIndex ?? requested);
+    this.bindActiveMinimapProjection(runtime);
+    this.bindActiveEnemyRuntime(runtime?.floorIndex ?? requested);
+  }
+
+  private bindActiveEnemyRuntime(floorIndex: number): void {
+    const requested = Number.isFinite(floorIndex) ? Math.floor(floorIndex) : 0;
+    const runtime = this.residentEnemyRuntimesByIndex.get(requested) ?? null;
+    if (this.activeEnemyRuntime === runtime) return;
+    for (const candidate of this.residentEnemyRuntimesByIndex.values()) {
+      candidate.setActive(candidate === runtime);
+    }
+    this.activeEnemyRuntime = runtime;
+    const slabY = runtime?.floorSlabY ?? 0;
+    if (this.enemyMotionTrailVfx) {
+      this.enemyMotionTrailVfx.root.position.y = slabY;
+      this.enemyMotionTrailVfx.resetForRebind();
+    }
+    if (this.timeFreezeVfx) {
+      this.timeFreezeVfx.root.position.y = slabY;
+      this.timeFreezeVfx.resetForRebind();
+    }
+  }
+
+  /** Stable RDL-14 owner seam for consumers that need active-floor state. */
+  getActiveFloorRuntime(): ResidentFloorRuntime | null {
+    return this.activeFloorRuntime;
+  }
+
+  /** Stable RDL-15 owner seam for active, floor-local enemy state. */
+  getActiveEnemyRuntime(): ResidentEnemyRuntime | null {
+    return this.activeEnemyRuntime;
+  }
+
+  /** Read-only lookup for resident enemy diagnostics and focused tests. */
+  getResidentEnemyRuntime(floorIndex: number): ResidentEnemyRuntime | null {
+    const requested = Number.isFinite(floorIndex) ? Math.floor(floorIndex) : 0;
+    return this.residentEnemyRuntimesByIndex.get(requested) ?? null;
+  }
+
+  /** Per-floor build accounting. This allocates only for explicit diagnostics. */
+  getResidentEnemyBuildDiagnostics(): readonly {
+    floorIndex: number;
+    seats: number;
+    active: number;
+    reserve: number;
+    rawBatches: number;
+    buildDurationMs: number;
+  }[] {
+    return [...this.residentEnemyRuntimesByIndex.values()].map((runtime) => ({
+      floorIndex: runtime.floorIndex,
+      seats: runtime.seatCount,
+      active: runtime.activeCount,
+      reserve: runtime.reserveCount,
+      rawBatches: runtime.rawBatchCount,
+      buildDurationMs: runtime.buildDurationMs,
+    }));
+  }
+
+  /** Compatibility read views. They always point at the active runtime. */
+  private get enemies(): readonly EnemyActor[] {
+    return this.activeEnemyRuntime?.actors ?? [];
+  }
+
+  get enemyReserve(): readonly EnemyActor[] {
+    return this.activeEnemyRuntime?.reserveActors ?? [];
   }
 
   private get pickups(): StaticPickupActor[] {
     return this.staticHandles.pickups;
   }
 
-  private get chests(): StaticChestActor[] {
-    return this.staticHandles.chests;
-  }
-
-  private get staircases(): StaticStairActor[] {
-    return this.staticHandles.staircases;
-  }
-
-  private get fireEffects(): StaticFireEffect[] {
-    return this.staticHandles.fireEffects;
+  private get fireEffects(): readonly StaticFireEffect[] {
+    return this.activeFloorRuntime?.fires ?? [];
   }
 
   private get solidCells(): Map<string, GridCell> {
     return this.staticHandles.solidCells;
   }
 
-  private get objectOccupiedCells(): Set<string> {
-    return this.staticHandles.objectOccupiedCells;
-  }
-
   private get solidColliders(): WorldCollider[] {
     return this.staticHandles.solidColliders;
-  }
-
-  private get objectiveClearanceCells(): Set<string> {
-    return this.staticHandles.objectiveClearanceCells;
-  }
-
-  private get hazardCells(): Set<string> {
-    return this.staticHandles.hazardCells;
-  }
-
-  private get floorBiomeSprites(): StaticDungeonSceneHandles["floorBiomeSprites"] {
-    return this.staticHandles.floorBiomeSprites;
-  }
-
-  private get wallSpriteOccupiedCells(): Set<string> {
-    return this.staticHandles.wallSpriteOccupiedCells;
   }
 
   private get portalRoot(): THREE.Group | null {
@@ -472,28 +489,8 @@ export class DungeonWorld {
     this.staticHandles.portalLight = value;
   }
 
-  private get stoneBeams(): THREE.Mesh[] {
-    return this.staticHandles.stoneBeams;
-  }
-
-  private get ambientBeams(): THREE.Mesh[] {
-    return this.staticHandles.ambientBeams;
-  }
-
-  private get liquidKit(): StaticDungeonSceneHandles["liquidKit"] {
-    return this.staticHandles.liquidKit;
-  }
-
-  private set liquidKit(value: StaticDungeonSceneHandles["liquidKit"]) {
-    this.staticHandles.liquidKit = value;
-  }
-
-  private get hazardTiles(): StaticDungeonSceneHandles["hazardTiles"] {
-    return this.staticHandles.hazardTiles;
-  }
-
-  private set hazardTiles(value: StaticDungeonSceneHandles["hazardTiles"]) {
-    this.staticHandles.hazardTiles = value;
+  private worldPositionOf(object: THREE.Object3D): THREE.Vector3 {
+    return object.getWorldPosition(this.residentWorldPosition);
   }
 
   /**
@@ -503,13 +500,13 @@ export class DungeonWorld {
   setDungeon(
     dungeon: DungeonData,
     mood: DungeonMood = getDungeonMood("ash"),
-    options: { carryPhoenix?: boolean; stack?: readonly DungeonData[] } = {},
+    options: DungeonWorldLoadOptions = {},
   ): void {
     // Floor transitions pass carryPhoenix so loot planning can skip a second egg.
-    const carryPhoenix = options.carryPhoenix ? this.phoenixCharges : 0;
+    const carryPhoenix = options.carryPhoenix ? this.powers.phoenixCharges : 0;
     this.clear();
-    this.phoenixCharges = carryPhoenix;
-    this.populateDungeon(dungeon, mood, options.stack);
+    this.powers.phoenixCharges = carryPhoenix;
+    this.populateDungeon(dungeon, mood, options.stack, options.loadTrace);
   }
 
   /**
@@ -518,7 +515,7 @@ export class DungeonWorld {
    */
   rebindActiveDungeon(dungeon: DungeonData): void {
     this.dungeon = dungeon;
-    this.rebuildMinimapFeatures();
+    this.bindActiveFloorRuntime(dungeon.floor?.index ?? 0);
   }
 
   /**
@@ -530,66 +527,157 @@ export class DungeonWorld {
     dungeon: DungeonData,
     mood: DungeonMood,
     yieldToMain: () => Promise<void>,
-    options: { carryPhoenix?: boolean; stack?: readonly DungeonData[] } = {},
+    options: DungeonWorldLoadOptions = {},
   ): Promise<void> {
-    const carryPhoenix = options.carryPhoenix ? this.phoenixCharges : 0;
+    const carryPhoenix = options.carryPhoenix ? this.powers.phoenixCharges : 0;
     this.clear();
-    this.phoenixCharges = carryPhoenix;
+    this.powers.phoenixCharges = carryPhoenix;
     await yieldToMain();
-    this.populateDungeon(dungeon, mood, options.stack);
+    this.populateDungeon(dungeon, mood, options.stack, options.loadTrace);
   }
 
   private populateDungeon(
     dungeon: DungeonData,
     mood: DungeonMood,
     stack?: readonly DungeonData[],
+    loadTrace?: DungeonLoadPhaseObserver,
   ): void {
     this.dungeon = dungeon;
     this.activeMood = mood;
     // Skip a second egg if the player already carries a phoenix charge.
-    this.staticScene.setPhoenixArmedForNextBuild(hasPhoenixCharge(this.phoenixCharges));
+    const phoenixArmed = hasPhoenixCharge(this.powers.phoenixCharges);
+    this.staticScene.setPhoenixArmedForNextBuild(phoenixArmed);
     this.collectedStones.clear();
     this.portalOpen = false;
     this.lockedExitCooldown = 0;
     this.elapsed = 0;
-    this.enemyAnimationElapsed = 0;
-    this.difficultyElapsed = 0;
-    this.difficultySecond = -1;
-    this.biomeEventCycle = -1;
-    this.timeFreezeSeconds = 0;
-    this.luminousWardSeconds = 0;
-    this.mobilityBoostSeconds = 0;
-    this.fogClearSeconds = 0;
-    this.slowCurseSeconds = 0;
-    this.frenzyCurseSeconds = 0;
-    this.gloomCurseSeconds = 0;
-    this.swarmCurseActive = false;
-    this.mirrorCurseSeconds = 0;
-    this.spinCurseSeconds = 0;
-    restoreCullBrand(this.cullBrandState, 0, 0);
-    this.mapRevealed = false;
+    // Preserve phoenix when setDungeon restored a carried charge after clear().
+    resetRunPowerRuntime(this.powers, { carryPhoenix: true });
     this.playerAirborne = false;
-    this.annihilationPulseClock.remaining = 0;
-    this.annihilationPulseClock.timeSincePulse = 0;
-    this.enemySimulationElapsed = 0;
     this.ensureStoneTextures();
-    const staticHandles =
-      stack && stack.length > 1
-        ? this.staticScene.buildStack(stack, mood, this.decorDensity)
-        : this.staticScene.build(dungeon, mood, this.decorDensity);
-    this.borrowStaticHandles(staticHandles);
-    this.solidColliderIndex = new WorldColliderSpatialIndex(
-      this.solidColliders,
-      this.tileSize * 2,
-    );
-    this.addActors(dungeon, staticHandles.stonePlacements);
-    this.rebuildMinimapFeatures();
+    const residentFloors = stack && stack.length > 1 ? stack : [dungeon];
+    let residentPlan: ResidentDungeonPlan;
+    loadTrace?.begin("plan");
+    try {
+      residentPlan = createResidentDungeonPlan(residentFloors, undefined, {
+        moodId: mood.id,
+        decorDensity: this.decorDensity,
+        phoenixArmed,
+      });
+    } finally {
+      loadTrace?.end("plan");
+    }
+    loadTrace?.begin("sceneCommit");
+    try {
+      const staticHandles =
+        stack && stack.length > 1
+          ? this.staticScene.buildStack(stack, mood, this.decorDensity, residentPlan)
+          : this.staticScene.build(dungeon, mood, this.decorDensity, residentPlan);
+      this.borrowStaticHandles(staticHandles, dungeon.floor?.index ?? 0);
+    } finally {
+      loadTrace?.end("sceneCommit");
+    }
+    loadTrace?.begin("actors");
+    try {
+      this.buildResidentEnemyRuntimes(stack && stack.length > 1 ? stack : [dungeon]);
+      this.createSharedEnemyPresentation();
+      this.bindActiveEnemyRuntime(dungeon.floor?.index ?? 0);
+    } catch (error) {
+      // Enemy owners are registered before their batches. Roll back the whole
+      // static transaction and preserve the construction error for the caller.
+      try {
+        this.clear();
+      } catch {
+        // Cleanup is best-effort. The original build error remains authoritative.
+      }
+      throw error;
+    } finally {
+      loadTrace?.end("actors");
+    }
+    this.refreshMinimapFeatures();
     const pickupBurstAnchor = gridToWorld(dungeon, dungeon.spawn, this.tileSize);
     this.pickupBurstWarmupPosition.set(pickupBurstAnchor.x, 0.4, pickupBurstAnchor.z);
     this.pickupBurstPool = new PickupBurstPool(6);
     this.group.add(this.pickupBurstPool.root);
-    this.stats.enemies = this.enemies.length;
+    this.refreshDifficultyState();
     this.stats.pickups = this.pickups.length;
+  }
+
+  /** Build every enemy owner after the static stack owns its floor runtimes. */
+  private buildResidentEnemyRuntimes(floors: readonly DungeonData[]): void {
+    for (const floor of floors) {
+      const floorIndex = floor.floor?.index ?? 0;
+      const floorRuntime = this.residentFloorRuntimesByIndex.get(floorIndex);
+      if (!floorRuntime) {
+        throw new Error(`Enemy actor build requires resident floor ${floorIndex + 1}.`);
+      }
+      if (floorRuntime.enemyRuntime) {
+        throw new Error(`Resident floor ${floorIndex + 1} already owns enemy actors.`);
+      }
+      const runtime = new ResidentEnemyRuntimeOwner({
+        dungeon: floor,
+        floorRuntime,
+        assets: this.assets,
+        mood: this.activeMood,
+        shadowMaterial: this.enemyShadowMaterial,
+        tileSize: this.tileSize,
+        wallHeight: this.wallHeight,
+        difficulty: this.difficulty,
+      });
+      // Register and attach before population so an exception on floor N is
+      // released through the same exact-once static runtime transaction.
+      this.residentEnemyRuntimesByIndex.set(floorIndex, runtime);
+      (floorRuntime as ResidentFloorRuntimeOwner).attachEnemyRuntime(runtime);
+      runtime.build();
+    }
+  }
+
+  /**
+   * One reusable trail field and freeze field serve the active runtime. Their
+   * capacities are maxima, not four per-floor allocations.
+   */
+  private createSharedEnemyPresentation(): void {
+    const runtimes = [...this.residentEnemyRuntimesByIndex.values()];
+    const maxSeats = Math.max(1, ...runtimes.map((runtime) => runtime.seatCount));
+    this.enemyMotionTrailVfx = new EnemyMotionTrailVfx();
+    this.group.add(this.enemyMotionTrailVfx.root);
+    for (const kind of ENEMY_ROSTER) {
+      let source: ResidentEnemyRuntimeOwner | null = null;
+      let capacity = 0;
+      for (const runtime of runtimes) {
+        const batch = runtime.animationBatches.get(kind);
+        if (!batch) continue;
+        const count = batch.atlasFrameAttribute.count;
+        if (count > capacity) {
+          capacity = count;
+          source = runtime;
+        }
+      }
+      if (!source || capacity === 0) continue;
+      const batch = source.animationBatches.get(kind)!;
+      this.enemyMotionTrailVfx.registerKind(
+        kind,
+        this.assets.enemyAnimation(batch.animation),
+        batch.animation,
+        capacity,
+      );
+    }
+    this.timeFreezeVfx = new TimeFreezeVfx(maxSeats, this.textureLifecycle.textureSink);
+    this.group.add(this.timeFreezeVfx.root);
+    this.luminousWardVfx = new LuminousWardVfx(this.textureLifecycle.textureSink);
+    this.group.add(this.luminousWardVfx.root);
+    this.cullBrandVfx = new CullBrandVfx(this.textureLifecycle.textureSink);
+    this.group.add(this.cullBrandVfx.root);
+    this.controlCurseVfx = new ControlCurseVfx(this.textureLifecycle.textureSink);
+    this.group.add(this.controlCurseVfx.root);
+    this.phoenixEggVfx = new PhoenixEggVfx();
+    this.group.add(this.phoenixEggVfx.root);
+    this.stats.lights += 1;
+    this.mobilityBoostVfx = new MobilityBoostVfx(undefined, this.textureLifecycle.textureSink);
+    this.group.add(this.mobilityBoostVfx.root);
+    this.annihilationPulseVfx = new AnnihilationPulseVfx();
+    this.group.add(this.annihilationPulseVfx.root);
+    this.stats.lights += 1;
   }
 
   setDecorDensity(value: number): void {
@@ -607,29 +695,29 @@ export class DungeonWorld {
   }
 
   getDifficultyState(): Readonly<DifficultySnapshot> {
-    return this.difficultyState;
+    return this.activeEnemyRuntime?.difficultyState ?? this.emptyDifficultyState;
   }
 
   private refreshDifficultyState(): void {
-    this.difficultyState = resolveDifficultySnapshot(
-      this.difficulty,
-      this.difficultyElapsed,
-      this.difficultyRoomCount,
-      this.enemies.length,
-      this.enemyReserve.length,
-      this.collectedStones.size,
-    );
-    this.stats.enemies = this.enemies.length;
-    this.stats.reserveEnemies = this.enemyReserve.length;
-    this.stats.difficultyLevel = this.difficultyState.pressureLevel;
+    const runtime = this.activeEnemyRuntime;
+    if (!runtime) {
+      this.stats.enemies = 0;
+      this.stats.reserveEnemies = 0;
+      this.stats.difficultyLevel = this.emptyDifficultyState.pressureLevel;
+      return;
+    }
+    const state = runtime.refreshDifficulty(this.difficulty, this.collectedStones.size);
+    this.stats.enemies = runtime.activeCount;
+    this.stats.reserveEnemies = runtime.reserveCount;
+    this.stats.difficultyLevel = state.pressureLevel;
   }
 
   private updateDifficulty(player: { x: number; z: number }): void {
-    const second = Math.floor(this.difficultyElapsed);
-    if (second === this.difficultySecond) return;
-    this.difficultySecond = second;
+    const runtime = this.activeEnemyRuntime;
+    if (!runtime) return;
+    const { mode: _mode, ...input } = this.enemyActivationInput("play");
+    runtime.updateDifficulty(player, input);
     this.refreshDifficultyState();
-    this.activateEnemiesToTarget(player, "play");
   }
 
   /**
@@ -641,76 +729,23 @@ export class DungeonWorld {
     player: { x: number; z: number },
     mode: "opening" | "play" | "resume",
   ): void {
-    if (!this.dungeon) return;
+    this.activeEnemyRuntime?.activateEnemiesToTarget(player, this.enemyActivationInput(mode));
     this.refreshDifficultyState();
-    const target = Math.min(
-      ENEMY_HARD_CAP,
-      swarmTargetEnemies(this.difficultyState.targetEnemies, this.swarmCurseActive),
-    );
-    const safeSpawnDistance = resolveSafeSpawnDistance({
-      base: this.difficultyState.safeSpawnDistance,
-      wardActive: isLuminousWardActive(this.luminousWardSeconds),
-      pulseActive: isAnnihilationPulseActive(this.annihilationPulseClock),
+  }
+
+  private enemyActivationInput(
+    mode: ResidentEnemyActivationInput["mode"],
+  ): ResidentEnemyActivationInput {
+    return {
+      mode,
+      difficulty: this.difficulty,
+      stonesFound: this.collectedStones.size,
+      swarmCurseActive: this.powers.swarmCurseActive,
+      wardActive: isLuminousWardOn(this.powers),
+      pulseActive: isAnnihilationPulseOn(this.powers),
       wardRadius: LUMINOUS_WARD_REPEL_RADIUS,
       pulseRadius: ANNIHILATION_PULSE_REPEL_RADIUS,
-    });
-    const activatedThisPulse: THREE.Vector3[] = [];
-    const unlockedMaxTier = this.difficultyState.unlockedMaxTier;
-    const stonesFound = this.collectedStones.size;
-    const dungeon = this.dungeon;
-    while (this.enemies.length < target) {
-      const candidates = filterEnemyActivationCandidates(this.enemyReserve, {
-        mode,
-        player,
-        unlockedMaxTier,
-        safeSpawnDistance,
-        minSpread: ENEMY_ACTIVATION_SPREAD,
-        isKindUnlocked: (kind) =>
-          isEnemyKindUnlocked(
-            kind as EnemyKind,
-            this.difficultyElapsed,
-            this.difficultyState,
-            stonesFound,
-          ),
-        isObjectOccupied: (position) =>
-          Boolean(
-            dungeon && this.isObjectOccupiedCell(worldToGrid(dungeon, position, this.tileSize)),
-          ),
-        hasLineOfSight: (position) =>
-          Boolean(dungeon && hasGridLineOfSight(dungeon, player, position, this.tileSize)),
-      });
-      if (candidates.length === 0) break;
-      const pool = preferEnemyActivationPool(
-        this.enemyReserve,
-        candidates,
-        this.enemies.map((enemy) => enemy.position),
-        activatedThisPulse,
-        unlockedMaxTier,
-        ENEMY_ACTIVATION_SPREAD,
-      );
-      const selectedIndex = pool[this.enemyActivationRandom.integer(0, pool.length - 1)]!;
-      const [enemy] = this.enemyReserve.splice(selectedIndex, 1);
-      if (!enemy) break;
-      // Opening and resume seats are already "in the world"; play waves still
-      // fade in so reinforcements read as arrivals.
-      enemy.spawnReveal = mode === "play" ? 0 : 1;
-      enemy.hitCooldown =
-        mode === "play"
-          ? Math.max(enemy.hitCooldown, this.difficultyState.revealSeconds)
-          : enemy.hitCooldown;
-      this.enemyKindRotation += 1;
-      this.enemies.push(enemy);
-      activatedThisPulse.push(enemy.position);
-    }
-    this.refreshDifficultyState();
-  }
-
-  private isObjectiveClearanceCell(cell: GridCell): boolean {
-    return this.staticScene.isObjectiveClearanceCell(cell);
-  }
-
-  private isObjectOccupiedCell(cell: GridCell): boolean {
-    return this.staticScene.isObjectOccupiedCell(cell);
+    };
   }
 
   update(
@@ -721,27 +756,15 @@ export class DungeonWorld {
     mouseForwardHeld = false,
   ): WorldUpdate {
     this.lockedExitCooldown = Math.max(0, this.lockedExitCooldown - delta);
-    this.timeFreezeSeconds = tickTimeFreeze(this.timeFreezeSeconds, delta);
-    this.luminousWardSeconds = tickLuminousWard(this.luminousWardSeconds, delta);
-    this.mobilityBoostSeconds = tickMobilityBoost(this.mobilityBoostSeconds, delta);
-    this.fogClearSeconds = tickFogClear(this.fogClearSeconds, delta);
-    this.slowCurseSeconds = tickSlowCurse(this.slowCurseSeconds, delta);
-    this.frenzyCurseSeconds = tickFrenzyCurse(this.frenzyCurseSeconds, delta);
-    this.gloomCurseSeconds = tickGloomCurse(this.gloomCurseSeconds, delta);
-    this.mirrorCurseSeconds = tickMirrorCurse(this.mirrorCurseSeconds, delta);
-    this.spinCurseSeconds = tickSpinCurse(this.spinCurseSeconds, delta);
-    tickCullBrand(this.cullBrandState, delta);
-    const pulseCount = tickAnnihilationPulse(this.annihilationPulseClock, delta);
-    const enemiesFrozen = isTimeFreezeActive(this.timeFreezeSeconds);
-    const luminousWardActive = isLuminousWardActive(this.luminousWardSeconds);
-    const annihilationPulseActive = isAnnihilationPulseActive(this.annihilationPulseClock);
-    const frenzyActive = isFrenzyCurseActive(this.frenzyCurseSeconds);
-    if (!enemiesFrozen) {
-      this.enemyAnimationElapsed += Math.max(0, delta);
-      this.enemySimulationElapsed += Math.max(0, delta);
-      this.difficultyElapsed += Math.max(0, delta);
-      this.updateDifficulty(player);
-    }
+    const { pulseCount } = tickRunPowerRuntime(this.powers, delta);
+    const enemiesFrozen = isTimeFreezeOn(this.powers);
+    const luminousWardActive = isLuminousWardOn(this.powers);
+    const annihilationPulseActive = isAnnihilationPulseOn(this.powers);
+    const frenzyActive = isFrenzyCurseOn(this.powers);
+    const activeEnemyRuntime = this.activeEnemyRuntime;
+    const enemyPlayer = activeEnemyRuntime?.localPlayerPosition(player) ?? player;
+    activeEnemyRuntime?.advanceTimers(delta, enemiesFrozen);
+    if (!enemiesFrozen && activeEnemyRuntime) this.updateDifficulty(enemyPlayer);
     let resolveGain = 0;
     let collectedStoneId: StoneId | null = null;
     const collectedStoneIds: StoneId[] = [];
@@ -752,49 +775,46 @@ export class DungeonWorld {
     let floorTransition: WorldUpdate["floorTransition"] = null;
     const biomeEvent = sampleBiomeEvent(
       this.activeMood.id,
-      this.difficultyElapsed,
+      activeEnemyRuntime?.difficultyElapsed ?? 0,
       this.dungeon?.seedHash ?? 0,
-      this.biomeEventCycle,
+      activeEnemyRuntime?.biomeEventCycle ?? -1,
     );
-    if (biomeEvent.started) this.biomeEventCycle = biomeEvent.cycle;
+    if (biomeEvent.started) activeEnemyRuntime?.setBiomeEventCycle(biomeEvent.cycle);
 
     // Combat + locomotion (sim) separate from instanced matrix writes (view).
-    const sim = enemiesFrozen
-      ? {
-          damage: 0,
-          nearestThreat: nearestEnemyDistance(this.enemies, player),
-          knockX: 0,
-          knockZ: 0,
-          knockHits: 0,
-          attacker: null,
-        }
-      : tickEnemySim(this.enemies as EnemySimBody[], {
-          delta,
-          elapsed: this.enemySimulationElapsed,
-          player,
-          dungeon: this.dungeon,
-          solidColliders: this.solidColliders,
-          solidColliderIndex: this.solidColliderIndex,
-          tileSize: this.tileSize,
-          repelRadius: Math.max(
-            luminousWardActive ? LUMINOUS_WARD_REPEL_RADIUS : 0,
-            annihilationPulseActive ? ANNIHILATION_PULSE_REPEL_RADIUS : 0,
-          ),
-          repelSpeedMultiplier: annihilationPulseActive
-            ? ANNIHILATION_PULSE_REPEL_SPEED_MULTIPLIER
-            : 1,
-          moodId: this.activeMood.id,
-          difficulty: composeDifficultyWithBiomeEvent(
-            this.difficulty,
-            biomeEvent.enemyPressureScale,
-          ),
-          pursuitSpeedMultiplier: frenzyActive ? FRENZY_CURSE_SPEED_MULTIPLIER : 1,
-          attackRateMultiplier: frenzyActive ? FRENZY_CURSE_ATTACK_RATE_MULTIPLIER : 1,
-          detectionRangeMultiplier: frenzyActive ? FRENZY_CURSE_DETECTION_MULTIPLIER : 1,
-        });
-    const sampledSurfaceEffect = this.hazardTiles?.sample(delta, player, {
+    const sim =
+      enemiesFrozen || !activeEnemyRuntime
+        ? {
+            damage: 0,
+            nearestThreat: nearestEnemyDistance(this.enemies, player),
+            knockX: 0,
+            knockZ: 0,
+            knockHits: 0,
+            attacker: null,
+          }
+        : activeEnemyRuntime.tick({
+            delta,
+            player: enemyPlayer,
+            tileSize: this.tileSize,
+            repelRadius: Math.max(
+              luminousWardActive ? LUMINOUS_WARD_REPEL_RADIUS : 0,
+              annihilationPulseActive ? ANNIHILATION_PULSE_REPEL_RADIUS : 0,
+            ),
+            repelSpeedMultiplier: annihilationPulseActive
+              ? ANNIHILATION_PULSE_REPEL_SPEED_MULTIPLIER
+              : 1,
+            moodId: this.activeMood.id,
+            difficulty: composeDifficultyWithBiomeEvent(
+              this.difficulty,
+              biomeEvent.enemyPressureScale,
+            ),
+            pursuitSpeedMultiplier: frenzyActive ? FRENZY_CURSE_SPEED_MULTIPLIER : 1,
+            attackRateMultiplier: frenzyActive ? FRENZY_CURSE_ATTACK_RATE_MULTIPLIER : 1,
+            detectionRangeMultiplier: frenzyActive ? FRENZY_CURSE_DETECTION_MULTIPLIER : 1,
+          });
+    const sampledSurfaceEffect = this.activeFloorRuntime?.hazardTileSystem?.sample(delta, player, {
       airborne: this.playerAirborne,
-      immune: isMobilityBoostActive(this.mobilityBoostSeconds),
+      immune: isMobilityBoostOn(this.powers),
     }) ?? {
       kind: null,
       label: "",
@@ -828,161 +848,109 @@ export class DungeonWorld {
     if (
       sim.attacker &&
       sim.damage > 0 &&
-      isCullBrandActive(this.cullBrandState) &&
+      isCullBrandOn(this.powers) &&
       (sim.attacker.phaseVisibility ?? 1) >= CULL_BRAND_MIN_PHASE_VISIBILITY &&
-      tryConsumeCullBrand(this.cullBrandState)
+      tryConsumeCullBrand(this.powers.cullBrand)
     ) {
       this.defeatEnemySeat(sim.attacker as EnemyActor);
       damage = surfaceEffect.damage;
       knockX = 0;
       knockZ = 0;
       knockHits = 0;
+      const attackerPosition = activeEnemyRuntime!.worldPositionInto(
+        sim.attacker.position,
+        this.residentWorldPosition,
+      );
       cullBrandKill = {
         position: {
-          x: sim.attacker.position.x,
-          y: sim.attacker.position.y,
-          z: sim.attacker.position.z,
+          x: attackerPosition.x,
+          y: attackerPosition.y,
+          z: attackerPosition.z,
         },
       };
     }
+    const attackerWorldPosition =
+      sim.attacker && activeEnemyRuntime
+        ? activeEnemyRuntime.worldPositionInto(sim.attacker.position, this.residentWorldPosition)
+        : null;
     const damageSource: WorldUpdate["damageSource"] =
       sim.attacker && damage > surfaceEffect.damage
         ? {
             position: {
-              x: sim.attacker.position.x,
-              y: sim.attacker.position.y,
-              z: sim.attacker.position.z,
+              x: attackerWorldPosition?.x ?? sim.attacker.position.x,
+              y: attackerWorldPosition?.y ?? sim.attacker.position.y,
+              z: attackerWorldPosition?.z ?? sim.attacker.position.z,
             },
             voice: creatureVoiceForEnemy(sim.attacker.kind),
           }
         : null;
-    this.enemyPresentation.update({
-      actors: this.enemies,
-      billboardBatches: this.enemyBatches,
-      shadowBatches: this.enemyShadowBatches,
-      visibilityAttributes: this.enemyVisibilityAttributes,
-      animationBatches: this.enemyAnimationBatches,
-      animationElapsed: this.enemyAnimationElapsed,
-      revealSeconds: this.difficultyState.revealSeconds,
+    activeEnemyRuntime?.present({
+      player: enemyPlayer,
+      revealSeconds: activeEnemyRuntime.difficultyState.revealSeconds,
       frozen: enemiesFrozen,
-      player,
       delta,
       moodId: this.activeMood.id,
       trail: this.enemyMotionTrailVfx,
     });
 
-    for (const door of this.doors) {
-      const distance = horizontalDistance(door.root.position, player);
-      const verticalDelta = Math.abs(player.y - door.root.position.y);
-      // Ignore doors on other slabs (same XZ stack would otherwise auto-open below).
-      const openDistance =
-        (door.root.userData.openDistance as number) ?? DOOR_DEFAULT_OPEN_DISTANCE;
-      const targetOpen =
-        verticalDelta > 2.2
-          ? false
-          : resolveDoorTargetOpen(door.targetOpen, distance, openDistance);
-      if (targetOpen !== door.targetOpen) {
-        door.targetOpen = targetOpen;
-        if (!doorSound && verticalDelta <= 2.2) {
-          doorSound = {
-            kind: targetOpen ? "open" : "close",
-            position: {
-              x: door.root.position.x,
-              y: door.root.position.y + 1.2,
-              z: door.root.position.z,
-            },
-          };
+    const activeFloorRuntime = this.activeFloorRuntime;
+    if (activeFloorRuntime) {
+      for (const door of activeFloorRuntime.doors) {
+        const doorPosition = this.worldPositionOf(door.root);
+        const distance = horizontalDistance(doorPosition, player);
+        const verticalDelta = Math.abs(player.y - doorPosition.y);
+        const openDistance =
+          (door.root.userData.openDistance as number) ?? DOOR_DEFAULT_OPEN_DISTANCE;
+        const targetOpen =
+          verticalDelta > 2.2
+            ? false
+            : resolveDoorTargetOpen(door.targetOpen, distance, openDistance);
+        if (targetOpen !== door.targetOpen) {
+          door.targetOpen = targetOpen;
+          if (!doorSound && verticalDelta <= 2.2) {
+            doorSound = {
+              kind: targetOpen ? "open" : "close",
+              position: {
+                x: doorPosition.x,
+                y: doorPosition.y + 1.2,
+                z: doorPosition.z,
+              },
+            };
+          }
         }
+        updateDoorLeafPresentation(door, delta);
       }
-      const target = door.targetOpen ? 1 : 0;
-      door.openness = THREE.MathUtils.damp(
-        door.openness,
-        target,
-        target > door.openness ? 9 : 3.2,
-        delta,
-      );
-      door.left.rotation.y = (door.left.userData.openRotation as number) * door.openness;
-      door.right.rotation.y = (door.right.userData.openRotation as number) * door.openness;
-      door.root.userData.passable = isDoorPassable(door.openness);
-      door.root.userData.closed = isDoorClosed(door.openness);
     }
 
     let nearestChest: StaticChestActor | null = null;
     let nearestChestDistance = Number.POSITIVE_INFINITY;
-    for (const chest of this.chests) {
-      const distance = horizontalDistance(chest.root.position, player);
-      const verticalDelta = player.y - chest.root.position.y;
-      if (
-        canInteractWithChest(distance, chest.opened, verticalDelta) &&
-        distance < nearestChestDistance
-      ) {
-        nearestChest = chest;
-        nearestChestDistance = distance;
-      }
-      const nextOpenness = THREE.MathUtils.damp(
-        chest.openness,
-        chest.opened ? 1 : 0,
-        chest.opened ? 7.5 : 5,
-        delta,
-      );
-      if (Math.abs(nextOpenness - chest.openness) > 0.000_001) {
-        chest.openness = nextOpenness;
-        chest.lid.rotation.x = -1.18 * chest.openness;
-        chest.runtimeBatch?.updateLidMatrix();
-      }
-      if (!chest.opened || chest.reward.available || chest.reward.collected) continue;
-      chest.reward.revealTime += delta;
-      const reveal = THREE.MathUtils.clamp(chest.reward.revealTime / 0.52, 0, 1);
-      const eased = 1 - Math.pow(1 - reveal, 3);
-      // Keep visible so PointLights on power rewards stay in the fixed light count.
-      chest.reward.object.visible = true;
-      chest.reward.object.position.y = chest.reward.baseY - 0.34 + eased * 0.34;
-      chest.reward.object.rotation.y += delta * (1.35 + reveal * 1.25);
-      chest.reward.object.scale
-        .copy(chest.reward.baseScale)
-        .multiplyScalar(0.68 + eased * 0.32 + Math.sin(reveal * Math.PI) * 0.08);
-      if (chest.reward.timeFreezeSignal) {
-        chest.reward.timeFreezeSignal.light.intensity =
-          chest.reward.timeFreezeSignal.baseIntensity * eased;
-      }
-      if (chest.reward.luminousWardSignal) {
-        chest.reward.luminousWardSignal.light.intensity =
-          chest.reward.luminousWardSignal.baseIntensity * eased;
-      }
-      if (chest.reward.annihilationPulseSignal) {
-        chest.reward.annihilationPulseSignal.light.intensity =
-          chest.reward.annihilationPulseSignal.baseIntensity * eased;
-      }
-      if (chest.reward.cullBrandSignal) {
-        chest.reward.cullBrandSignal.light.intensity =
-          chest.reward.cullBrandSignal.baseIntensity * eased;
-      }
-      if (reveal >= 1) {
-        chest.reward.available = true;
-        chest.reward.object.scale.copy(chest.reward.baseScale);
+    if (activeFloorRuntime) {
+      for (const chest of activeFloorRuntime.chests) {
+        const chestPosition = this.worldPositionOf(chest.root);
+        const distance = horizontalDistance(chestPosition, player);
+        const verticalDelta = player.y - chestPosition.y;
+        if (
+          canInteractWithChest(distance, chest.opened, verticalDelta) &&
+          distance < nearestChestDistance
+        ) {
+          nearestChest = chest;
+          nearestChestDistance = distance;
+        }
+        updateChestPresentation(chest, delta);
       }
     }
     if (nearestChest) {
       interactionPrompt = "open-chest";
       if (shouldOpenChest(interactPressed, mouseForwardHeld)) {
         nearestChest.opened = true;
-        nearestChest.reward.revealTime = 0;
         setPickupDormant(nearestChest.reward.object, false);
-        nearestChest.reward.object.position.y = nearestChest.reward.baseY - 0.34;
-        nearestChest.reward.object.scale.copy(nearestChest.reward.baseScale).multiplyScalar(0.62);
-        if (nearestChest.reward.timeFreezeSignal)
-          nearestChest.reward.timeFreezeSignal.light.intensity = 0;
-        if (nearestChest.reward.luminousWardSignal)
-          nearestChest.reward.luminousWardSignal.light.intensity = 0;
-        if (nearestChest.reward.annihilationPulseSignal)
-          nearestChest.reward.annihilationPulseSignal.light.intensity = 0;
-        if (nearestChest.reward.cullBrandSignal)
-          nearestChest.reward.cullBrandSignal.light.intensity = 0;
+        beginChestRewardReveal(nearestChest);
+        const chestPosition = this.worldPositionOf(nearestChest.root);
         chestSound = {
           position: {
-            x: nearestChest.root.position.x,
-            y: nearestChest.root.position.y + 0.72,
-            z: nearestChest.root.position.z,
+            x: chestPosition.x,
+            y: chestPosition.y + 0.72,
+            z: chestPosition.z,
           },
         };
         interactionPrompt = null;
@@ -991,191 +959,60 @@ export class DungeonWorld {
 
     // Stairs are walkable geometry only — no interact prompt or floor transition.
 
-    for (const pickup of this.pickups) {
-      if (pickup.collected) {
-        pickup.collectTime += delta;
-        // Rise clear of the chest, then fly into the player body.
-        const duration = 0.78;
-        const riseEnd = 0.38;
-        const progress = THREE.MathUtils.clamp(pickup.collectTime / duration, 0, 1);
-        const originX = pickup.collectOriginX;
-        const originY = pickup.collectOriginY;
-        const originZ = pickup.collectOriginZ;
-        const peakY = originY + 2.85;
-        let x = originX;
-        let y = originY;
-        let z = originZ;
-        if (progress <= riseEnd) {
-          const riseT = progress / riseEnd;
-          const eased = 1 - Math.pow(1 - riseT, 3);
-          y = originY + eased * (peakY - originY);
-        } else {
-          const flyT = (progress - riseEnd) / (1 - riseEnd);
-          const eased = flyT * flyT * (3 - 2 * flyT);
-          x = THREE.MathUtils.lerp(originX, player.x, eased);
-          z = THREE.MathUtils.lerp(originZ, player.z, eased);
-          y = THREE.MathUtils.lerp(peakY, player.y - 0.12, eased);
+    const pickupMotionFrame = { player, elapsed: this.elapsed, delta };
+    if (activeFloorRuntime) {
+      for (const pickup of activeFloorRuntime.pickups) {
+        if (pickup.collected) {
+          updateCollectedPickupMotion(pickup, pickupMotionFrame);
+          continue;
         }
-        pickup.object.position.set(x, y, z);
-        const pop =
-          1 +
-          Math.sin(Math.min(1, progress / riseEnd) * Math.PI) *
-            (pickup.stoneSignal ? 0.52 : 0.36) *
-            (progress <= riseEnd ? 1 : 1 - (progress - riseEnd) / (1 - riseEnd));
-        const shrink = progress <= riseEnd ? 1 : 1 - 0.55 * ((progress - riseEnd) / (1 - riseEnd));
-        pickup.object.scale.copy(pickup.baseScale).multiplyScalar(pop * shrink);
-        pickup.object.rotation.y +=
-          delta * (pickup.stoneSignal ? 3.2 + progress * 6 : 2.2 + progress * 4);
-        const fade =
-          progress <= riseEnd
-            ? 0
-            : THREE.MathUtils.clamp((progress - riseEnd) / (1 - riseEnd), 0, 1);
-        setPickupOpacity(pickup.object, 1 - fade);
-        if (pickup.stoneSignal) pickup.stoneSignal.light.intensity = 0;
-        if (pickup.timeFreezeSignal) pickup.timeFreezeSignal.light.intensity = 0;
-        if (pickup.luminousWardSignal) pickup.luminousWardSignal.light.intensity = 0;
-        if (pickup.annihilationPulseSignal) pickup.annihilationPulseSignal.light.intensity = 0;
-        if (pickup.cullBrandSignal) pickup.cullBrandSignal.light.intensity = 0;
-        if (progress >= 1) {
-          // Keep the root/lights stable, but remove collected meshes from the draw list.
-          setPickupDormant(pickup.object, true);
-        }
-        continue;
-      }
-      if (!pickup.available) continue;
-      const powerPickup =
-        pickup.timeFreezeSignal ||
-        pickup.luminousWardSignal ||
-        pickup.annihilationPulseSignal ||
-        pickup.cullBrandSignal;
-      const motionScale = powerPickup ? 0.56 : 0.68;
-      if (pickup.stoneSignal) {
-        const phase = this.elapsed * 1.65 + pickup.object.id;
-        pickup.object.position.y = pickup.baseY;
-        pickup.stoneSignal.crystalAssembly.position.y = Math.sin(phase) * 0.035;
-        pickup.stoneSignal.crystalAssembly.rotation.y += delta * 0.56;
-        pickup.stoneSignal.crown.rotation.y -= delta * 0.92;
-        pickup.stoneSignal.glow.rotation.y -= delta * 0.12;
-      } else {
-        pickup.object.position.y =
-          pickup.baseY + Math.sin(this.elapsed * 2 + pickup.object.id) * 0.08 * motionScale;
-        pickup.object.rotation.y += delta * 0.46;
-      }
-      if (pickup.timeFreezeSignal) {
-        const pulse = 0.95 + Math.sin(this.elapsed * 2.35 + pickup.object.id) * 0.05;
-        pickup.timeFreezeSignal.light.intensity = pickup.timeFreezeSignal.baseIntensity * pulse;
-      }
-      if (pickup.luminousWardSignal) {
-        const pulse = 0.95 + Math.sin(this.elapsed * 2.15 + pickup.object.id) * 0.05;
-        pickup.luminousWardSignal.light.intensity = pickup.luminousWardSignal.baseIntensity * pulse;
-        const glowMaterial = pickup.luminousWardSignal.glow.material;
-        if (glowMaterial instanceof THREE.MeshBasicMaterial) {
-          glowMaterial.opacity = pickup.luminousWardSignal.baseGlowOpacity * (0.95 + pulse * 0.05);
-        }
-      }
-      if (pickup.annihilationPulseSignal) {
-        const pulse = 0.92 + Math.sin(this.elapsed * 3.1 + pickup.object.id) * 0.08;
-        pickup.annihilationPulseSignal.light.intensity =
-          pickup.annihilationPulseSignal.baseIntensity * pulse;
-        const glowMaterial = pickup.annihilationPulseSignal.glow.material;
-        if (glowMaterial instanceof THREE.MeshBasicMaterial) {
-          glowMaterial.opacity =
-            pickup.annihilationPulseSignal.baseGlowOpacity * (0.9 + pulse * 0.1);
-        }
-      }
-      if (pickup.cullBrandSignal) {
-        const pulse = 0.92 + Math.sin(this.elapsed * 2.85 + pickup.object.id) * 0.08;
-        pickup.cullBrandSignal.light.intensity = pickup.cullBrandSignal.baseIntensity * pulse;
-        const glowMaterial = pickup.cullBrandSignal.glow.material;
-        if (glowMaterial instanceof THREE.MeshBasicMaterial) {
-          glowMaterial.opacity =
-            pickup.cullBrandSignal.baseGlowOpacity * (0.9 + pulse * 0.1);
-        }
-      }
-      if (pickup.stoneSignal) {
-        const pulse = 0.92 + Math.sin(this.elapsed * 2.35 + pickup.object.id) * 0.08;
-        pickup.stoneSignal.light.intensity = pickup.stoneSignal.baseLightIntensity * pulse;
-        const glowMaterial = pickup.stoneSignal.glow.material;
-        if (glowMaterial instanceof THREE.MeshBasicMaterial) {
-          glowMaterial.opacity = pickup.stoneSignal.baseGlowOpacity * (0.82 + pulse * 0.18);
-        }
-        pickup.stoneSignal.crown.scale.setScalar(0.68 * (0.97 + pulse * 0.055));
-      }
-      if (
-        !canCollectPickup(
-          horizontalDistance(pickup.object.position, player),
-          pickup.autoCollect,
-          pickup.kind,
-          player.y - pickup.object.position.y,
+        if (!pickup.available) continue;
+        updateIdlePickupMotion(pickup, pickupMotionFrame);
+        const pickupPosition = this.worldPositionOf(pickup.object);
+        if (
+          !canCollectPickup(
+            horizontalDistance(pickupPosition, player),
+            pickup.autoCollect,
+            pickup.kind,
+            player.y - pickupPosition.y,
+          )
         )
-      )
-        continue;
-      pickup.collected = true;
-      pickup.collectTime = 0;
-      pickup.collectOriginX = pickup.object.position.x;
-      pickup.collectOriginY = pickup.object.position.y;
-      pickup.collectOriginZ = pickup.object.position.z;
-      this.pickupBurstPool?.trigger(
-        pickup.object.position,
-        pickup.kind,
-        pickup.stoneSignal?.effectColor,
-      );
-      collectedPickup = {
-        kind: pickup.kind,
-        position: {
-          x: pickup.object.position.x,
-          y: pickup.object.position.y,
-          z: pickup.object.position.z,
-        },
-      };
-      if (pickup.kind === "stone" && pickup.stoneId) {
-        if (pickup.stoneSignal) pickup.stoneSignal.light.intensity = 0;
-        this.collectedStones.add(pickup.stoneId);
-        collectedStoneId = pickup.stoneId;
-        collectedStoneIds.push(pickup.stoneId);
-        // Each bound stone raises the reinforcement target and wakes seats now.
-        this.refreshDifficultyState();
-        this.activateEnemiesToTarget(player, "play");
-        if (this.collectedStones.size >= STONE_ORDER.length) this.openPortal();
-      } else if (pickup.kind === "resolve") {
-        resolveGain += 28;
-      } else if (pickup.kind === "time-freeze") {
-        this.timeFreezeSeconds = activateTimeFreeze();
-      } else if (pickup.kind === "annihilation-pulse") {
-        if (pickup.annihilationPulseSignal) pickup.annihilationPulseSignal.light.intensity = 0;
-        activateAnnihilationPulse(this.annihilationPulseClock);
-      } else if (pickup.kind === "cull-brand") {
-        if (pickup.cullBrandSignal) pickup.cullBrandSignal.light.intensity = 0;
-        activateCullBrand(this.cullBrandState);
-      } else if (pickup.kind === "phoenix-egg") {
-        if (pickup.phoenixEggSignal) pickup.phoenixEggSignal.light.intensity = 0;
-        this.phoenixCharges = armPhoenixCharge(this.phoenixCharges);
-      } else if (pickup.kind === "luminous-ward") {
-        if (pickup.luminousWardSignal) pickup.luminousWardSignal.light.intensity = 0;
-        this.luminousWardSeconds = activateLuminousWard();
-      } else if (pickup.kind === "map") {
-        this.mapRevealed = true;
-      } else if (pickup.kind === "mobility") {
-        this.mobilityBoostSeconds = activateMobilityBoost(this.mobilityBoostSeconds);
-      } else if (pickup.kind === "clarity") {
-        this.fogClearSeconds = activateFogClear(this.fogClearSeconds);
-      } else if (pickup.kind === "swarm-curse") {
-        this.swarmCurseActive = activateSwarmCurse(this.swarmCurseActive);
-        this.refreshDifficultyState();
-        this.activateEnemiesToTarget(player, "play");
-      } else if (pickup.kind === "slow-curse") {
-        this.slowCurseSeconds = activateSlowCurse(this.slowCurseSeconds);
-      } else if (pickup.kind === "frenzy-curse") {
-        this.frenzyCurseSeconds = activateFrenzyCurse(this.frenzyCurseSeconds);
-      } else if (pickup.kind === "gloom-curse") {
-        this.gloomCurseSeconds = activateGloomCurse(this.gloomCurseSeconds);
-      } else if (pickup.kind === "mirror-curse") {
-        // Control curses do not stack: the newest clears the other.
-        this.spinCurseSeconds = 0;
-        this.mirrorCurseSeconds = activateMirrorCurse(this.mirrorCurseSeconds);
-      } else if (pickup.kind === "spin-curse") {
-        this.mirrorCurseSeconds = 0;
-        this.spinCurseSeconds = activateSpinCurse(this.spinCurseSeconds);
+          continue;
+        pickup.collected = true;
+        pickup.collectTime = 0;
+        pickup.collectOriginX = pickup.object.position.x;
+        pickup.collectOriginY = pickup.object.position.y;
+        pickup.collectOriginZ = pickup.object.position.z;
+        this.pickupBurstPool?.trigger(pickupPosition, pickup.kind, pickup.stoneSignal?.effectColor);
+        collectedPickup = {
+          kind: pickup.kind,
+          position: {
+            x: pickupPosition.x,
+            y: pickupPosition.y,
+            z: pickupPosition.z,
+          },
+        };
+        if (pickup.kind === "stone" && pickup.stoneId) {
+          if (pickup.stoneSignal) pickup.stoneSignal.light.intensity = 0;
+          this.collectedStones.add(pickup.stoneId);
+          collectedStoneId = pickup.stoneId;
+          collectedStoneIds.push(pickup.stoneId);
+          // Each bound stone raises the reinforcement target and wakes seats now.
+          this.refreshDifficultyState();
+          this.activateEnemiesToTarget(player, "play");
+          if (this.collectedStones.size >= STONE_ORDER.length) this.openPortal();
+        } else if (pickup.kind === "resolve") {
+          resolveGain += 28;
+        } else if (applyPickupToRunPowers(this.powers, pickup.kind)) {
+          if (pickup.annihilationPulseSignal) pickup.annihilationPulseSignal.light.intensity = 0;
+          if (pickup.cullBrandSignal) pickup.cullBrandSignal.light.intensity = 0;
+          if (pickup.phoenixEggSignal) pickup.phoenixEggSignal.light.intensity = 0;
+          if (pickup.luminousWardSignal) pickup.luminousWardSignal.light.intensity = 0;
+          if (pickup.kind === "swarm-curse") {
+            this.refreshDifficultyState();
+            this.activateEnemiesToTarget(player, "play");
+          }
+        }
       }
     }
 
@@ -1206,22 +1043,22 @@ export class DungeonWorld {
       collectedStoneId,
       collectedStoneIds,
       collectedPickup,
-      timeFreezeRemaining: this.timeFreezeSeconds,
-      luminousWardRemaining: this.luminousWardSeconds,
-      annihilationPulseRemaining: this.annihilationPulseClock.remaining,
-      mapRevealed: this.mapRevealed,
-      mobilityBoostRemaining: this.mobilityBoostSeconds,
-      fogClearRemaining: this.fogClearSeconds,
-      slowCurseRemaining: this.slowCurseSeconds,
-      frenzyCurseRemaining: this.frenzyCurseSeconds,
-      gloomCurseRemaining: this.gloomCurseSeconds,
-      swarmCurseActive: this.swarmCurseActive,
-      cullBrandRemaining: this.cullBrandState.remaining,
-      mirrorCurseRemaining: this.mirrorCurseSeconds,
-      spinCurseRemaining: this.spinCurseSeconds,
+      timeFreezeRemaining: this.powers.timeFreezeSeconds,
+      luminousWardRemaining: this.powers.luminousWardSeconds,
+      annihilationPulseRemaining: this.powers.annihilationPulse.remaining,
+      mapRevealed: this.powers.mapRevealed,
+      mobilityBoostRemaining: this.powers.mobilityBoostSeconds,
+      fogClearRemaining: this.powers.fogClearSeconds,
+      slowCurseRemaining: this.powers.slowCurseSeconds,
+      frenzyCurseRemaining: this.powers.frenzyCurseSeconds,
+      gloomCurseRemaining: this.powers.gloomCurseSeconds,
+      swarmCurseActive: this.powers.swarmCurseActive,
+      cullBrandRemaining: this.powers.cullBrand.remaining,
+      mirrorCurseRemaining: this.powers.mirrorCurseSeconds,
+      spinCurseRemaining: this.powers.spinCurseSeconds,
       annihilationPulse,
       cullBrandKill,
-      phoenixCharges: this.phoenixCharges,
+      phoenixCharges: this.powers.phoenixCharges,
       stonesFound: this.collectedStones.size,
       stonesTotal: STONE_ORDER.length,
       portalOpen: this.portalOpen,
@@ -1242,24 +1079,25 @@ export class DungeonWorld {
   }
 
   private defeatEnemySeat(enemy: EnemyActor): void {
-    enemy.defeated = true;
-    enemy.scaleX = 0;
-    enemy.scaleY = 0;
-    enemy.phaseVisibility = 0;
-    enemy.spawnReveal = 0;
-    enemy.moving = false;
+    const runtime = this.activeEnemyRuntime;
+    if (!runtime) return;
+    runtime.defeat(enemy);
+    const worldPosition = runtime.worldPositionInto(enemy.position, this.residentWorldPosition);
     this.annihilationPulseVfx?.triggerEnemyBurst(
-      enemy.position,
+      worldPosition,
       this.activeMood.id,
       enemy.instanceIndex + enemy.position.x * 13.17 + enemy.position.z * 7.91,
     );
   }
 
   private applyAnnihilationPulse(origin: THREE.Vector3): number {
+    const runtime = this.activeEnemyRuntime;
+    if (!runtime) return 0;
+    const localOrigin = runtime.localPlayerPosition(origin);
     let hits = 0;
-    for (const enemy of this.enemies) {
+    for (const enemy of runtime.actors) {
       if (
-        !annihilationPulseHitsEnemy(origin, {
+        !annihilationPulseHitsEnemy(localOrigin, {
           defeated: enemy.defeated,
           scaleX: enemy.scaleX,
           scaleY: enemy.scaleY,
@@ -1281,38 +1119,50 @@ export class DungeonWorld {
   updateEffects(delta: number, viewerPosition?: THREE.Vector3Like): void {
     this.elapsed += delta;
     const viewer = viewerPosition ?? { x: 0, y: 1.5, z: 0 };
-    this.timeFreezeVfx?.update(this.timeFreezeSeconds, this.elapsed, this.enemies);
-    this.luminousWardVfx?.update(this.luminousWardSeconds, this.elapsed, viewer, delta);
-    this.mobilityBoostVfx?.update(this.mobilityBoostSeconds, this.elapsed, viewer, delta);
+    this.timeFreezeVfx?.update(
+      this.powers.timeFreezeSeconds,
+      this.elapsed,
+      this.activeEnemyRuntime?.actors ?? [],
+    );
+    this.luminousWardVfx?.update(this.powers.luminousWardSeconds, this.elapsed, viewer, delta);
+    this.mobilityBoostVfx?.update(this.powers.mobilityBoostSeconds, this.elapsed, viewer, delta);
     this.annihilationPulseVfx?.update(
-      this.annihilationPulseClock.remaining,
+      this.powers.annihilationPulse.remaining,
       this.elapsed,
       viewer,
       delta,
       this.activeMood.id,
     );
-    this.cullBrandVfx?.update(this.cullBrandState.remaining, this.elapsed, viewer);
+    this.cullBrandVfx?.update(this.powers.cullBrand.remaining, this.elapsed, viewer);
     this.controlCurseVfx?.update(
-      this.mirrorCurseSeconds,
-      this.spinCurseSeconds,
+      this.powers.mirrorCurseSeconds,
+      this.powers.spinCurseSeconds,
       this.elapsed,
       viewer,
     );
-    this.phoenixEggVfx?.update(this.phoenixCharges, this.elapsed, delta, viewer);
-    this.hazardTiles?.update(delta);
-    this.fixedSceneEffects.update({
-      delta,
-      elapsed: this.elapsed,
-      viewerPosition,
-      dungeon: this.dungeon,
-      tileSize: this.tileSize,
-      floorSprites: this.floorBiomeSprites,
-      fires: this.fireEffects,
-      portalBeam: this.portalBeam,
-      stoneBeams: this.stoneBeams,
-      ambientBeams: this.ambientBeams,
-      liquidSurfaces: this.liquidKit?.surfaces ?? null,
-    });
+    this.phoenixEggVfx?.update(this.powers.phoenixCharges, this.elapsed, delta, viewer);
+    const runtime = this.activeFloorRuntime;
+    // Gameplay and decorative state advance only on the active slab. Nearby
+    // roots remain visible for stair continuity but are intentionally inert.
+    if (runtime) {
+      runtime.hazardTileSystem?.update(delta);
+      runtime.fixedSceneEffects.update({
+        delta,
+        elapsed: this.elapsed,
+        viewerPosition,
+        dungeon: this.dungeon,
+        tileSize: this.tileSize,
+        floorSprites: runtime.floorBiomeSprites,
+        ceilingSprites: runtime.ceilingBiomeSprites,
+        fires: runtime.fires,
+        // The portal is one global objective. It is passed through exactly this
+        // active update, never once for every resident runtime.
+        portalBeam: this.portalBeam,
+        stoneBeams: runtime.stoneBeams,
+        ambientBeams: runtime.ambientBeams,
+        liquidSurfaces: runtime.liquidKit?.surfaces ?? null,
+      });
+    }
   }
 
   setPickupEffectsWarmupVisible(visible: boolean): void {
@@ -1348,31 +1198,31 @@ export class DungeonWorld {
   }
 
   get timeFreezeRemaining(): number {
-    return this.timeFreezeSeconds;
+    return this.powers.timeFreezeSeconds;
   }
 
   get luminousWardRemaining(): number {
-    return this.luminousWardSeconds;
+    return this.powers.luminousWardSeconds;
   }
 
   get annihilationPulseRemaining(): number {
-    return this.annihilationPulseClock.remaining;
+    return this.powers.annihilationPulse.remaining;
   }
 
   get cullBrandRemaining(): number {
-    return this.cullBrandState.remaining;
+    return this.powers.cullBrand.remaining;
   }
 
   get isCullBrandActive(): boolean {
-    return isCullBrandActive(this.cullBrandState);
+    return isCullBrandOn(this.powers);
   }
 
   get phoenixChargeCount(): number {
-    return this.phoenixCharges;
+    return this.powers.phoenixCharges;
   }
 
   get isPhoenixArmed(): boolean {
-    return hasPhoenixCharge(this.phoenixCharges);
+    return hasPhoenixCharge(this.powers.phoenixCharges);
   }
 
   /**
@@ -1380,73 +1230,73 @@ export class DungeonWorld {
    * Arms annihilation pulse only — no ambient phoenix motes while equipped.
    */
   applyPhoenixRevive(_viewer: { x: number; y: number; z: number }): void {
-    this.phoenixCharges = 0;
-    activateAnnihilationPulse(this.annihilationPulseClock);
+    this.powers.phoenixCharges = 0;
+    activateAnnihilationPulse(this.powers.annihilationPulse);
   }
 
   /** Keep world charges aligned when session reports remaining charges. */
   setPhoenixCharges(charges: number): void {
-    this.phoenixCharges = clampPhoenixCharges(charges);
+    this.powers.phoenixCharges = clampPhoenixCharges(charges);
   }
 
   get isMapRevealed(): boolean {
-    return this.mapRevealed;
+    return this.powers.mapRevealed;
   }
 
   get mobilityBoostRemaining(): number {
-    return this.mobilityBoostSeconds;
+    return this.powers.mobilityBoostSeconds;
   }
 
   get fogClearRemaining(): number {
-    return this.fogClearSeconds;
+    return this.powers.fogClearSeconds;
   }
 
   get isFogClearActive(): boolean {
-    return isFogClearActive(this.fogClearSeconds);
+    return isFogClearOn(this.powers);
   }
 
   get slowCurseRemaining(): number {
-    return this.slowCurseSeconds;
+    return this.powers.slowCurseSeconds;
   }
 
   get isSlowCurseActive(): boolean {
-    return isSlowCurseActive(this.slowCurseSeconds);
+    return isSlowCurseOn(this.powers);
   }
 
   get frenzyCurseRemaining(): number {
-    return this.frenzyCurseSeconds;
+    return this.powers.frenzyCurseSeconds;
   }
 
   get isFrenzyCurseActive(): boolean {
-    return isFrenzyCurseActive(this.frenzyCurseSeconds);
+    return isFrenzyCurseOn(this.powers);
   }
 
   get mirrorCurseRemaining(): number {
-    return this.mirrorCurseSeconds;
+    return this.powers.mirrorCurseSeconds;
   }
 
   get isMirrorCurseActive(): boolean {
-    return isMirrorCurseActive(this.mirrorCurseSeconds);
+    return isMirrorCurseOn(this.powers);
   }
 
   get spinCurseRemaining(): number {
-    return this.spinCurseSeconds;
+    return this.powers.spinCurseSeconds;
   }
 
   get isSpinCurseActive(): boolean {
-    return isSpinCurseActive(this.spinCurseSeconds);
+    return isSpinCurseOn(this.powers);
   }
 
   get gloomCurseRemaining(): number {
-    return this.gloomCurseSeconds;
+    return this.powers.gloomCurseSeconds;
   }
 
   get isGloomCurseActive(): boolean {
-    return isGloomCurseActive(this.gloomCurseSeconds);
+    return isGloomCurseOn(this.powers);
   }
 
   get isSwarmCurseActive(): boolean {
-    return isSwarmCurseActive(this.swarmCurseActive);
+    return isSwarmCurseOn(this.powers);
   }
 
   restoreSession(foundStoneIds: readonly StoneId[]): void {
@@ -1497,24 +1347,8 @@ export class DungeonWorld {
     },
     player: { x: number; z: number },
   ): void {
-    this.difficultyElapsed = Math.max(0, progress.difficultyElapsed);
-    this.difficultySecond = Math.floor(this.difficultyElapsed);
-    this.timeFreezeSeconds = Math.max(0, progress.timeFreezeRemaining ?? 0);
-    this.luminousWardSeconds = Math.max(0, progress.luminousWardRemaining ?? 0);
-    this.annihilationPulseClock.remaining = Math.max(0, progress.annihilationPulseRemaining ?? 0);
-    this.mapRevealed = progress.mapRevealed === true;
-    this.mobilityBoostSeconds = Math.max(0, progress.mobilityBoostRemaining ?? 0);
-    this.fogClearSeconds = Math.max(0, progress.fogClearRemaining ?? 0);
-    this.slowCurseSeconds = Math.max(0, progress.slowCurseRemaining ?? 0);
-    this.frenzyCurseSeconds = Math.max(0, progress.frenzyCurseRemaining ?? 0);
-    this.gloomCurseSeconds = Math.max(0, progress.gloomCurseRemaining ?? 0);
-    this.swarmCurseActive = progress.swarmCurseActive === true;
-    this.mirrorCurseSeconds = Math.max(0, progress.mirrorCurseRemaining ?? 0);
-    this.spinCurseSeconds = Math.max(0, progress.spinCurseRemaining ?? 0);
-    const cullRemaining = Math.max(0, progress.cullBrandRemaining ?? 0);
-    restoreCullBrand(this.cullBrandState, cullRemaining, cullRemaining > 0 ? 1 : 0);
-    this.phoenixCharges = clampPhoenixCharges(progress.phoenixCharges ?? 0);
-    this.annihilationPulseClock.timeSincePulse = 0;
+    this.activeEnemyRuntime?.restoreDifficultyElapsed(progress.difficultyElapsed);
+    restoreRunPowerRuntime(this.powers, progress);
     this.refreshDifficultyState();
     this.activateEnemiesToTarget(player, "resume");
   }
@@ -1527,57 +1361,37 @@ export class DungeonWorld {
     return this.solidColliders.map((collider) => ({ ...collider }));
   }
 
-  private rebuildMinimapFeatures(): void {
-    const dungeon = this.dungeon;
-    const toCell = (position: THREE.Vector3): MinimapCell => {
-      if (!dungeon) return { x: 0, y: 0 };
-      return worldToGrid(dungeon, { x: position.x, z: position.z }, this.tileSize);
-    };
-    const pickupDtos = this.pickups.map((pickup) => ({
-      kind: pickup.kind,
-      available: pickup.available,
-      collected: pickup.collected,
-      stoneId: pickup.stoneId,
-      cell: toCell(pickup.object.position),
-    }));
-    this.minimapPickupStates = pickupDtos.map(
-      (pickup) => (pickup.available ? 1 : 0) | (pickup.collected ? 2 : 0),
-    );
-    this.minimapFeatures = projectMinimapFeatures({
-      doors: this.doors.map((door) => toCell(door.root.position)),
-      fires: this.fireEffects.map((fire) => toCell(fire.root.position)),
-      enemies: this.enemies.map((enemy) => ({
-        cell: toCell(enemy.position),
-        tier: enemy.tier,
-        scaleX: enemy.scaleX,
-        scaleY: enemy.scaleY,
-      })),
-      pickups: pickupDtos,
-      stairs: this.staircases.map((stair) => ({
-        cell: { ...stair.cell },
-        direction: stair.direction,
-      })),
-      spawn: dungeon ? { x: dungeon.spawn.x, y: dungeon.spawn.y } : { x: 0, y: 0 },
-    });
+  /** Switch the minimap pointer only; resident projections are built once. */
+  private bindActiveMinimapProjection(runtime: ResidentFloorRuntime | null): void {
+    this.activeMinimapProjection = runtime?.minimapProjection ?? null;
+    this.minimapFeatures = this.activeMinimapProjection?.features ?? this.emptyMinimapFeatures;
     this.minimapFeatureRevision += 1;
   }
 
   private refreshMinimapFeatures(): void {
-    const dungeon = this.dungeon;
-    if (!dungeon) return;
+    let changed = this.activeMinimapProjection?.refreshPickups() ?? false;
+    changed = this.refreshActiveEnemyMarkers() || changed;
+    if (changed) this.minimapFeatureRevision += 1;
+  }
 
-    for (let index = 0; index < this.pickups.length; index += 1) {
-      const pickup = this.pickups[index];
-      const state = (pickup?.available ? 1 : 0) | (pickup?.collected ? 2 : 0);
-      if (this.minimapPickupStates[index] !== state) {
-        this.rebuildMinimapFeatures();
-        return;
-      }
+  /**
+   * Enemy cells are a dynamic overlay on the active cached static projection.
+   * Rebinds never rebuild or mutate another floor projection.
+   */
+  private refreshActiveEnemyMarkers(): boolean {
+    const runtime = this.activeFloorRuntime;
+    const enemyRuntime = this.activeEnemyRuntime;
+    const dungeon = this.dungeon;
+    const markers = this.minimapFeatures.enemies;
+    if (!runtime || !enemyRuntime || !dungeon || runtime.floorIndex !== enemyRuntime.floorIndex) {
+      if (markers.length === 0) return false;
+      markers.length = 0;
+      return true;
     }
 
     let changed = false;
     let writeIndex = 0;
-    for (const enemy of this.enemies) {
+    for (const enemy of enemyRuntime.actors) {
       if (enemy.scaleX <= 0.001 || enemy.scaleY <= 0.001) continue;
       let marker = this.minimapFeatures.enemies[writeIndex];
       if (!marker) {
@@ -1588,7 +1402,8 @@ export class DungeonWorld {
       const previousX = marker.cell.x;
       const previousY = marker.cell.y;
       const previousTier = marker.tier;
-      worldToGridInto(dungeon, enemy.position, this.tileSize, marker.cell);
+      enemyRuntime.worldPositionInto(enemy.position, this.residentWorldPosition);
+      worldToGridInto(dungeon, this.residentWorldPosition, this.tileSize, marker.cell);
       marker.tier = enemy.tier;
       if (
         marker.cell.x !== previousX ||
@@ -1600,10 +1415,10 @@ export class DungeonWorld {
       writeIndex += 1;
     }
     if (this.minimapFeatures.enemies.length !== writeIndex) {
-      this.minimapFeatures.enemies.length = writeIndex;
+      markers.length = writeIndex;
       changed = true;
     }
-    if (changed) this.minimapFeatureRevision += 1;
+    return changed;
   }
 
   /**
@@ -1619,18 +1434,25 @@ export class DungeonWorld {
     return this.minimapFeatureRevision;
   }
 
+  /** Safe cache accounting for resident-world diagnostics; no Three resource is exposed. */
+  getStaticResourceCatalogSnapshot(): StaticResourceCatalogSnapshot {
+    return this.staticResourceCatalog.snapshot();
+  }
+
   /** Positions for HRTF sound placement; no simulation state leaves this adapter. */
   getAudioFrame(): DungeonAudioFrame {
+    const portalPosition = this.portalRoot ? this.worldPositionOf(this.portalRoot) : null;
     return projectDungeonAudioFrame(this.audioFrame, {
       fires: this.fireEffects,
-      stones: this.pickups,
+      stones: this.activeFloorRuntime?.pickups ?? [],
       enemies: this.enemies,
-      portal: this.portalRoot
+      enemyWorldYOffset: this.activeEnemyRuntime?.floorSlabY ?? 0,
+      portal: portalPosition
         ? {
             position: {
-              x: this.portalRoot.position.x,
-              y: this.portalRoot.position.y,
-              z: this.portalRoot.position.z,
+              x: portalPosition.x,
+              y: portalPosition.y,
+              z: portalPosition.z,
             },
           }
         : null,
@@ -1639,14 +1461,24 @@ export class DungeonWorld {
   }
 
   dispose(): void {
+    if (this.disposed) return;
+    this.disposed = true;
+    this.textureLifecycle.active = false;
     this.clear();
     this.staticScene.dispose();
+    this.staticResourceCatalog.dispose();
     disposeRoomSurfaceMaterials(this.surfaceMaterials);
     disposeDungeonMaterials(this.materials);
     // Geometry cache pins material refs from createStaticPropTemplateBatches.
     clearStaticPropTemplateBatchCache();
-    disposeEnemyContactShadowMaterial(this.enemyShadowMaterial);
+    disposeEnemyContactShadowMaterial(this.enemyShadowMaterial, this.textureLifecycle.textureSink);
+    for (const texture of this.stoneTextures.values()) {
+      this.textureLifecycle.textureSink?.unregister(texture);
+      texture.dispose();
+    }
+    this.stoneTextures.clear();
     this.assets.dispose();
+    this.textureLifecycle.textureSink = undefined;
     this.scene.remove(this.group);
   }
 
@@ -1673,8 +1505,12 @@ export class DungeonWorld {
   private ensureStoneTextures(): void {
     if (this.stoneTextures.size > 0) return;
     const loader = new THREE.TextureLoader();
+    const lifecycle = this.textureLifecycle;
     for (const id of magicStoneIds()) {
-      const texture = loader.load(`/assets/textures/stones/${id}-albedo.webp`);
+      const texture = loader.load(`/assets/textures/stones/${id}-albedo.webp`, (loaded) => {
+        if (!lifecycle.active) return;
+        lifecycle.textureSink?.markRenderable(loaded);
+      });
       texture.colorSpace = THREE.SRGBColorSpace;
       // Pixel-art grimdark: hard texels, no bilinear mush.
       texture.magFilter = THREE.NearestFilter;
@@ -1683,299 +1519,18 @@ export class DungeonWorld {
       texture.wrapS = THREE.RepeatWrapping;
       texture.wrapT = THREE.RepeatWrapping;
       texture.repeat.set(2, 2);
+      lifecycle.textureSink?.register(texture);
       this.stoneTextures.set(id, texture);
     }
   }
 
-  private addActors(dungeon: DungeonData, stonePlacements: readonly MagicStonePlacement[]): void {
-    const random = createSeededRandom(`${dungeon.seed}:actors`);
-    const enemyRooms = dungeon.rooms
-      .filter((room) => room.role === "room")
-      .sort((left, right) => roomDistance(dungeon, left) - roomDistance(dungeon, right));
-    this.difficultyRoomCount = Math.max(1, enemyRooms.length);
-    const kinds: readonly EnemyKind[] = ENEMY_ROSTER;
-
-    const authoredSpawns = dungeon.forge?.spawns.length
-      ? dungeon.forge.spawns
-          .filter(
-            (spawn) => !this.isObjectiveClearanceCell(spawn) && !this.isObjectOccupiedCell(spawn),
-          )
-          .map((spawn) => {
-            const room = enemyRooms.find(
-              (candidate) =>
-                spawn.x >= candidate.x &&
-                spawn.x < candidate.x + candidate.width &&
-                spawn.y >= candidate.y &&
-                spawn.y < candidate.y + candidate.height,
-            );
-            return {
-              cell: { x: spawn.x, y: spawn.y },
-              tier: spawn.tier,
-              roomId: room?.id ?? -1,
-              pass: 2,
-            };
-          })
-      : [];
-    // Seat budget follows room size (large halls get denser packs). Difficulty
-    // only nudges how much of that budget we pre-plan as reserve seats.
-    const seatBudget = Math.max(enemyRooms.length * 2, totalEnemySeatBudget(enemyRooms));
-    const distributedTarget = Math.min(
-      ENEMY_HARD_CAP,
-      Math.max(seatBudget, Math.round(seatBudget * (0.9 + this.difficulty * 0.35))),
-    );
-    const maxPool = Math.min(ENEMY_HARD_CAP + 32, distributedTarget + authoredSpawns.length);
-    const excludedSpawnCells = new Set([
-      ...this.objectOccupiedCells,
-      ...this.solidCells.keys(),
-      ...this.wallSpriteOccupiedCells,
-      ...this.hazardCells,
-      ...this.objectiveClearanceCells,
-      `${dungeon.spawn.x},${dungeon.spawn.y}`,
-      `${dungeon.exit.x},${dungeon.exit.y}`,
-      ...stonePlacements.map((placement) => `${placement.cell.x},${placement.cell.y}`),
-    ]);
-    authoredSpawns.forEach((spawn) => excludedSpawnCells.add(`${spawn.cell.x},${spawn.cell.y}`));
-    const distributedSpawns = buildDistributedEnemySpawns(
-      dungeon.seed,
-      enemyRooms,
-      distributedTarget,
-      excludedSpawnCells,
-    );
-    const spawnRecords = [...distributedSpawns, ...authoredSpawns].slice(0, maxPool);
-    const entranceRoom = enemyRooms.find(
-      (room) =>
-        dungeon.spawn.x >= room.x &&
-        dungeon.spawn.x < room.x + room.width &&
-        dungeon.spawn.y >= room.y &&
-        dungeon.spawn.y < room.y + room.height,
-    );
-    const openingTuning = resolveDifficultyTuning(
-      this.difficulty,
-      enemyRooms.length,
-      spawnRecords.length,
-    );
-    const openingQuotas = buildInitialRoomEnemyQuotas(
-      dungeon.seed,
-      enemyRooms,
-      openingTuning.initialEnemies,
-      entranceRoom?.id,
-    );
-    const usedOpeningSlots = new Map<number, number>();
-    const plannedSpawns = spawnRecords.map((spawn) => {
-      const used = usedOpeningSlots.get(spawn.roomId) ?? 0;
-      const quota = openingQuotas.get(spawn.roomId) ?? 0;
-      const startsActive = used < quota;
-      if (startsActive) usedOpeningSlots.set(spawn.roomId, used + 1);
-      return { ...spawn, tier: startsActive ? 0 : spawn.tier, startsActive };
-    });
-    this.enemyActivationRandom = createSeededRandom(`${dungeon.seed}:difficulty-activation`);
-    this.enemyKindRotation = 0;
-    // Tiers map to kind bands; kinds rotate within each band so later waves
-    // don't only clone the first ratling forever.
-    const selectedKinds = selectEnemyKindsForSpawns(
-      dungeon.seed,
-      plannedSpawns.map((spawn) => ({ tier: spawn.tier, roomId: spawn.roomId })),
-    );
-    const actorSpecs = plannedSpawns.map((spawn, index) => {
-      const kind = selectedKinds[index] ?? kinds[index % kinds.length] ?? "goblin";
-      const sprite = getEnemySpriteRenderMetrics(kind, this.activeMood.id);
-      const width = sprite.planeWidth;
-      const height = sprite.planeHeight;
-      const p = gridToWorld(dungeon, spawn.cell, this.tileSize);
-      const spawnY =
-        kind === "imp"
-          ? enemyCeilingY(kind, this.wallHeight, 0.38, this.activeMood.id)
-          : enemyGroundY(kind, this.activeMood.id);
-      return {
-        kind,
-        width,
-        height,
-        tier: spawn.tier,
-        startsActive: spawn.startsActive,
-        position: new THREE.Vector3(
-          p.x + (random.next() - 0.5) * 0.56,
-          spawnY,
-          p.z + (random.next() - 0.5) * 0.56,
-        ),
-        phase: index * 1.37 + 1.1,
-        shadowInstanceIndex: index,
-      };
-    });
-    const sharedShadowBatch =
-      actorSpecs.length > 0
-        ? new THREE.InstancedMesh(
-            new THREE.PlaneGeometry(1, 1),
-            this.enemyShadowMaterial,
-            actorSpecs.length,
-          )
-        : null;
-    if (sharedShadowBatch) {
-      sharedShadowBatch.name = "Enemy shared contact shadow batch";
-      sharedShadowBatch.renderOrder = 1;
-      sharedShadowBatch.frustumCulled = true;
-    }
-    const moodAnimations = enemyAnimationsForMood(this.activeMood.id);
-    this.enemyMotionTrailVfx = new EnemyMotionTrailVfx();
-    this.group.add(this.enemyMotionTrailVfx.root);
-    for (const kind of kinds) {
-      const specs = actorSpecs.filter((spec) => spec.kind === kind);
-      if (specs.length === 0) continue;
-      const animation = moodAnimations[kind];
-      const texture = this.assets.enemyAnimation(animation);
-      const material = createEnemyBillboardMaterial(texture, this.activeMood);
-      setEnemyBillboardFrame(material, animation, 0);
-      this.enemyAnimationBatches.set(kind, {
-        kind,
-        material,
-        animation,
-        frame: 0,
-        phaseOffset: this.enemyAnimationBatches.size * 0.03125,
-      });
-      this.enemyMotionTrailVfx.registerKind(kind, texture, animation, specs.length);
-      const billboardGeometry = new THREE.PlaneGeometry(1, 1);
-      const visibilityAttribute = new THREE.InstancedBufferAttribute(
-        new Float32Array(specs.length),
-        1,
-      );
-      billboardGeometry.setAttribute("aEnemyVisibility", visibilityAttribute);
-      this.enemyVisibilityAttributes.add(visibilityAttribute);
-      const batch = new THREE.InstancedMesh(billboardGeometry, material, specs.length);
-      batch.name = `Enemy billboard batch ${kind}`;
-      batch.renderOrder = 2;
-      batch.frustumCulled = true;
-      specs.forEach((spec, instanceIndex) => {
-        if (!sharedShadowBatch) return;
-        const actor: EnemyActor = {
-          kind,
-          position: spec.position,
-          batch,
-          shadowBatch: sharedShadowBatch,
-          instanceIndex,
-          shadowInstanceIndex: spec.shadowInstanceIndex,
-          hitCooldown: 0,
-          baseY: spec.position.y,
-          baseScale: new THREE.Vector2(spec.width, spec.height),
-          phase: spec.phase,
-          attackPulse: 0,
-          scaleX: spec.width,
-          scaleY: spec.height,
-          roll: 0,
-          yaw: 0,
-          phaseEpoch: -1,
-          phaseVisibility: 1,
-          spawnReveal: 0,
-          startsActive: spec.startsActive,
-          moving: false,
-          visibilityAttribute,
-          tier: spec.tier,
-          defeated: false,
-        };
-        this.enemyReserve.push(actor);
-        batch.setMatrixAt(
-          instanceIndex,
-          new THREE.Matrix4().compose(
-            actor.position,
-            new THREE.Quaternion(),
-            new THREE.Vector3(actor.scaleX, actor.scaleY, 1),
-          ),
-        );
-        // Reserve seats stay zero-size until activation; active opening seats
-        // get a full contact disc so basals read on the first rendered frame.
-        if (actor.startsActive) {
-          this.enemyPresentation.writeContactShadow(actor, 1, this.activeMood.id);
-        } else {
-          sharedShadowBatch.setMatrixAt(
-            spec.shadowInstanceIndex,
-            new THREE.Matrix4().compose(
-              new THREE.Vector3(actor.position.x, 0.028, actor.position.z),
-              new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), -Math.PI / 2),
-              new THREE.Vector3(0, 0, 1),
-            ),
-          );
-        }
-      });
-      batch.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-      batch.instanceMatrix.needsUpdate = true;
-      batch.computeBoundingSphere();
-      // Inflate sphere so culled batches still cover movement within a room.
-      if (batch.boundingSphere)
-        batch.boundingSphere.radius = Math.max(batch.boundingSphere.radius, 24);
-      this.enemyBatches.add(batch);
-      this.group.add(batch);
-    }
-    if (sharedShadowBatch) {
-      sharedShadowBatch.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-      sharedShadowBatch.instanceMatrix.needsUpdate = true;
-      sharedShadowBatch.computeBoundingSphere();
-      if (sharedShadowBatch.boundingSphere)
-        sharedShadowBatch.boundingSphere.radius = Math.max(
-          sharedShadowBatch.boundingSphere.radius,
-          24,
-        );
-      this.enemyShadowBatches.add(sharedShadowBatch);
-      this.group.add(sharedShadowBatch);
-    }
-
-    this.timeFreezeVfx = new TimeFreezeVfx(actorSpecs.length);
-    this.group.add(this.timeFreezeVfx.root);
-    this.luminousWardVfx = new LuminousWardVfx();
-    this.group.add(this.luminousWardVfx.root);
-    this.cullBrandVfx = new CullBrandVfx();
-    this.group.add(this.cullBrandVfx.root);
-    this.controlCurseVfx = new ControlCurseVfx();
-    this.group.add(this.controlCurseVfx.root);
-    this.phoenixEggVfx = new PhoenixEggVfx();
-    this.group.add(this.phoenixEggVfx.root);
-    this.stats.lights += 1;
-    this.mobilityBoostVfx = new MobilityBoostVfx();
-    this.group.add(this.mobilityBoostVfx.root);
-    this.annihilationPulseVfx = new AnnihilationPulseVfx();
-    this.group.add(this.annihilationPulseVfx.root);
-    this.stats.lights += 1;
-
-    const entrance = gridToWorld(dungeon, dungeon.spawn, this.tileSize);
-    this.activateEnemiesToTarget(entrance, "opening");
-  }
-
   private clear(): void {
-    this.enemies.length = 0;
-    this.enemyReserve.length = 0;
-    this.enemyBatches.clear();
-    this.enemyShadowBatches.clear();
-    this.enemyVisibilityAttributes.clear();
-    this.enemyAnimationBatches.clear();
-    this.enemyAnimationElapsed = 0;
-    this.enemySimulationElapsed = 0;
-    this.difficultyElapsed = 0;
-    this.difficultySecond = -1;
-    this.timeFreezeSeconds = 0;
-    this.luminousWardSeconds = 0;
-    this.mobilityBoostSeconds = 0;
-    this.fogClearSeconds = 0;
-    this.slowCurseSeconds = 0;
-    this.frenzyCurseSeconds = 0;
-    this.gloomCurseSeconds = 0;
-    this.swarmCurseActive = false;
-    this.mirrorCurseSeconds = 0;
-    this.spinCurseSeconds = 0;
-    restoreCullBrand(this.cullBrandState, 0, 0);
-    // Floor transitions restore phoenixCharges via restoreRuntimeProgress after clear.
-    this.phoenixCharges = 0;
-    this.mapRevealed = false;
+    // Floor transitions restore phoenix via restoreRuntimeProgress after clear.
+    resetRunPowerRuntime(this.powers);
     this.playerAirborne = false;
-    this.annihilationPulseClock.remaining = 0;
-    this.annihilationPulseClock.timeSincePulse = 0;
-    this.difficultyRoomCount = 1;
-    this.solidColliderIndex = undefined;
-    this.minimapFeatures = {
-      doors: [],
-      fires: [],
-      enemies: [],
-      stones: [],
-      pickups: [],
-      spawn: { x: 0, y: 0 },
-    };
-    this.minimapPickupStates.length = 0;
+    this.activeEnemyRuntime = null;
+    this.activeMinimapProjection = null;
+    this.minimapFeatures = this.emptyMinimapFeatures;
     this.minimapFeatureRevision += 1;
     if (this.pickupBurstPool) {
       this.group.remove(this.pickupBurstPool.root);

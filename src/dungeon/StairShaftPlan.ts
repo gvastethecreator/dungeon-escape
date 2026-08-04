@@ -22,10 +22,6 @@ export interface StairShaftPlan {
 
 const YAWS = [0, Math.PI / 2, Math.PI, (3 * Math.PI) / 2] as const;
 
-function cellKey(cell: GridCell): string {
-  return `${cell.x},${cell.y}`;
-}
-
 function inBounds(dungeon: DungeonData, x: number, y: number): boolean {
   return x >= 0 && y >= 0 && x < dungeon.width && y < dungeon.height;
 }
@@ -61,54 +57,49 @@ function buildFootprint(
   const along = metrics.shaftCellsAlong + metrics.landingCells * 2;
   const across = Math.max(1, metrics.shaftCellsAcross);
   const cells: GridCell[] = [];
-  const seen = new Set<string>();
   // Flight runs from anchor along +yaw; landings pad both ends.
   for (let i = -metrics.landingCells; i < along - metrics.landingCells; i += 1) {
     for (let side = 0; side < across; side += 1) {
       const ox = -dy * side;
       const oy = dx * side;
-      const cell = { x: anchor.x + dx * i + ox, y: anchor.y + dy * i + oy };
-      const key = cellKey(cell);
-      if (seen.has(key)) continue;
-      seen.add(key);
-      cells.push(cell);
+      cells.push({ x: anchor.x + dx * i + ox, y: anchor.y + dy * i + oy });
     }
   }
   return cells;
 }
 
-function footprintFits(dungeons: readonly DungeonData[], footprint: readonly GridCell[]): boolean {
-  return dungeons.every((dungeon) =>
-    footprint.every((cell) => inBounds(dungeon, cell.x, cell.y)),
-  );
-}
-
-function scoreFootprint(
+function scoreFootprintCandidate(
   lower: DungeonData,
   upper: DungeonData,
-  footprint: readonly GridCell[],
+  anchor: GridCell,
   rootSeed: string,
   linkIndex: number,
   yaw: number,
-): number {
+  metrics: StoryMetrics,
+): number | null {
+  const { dx, dy } = yawGridStep(yaw);
+  const along = metrics.shaftCellsAlong + metrics.landingCells * 2;
+  const across = Math.max(1, metrics.shaftCellsAcross);
   let floorCells = 0;
   let wallCells = 0;
-  for (const cell of footprint) {
-    const lowerFloor = isFloorCell(lower, cell.x, cell.y);
-    const upperFloor = isFloorCell(upper, cell.x, cell.y);
-    if (lowerFloor) floorCells += 1;
-    else wallCells += 1;
-    if (upperFloor) floorCells += 1;
-    else wallCells += 1;
-  }
-  // Prefer existing floors; penalize carves and spawn/exit collision.
-  let score = floorCells * 4 - wallCells * 3;
-  for (const dungeon of [lower, upper]) {
-    for (const cell of footprint) {
-      if (cell.x === dungeon.spawn.x && cell.y === dungeon.spawn.y) score -= 80;
-      if (cell.x === dungeon.exit.x && cell.y === dungeon.exit.y) score -= 40;
+  let protectedCellPenalty = 0;
+  for (let i = -metrics.landingCells; i < along - metrics.landingCells; i += 1) {
+    for (let side = 0; side < across; side += 1) {
+      const x = anchor.x + dx * i - dy * side;
+      const y = anchor.y + dy * i + dx * side;
+      if (!inBounds(lower, x, y) || !inBounds(upper, x, y)) return null;
+      if (isFloorCell(lower, x, y)) floorCells += 1;
+      else wallCells += 1;
+      if (isFloorCell(upper, x, y)) floorCells += 1;
+      else wallCells += 1;
+      if (x === lower.spawn.x && y === lower.spawn.y) protectedCellPenalty += 80;
+      if (x === lower.exit.x && y === lower.exit.y) protectedCellPenalty += 40;
+      if (x === upper.spawn.x && y === upper.spawn.y) protectedCellPenalty += 80;
+      if (x === upper.exit.x && y === upper.exit.y) protectedCellPenalty += 40;
     }
   }
+  // Prefer existing floors; penalize carves and spawn/exit collision.
+  let score = floorCells * 4 - wallCells * 3 - protectedCellPenalty;
   // Stable tie-break.
   score += (hashSeed(`${rootSeed}:shaft-score:${linkIndex}:${yaw}`) % 7) * 0.01;
   return score;
@@ -127,15 +118,11 @@ function candidateAnchors(dungeon: DungeonData): GridCell[] {
     entranceRoom,
   ].filter((room): room is DungeonRoom => Boolean(room));
 
-  const seen = new Set<string>();
   const anchors: GridCell[] = [];
   for (const room of orderedRooms) {
     for (const cell of roomInteriorCandidates(room)) {
       if (!isFloorCell(dungeon, cell.x, cell.y)) continue;
       if (cell.x === dungeon.spawn.x && cell.y === dungeon.spawn.y) continue;
-      const key = cellKey(cell);
-      if (seen.has(key)) continue;
-      seen.add(key);
       anchors.push(cell);
     }
   }
@@ -169,17 +156,23 @@ export function planStairShafts(
           score: number;
           anchor: GridCell;
           yaw: number;
-          footprint: GridCell[];
         }
       | null = null;
 
     for (const anchor of anchors) {
       for (const yaw of YAWS) {
-        const footprint = buildFootprint(anchor, yaw, metrics);
-        if (!footprintFits([lower, upper], footprint)) continue;
-        const score = scoreFootprint(lower, upper, footprint, rootSeed, lowerIndex, yaw);
+        const score = scoreFootprintCandidate(
+          lower,
+          upper,
+          anchor,
+          rootSeed,
+          lowerIndex,
+          yaw,
+          metrics,
+        );
+        if (score === null) continue;
         if (!best || score > best.score) {
-          best = { score, anchor: { ...anchor }, yaw, footprint };
+          best = { score, anchor: { ...anchor }, yaw };
         }
       }
     }
@@ -196,7 +189,7 @@ export function planStairShafts(
       upperFloor: lowerIndex + 1,
       anchor: best.anchor,
       yaw: best.yaw,
-      footprint: best.footprint,
+      footprint: buildFootprint(best.anchor, best.yaw, metrics),
     });
   }
 

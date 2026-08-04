@@ -317,7 +317,7 @@ describe("run resume mapping", () => {
     ).toThrow(RangeError);
   });
 
-  test("host uses activation plans instead of reconstructing resume fields", () => {
+  test("host uses activation plans only for run restore, not physical floor traversal", () => {
     const main = readFileSync("src/main.ts", "utf8");
 
     expect(main).not.toContain("function domainToPersistedSession");
@@ -325,6 +325,7 @@ describe("run resume mapping", () => {
     expect(main).not.toContain("transitionResume");
     expect(main).not.toContain("options.resume");
     expect(main).toContain("planRunResumeRestore");
-    expect(main).toContain("planFloorTransition");
+    expect(main).not.toContain("planFloorTransition");
+    expect(main).not.toContain("FloorTransitionDirector");
   });
 });

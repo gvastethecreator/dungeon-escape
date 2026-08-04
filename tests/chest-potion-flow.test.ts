@@ -37,8 +37,9 @@ describe("chest potion flow", () => {
     expect(staticSceneSource).toContain(
       "Power chests: two time-freeze + two wards + one annihilation pulse, spread along route",
     );
-    expect(staticSceneSource).toContain("for (const fraction of [0.28, 0.72] as const)");
-    expect(staticSceneSource).toContain("for (const fraction of [0.42, 0.88] as const)");
+    expect(staticSceneSource).toContain("const rewardSlots =");
+    expect(staticSceneSource).toContain("floorPlan?.rewards.slots");
+    expect(staticSceneSource).toContain("slot.depthFraction");
   });
 
   test("keeps the lid on a real rear hinge for the open animation", () => {

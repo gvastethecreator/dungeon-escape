@@ -1,6 +1,8 @@
 import * as THREE from "three";
+import type { SceneTextureSink } from "../systems/SceneTextureRegistry";
 
 import { registerTextureSource, resolveTextureSource } from "./TextureTreatment";
+import { tagOwnedMaterialTextures } from "./ThreeResourceDisposer";
 
 const textureLoader = new THREE.TextureLoader();
 const FAMILY = "luminous-ward-gold";
@@ -13,38 +15,55 @@ interface WardTextureSet {
   ao: THREE.Texture | null;
 }
 
-export function createLuminousWardRuntimeTexture(
+interface WardTextureLifecycle {
+  active: boolean;
+  textureSink?: SceneTextureSink;
+}
+
+function loadWardRuntimeTexture(
   kind: "albedo" | "normal" | "roughness" | "ao",
+  lifecycle?: WardTextureLifecycle,
 ): THREE.Texture {
   const path = `${BASE}_${kind}.webp`;
   const texture =
     typeof document === "undefined"
       ? new THREE.Texture()
-      : textureLoader.load(path, (loaded) => resolveTextureSource(loaded));
+      : textureLoader.load(path, (loaded) => {
+          if (lifecycle && !lifecycle.active) return;
+          resolveTextureSource(loaded);
+          lifecycle?.textureSink?.markRenderable(loaded);
+        });
   texture.name = path;
   registerTextureSource(texture, path, { seam: "none" });
   texture.colorSpace = kind === "albedo" ? THREE.SRGBColorSpace : THREE.NoColorSpace;
   texture.wrapS = texture.wrapT = THREE.MirroredRepeatWrapping;
-  // Match the former 2x2 canvas density without expanding a 512 px map to 1024 px.
   texture.repeat.set(2, 2);
   texture.magFilter = THREE.LinearFilter;
   texture.minFilter = THREE.LinearMipmapLinearFilter;
   texture.generateMipmaps = true;
   texture.anisotropy = 8;
   if (kind === "ao") texture.channel = 0;
+  if (typeof document !== "undefined") lifecycle?.textureSink?.register(texture);
   return texture;
 }
 
-function loadWardTextureSet(compact: boolean): WardTextureSet {
-  const albedo = createLuminousWardRuntimeTexture("albedo");
+export function createLuminousWardRuntimeTexture(
+  kind: "albedo" | "normal" | "roughness" | "ao",
+  textureSink?: SceneTextureSink,
+): THREE.Texture {
+  return loadWardRuntimeTexture(kind, { active: true, textureSink });
+}
+
+function loadWardTextureSet(compact: boolean, lifecycle: WardTextureLifecycle): WardTextureSet {
+  const albedo = loadWardRuntimeTexture("albedo", lifecycle);
   if (compact || typeof document === "undefined") {
     return { albedo, normal: null, roughness: null, ao: null };
   }
   return {
     albedo,
-    normal: createLuminousWardRuntimeTexture("normal"),
-    roughness: createLuminousWardRuntimeTexture("roughness"),
-    ao: createLuminousWardRuntimeTexture("ao"),
+    normal: loadWardRuntimeTexture("normal", lifecycle),
+    roughness: loadWardRuntimeTexture("roughness", lifecycle),
+    ao: loadWardRuntimeTexture("ao", lifecycle),
   };
 }
 
@@ -56,11 +75,14 @@ function loadWardTextureSet(compact: boolean): WardTextureSet {
 export function createLuminousWardGoldMaterial({
   compact = false,
   biomeTint,
+  textureSink,
 }: {
   compact?: boolean;
   biomeTint?: THREE.Color;
+  textureSink?: SceneTextureSink;
 } = {}): THREE.MeshPhysicalMaterial {
-  const maps = loadWardTextureSet(compact);
+  const lifecycle: WardTextureLifecycle = { active: true, textureSink };
+  const maps = loadWardTextureSet(compact, lifecycle);
   const material = new THREE.MeshPhysicalMaterial({
     color: 0xd1c18f,
     map: maps.albedo,
@@ -96,5 +118,18 @@ export function createLuminousWardGoldMaterial({
     roughness: maps.roughness?.name ?? null,
     ao: maps.ao?.name ?? null,
   };
+  tagOwnedMaterialTextures(
+    material,
+    [maps.albedo, maps.normal, maps.roughness, maps.ao].filter(
+      (texture): texture is THREE.Texture => texture !== null,
+    ),
+    {
+      textureSink,
+      deactivate: () => {
+        lifecycle.active = false;
+        lifecycle.textureSink = undefined;
+      },
+    },
+  );
   return material;
 }

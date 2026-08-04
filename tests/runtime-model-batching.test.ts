@@ -10,6 +10,7 @@ import {
   batchWallFireFixturesForRuntime,
 } from "../src/world/RuntimeModelBatching";
 import { createDungeonDoor } from "../src/world/DoorFactory";
+import { StaticResourceCatalog } from "../src/world/StaticResourceCatalog";
 import { createWallLantern, createWallTorch } from "../src/world/WallTorchFactory";
 
 function meshCount(root: THREE.Object3D): number {
@@ -20,11 +21,7 @@ function meshCount(root: THREE.Object3D): number {
   return count;
 }
 
-function instanceBounds(
-  root: THREE.Object3D,
-  instance: number,
-  nameIncludes?: string,
-): THREE.Box3 {
+function instanceBounds(root: THREE.Object3D, instance: number, nameIncludes?: string): THREE.Box3 {
   const bounds = new THREE.Box3();
   const matrix = new THREE.Matrix4();
   root.traverse((object) => {
@@ -126,6 +123,7 @@ describe("runtime model batching", () => {
     expect(result.stats).toMatchObject({ instances: 3, bodyBatches: 3, lidBatches: 2 });
     expect(result.stats.sourceMeshes).toBeGreaterThan(240);
     expect(meshCount(result.root)).toBe(5);
+    expect(result.handles.every((handle) => handle.root === result.root)).toBe(true);
     result.root.traverse((object) => {
       if (object instanceof THREE.InstancedMesh) expect(object.count).toBe(3);
     });
@@ -138,7 +136,7 @@ describe("runtime model batching", () => {
     });
 
     const lidBatch = result.root.getObjectByName(
-      "Runtime chest lid global batch 1",
+      "Runtime chest lid batch 1",
     ) as THREE.InstancedMesh;
     const before = new THREE.Matrix4();
     const unchangedBefore = new THREE.Matrix4();
@@ -268,6 +266,8 @@ describe("runtime model batching", () => {
     expect(result.stats.batches).toBeGreaterThan(0);
     expect(result.stats.sourceMeshes).toBeGreaterThan(0);
     expect(meshCount(result.root)).toBe(result.stats.batches);
+    expect(result.handles).toHaveLength(doors.length);
+    expect(result.handles.every((handle) => handle.root === result.root)).toBe(true);
 
     const leafMeshesAfter = doors.reduce((count, door) => {
       let total = 0;
@@ -303,5 +303,131 @@ describe("runtime model batching", () => {
       if (object instanceof THREE.Mesh) leafMeshes += 1;
     });
     expect(leafMeshes).toBeGreaterThan(0);
+  });
+
+  test("keeps catalog geometry borrowed while releasing shared owned door frames once", () => {
+    const materials = createDungeonMaterials();
+    const parent = new THREE.Group();
+    const catalog = new StaticResourceCatalog();
+    const strategy = {
+      borrowGeometry: catalog.borrowGeometry.bind(catalog),
+      isBorrowedGeometry: catalog.ownsGeometry.bind(catalog),
+      materialKey: (material: THREE.Material) =>
+        material === materials.stone ? "role:stone" : "role:other",
+    };
+
+    const borrowedFrame = catalog.borrowGeometry(
+      "test:external-frame",
+      () => new THREE.BoxGeometry(1, 2, 0.2),
+      "test-frame/v1",
+    );
+    let borrowedDisposals = 0;
+    borrowedFrame.addEventListener("dispose", () => (borrowedDisposals += 1));
+    const borrowedDoors = [0, 1].map((index) => {
+      const root = new THREE.Group();
+      root.position.x = index * 3;
+      root.add(new THREE.Mesh(borrowedFrame, materials.stone));
+      const left = new THREE.Group();
+      const right = new THREE.Group();
+      root.add(left, right);
+      parent.add(root);
+      return { root, left, right };
+    });
+
+    const borrowedResult = batchDoorFramesForRuntime(borrowedDoors, parent, {
+      geometryStrategy: strategy,
+      geometryKeyPrefix: "test:door-frame",
+      keyForDoor: () => "office:2.2:4.4",
+    });
+    expect(borrowedResult.stats).toMatchObject({ doors: 2, sourceMeshes: 2, batches: 1 });
+    expect(borrowedDisposals).toBe(0);
+
+    const ownedGeometry = new THREE.BoxGeometry(1, 2, 0.2);
+    let ownedDisposals = 0;
+    ownedGeometry.addEventListener("dispose", () => (ownedDisposals += 1));
+    const ownedDoors = [0, 1].map((index) => {
+      const root = new THREE.Group();
+      root.position.x = index * 3;
+      root.add(new THREE.Mesh(ownedGeometry, materials.stone));
+      const left = new THREE.Group();
+      const right = new THREE.Group();
+      root.add(left, right);
+      parent.add(root);
+      return { root, left, right };
+    });
+
+    batchDoorFramesForRuntime(ownedDoors, parent, {
+      geometryStrategy: strategy,
+      geometryKeyPrefix: "test:owned-door-frame",
+      keyForDoor: () => "office:2.2:4.4",
+    });
+    expect(ownedDisposals).toBe(1);
+    expect(catalog.snapshot()).toMatchObject({ live: 3, hits: 0, misses: 3 });
+
+    catalog.dispose();
+    expect(borrowedDisposals).toBe(1);
+  });
+
+  test("reuses the five immutable chest batches without disposing them through cloned kits", () => {
+    const materials = createDungeonMaterials();
+    const catalog = new StaticResourceCatalog();
+    const strategy = {
+      borrowGeometry: catalog.borrowGeometry.bind(catalog),
+      isBorrowedGeometry: catalog.ownsGeometry.bind(catalog),
+      materialKey: (material: THREE.Material) =>
+        material === materials.wood
+          ? "role:wood"
+          : material === materials.iron
+            ? "role:iron"
+            : material === materials.brass
+              ? "role:brass"
+              : "role:other",
+    };
+    const source = createForgeChest(materials);
+    const before = new THREE.Box3().setFromObject(source.root);
+    batchForgeChestForRuntime(source, {
+      geometryStrategy: strategy,
+      geometryKeyPrefix: "test:forge-chest:v2",
+    });
+    const sourceGeometries = new Set<THREE.BufferGeometry>();
+    source.root.traverse((object) => {
+      if (object instanceof THREE.Mesh) sourceGeometries.add(object.geometry);
+    });
+    const disposals = new Map<THREE.BufferGeometry, number>();
+    for (const geometry of sourceGeometries) {
+      disposals.set(geometry, 0);
+      geometry.addEventListener("dispose", () => {
+        disposals.set(geometry, (disposals.get(geometry) ?? 0) + 1);
+      });
+    }
+
+    const parent = new THREE.Group();
+    const kits = [0, 1].map((index) => {
+      const root = source.root.clone(true);
+      root.position.x = index * 3;
+      const lid = root.getObjectByName(source.lid.name);
+      if (!(lid instanceof THREE.Group)) throw new Error("Expected cloned chest lid.");
+      parent.add(root);
+      return { root, lid };
+    });
+    parent.updateMatrixWorld(true);
+    const result = batchForgeChestsForRuntime(kits, parent, {
+      geometryStrategy: strategy,
+      geometryKeyPrefix: "test:forge-chest:v2",
+    });
+
+    expect(result.stats).toMatchObject({ instances: 2, bodyBatches: 3, lidBatches: 2 });
+    expect(catalog.snapshot()).toMatchObject({ live: 5, hits: 5, misses: 5 });
+    expect([...disposals.values()]).toEqual([...sourceGeometries].map(() => 0));
+    const after = instanceBounds(result.root, 0);
+    for (const axis of ["x", "y", "z"] as const) {
+      expect(after.min[axis]).toBeCloseTo(before.min[axis], 4);
+      expect(after.max[axis]).toBeCloseTo(before.max[axis], 4);
+    }
+    expect(kits[0]!.lid.userData.hinge.axis).toEqual([1, 0, 0]);
+    expect(kits[0]!.root.getObjectByName("Chest interaction socket")).toBeDefined();
+
+    catalog.dispose();
+    expect([...disposals.values()]).toEqual([...sourceGeometries].map(() => 1));
   });
 });

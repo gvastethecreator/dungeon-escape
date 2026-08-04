@@ -1,9 +1,10 @@
 import { describe, expect, test } from "bun:test";
 
 describe("persistent leaderboard UI", () => {
-  test("welcome reveals the local ranking only after the player's first finished game", async () => {
+  test("welcome loads and reveals the ranking on the main screen", async () => {
     const host = await Bun.file(new URL("../index.html", import.meta.url)).text();
     const source = await Bun.file(new URL("../src/main.ts", import.meta.url)).text();
+    const shell = await Bun.file(new URL("../src/shell.ts", import.meta.url)).text();
     expect(host).toContain('id="welcome-leaderboard"');
     expect(host).toMatch(/id="welcome-leaderboard"[\s\S]*?hidden/);
     expect(host).toContain('id="leaderboard-list"');
@@ -12,8 +13,14 @@ describe("persistent leaderboard UI", () => {
     expect(host).toContain('id="welcome-new"');
     expect(host).toContain('id="welcome-continue"');
     expect(host).toContain('id="welcome-custom"');
-    expect(source).toContain("playerProfile?.hasCompletedRun");
+    expect(source).toMatch(
+      /function syncWelcomeLeaderboardVisibility[\s\S]*const visible = welcomeOpen/,
+    );
     expect(source).toContain("syncWelcomeLeaderboardVisibility()");
+    expect(shell).toContain("await loadLeaderboard()");
+    expect(shell).toContain('welcomeLeaderboard.hidden = false');
+    expect(shell).toContain('welcomeContent.classList.add("is-ranked")');
+    expect(shell).toContain("void refreshLeaderboard()");
     expect(source).not.toContain("void refreshLeaderboard();\nconst localContinue");
   });
 
@@ -72,16 +79,52 @@ describe("persistent leaderboard UI", () => {
 
   test("ranking rows expose escape time and a clickable seed replay", async () => {
     const source = await Bun.file(new URL("../src/main.ts", import.meta.url)).text();
-    expect(source).toContain("leaderboard-body");
-    expect(source).toContain("leaderboard-meta");
-    expect(source).toContain("leaderboard-seed");
-    expect(source).toContain("leaderboard-portrait");
-    expect(source).toContain("leaderboard-frame");
-    expect(source).toContain("frameForRank(");
-    expect(source).toContain("portraitForIndex(");
-    expect(source).toContain("formatTime(entry.durationMs / 1000)");
+    const renderer = await Bun.file(
+      new URL("../src/leaderboard/render.ts", import.meta.url),
+    ).text();
+    expect(renderer).toContain("leaderboard-body");
+    expect(renderer).toContain("leaderboard-meta");
+    expect(renderer).toContain("leaderboard-seed");
+    expect(renderer).toContain("leaderboard-portrait");
+    expect(renderer).toContain("leaderboard-frame");
+    expect(renderer).toContain("frameForRank(");
+    expect(renderer).toContain("portraitForIndex(");
+    expect(renderer).toContain("formatTime(entry.durationMs / 1000)");
     expect(source).toContain('startPlayWithSeed(entry.seed, { runSource: "campaign" })');
     expect(source).toContain("startNewGameWithBiome(biomeId)");
+  });
+
+  test("saved-game title uses only the biome in shell and runtime", async () => {
+    const source = await Bun.file(new URL("../src/main.ts", import.meta.url)).text();
+    const shell = await Bun.file(new URL("../src/shell.ts", import.meta.url)).text();
+    expect(source).toContain("return continueBiomeLabel(state, presentation)");
+    expect(source).not.toContain('return `${seed} · ${continueBiomeLabel');
+    expect(shell).toContain(
+      'element<HTMLElement>("welcome-save-title").textContent = biomeLabel',
+    );
+    expect(shell).not.toContain("`${save.state.seed} · ${biomeLabel}`");
+  });
+
+  test("welcome hides the saved-game block when no save exists", async () => {
+    const host = await Bun.file(new URL("../index.html", import.meta.url)).text();
+    const source = await Bun.file(new URL("../src/main.ts", import.meta.url)).text();
+    const shell = await Bun.file(new URL("../src/shell.ts", import.meta.url)).text();
+    const css = await Bun.file(new URL("../src/styles.css", import.meta.url)).text();
+    expect(host).toMatch(/id="welcome-save"[\s\S]*?hidden/);
+    expect(host).not.toContain("No active descent");
+    expect(source).toContain("elements.welcomeSave.hidden = state === null");
+    expect(shell).toContain("welcomeSave.hidden = !canContinue");
+    expect(css).toContain(".welcome-save[hidden]");
+  });
+
+  test("first-time profile setup still shows and loads the empty leaderboard", async () => {
+    const source = await Bun.file(new URL("../src/main.ts", import.meta.url)).text();
+    const shell = await Bun.file(new URL("../src/shell.ts", import.meta.url)).text();
+    expect(shell).toMatch(
+      /function showProfile[\s\S]*welcomeLeaderboard\.hidden = false[\s\S]*classList\.add\("is-ranked"\)/,
+    );
+    expect(shell).toMatch(/hydrateWelcome\(\);\s*void refreshLeaderboard\(\);/);
+    expect(source).toMatch(/setWelcomeOpen[\s\S]*showWelcomeHome\(\);\s*void refreshLeaderboard\(\);/);
   });
 
   test("victory form previews the portrait in an interactive wood frame", async () => {
@@ -134,5 +177,6 @@ describe("persistent leaderboard UI", () => {
     expect(source).toContain('elements.welcomeHallToggle.setAttribute("aria-expanded"');
     expect(css).toContain(".leaderboard-list > :nth-child(n + 4)");
     expect(css).toContain(".welcome-leaderboard.is-expanded .leaderboard-list > :nth-child(n + 4)");
+    expect(css).toContain(".welcome-hall-toggle[hidden]");
   });
 });

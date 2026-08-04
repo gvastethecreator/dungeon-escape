@@ -221,11 +221,14 @@ function connectRooms(
   }
 
   const localNeighborKeys = new Set<string>();
-  for (let roomId = 0; roomId < rooms.length; roomId += 1) {
-    candidates
-      .filter((candidate) => candidate.left === roomId || candidate.right === roomId)
-      .slice(0, 4)
-      .forEach((candidate) => localNeighborKeys.add(`${candidate.left}:${candidate.right}`));
+  const localNeighborCounts = new Uint8Array(rooms.length);
+  for (const candidate of candidates) {
+    const leftIsLocal = (localNeighborCounts[candidate.left] ?? 0) < 4;
+    const rightIsLocal = (localNeighborCounts[candidate.right] ?? 0) < 4;
+    if (!leftIsLocal && !rightIsLocal) continue;
+    localNeighborKeys.add(`${candidate.left}:${candidate.right}`);
+    if (leftIsLocal) localNeighborCounts[candidate.left] += 1;
+    if (rightIsLocal) localNeighborCounts[candidate.right] += 1;
   }
   const loops = candidates
     .filter((candidate) => !treeKeys.has(`${candidate.left}:${candidate.right}`))
@@ -318,19 +321,33 @@ function floodFill(
     const x = current % width;
     const y = Math.floor(current / width);
     const nextDistance = (distances[current] ?? -1) + 1;
-    const neighbors: GridCell[] = [
-      { x: x - 1, y },
-      { x: x + 1, y },
-      { x, y: y - 1 },
-      { x, y: y + 1 },
-    ];
-    for (const neighbor of neighbors) {
-      if (!isInside(grid, neighbor.x, neighbor.y) || grid[neighbor.y]?.[neighbor.x] !== FLOOR)
-        continue;
-      const neighborIndex = cellIndex(width, neighbor.x, neighbor.y);
-      if ((distances[neighborIndex] ?? -1) >= 0) continue;
-      distances[neighborIndex] = nextDistance;
-      queue[tail++] = neighborIndex;
+    if (x > 0) {
+      const next = current - 1;
+      if (grid[y]?.[x - 1] === FLOOR && (distances[next] ?? -1) < 0) {
+        distances[next] = nextDistance;
+        queue[tail++] = next;
+      }
+    }
+    if (x + 1 < width) {
+      const next = current + 1;
+      if (grid[y]?.[x + 1] === FLOOR && (distances[next] ?? -1) < 0) {
+        distances[next] = nextDistance;
+        queue[tail++] = next;
+      }
+    }
+    if (y > 0) {
+      const next = current - width;
+      if (grid[y - 1]?.[x] === FLOOR && (distances[next] ?? -1) < 0) {
+        distances[next] = nextDistance;
+        queue[tail++] = next;
+      }
+    }
+    if (y + 1 < height) {
+      const next = current + width;
+      if (grid[y + 1]?.[x] === FLOOR && (distances[next] ?? -1) < 0) {
+        distances[next] = nextDistance;
+        queue[tail++] = next;
+      }
     }
   }
   return { distances, visited };
@@ -499,6 +516,22 @@ export function generateDungeon(
 
 export function isExitReachable(dungeon: DungeonData): boolean {
   return (dungeon.distances[cellIndex(dungeon.width, dungeon.exit.x, dungeon.exit.y)] ?? -1) >= 0;
+}
+
+/** Refresh connectivity derived from a grid after structural floor edits. */
+export function refreshDungeonConnectivity(dungeon: DungeonData): DungeonData {
+  const fill = floodFill(dungeon.grid, dungeon.spawn);
+  const exitDistance = fill.distances[cellIndex(dungeon.width, dungeon.exit.x, dungeon.exit.y)] ?? -1;
+  return {
+    ...dungeon,
+    distances: fill.distances,
+    stats: {
+      ...dungeon.stats,
+      floorCount: countFloorCells(dungeon.grid),
+      reachableFloorCount: fill.visited,
+      exitDistance,
+    },
+  };
 }
 
 export function isFloorCell(dungeon: Pick<DungeonData, "grid">, x: number, y: number): boolean {

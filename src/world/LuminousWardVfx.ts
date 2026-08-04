@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import type { SceneTextureSink } from "../systems/SceneTextureRegistry";
 
 import { LUMINOUS_WARD_DURATION_SECONDS } from "../game/LuminousWard";
 
@@ -233,12 +234,15 @@ export class LuminousWardVfx {
   private particlesActive = false;
   /** True when inactive fields already sit at zero cost (no uniform churn). */
   private idleClean = false;
+  private disposed = false;
 
-  constructor() {
+  constructor(private readonly textureSink?: SceneTextureSink) {
     this.root.name = "Luminous ward player field";
 
     this.particleTexture = createWardParticleTexture();
     this.auraTexture = createWardAuraDiscTexture();
+    this.textureSink?.register(this.particleTexture);
+    this.textureSink?.register(this.auraTexture);
 
     this.light = new THREE.PointLight(0xb9e879, 0, this.baseLightRange, 2);
     this.light.name = "Luminous ward area light";
@@ -583,6 +587,10 @@ export class LuminousWardVfx {
   }
 
   dispose(): void {
+    if (this.disposed) return;
+    this.disposed = true;
+    this.textureSink?.unregister(this.particleTexture);
+    this.textureSink?.unregister(this.auraTexture);
     this.groundDisc.geometry.dispose();
     this.groundDisc.material.dispose();
     this.innerRing.geometry.dispose();

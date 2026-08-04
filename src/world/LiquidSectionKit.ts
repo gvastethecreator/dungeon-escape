@@ -2,6 +2,7 @@ import * as THREE from "three";
 
 import { gridToWorld } from "../dungeon/gridCollision";
 import type { DungeonData, GridCell } from "../dungeon/types";
+import type { SceneTextureSink } from "../systems/SceneTextureRegistry";
 import type { DungeonMaterials } from "./MaterialLibrary";
 
 const NEIGHBORS: ReadonlyArray<readonly [number, number]> = [
@@ -40,6 +41,8 @@ export interface LiquidSectionKit {
     cells: number;
     boundaryEdges: number;
   };
+  textureSink?: SceneTextureSink;
+  disposed?: boolean;
 }
 
 function inBounds(x: number, y: number, width: number, height: number): boolean {
@@ -124,12 +127,17 @@ function createLiquidPattern(kind: LiquidKind): THREE.DataTexture {
   return texture;
 }
 
-export function createLiquidMaterial(kind: LiquidKind): THREE.MeshStandardMaterial {
+export function createLiquidMaterial(
+  kind: LiquidKind,
+  textureSink?: SceneTextureSink,
+): THREE.MeshStandardMaterial {
   const lake = kind === "lake";
   const liquidTime = { value: 0 };
+  const map = createLiquidPattern(kind);
+  textureSink?.register(map);
   const material = new THREE.MeshStandardMaterial({
     name: lake ? "Connected frost lake material" : "Connected dark water material",
-    map: createLiquidPattern(kind),
+    map,
     color: lake ? 0x60777c : 0x253943,
     emissive: lake ? 0x12262b : 0x101c22,
     emissiveIntensity: lake ? 0.38 : 0.24,
@@ -274,6 +282,7 @@ export function createLiquidSectionKit(
   dungeon: DungeonData,
   materials: DungeonMaterials,
   tileSize: number,
+  textureSink?: SceneTextureSink,
 ): LiquidSectionKit | null {
   const forge = dungeon.forge;
   if (!forge) return null;
@@ -293,7 +302,7 @@ export function createLiquidSectionKit(
     }
     const sections = collectLiquidSections(mask, dungeon.width, dungeon.height);
     if (sections.length === 0) continue;
-    const material = createLiquidMaterial(kind);
+    const material = createLiquidMaterial(kind, textureSink);
     sectionCount += sections.length;
     cellCount += sections.reduce((total, section) => total + section.cells.length, 0);
     boundaryEdges += sections.reduce(
@@ -321,7 +330,12 @@ export function createLiquidSectionKit(
   }
 
   return sectionCount > 0
-    ? { root, surfaces, stats: { sections: sectionCount, cells: cellCount, boundaryEdges } }
+    ? {
+        root,
+        surfaces,
+        stats: { sections: sectionCount, cells: cellCount, boundaryEdges },
+        textureSink,
+      }
     : null;
 }
 
@@ -343,18 +357,47 @@ export function tickLiquidSections(surfaces: readonly LiquidSurface[], time: num
 }
 
 export function disposeLiquidSectionKit(kit: LiquidSectionKit): void {
+  if (kit.disposed) return;
+  kit.disposed = true;
+  const geometries = new Set<THREE.BufferGeometry>();
   const textures = new Set<THREE.Texture>();
   const materials = new Set<THREE.Material>();
-  kit.root.traverse((object) => {
-    if (!(object instanceof THREE.Mesh)) return;
-    object.geometry.dispose();
-    const entries = Array.isArray(object.material) ? object.material : [object.material];
-    for (const material of entries) {
-      if (material.userData.sharedDungeonMaterial) continue;
-      materials.add(material);
-      if ("map" in material && material.map instanceof THREE.Texture) textures.add(material.map);
+  let cleanupError: unknown;
+  let hasCleanupError = false;
+  const clean = (dispose: () => void): void => {
+    try {
+      dispose();
+    } catch (error) {
+      if (!hasCleanupError) {
+        hasCleanupError = true;
+        cleanupError = error;
+      }
     }
-  });
-  textures.forEach((texture) => texture.dispose());
-  materials.forEach((material) => material.dispose());
+  };
+  try {
+    kit.root.traverse((object) => {
+      if (!(object instanceof THREE.Mesh)) return;
+      geometries.add(object.geometry);
+      const entries = Array.isArray(object.material) ? object.material : [object.material];
+      for (const material of entries) {
+        if (material.userData.sharedDungeonMaterial) continue;
+        materials.add(material);
+        if ("map" in material && material.map instanceof THREE.Texture) textures.add(material.map);
+      }
+    });
+    geometries.forEach((geometry) => clean(() => geometry.dispose()));
+    textures.forEach((texture) => {
+      clean(() => kit.textureSink?.unregister(texture));
+      clean(() => texture.dispose());
+    });
+    materials.forEach((material) => clean(() => material.dispose()));
+  } finally {
+    // The owner explicitly releases liquid resources before the generic Three
+    // walk. Removing the meshes prevents a second disposal pass and leaves no
+    // registered texture owned by a retired floor.
+    kit.root.clear();
+    kit.surfaces.length = 0;
+    kit.textureSink = undefined;
+  }
+  if (hasCleanupError) throw cleanupError;
 }

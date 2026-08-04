@@ -596,6 +596,23 @@ export class FirstPersonController {
         : 1;
   }
 
+  /**
+   * Single locomotion seam for mobility, slow, and control curses.
+   * Expand-contract: setMobilityBoost / setSlowCurse / setControlMods still work.
+   */
+  setLocomotionMods(mods: {
+    mobilityActive?: boolean;
+    slowActive?: boolean;
+    invertLook?: boolean;
+    invertMove?: boolean;
+    yawBias?: number;
+    sensitivityScale?: number;
+  }): void {
+    if (mods.mobilityActive !== undefined) this.mobilityBoostActive = mods.mobilityActive === true;
+    if (mods.slowActive !== undefined) this.slowCurseActive = mods.slowActive === true;
+    this.setControlMods(mods);
+  }
+
   requestPointerLock(): void {
     if (!this.domElement.requestPointerLock || !this.enabled) return;
     const result = this.domElement.requestPointerLock();

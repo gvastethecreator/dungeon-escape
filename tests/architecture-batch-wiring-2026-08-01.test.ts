@@ -17,16 +17,25 @@ describe("architecture batch wiring 2026-08-01", () => {
   test("DungeonWorld wires door, surface, spawn, pulse, minimap, and reach policies", async () => {
     const source = await Bun.file(new URL("../src/world/DungeonWorld.ts", import.meta.url)).text();
     expect(source).toContain("resolveDoorTargetOpen");
-    expect(source).toContain("isDoorPassable");
-    expect(source).toContain("isDoorClosed");
+    expect(source).toContain("updateDoorLeafPresentation");
+    expect(source).toContain("updateChestPresentation");
+    expect(source).toContain("updateCollectedPickupMotion");
     expect(source).toContain("composeHazardWithBiomeEvent");
     expect(source).toContain("composeDifficultyWithBiomeEvent");
-    expect(source).toContain("resolveSafeSpawnDistance");
+    // Spawn safety is owned by the resident enemy runtime; DungeonWorld only
+    // wires that owner into the active-floor facade.
+    expect(source).toContain("ResidentEnemyRuntime");
+    const residentEnemySource = await Bun.file(
+      new URL("../src/world/ResidentEnemyRuntime.ts", import.meta.url),
+    ).text();
+    expect(residentEnemySource).toContain("resolveSafeSpawnDistance");
     expect(source).toContain("annihilationPulseHitsEnemy");
     expect(source).toContain("projectMinimapFeatures");
     expect(source).toContain('from "./InteractionReach"');
     expect(source).toContain("canInteractWithChest");
     expect(source).toContain("canCollectPickup");
+    expect(source).toContain("tickRunPowerRuntime");
+    expect(source).toContain("applyPickupToRunPowers");
   });
 
   test("HazardTileSystem samples the shared spikeExposure curve", async () => {

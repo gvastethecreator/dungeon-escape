@@ -2,11 +2,12 @@ import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 
 import { isExitReachable, isFloorCell } from "../src/dungeon/generateDungeon";
-import { gridToWorld } from "../src/dungeon/gridCollision";
 import {
-  generateDungeonFloorSet,
-  MAX_DUNGEON_FLOORS,
-} from "../src/dungeon/generateDungeonFloors";
+  createFloorDeckColliders,
+  gridToWorld,
+  overlapsWorldCollider,
+} from "../src/dungeon/gridCollision";
+import { generateDungeonFloorSet, MAX_DUNGEON_FLOORS } from "../src/dungeon/generateDungeonFloors";
 import {
   canCollectPickup,
   canInteractWithChest,
@@ -18,10 +19,7 @@ import {
   STORY_STEP_COUNT,
   STORY_STEP_RISE,
 } from "../src/world/StoryMetrics";
-import {
-  buildStairFlight,
-  worldTreadColliders,
-} from "../src/world/StaircaseKit";
+import { buildStairFlight, worldTreadColliders } from "../src/world/StaircaseKit";
 import { createDungeonMaterials } from "../src/world/MaterialLibrary";
 import { pickSupportTop, stepVerticalMotion, VERTICAL_EVENT } from "../src/player/VerticalMotion";
 import { biomeCampaignFloorCount } from "../src/systems/BiomeCampaign";
@@ -29,17 +27,18 @@ import { listBiomeIds } from "../src/systems/BiomeIdentity";
 import { WORLD_TILE_SIZE } from "../src/world/WorldMetrics";
 
 describe("multi-floor smoke", () => {
-  test("campaign never exceeds three resident floors", () => {
-    expect(MAX_DUNGEON_FLOORS).toBe(3);
+  test("campaign keeps a bounded four-floor resident stack", () => {
+    expect(MAX_DUNGEON_FLOORS).toBe(4);
     for (const id of listBiomeIds()) {
-      expect(biomeCampaignFloorCount(id)).toBeLessThanOrEqual(3);
+      expect(biomeCampaignFloorCount(id)).toBeLessThanOrEqual(4);
     }
+    expect(biomeCampaignFloorCount("backrooms")).toBe(4);
   });
 
   test("stack shafts align in world XZ and stay walkable", () => {
-    const stack = generateDungeonFloorSet("SMOKE-MULTI-FLOOR", { roomTarget: 12 }, 3);
-    expect(stack.floors).toHaveLength(3);
-    expect(stack.shaftPlan.links).toHaveLength(2);
+    const stack = generateDungeonFloorSet("SMOKE-MULTI-FLOOR", { roomTarget: 12 }, 4);
+    expect(stack.floors).toHaveLength(4);
+    expect(stack.shaftPlan.links).toHaveLength(3);
 
     for (const link of stack.shaftPlan.links) {
       const lower = stack.floors[link.lowerFloor]!;
@@ -58,10 +57,43 @@ describe("multi-floor smoke", () => {
     }
 
     // Reciprocal stairs share shaft ids.
-    const down = stack.floors[0]!.floor!.stairs.find((s) => s.direction === "down")!;
-    const up = stack.floors[1]!.floor!.stairs.find((s) => s.direction === "up")!;
-    expect(down.shaftId).toBe(up.shaftId);
-    expect(down.cell).toEqual(up.cell);
+    const up = stack.floors[0]!.floor!.stairs.find((s) => s.direction === "up")!;
+    const down = stack.floors[1]!.floor!.stairs.find((s) => s.direction === "down")!;
+    expect(up.shaftId).toBe(down.shaftId);
+    expect(up.cell).toEqual(down.cell);
+  });
+
+  test("raised floor support uses compact row spans and leaves shaft mouths open", () => {
+    const stack = generateDungeonFloorSet("SMOKE-DECK-COLLIDERS", { roomTarget: 20 }, 4);
+    for (const floor of stack.floors.slice(1)) {
+      const slabY = (floor.floor?.index ?? 0) * STORY_HEIGHT;
+      const colliders = createFloorDeckColliders(
+        floor,
+        WORLD_TILE_SIZE,
+        slabY - 0.06,
+        slabY + 0.02,
+      );
+      expect(colliders.length).toBeLessThan(floor.stats.floorCount * 0.35);
+      const floorIndex = floor.floor?.index ?? 0;
+      const incoming = floor.floor?.stairs.find((stair) => stair.targetFloor < floorIndex);
+      if (!incoming) continue;
+      const incomingCells = new Set(incoming.footprint.map((cell) => `${cell.x},${cell.y}`));
+      for (let y = 0; y < floor.height; y += 1) {
+        for (let x = 0; x < floor.width; x += 1) {
+          if (!isFloorCell(floor, x, y) || incomingCells.has(`${x},${y}`)) continue;
+          const point = gridToWorld(floor, { x, y }, WORLD_TILE_SIZE);
+          expect(colliders.some((collider) => overlapsWorldCollider(point, 0.01, collider))).toBe(
+            true,
+          );
+        }
+      }
+      for (const cell of incoming.footprint) {
+        const point = gridToWorld(floor, cell, WORLD_TILE_SIZE);
+        expect(colliders.some((collider) => overlapsWorldCollider(point, 0.01, collider))).toBe(
+          false,
+        );
+      }
+    }
   });
 
   test("stair flight tops reach a full story and support step-up climb", () => {
@@ -109,9 +141,11 @@ describe("multi-floor smoke", () => {
   });
 
   test("active floor index does not flip mid-flight", () => {
-    expect(activeFloorFromSupportY(STORY_HEIGHT * 0.4, 3)).toBe(0);
-    expect(activeFloorFromSupportY(STORY_HEIGHT * 0.9, 3)).toBe(1);
-    expect(activeFloorFromSupportY(STORY_HEIGHT + 0.05, 3)).toBe(1);
+    expect(activeFloorFromSupportY(STORY_HEIGHT * 0.4, 4)).toBe(0);
+    expect(activeFloorFromSupportY(STORY_HEIGHT * 0.9, 4)).toBe(1);
+    expect(activeFloorFromSupportY(STORY_HEIGHT + 0.05, 4)).toBe(1);
+    expect(activeFloorFromSupportY(STORY_HEIGHT * 2.9, 4)).toBe(3);
+    expect(activeFloorFromSupportY(STORY_HEIGHT * 3.05, 4)).toBe(3);
   });
 
   test("host rebinds floor without setDungeon teleport", () => {
@@ -123,11 +157,16 @@ describe("multi-floor smoke", () => {
     expect(world).toContain("rebindActiveDungeon(dungeon: DungeonData)");
     expect(main).toContain("controller.bindDungeon(nextDungeon)");
     expect(main).toContain("world.rebindActiveDungeon(nextDungeon)");
+    expect(main).not.toContain("FloorTransitionDirector");
+    expect(main).not.toContain("planFloorTransition");
     // Height rebind path must not call setDungeon (teleport to spawn).
     const rebindStart = main.indexOf("Multi-slab: rebind the logical floor");
     const rebindEnd = main.indexOf("if (dungeon && player.cell)", rebindStart + 10);
     const rebindBlock = main.slice(rebindStart, rebindEnd);
     expect(rebindBlock).not.toContain("controller.setDungeon(");
+    expect(rebindBlock).not.toContain("activateDungeon(");
+    expect(rebindBlock).not.toContain("buildDungeon(");
+    expect(rebindBlock).not.toContain("setSceneFadeOpaque(");
     expect(rebindBlock).toContain("Never call controller.setDungeon");
   });
 

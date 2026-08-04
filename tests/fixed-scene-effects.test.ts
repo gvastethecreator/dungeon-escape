@@ -4,7 +4,11 @@ import * as THREE from "three";
 import { FixedSceneEffects } from "../src/world/FixedSceneEffects";
 import { createLiquidMaterial } from "../src/world/LiquidSectionKit";
 import { createNoiseFlame } from "../src/world/ProceduralFlameVfx";
-import type { StaticFireEffect, StaticFloorBiomeSprite } from "../src/world/StaticDungeonScene";
+import type {
+  StaticCeilingBiomeSprite,
+  StaticFireEffect,
+  StaticFloorBiomeSprite,
+} from "../src/world/StaticDungeonScene";
 import { createVolumetricBeam } from "../src/world/VolumetricBeam";
 
 describe("FixedSceneEffects", () => {
@@ -45,6 +49,22 @@ describe("FixedSceneEffects", () => {
       baseYaw: 0,
       placement: "floor-standing",
     };
+    const ceilingMaterial = new THREE.MeshStandardMaterial({ transparent: true, opacity: 1 });
+    const ceilingMesh = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), ceilingMaterial);
+    const ceilingSprite: StaticCeilingBiomeSprite = {
+      mesh: ceilingMesh,
+      material: ceilingMaterial,
+      baseOpacity: 1,
+      x: 0,
+      z: 0,
+      baseYaw: 0,
+      maxDistance: 10,
+      hysteresis: 2,
+      animationPhase: 0.4,
+      animationSpeed: 0.6,
+      swayAmplitude: 0.02,
+      sharedMaterial: true,
+    };
     const portalBeam = createVolumetricBeam();
     const stoneBeam = createVolumetricBeam();
     const ambientBeam = createVolumetricBeam();
@@ -58,6 +78,7 @@ describe("FixedSceneEffects", () => {
       dungeon: null,
       tileSize: 2.4,
       floorSprites: [sprite],
+      ceilingSprites: [ceilingSprite],
       fires: [fire],
       portalBeam,
       stoneBeams: [stoneBeam],
@@ -90,5 +111,10 @@ describe("FixedSceneEffects", () => {
     expect(spriteMesh.userData.distanceFade).toBeGreaterThan(0);
     expect(spriteMaterial.opacity).toBeLessThanOrEqual(sprite.baseOpacity);
     expect(spriteMesh.rotation.y).toBeCloseTo(Math.atan2(3, 4), 5);
+    expect(ceilingMesh.visible).toBe(true);
+    expect(ceilingMaterial.opacity).toBe(1);
+    expect(ceilingMesh.rotation.y).toBeCloseTo(Math.atan2(3, 4), 5);
+    expect(ceilingMesh.rotation.z).not.toBe(0);
+    expect(effects.diagnostics.lastCeilingSpriteIterations).toBe(1);
   });
 });

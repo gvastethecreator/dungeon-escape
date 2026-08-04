@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import type { SceneTextureSink } from "../systems/SceneTextureRegistry";
 
 import { MIRROR_CURSE_DURATION_SECONDS } from "../game/MirrorCurse";
 import { SPIN_CURSE_DURATION_SECONDS } from "../game/SpinCurse";
@@ -90,11 +91,14 @@ export class ControlCurseVfx {
   private readonly spinTex: THREE.Texture;
   private mirrorActive = false;
   private spinActive = false;
+  private disposed = false;
 
-  constructor() {
+  constructor(private readonly textureSink?: SceneTextureSink) {
     this.root.name = "Control curse field";
     this.mirrorTex = createSoftDiscTexture(126, 200, 232);
     this.spinTex = createSoftDiscTexture(192, 122, 224);
+    this.textureSink?.register(this.mirrorTex);
+    this.textureSink?.register(this.spinTex);
     this.mirrorPos = new Float32Array(MIRROR_COUNT * 3);
     this.spinPos = new Float32Array(SPIN_COUNT * 3);
     this.mirror = makePoints(
@@ -104,13 +108,7 @@ export class ControlCurseVfx {
       this.mirrorTex,
       this.mirrorPos,
     );
-    this.spin = makePoints(
-      "Spin curse helix",
-      SPIN_COUNT,
-      SPIN_COLOR,
-      this.spinTex,
-      this.spinPos,
-    );
+    this.spin = makePoints("Spin curse helix", SPIN_COUNT, SPIN_COLOR, this.spinTex, this.spinPos);
     this.root.add(this.mirror, this.spin);
   }
 
@@ -136,10 +134,7 @@ export class ControlCurseVfx {
     }
   }
 
-  private touchBounds(
-    points: THREE.Points,
-    viewer: ControlCurseViewer,
-  ): void {
+  private touchBounds(points: THREE.Points, viewer: ControlCurseViewer): void {
     if (points.geometry.boundingSphere) {
       points.geometry.boundingSphere.center.set(viewer.x, viewer.y - 0.5, viewer.z);
       points.geometry.boundingSphere.radius = 2;
@@ -175,11 +170,7 @@ export class ControlCurseVfx {
 
     if (spinOn) {
       this.spin.visible = true;
-      const urgency = THREE.MathUtils.clamp(
-        spinRemaining / SPIN_CURSE_DURATION_SECONDS,
-        0.25,
-        1,
-      );
+      const urgency = THREE.MathUtils.clamp(spinRemaining / SPIN_CURSE_DURATION_SECONDS, 0.25, 1);
       this.spin.material.opacity = 0.34 + urgency * 0.32;
       this.writeOrbit(this.spinPos, SPIN_COUNT, viewer, elapsed, 2.4, ORBIT * 0.95, 0.7);
       (this.spin.geometry.getAttribute("position") as THREE.BufferAttribute).needsUpdate = true;
@@ -201,6 +192,10 @@ export class ControlCurseVfx {
   }
 
   dispose(): void {
+    if (this.disposed) return;
+    this.disposed = true;
+    this.textureSink?.unregister(this.mirrorTex);
+    this.textureSink?.unregister(this.spinTex);
     this.mirror.geometry.dispose();
     this.spin.geometry.dispose();
     this.mirror.material.dispose();

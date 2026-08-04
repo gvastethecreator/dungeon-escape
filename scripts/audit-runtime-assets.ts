@@ -136,6 +136,7 @@ export async function auditRuntimeAssets(
       targetDimensions: [number, number];
       targetBytes: number;
       targetSha256: string;
+      resample?: string;
     }>;
   };
   const optimizationIssues: string[] = [];
@@ -148,11 +149,20 @@ export async function auditRuntimeAssets(
       optimizationIssues.push(`${targetRelative}: missing optimized output`);
       continue;
     }
+    const expectedDimensions: [number, number] =
+      entry.resample === "none"
+        ? entry.sourceDimensions
+        : [
+            Math.max(1, Math.floor(entry.sourceDimensions[0] / 2)),
+            Math.max(1, Math.floor(entry.sourceDimensions[1] / 2)),
+          ];
     if (
-      entry.targetDimensions[0] !== Math.max(1, Math.floor(entry.sourceDimensions[0] / 2)) ||
-      entry.targetDimensions[1] !== Math.max(1, Math.floor(entry.sourceDimensions[1] / 2))
+      entry.targetDimensions[0] !== expectedDimensions[0] ||
+      entry.targetDimensions[1] !== expectedDimensions[1]
     ) {
-      optimizationIssues.push(`${targetRelative}: dimensions are not 50%`);
+      optimizationIssues.push(
+        `${targetRelative}: dimensions do not match ${entry.resample === "none" ? "authored runtime size" : "50% optimization"}`,
+      );
     }
     const bytes = await readFile(target);
     if (bytes.byteLength !== entry.targetBytes)

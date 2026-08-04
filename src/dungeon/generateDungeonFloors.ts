@@ -1,5 +1,6 @@
 import { hashSeed } from "../core/random";
 import { generateCompletableDungeon } from "./completeness";
+import { refreshDungeonConnectivity } from "./generateDungeon";
 import {
   applyStairShaftCarves,
   planStairShafts,
@@ -14,7 +15,7 @@ import type {
 } from "./types";
 
 /** Campaign stack resident ceiling for continuous multi-floor play. */
-export const MAX_DUNGEON_FLOORS = 3;
+export const MAX_DUNGEON_FLOORS = 4;
 
 export interface DungeonFloorSet {
   rootSeed: string;
@@ -35,6 +36,7 @@ export class DungeonFloorCampaign {
   private readonly cache = new Map<number, DungeonData>();
   private shaftPlan: StairShaftPlan = { links: [] };
   private materialized = false;
+  private readonly initialFloor: DungeonData | undefined;
 
   constructor(
     seed = "BLACK-FLAG",
@@ -45,9 +47,13 @@ export class DungeonFloorCampaign {
   ) {
     this.rootSeed = seed.trim() || "BLACK-FLAG";
     this.count = clampFloorCount(requestedFloorCount);
-    if (initialFloor && this.count === 1) {
-      this.cache.set(0, withSingleFloorMetadata(initialFloor, this.rootSeed, 0, 1));
-      this.materialized = true;
+    if (initialFloor) {
+      if (this.count === 1) {
+        this.cache.set(0, withSingleFloorMetadata(initialFloor, this.rootSeed, 0, 1));
+        this.materialized = true;
+      } else {
+        this.initialFloor = cloneDungeonGrid(initialFloor);
+      }
     }
   }
 
@@ -73,17 +79,30 @@ export class DungeonFloorCampaign {
     return Array.from({ length: this.count }, (_, index) => this.cache.get(index)!);
   }
 
+  /** Generate and link the complete resident stack before Play can use it. */
+  materialize(): this {
+    this.ensureMaterialized();
+    return this;
+  }
+
   private ensureMaterialized(): void {
     if (this.materialized) return;
     const raw: DungeonData[] = [];
     for (let index = 0; index < this.count; index += 1) {
       const floorSeed = index === 0 ? this.rootSeed : `${this.rootSeed}:F${index + 1}`;
-      raw.push(cloneDungeonGrid(this.generator(floorSeed, this.options)));
+      raw.push(
+        index === 0 && this.initialFloor
+          ? cloneDungeonGrid(this.initialFloor)
+          : cloneDungeonGrid(this.generator(floorSeed, this.options)),
+      );
     }
 
     if (this.count > 1) {
       this.shaftPlan = planStairShafts(raw, this.rootSeed);
       applyStairShaftCarves(raw, this.shaftPlan);
+      for (let index = 0; index < raw.length; index += 1) {
+        raw[index] = refreshDungeonConnectivity(raw[index]!);
+      }
     } else {
       this.shaftPlan = { links: [] };
     }
@@ -110,7 +129,7 @@ export function createDungeonFloorCampaign(
     requestedFloorCount,
     generateCompletableDungeon,
     initialFloor,
-  );
+  ).materialize();
 }
 
 function clampFloorCount(value: number): number {
@@ -170,17 +189,19 @@ function withStackFloorMetadata(
   const openSeen = new Set<string>();
 
   for (const link of plan.links) {
-    for (const cell of link.footprint) {
-      const key = `${cell.x},${cell.y}`;
-      if (openSeen.has(key)) continue;
-      openSeen.add(key);
-      openVerticalCells.push({ ...cell });
+    if (link.lowerFloor === index || link.upperFloor === index) {
+      for (const cell of link.footprint) {
+        const key = `${cell.x},${cell.y}`;
+        if (openSeen.has(key)) continue;
+        openSeen.add(key);
+        openVerticalCells.push({ ...cell });
+      }
     }
 
     if (link.lowerFloor === index) {
       stairs.push({
-        id: `${link.shaftId}-down`,
-        direction: "down",
+        id: `${link.shaftId}-up`,
+        direction: "up",
         cell: { ...link.anchor },
         targetFloor: link.upperFloor,
         yaw: link.yaw,
@@ -190,8 +211,8 @@ function withStackFloorMetadata(
     }
     if (link.upperFloor === index) {
       stairs.push({
-        id: `${link.shaftId}-up`,
-        direction: "up",
+        id: `${link.shaftId}-down`,
+        direction: "down",
         cell: { ...link.anchor },
         targetFloor: link.lowerFloor,
         yaw: link.yaw + Math.PI,

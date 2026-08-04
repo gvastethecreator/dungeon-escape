@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import type { SceneTextureSink } from "../systems/SceneTextureRegistry";
 
 import { MOBILITY_BOOST_DURATION_SECONDS } from "../game/MobilityBoost";
 
@@ -92,11 +93,16 @@ export class MobilityBoostVfx {
   private wasActive = false;
   private activationAge = 0;
   private readonly hotColor = new THREE.Color(DUST_COLOR_HOT);
+  private disposed = false;
 
-  constructor(count = MOBILITY_DUST_COUNT) {
+  constructor(
+    count = MOBILITY_DUST_COUNT,
+    private readonly textureSink?: SceneTextureSink,
+  ) {
     const particleCount = Math.max(16, Math.trunc(count));
     this.root.name = "Mobility boost draught field";
     this.texture = createMobilityDustTexture();
+    this.textureSink?.register(this.texture);
     this.positions = new Float32Array(particleCount * 3);
     this.seeds = Array.from({ length: particleCount }, (_, index) => {
       const seed = (index * 0.6180339887) % 1;
@@ -217,6 +223,9 @@ export class MobilityBoostVfx {
   }
 
   dispose(): void {
+    if (this.disposed) return;
+    this.disposed = true;
+    this.textureSink?.unregister(this.texture);
     this.dust.geometry.dispose();
     this.dust.material.dispose();
     this.texture.dispose();

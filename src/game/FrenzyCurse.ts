@@ -1,5 +1,11 @@
 /** Timed enemy frenzy: faster pursuit and quicker attack cadence. */
 
+import {
+  activateTimedSeconds,
+  isTimedSecondsActive,
+  tickTimedSeconds,
+} from "./TimedSeconds";
+
 export const FRENZY_CURSE_DURATION_SECONDS = 18;
 /** Multiplies enemy move speed while the curse is active. */
 export const FRENZY_CURSE_SPEED_MULTIPLIER = 1.38;
@@ -12,13 +18,13 @@ export function activateFrenzyCurse(
   currentSeconds = 0,
   durationSeconds = FRENZY_CURSE_DURATION_SECONDS,
 ): number {
-  return Math.max(Math.max(0, currentSeconds), Math.max(0, durationSeconds));
+  return activateTimedSeconds(currentSeconds, durationSeconds);
 }
 
 export function tickFrenzyCurse(remainingSeconds: number, deltaSeconds: number): number {
-  return Math.max(0, remainingSeconds - Math.max(0, deltaSeconds));
+  return tickTimedSeconds(remainingSeconds, deltaSeconds);
 }
 
 export function isFrenzyCurseActive(remainingSeconds: number): boolean {
-  return remainingSeconds > 0;
+  return isTimedSecondsActive(remainingSeconds);
 }

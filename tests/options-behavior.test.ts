@@ -9,7 +9,15 @@ describe("pause options behavior", () => {
     expect(html).toContain('id="texture-smoothing-toggle"');
     expect(main).toContain("audio.setMusicVolume(userSettings.musicVolume)");
     expect(main).toContain("audio.setEffectsVolume(userSettings.effectsVolume)");
-    expect(main).toContain("applyTextureSmoothing(scene, textureSmoothing)");
+    expect(main).toContain("textureRegistry.setSmoothing(textureSmoothing)");
+    expect(main).toContain("textureRegistry.diagnostics().registered");
+    expect(main).not.toContain("applyTextureSmoothing(");
+    expect(main.indexOf("readUserSettings()")).toBeLessThan(
+      main.indexOf("new SceneTextureRegistry("),
+    );
+    expect(main.indexOf("new SceneTextureRegistry(")).toBeLessThan(
+      main.indexOf("new DungeonWorld("),
+    );
   });
 
   test("handles Escape before editable controls can consume the pause shortcut", async () => {

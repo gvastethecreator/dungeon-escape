@@ -10,10 +10,15 @@ import {
   enemyOpaqueFeetY,
   resolveEnemyContactShadowLayout,
   setEnemyBillboardFrame,
+  setEnemyBillboardInstanceFrame,
   setEnemyFreezeAmount,
 } from "./EnemyBillboardMaterial";
 import type { EnemyMotionTrailTarget } from "./EnemyMotionTrailVfx";
-import { enemyAnimationFrameIndex, type EnemyAnimationDefinition } from "./EnemySpriteAtlas";
+import {
+  animationFrameIndex,
+  enemyAttackFrameIndex,
+  type EnemyAnimationDefinition,
+} from "./EnemySpriteAtlas";
 import type { EnemySimBody } from "./EnemySim";
 
 export interface EnemyPresentationActor extends EnemySimBody {
@@ -35,6 +40,8 @@ export interface EnemyAnimationBatch {
   kind: EnemyKind;
   material: THREE.MeshStandardMaterial;
   animation: EnemyAnimationDefinition;
+  attackAnimation?: EnemyAnimationDefinition;
+  atlasFrameAttribute: THREE.InstancedBufferAttribute;
   frame: number;
   phaseOffset: number;
 }
@@ -131,17 +138,34 @@ export class EnemyPresentation {
     this.movingKinds.clear();
     for (const actor of frame.actors) if (actor.moving) this.movingKinds.add(actor.kind);
     for (const batch of frame.animationBatches.values()) {
-      const nextFrame = enemyAnimationFrameIndex(
-        batch.kind,
-        frame.animationElapsed,
-        batch.phaseOffset,
-        this.movingKinds.has(batch.kind),
-      );
+      const nextFrame = this.movingKinds.has(batch.kind)
+        ? animationFrameIndex(batch.animation, frame.animationElapsed, batch.phaseOffset)
+        : 0;
       if (nextFrame !== batch.frame) {
         setEnemyBillboardFrame(batch.material, batch.animation, nextFrame);
         batch.frame = nextFrame;
       }
       frame.trail?.syncAnimationFrame(batch.kind, batch.frame);
+    }
+    for (const actor of frame.actors) {
+      const batch = frame.animationBatches.get(actor.kind);
+      if (!batch) continue;
+      const attacking = actor.attackPulse > 0 && batch.attackAnimation;
+      const animation = attacking ? batch.attackAnimation! : batch.animation;
+      const frameIndex = attacking
+        ? enemyAttackFrameIndex(actor.attackPulse, animation.frames.length)
+        : actor.moving
+          ? animationFrameIndex(batch.animation, frame.animationElapsed, batch.phaseOffset)
+          : 0;
+      setEnemyBillboardInstanceFrame(
+        batch.atlasFrameAttribute,
+        actor.instanceIndex,
+        animation,
+        frameIndex,
+      );
+    }
+    for (const batch of frame.animationBatches.values()) {
+      batch.atlasFrameAttribute.needsUpdate = true;
     }
   }
 }

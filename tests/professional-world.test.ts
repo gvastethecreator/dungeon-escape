@@ -105,9 +105,21 @@ describe("professional world kit", () => {
     for (const moodId of listDungeonMoodIds()) {
       const animations = enemyAnimationsForMood(moodId);
       expect(animations.goblin.src).toBe(enemyAtlasSrcForMood(moodId));
-      for (const kind of ENEMY_ROSTER) {
-        expect(animations[kind].frames).toEqual(ENEMY_ANIMATIONS[kind].frames);
-        expect(animations[kind].size).toEqual(ENEMY_ANIMATIONS[kind].size);
+      for (const [index, kind] of ENEMY_ROSTER.entries()) {
+        const frames = animations[kind].frames;
+        const canonicalFrames = ENEMY_ANIMATIONS[kind].frames;
+        expect(frames.map(({ x, w, h }) => ({ x, w, h }))).toEqual(
+          canonicalFrames.map(({ x, w, h }) => ({ x, w, h })),
+        );
+        const expectedRow = moodId === "ancient" ? index * 2 : index;
+        expect(frames.map(({ y }) => y)).toEqual(
+          Array.from({ length: 4 }, () => expectedRow * 160),
+        );
+        // Ancient owns movement + attack rows in one taller atlas; the other
+        // biomes keep the canonical movement-only sheet dimensions.
+        expect(animations[kind].size).toEqual(
+          moodId === "ancient" ? [640, 3520] : ENEMY_ANIMATIONS[kind].size,
+        );
       }
     }
   });

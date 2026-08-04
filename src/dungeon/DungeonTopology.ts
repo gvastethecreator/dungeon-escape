@@ -198,6 +198,22 @@ function labelRouteComponents(
   return labels;
 }
 
+type RouteWorkspace = {
+  marks: Uint32Array;
+  previous: Int32Array;
+  queue: Int32Array;
+  epoch: number;
+};
+
+function createRouteWorkspace(cellCount: number): RouteWorkspace {
+  return {
+    marks: new Uint32Array(cellCount),
+    previous: new Int32Array(cellCount),
+    queue: new Int32Array(cellCount),
+    epoch: 0,
+  };
+}
+
 function findRoute(
   width: number,
   height: number,
@@ -205,17 +221,22 @@ function findRoute(
   from: GridCell,
   to: GridCell,
   axisBias: number,
+  workspace: RouteWorkspace,
 ): GridCell[] | null {
-  const cellCount = width * height;
-  const previous = new Int32Array(cellCount).fill(-1);
-  const visited = new Uint8Array(cellCount);
-  const queue = new Int32Array(cellCount);
+  workspace.epoch += 1;
+  if (workspace.epoch === 0xffffffff) {
+    workspace.marks.fill(0);
+    workspace.epoch = 1;
+  }
+  const epoch = workspace.epoch;
+  const { marks, previous, queue } = workspace;
   const start = indexOf(width, from.x, from.y);
   const goal = indexOf(width, to.x, to.y);
   let head = 0;
   let tail = 0;
   queue[tail++] = start;
-  visited[start] = 1;
+  marks[start] = epoch;
+  previous[start] = -1;
   // Neighbor priority only affects which equal-length route wins. Compute it
   // once instead of allocating and sorting four objects for every visited cell.
   const directions = [...CARDINALS].sort((left, right) => {
@@ -241,14 +262,14 @@ function findRoute(
       const nextY = y + direction.y;
       if (!inside(width, height, nextX, nextY)) continue;
       const next = indexOf(width, nextX, nextY);
-      if (visited[next]) continue;
+      if (marks[next] === epoch) continue;
       if (next !== goal && !routeMask[next]) continue;
-      visited[next] = 1;
+      marks[next] = epoch;
       previous[next] = current;
       queue[tail++] = next;
     }
   }
-  if (!visited[goal]) return null;
+  if (marks[goal] !== epoch) return null;
 
   const reversed: GridCell[] = [];
   for (let cursor = goal; cursor !== -1; cursor = previous[cursor] ?? -1) {
@@ -377,6 +398,7 @@ export function carveDungeonTopology(
   // components once so candidate pairs do not each run a full failed BFS.
   const routeMask = createRouteMask(width, height, roomIds);
   const routeComponents = labelRouteComponents(width, height, routeMask);
+  const routeWorkspace = createRouteWorkspace(width * height);
 
   for (let edgeIndex = 0; edgeIndex < edges.length; edgeIndex += 1) {
     const edge = edges[edgeIndex];
@@ -425,6 +447,7 @@ export function carveDungeonTopology(
           left.routeAnchor,
           right.routeAnchor,
           smallHash(seedHash, edgeIndex, left.cell.x, right.cell.y) & 1,
+          routeWorkspace,
         );
         if (!path) continue;
         selected = { left, right, path };
