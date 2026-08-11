@@ -19,10 +19,13 @@ import type {
 } from "./StaticDungeonScene";
 import type { ResidentEnemyRuntime } from "./ResidentEnemyRuntime";
 import { ThreeResourceDisposer } from "./ThreeResourceDisposer";
+import type { UncannyWallRuntime } from "./UncannyWallRuntime";
 
 export interface ResidentFloorRuntime {
   readonly floorIndex: number;
   readonly root: THREE.Group;
+  /** Expensive props and actors render only while this floor owns simulation. */
+  readonly detailRoot: THREE.Group;
   readonly occupancy: FloorOccupancyGrid;
   readonly colliders: readonly WorldCollider[];
   readonly doors: readonly StaticDoorActor[];
@@ -43,6 +46,7 @@ export interface ResidentFloorRuntime {
   readonly hazardTileSystem: HazardTileSystem | null;
   readonly liquidKit: LiquidSectionKit | null;
   readonly fixedSceneEffects: FixedSceneEffects;
+  readonly uncannyWallRuntime: UncannyWallRuntime | null;
   readonly minimapProjection: ResidentMinimapProjection | null;
   /** Batches and selected lights stay in the resident-local slab frame. */
   readonly wallFireBatchRoots: readonly THREE.Group[];
@@ -58,6 +62,7 @@ export interface ResidentFloorRuntime {
 export class ResidentFloorRuntimeOwner implements ResidentFloorRuntime {
   readonly floorIndex: number;
   readonly root: THREE.Group;
+  readonly detailRoot: THREE.Group;
   readonly occupancy: FloorOccupancyGrid;
   private readonly mutableColliders: WorldCollider[] = [];
   readonly colliders: readonly WorldCollider[] = this.mutableColliders;
@@ -89,6 +94,7 @@ export class ResidentFloorRuntimeOwner implements ResidentFloorRuntime {
   private mutableHazardTileSystem: HazardTileSystem | null = null;
   private mutableLiquidKit: LiquidSectionKit | null = null;
   readonly fixedSceneEffects = new FixedSceneEffects();
+  private mutableUncannyWallRuntime: UncannyWallRuntime | null = null;
   private mutableMinimapProjection: ResidentMinimapProjection | null = null;
   private readonly mutableWallFireBatchRoots: THREE.Group[] = [];
   readonly wallFireBatchRoots: readonly THREE.Group[] = this.mutableWallFireBatchRoots;
@@ -103,6 +109,10 @@ export class ResidentFloorRuntimeOwner implements ResidentFloorRuntime {
     this.root.name = `Dungeon resident floor ${floorIndex + 1}`;
     this.root.userData.floorIndex = floorIndex;
     this.root.position.y = slabY;
+    this.detailRoot = new THREE.Group();
+    this.detailRoot.name = `Dungeon resident floor ${floorIndex + 1} active detail`;
+    this.detailRoot.userData.floorIndex = floorIndex;
+    this.root.add(this.detailRoot);
     this.occupancy = new FloorOccupancyGrid(floorIndex, width, height);
   }
 
@@ -120,6 +130,10 @@ export class ResidentFloorRuntimeOwner implements ResidentFloorRuntime {
 
   get minimapProjection(): ResidentMinimapProjection | null {
     return this.mutableMinimapProjection;
+  }
+
+  get uncannyWallRuntime(): UncannyWallRuntime | null {
+    return this.mutableUncannyWallRuntime;
   }
 
   get enemyRuntime(): ResidentEnemyRuntime | null {
@@ -220,6 +234,14 @@ export class ResidentFloorRuntimeOwner implements ResidentFloorRuntime {
     this.mutableMinimapProjection = projection;
   }
 
+  setUncannyWallRuntime(runtime: UncannyWallRuntime): void {
+    this.assertActive();
+    if (this.mutableUncannyWallRuntime && this.mutableUncannyWallRuntime !== runtime) {
+      throw new Error("ResidentFloorRuntime already owns an uncanny wall runtime.");
+    }
+    this.mutableUncannyWallRuntime = runtime;
+  }
+
   registerWallFireBatchRoot(root: THREE.Group): void {
     this.assertActive();
     this.mutableWallFireBatchRoots.push(root);
@@ -237,7 +259,17 @@ export class ResidentFloorRuntimeOwner implements ResidentFloorRuntime {
       throw new Error("ResidentFloorRuntime already owns an enemy runtime.");
     }
     this.mutableEnemyRuntime = runtime;
-    if (runtime.root.parent !== this.root) this.root.add(runtime.root);
+    if (runtime.root.parent !== this.detailRoot) this.detailRoot.add(runtime.root);
+  }
+
+  /** Move non-architectural direct children behind one active-floor visibility switch. */
+  partitionPresentation(keepsNeighborContinuity: (object: THREE.Object3D) => boolean): void {
+    this.assertActive();
+    const directChildren = this.root.children.slice();
+    for (const object of directChildren) {
+      if (object === this.detailRoot || keepsNeighborContinuity(object)) continue;
+      this.detailRoot.add(object);
+    }
   }
 
   /**
@@ -294,6 +326,7 @@ export class ResidentFloorRuntimeOwner implements ResidentFloorRuntime {
       this.mutableFires.length = 0;
       this.mutableFloorBiomeSprites.length = 0;
       this.mutableCeilingBiomeSprites.length = 0;
+      this.mutableUncannyWallRuntime = null;
       this.mutableAmbientBeams.length = 0;
       this.mutableStoneBeams.length = 0;
       this.mutableHazardCells.clear();

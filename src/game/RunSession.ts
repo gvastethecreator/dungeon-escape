@@ -1,9 +1,5 @@
 import { COPY, stoneLabel, type StoneId } from "../ui/copy";
-import {
-  hasPhoenixCharge,
-  phoenixReviveResolve,
-  tryConsumePhoenixCharge,
-} from "./PhoenixEgg";
+import { hasPhoenixCharge, phoenixReviveResolve, tryConsumePhoenixCharge } from "./PhoenixEgg";
 import { applyPickupSessionEffects } from "./PickupSessionEffects";
 import type { QuestState } from "./QuestState";
 

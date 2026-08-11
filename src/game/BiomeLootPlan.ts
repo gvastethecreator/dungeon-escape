@@ -48,11 +48,7 @@ function resolveRank(moodOrBiomeId: string | null | undefined): number {
   return 0;
 }
 
-function pickSupportPowers(
-  count: number,
-  seed: string,
-  salt: string,
-): FloorSupportPowerKind[] {
+function pickSupportPowers(count: number, seed: string, salt: string): FloorSupportPowerKind[] {
   if (count <= 0) return [];
   const random = createSeededRandom(`${seed}:${salt}`);
   const picks: FloorSupportPowerKind[] = [];
@@ -100,7 +96,11 @@ export function planBiomeLootBudget(
 
   // Soft cap awareness (caller still enforces seat availability).
   const projected =
-    healthChests + freeFlasks + freePowers.length + extraSupportChests.length + (placePhoenix ? 1 : 0);
+    healthChests +
+    freeFlasks +
+    freePowers.length +
+    extraSupportChests.length +
+    (placePhoenix ? 1 : 0);
   if (projected > FLOOR_LOOT_HARD_CAP) {
     // Prefer keeping phoenix and free powers; trim free flasks first.
     const overflow = projected - FLOOR_LOOT_HARD_CAP;

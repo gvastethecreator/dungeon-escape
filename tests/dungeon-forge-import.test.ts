@@ -1,10 +1,7 @@
 import { describe, expect, test } from "bun:test";
 
 import { FLOOR } from "../src/dungeon/generateDungeon";
-import {
-  importDungeonForge,
-  type ForgeDungeonPayload,
-} from "../src/dungeon/importDungeonForge";
+import { importDungeonForge, type ForgeDungeonPayload } from "../src/dungeon/importDungeonForge";
 
 const W = 7;
 const H = 5;

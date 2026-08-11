@@ -136,9 +136,7 @@ export function exportPlayDungeonToForgePresentation(
 
   const maxBfs = bfs.reduce((maximum, distance) => Math.max(maximum, distance), 0);
   const degree = new Map<number, number>();
-  const adjacency = new Map<number, number[]>(
-    dungeon.rooms.map((room) => [room.id, []] as const),
-  );
+  const adjacency = new Map<number, number[]>(dungeon.rooms.map((room) => [room.id, []] as const));
   for (const edge of dungeon.edges) {
     degree.set(edge.left, (degree.get(edge.left) ?? 0) + 1);
     degree.set(edge.right, (degree.get(edge.right) ?? 0) + 1);
@@ -168,7 +166,11 @@ export function exportPlayDungeonToForgePresentation(
     const area = room.width * room.height;
     const arch: "s" | "m" | "l" = area <= 30 ? "s" : area <= 64 ? "m" : "l";
     const type =
-      room.role === "entrance" ? ("entrance" as const) : room.role === "exit" ? ("boss" as const) : ("combat" as const);
+      room.role === "entrance"
+        ? ("entrance" as const)
+        : room.role === "exit"
+          ? ("boss" as const)
+          : ("combat" as const);
     const depth = roomDepth.get(room.id) ?? 0;
     return {
       id: room.id,

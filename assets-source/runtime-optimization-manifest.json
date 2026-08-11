@@ -7,13 +7,13 @@
     "continuousArtResample": "lanczos"
   },
   "summary": {
-    "images": 505,
-    "converted": 11,
-    "skipped": 494,
-    "sourceBytes": 224154991.0,
-    "targetBytes": 57137518.0,
-    "savedBytes": 167017473.0,
-    "savedPercent": 74.51
+    "images": 535,
+    "converted": 22,
+    "skipped": 513,
+    "sourceBytes": 244201734,
+    "targetBytes": 105719110,
+    "savedBytes": 138482624,
+    "savedPercent": 56.71
   },
   "images": [
     {
@@ -2137,203 +2137,203 @@
       "encoding": "lossless"
     },
     {
-      "source": "public/assets/sprites/enemies-v8/biomes/ash-enemies.png",
+      "source": "public/assets/sprites/enemies-v8/biomes/ash-enemies.webp",
       "target": "public/assets/sprites/enemies-v8/biomes/ash-enemies.webp",
-      "sourceFormat": "png",
+      "sourceFormat": "webp",
       "targetFormat": "webp",
       "sourceDimensions": [
-        1280,
+        640,
         3520
       ],
       "targetDimensions": [
         640,
-        1760
+        3520
       ],
-      "sourceBytes": 3078427,
-      "targetBytes": 695262,
-      "sourceSha256": "fd982032bc4caedfc352c98053791f7fb6e7bfa5f8e6ed1844bce43c17dda758",
-      "targetSha256": "61fdef6bb1fdb1398355a36cb2cc8d1c6d169402c24b49fd002bc8a245d14951",
-      "resample": "nearest",
+      "sourceBytes": 1086180,
+      "targetBytes": 1086180,
+      "sourceSha256": "87ace3a242dd6540b075329c81fbacdd98aad728813b89cac31a883f44acb5c0",
+      "targetSha256": "87ace3a242dd6540b075329c81fbacdd98aad728813b89cac31a883f44acb5c0",
+      "resample": "none",
       "encoding": "lossless"
     },
     {
-      "source": "public/assets/sprites/enemies-v8/biomes/backrooms-enemies.png",
+      "source": "public/assets/sprites/enemies-v8/biomes/backrooms-enemies.webp",
       "target": "public/assets/sprites/enemies-v8/biomes/backrooms-enemies.webp",
-      "sourceFormat": "png",
+      "sourceFormat": "webp",
       "targetFormat": "webp",
       "sourceDimensions": [
-        1280,
+        640,
         3520
       ],
       "targetDimensions": [
         640,
-        1760
+        3520
       ],
-      "sourceBytes": 2721174,
-      "targetBytes": 542626,
-      "sourceSha256": "8c64400450ebae689d06eb096cfe121ec91c0b6be28ae3852e017ae195361c24",
-      "targetSha256": "81b4a6e41518136d6d5d3a3371975939a12953b37d76d9514534c536bf4152b8",
-      "resample": "nearest",
+      "sourceBytes": 1104642,
+      "targetBytes": 1104642,
+      "sourceSha256": "6810889697686c6ba327de9f6c3025e7d913bc8afbd60a5781befc718d28d1e1",
+      "targetSha256": "6810889697686c6ba327de9f6c3025e7d913bc8afbd60a5781befc718d28d1e1",
+      "resample": "none",
       "encoding": "lossless"
     },
     {
-      "source": "public/assets/sprites/enemies-v8/biomes/frost-enemies.png",
+      "source": "public/assets/sprites/enemies-v8/biomes/frost-enemies.webp",
       "target": "public/assets/sprites/enemies-v8/biomes/frost-enemies.webp",
-      "sourceFormat": "png",
+      "sourceFormat": "webp",
       "targetFormat": "webp",
       "sourceDimensions": [
-        1280,
+        640,
         3520
       ],
       "targetDimensions": [
         640,
-        1760
+        3520
       ],
-      "sourceBytes": 3673534,
-      "targetBytes": 759802,
-      "sourceSha256": "febe59a2acfe78e294340b291742ebb7e506e32ec2d40167eb7e471d4d7a5c9a",
-      "targetSha256": "dfd3ddd4d7f071572271f1c88e07046d559a3403ef1f762d605d73853356fe3c",
-      "resample": "nearest",
+      "sourceBytes": 1069790,
+      "targetBytes": 1069790,
+      "sourceSha256": "7b06181241b138cf9f2b5c5041d86618c170a534a56f9f022097527988db4570",
+      "targetSha256": "7b06181241b138cf9f2b5c5041d86618c170a534a56f9f022097527988db4570",
+      "resample": "none",
       "encoding": "lossless"
     },
     {
-      "source": "public/assets/sprites/enemies-v8/biomes/fungal-enemies.png",
+      "source": "public/assets/sprites/enemies-v8/biomes/fungal-enemies.webp",
       "target": "public/assets/sprites/enemies-v8/biomes/fungal-enemies.webp",
-      "sourceFormat": "png",
+      "sourceFormat": "webp",
       "targetFormat": "webp",
       "sourceDimensions": [
-        1280,
+        640,
         3520
       ],
       "targetDimensions": [
         640,
-        1760
+        3520
       ],
-      "sourceBytes": 4148873,
-      "targetBytes": 910130,
-      "sourceSha256": "65ab2b3469fb094a2091b3e6175d75847914f71018985244bf14d6d1526cb71f",
-      "targetSha256": "5bc4fe0a113449b6223243a0a5d448787f85f3a708523cbf7486c6866322bd28",
-      "resample": "nearest",
+      "sourceBytes": 1216848,
+      "targetBytes": 1216848,
+      "sourceSha256": "e57695492d9c4ea87a39c5cf91f4948740998e2fa833e13613cd235fff21654c",
+      "targetSha256": "e57695492d9c4ea87a39c5cf91f4948740998e2fa833e13613cd235fff21654c",
+      "resample": "none",
       "encoding": "lossless"
     },
     {
-      "source": "public/assets/sprites/enemies-v8/biomes/grim-enemies.png",
+      "source": "public/assets/sprites/enemies-v8/biomes/grim-enemies.webp",
       "target": "public/assets/sprites/enemies-v8/biomes/grim-enemies.webp",
-      "sourceFormat": "png",
+      "sourceFormat": "webp",
       "targetFormat": "webp",
       "sourceDimensions": [
-        1280,
+        640,
         3520
       ],
       "targetDimensions": [
         640,
-        1760
+        3520
       ],
-      "sourceBytes": 3336474,
-      "targetBytes": 729106,
-      "sourceSha256": "a47c704065ac89a3637db4f06ddf224646f4d2272cf5abf6048a794e303745a4",
-      "targetSha256": "70c83d017c3af80d5252671467304324566ba15c39279ce3ddd11aa99d7b2405",
-      "resample": "nearest",
+      "sourceBytes": 1138280,
+      "targetBytes": 1138280,
+      "sourceSha256": "abae1338746f395f496fdf2ec219f25570425b5320938d7357910f2dfdde894c",
+      "targetSha256": "abae1338746f395f496fdf2ec219f25570425b5320938d7357910f2dfdde894c",
+      "resample": "none",
       "encoding": "lossless"
     },
     {
-      "source": "public/assets/sprites/enemies-v8/biomes/iron-enemies.png",
+      "source": "public/assets/sprites/enemies-v8/biomes/iron-enemies.webp",
       "target": "public/assets/sprites/enemies-v8/biomes/iron-enemies.webp",
-      "sourceFormat": "png",
+      "sourceFormat": "webp",
       "targetFormat": "webp",
       "sourceDimensions": [
-        1280,
+        640,
         3520
       ],
       "targetDimensions": [
         640,
-        1760
+        3520
       ],
-      "sourceBytes": 3648873,
-      "targetBytes": 723582,
-      "sourceSha256": "9a4ea86f6e266eb5474adda9cbe32c55b48d551630bdd254a1f3aa94d11bac55",
-      "targetSha256": "e65923fb56829d849506dd82417b83b7bf320ddf832ea10b004635b6f9ff68f7",
-      "resample": "nearest",
+      "sourceBytes": 1080684,
+      "targetBytes": 1080684,
+      "sourceSha256": "4199eeed588030d4b7f8c7045fa64b9d0842cd310c4e7bccb339ed489aed1274",
+      "targetSha256": "4199eeed588030d4b7f8c7045fa64b9d0842cd310c4e7bccb339ed489aed1274",
+      "resample": "none",
       "encoding": "lossless"
     },
     {
-      "source": "public/assets/sprites/enemies-v8/biomes/molten-enemies.png",
+      "source": "public/assets/sprites/enemies-v8/biomes/molten-enemies.webp",
       "target": "public/assets/sprites/enemies-v8/biomes/molten-enemies.webp",
-      "sourceFormat": "png",
+      "sourceFormat": "webp",
       "targetFormat": "webp",
       "sourceDimensions": [
-        1280,
+        640,
         3520
       ],
       "targetDimensions": [
         640,
-        1760
+        3520
       ],
-      "sourceBytes": 3173585,
-      "targetBytes": 774748,
-      "sourceSha256": "f97d1fa6d7228ec239889ba3ba54da37e0ed85969206a7879abf3f613879bcff",
-      "targetSha256": "068182e8cb5ef7cba311f684e82305a5138baf339609c44fde86001772c2bac9",
-      "resample": "nearest",
+      "sourceBytes": 1139288,
+      "targetBytes": 1139288,
+      "sourceSha256": "e78bbb6809c0d6e895a81e0dc39245a0af69dfb01f0a757be09ac32ed941ff53",
+      "targetSha256": "e78bbb6809c0d6e895a81e0dc39245a0af69dfb01f0a757be09ac32ed941ff53",
+      "resample": "none",
       "encoding": "lossless"
     },
     {
-      "source": "public/assets/sprites/enemies-v8/biomes/obsidian-enemies.png",
+      "source": "public/assets/sprites/enemies-v8/biomes/obsidian-enemies.webp",
       "target": "public/assets/sprites/enemies-v8/biomes/obsidian-enemies.webp",
-      "sourceFormat": "png",
+      "sourceFormat": "webp",
       "targetFormat": "webp",
       "sourceDimensions": [
-        1280,
+        640,
         3520
       ],
       "targetDimensions": [
         640,
-        1760
+        3520
       ],
-      "sourceBytes": 3150040,
-      "targetBytes": 757154,
-      "sourceSha256": "1dcfb13005a67c304f771774bc0ebc978e66c29d54016af476d96061f3839054",
-      "targetSha256": "18f4126cc0b8625c4cd68bc53a98b2d5f1aacf1631a92215aca5341de5a9a38c",
-      "resample": "nearest",
+      "sourceBytes": 1090302,
+      "targetBytes": 1090302,
+      "sourceSha256": "9e4e4bd1bf38a003f090a831a2dcf90838c6eef6e5b8b3d2b1a3a1f3627b2fcb",
+      "targetSha256": "9e4e4bd1bf38a003f090a831a2dcf90838c6eef6e5b8b3d2b1a3a1f3627b2fcb",
+      "resample": "none",
       "encoding": "lossless"
     },
     {
-      "source": "public/assets/sprites/enemies-v8/biomes/sunken-enemies.png",
+      "source": "public/assets/sprites/enemies-v8/biomes/sunken-enemies.webp",
       "target": "public/assets/sprites/enemies-v8/biomes/sunken-enemies.webp",
-      "sourceFormat": "png",
+      "sourceFormat": "webp",
       "targetFormat": "webp",
       "sourceDimensions": [
-        1280,
+        640,
         3520
       ],
       "targetDimensions": [
         640,
-        1760
+        3520
       ],
-      "sourceBytes": 3617828,
-      "targetBytes": 765048,
-      "sourceSha256": "191401daaf522422cbe4a0bd601e5aa7bca56fe89f7e8d3b000432f3c3aa182e",
-      "targetSha256": "f12072fd2e5983f380a4d75b7e2ca142b954d4f97a93e15f91dbf8eb01995211",
-      "resample": "nearest",
+      "sourceBytes": 1024264,
+      "targetBytes": 1024264,
+      "sourceSha256": "cacd99a3536ee9f47e31f8f9d4ba30e90f40925892ed96ab6914d3e8e7945dec",
+      "targetSha256": "cacd99a3536ee9f47e31f8f9d4ba30e90f40925892ed96ab6914d3e8e7945dec",
+      "resample": "none",
       "encoding": "lossless"
     },
     {
-      "source": "public/assets/sprites/enemies-v8/biomes/verdant-enemies.png",
+      "source": "public/assets/sprites/enemies-v8/biomes/verdant-enemies.webp",
       "target": "public/assets/sprites/enemies-v8/biomes/verdant-enemies.webp",
-      "sourceFormat": "png",
+      "sourceFormat": "webp",
       "targetFormat": "webp",
       "sourceDimensions": [
-        1280,
+        640,
         3520
       ],
       "targetDimensions": [
         640,
-        1760
+        3520
       ],
-      "sourceBytes": 3750979,
-      "targetBytes": 813740,
-      "sourceSha256": "1de0417f7f0f9810102c8504fab401a8d576ea73524f7feee80e685427760129",
-      "targetSha256": "0e48d387ef88f152fbcbb6453a3a6e3d892708c994b4ac3b4a9c9cd8fc46eda2",
-      "resample": "nearest",
+      "sourceBytes": 1158478,
+      "targetBytes": 1158478,
+      "sourceSha256": "37d1ba984098d579c284c62d8d68b75fefeb720eb2ce4b6dc9d5688b4f03b890",
+      "targetSha256": "37d1ba984098d579c284c62d8d68b75fefeb720eb2ce4b6dc9d5688b4f03b890",
+      "resample": "none",
       "encoding": "lossless"
     },
     {
@@ -8122,19 +8122,19 @@
       "sourceFormat": "webp",
       "targetFormat": "webp",
       "sourceDimensions": [
-        1672,
-        941
+        836,
+        470
       ],
       "targetDimensions": [
         836,
         470
       ],
-      "sourceBytes": 125328,
-      "targetBytes": 50820,
-      "sourceSha256": "1ed34833e4b3b12d879defeca64e859bf34742adeb9c562b32f0619314d8d150",
-      "targetSha256": "c41b492972713d8abe8373867ef1a29653744d2485afeae7e0377a415b503c21",
-      "resample": "lanczos",
-      "encoding": "quality-82"
+      "sourceBytes": 81046,
+      "targetBytes": 81046,
+      "sourceSha256": "ca668da9a0c1110f9bc1f21e06081d7452e5b8fa8d8db0fe74949d4fc34a4f0e",
+      "targetSha256": "ca668da9a0c1110f9bc1f21e06081d7452e5b8fa8d8db0fe74949d4fc34a4f0e",
+      "resample": "none",
+      "encoding": "quality-88"
     },
     {
       "source": "public/assets/ui/biome-screens/ancient-main.webp",
@@ -8142,19 +8142,19 @@
       "sourceFormat": "webp",
       "targetFormat": "webp",
       "sourceDimensions": [
-        1672,
-        941
+        836,
+        470
       ],
       "targetDimensions": [
         836,
         470
       ],
-      "sourceBytes": 115650,
-      "targetBytes": 48148,
-      "sourceSha256": "369d3c1d6a97d546b5e1cef4c490c4d66b6f08d344e67b060ff7b8c4815d5118",
-      "targetSha256": "fd6a387c64aa46ce592c5e65bc0e64e36733bdf3279a7739677aac2a6a922736",
-      "resample": "lanczos",
-      "encoding": "quality-82"
+      "sourceBytes": 70694,
+      "targetBytes": 70694,
+      "sourceSha256": "568ba94b90c6d48c84de7fc12f956170058e707870c186d2e388479761875e59",
+      "targetSha256": "568ba94b90c6d48c84de7fc12f956170058e707870c186d2e388479761875e59",
+      "resample": "none",
+      "encoding": "quality-88"
     },
     {
       "source": "public/assets/ui/biome-screens/ash-ending.webp",
@@ -8162,19 +8162,19 @@
       "sourceFormat": "webp",
       "targetFormat": "webp",
       "sourceDimensions": [
-        1672,
-        941
+        836,
+        470
       ],
       "targetDimensions": [
         836,
         470
       ],
-      "sourceBytes": 114762,
-      "targetBytes": 45272,
-      "sourceSha256": "a8ff75cf6635b1460eee7e226877f05143caa9eb2592ee605472409b8267855d",
-      "targetSha256": "701a5872e4ec82a9923c103bf39d0ec1eeba686eb5945ef05b0a746801c03713",
-      "resample": "lanczos",
-      "encoding": "quality-82"
+      "sourceBytes": 50424,
+      "targetBytes": 50424,
+      "sourceSha256": "7a1518ff1af46746fb6a5444dc72a72cb7041e690b7df37fb953e299b0728433",
+      "targetSha256": "7a1518ff1af46746fb6a5444dc72a72cb7041e690b7df37fb953e299b0728433",
+      "resample": "none",
+      "encoding": "quality-88"
     },
     {
       "source": "public/assets/ui/biome-screens/ash-main.webp",
@@ -8182,19 +8182,19 @@
       "sourceFormat": "webp",
       "targetFormat": "webp",
       "sourceDimensions": [
-        1672,
-        941
+        836,
+        470
       ],
       "targetDimensions": [
         836,
         470
       ],
-      "sourceBytes": 113382,
-      "targetBytes": 46098,
-      "sourceSha256": "8555fa8bcac4e2748f30e897295d4f151ae55520d5f16b31e8be0378ba4f542b",
-      "targetSha256": "de78dd68c84ee47dcdfdfe1cff912bb91e9e33a520fa5af96523dedb73e0ae03",
-      "resample": "lanczos",
-      "encoding": "quality-82"
+      "sourceBytes": 78146,
+      "targetBytes": 78146,
+      "sourceSha256": "33f793a3fe4bf0c4d366ae947793a378641505879ad494c4ff44221cbf700f4b",
+      "targetSha256": "33f793a3fe4bf0c4d366ae947793a378641505879ad494c4ff44221cbf700f4b",
+      "resample": "none",
+      "encoding": "quality-88"
     },
     {
       "source": "public/assets/ui/biome-screens/backrooms-ending.webp",
@@ -8202,19 +8202,19 @@
       "sourceFormat": "webp",
       "targetFormat": "webp",
       "sourceDimensions": [
-        1672,
-        941
+        836,
+        470
       ],
       "targetDimensions": [
         836,
         470
       ],
-      "sourceBytes": 110212,
-      "targetBytes": 43838,
-      "sourceSha256": "78c56da4d1e3fee3a851d72a16ba8622aad22e59bae5111914d0ae8b2bebadec",
-      "targetSha256": "3bc82dfc56873ebafd7929b3c4767ff9b2c2f721722b8c6ab499d8377872a9bf",
-      "resample": "lanczos",
-      "encoding": "quality-82"
+      "sourceBytes": 41574,
+      "targetBytes": 41574,
+      "sourceSha256": "56868458d47610ec09eccf8b0bd5711aea5a226d736e5c8c621a68ff2adb4606",
+      "targetSha256": "56868458d47610ec09eccf8b0bd5711aea5a226d736e5c8c621a68ff2adb4606",
+      "resample": "none",
+      "encoding": "quality-88"
     },
     {
       "source": "public/assets/ui/biome-screens/backrooms-main.webp",
@@ -8222,19 +8222,19 @@
       "sourceFormat": "webp",
       "targetFormat": "webp",
       "sourceDimensions": [
-        1672,
-        941
+        836,
+        470
       ],
       "targetDimensions": [
         836,
         470
       ],
-      "sourceBytes": 154664,
-      "targetBytes": 63994,
-      "sourceSha256": "9012bd77d990fe2b5f0a41b1af346bf6f587df71b362dbcecc7d4ca6e73a0a4f",
-      "targetSha256": "7f31bcdb30cc3735403b271072eb1184120ff1670a2e07ec4c99015c3804fac5",
-      "resample": "lanczos",
-      "encoding": "quality-82"
+      "sourceBytes": 52108,
+      "targetBytes": 52108,
+      "sourceSha256": "a099f6937c150d83307230926166edc63a66fe1b05275b798b1d1515e5c92501",
+      "targetSha256": "a099f6937c150d83307230926166edc63a66fe1b05275b798b1d1515e5c92501",
+      "resample": "none",
+      "encoding": "quality-88"
     },
     {
       "source": "public/assets/ui/biome-screens/frost-ending.webp",
@@ -8242,19 +8242,19 @@
       "sourceFormat": "webp",
       "targetFormat": "webp",
       "sourceDimensions": [
-        1672,
-        941
+        836,
+        470
       ],
       "targetDimensions": [
         836,
         470
       ],
-      "sourceBytes": 119110,
-      "targetBytes": 50404,
-      "sourceSha256": "a945e95f65c78f460a0f5e88bcca0b9e4ebb6cf96c850e9a72f92e37e19c3103",
-      "targetSha256": "0294498ea58da56f8977ada8e33291e6cd699d658bf627a927a69bfd2ea6f3ab",
-      "resample": "lanczos",
-      "encoding": "quality-82"
+      "sourceBytes": 59828,
+      "targetBytes": 59828,
+      "sourceSha256": "3aaecaa5f1e4761ed581090aafb412545f32e9895c0d221f45e46cae9b8ef76d",
+      "targetSha256": "3aaecaa5f1e4761ed581090aafb412545f32e9895c0d221f45e46cae9b8ef76d",
+      "resample": "none",
+      "encoding": "quality-88"
     },
     {
       "source": "public/assets/ui/biome-screens/frost-main.webp",
@@ -8262,19 +8262,19 @@
       "sourceFormat": "webp",
       "targetFormat": "webp",
       "sourceDimensions": [
-        1672,
-        941
+        836,
+        470
       ],
       "targetDimensions": [
         836,
         470
       ],
-      "sourceBytes": 150070,
-      "targetBytes": 63292,
-      "sourceSha256": "7969be883027d2a4d1b456a64d7318ad7135ed6dd2a38a7c3112a3be8057f667",
-      "targetSha256": "a9d18944f14621f2b979e14d44f324720228caf2affa04d4f6d43599f7b79045",
-      "resample": "lanczos",
-      "encoding": "quality-82"
+      "sourceBytes": 65224,
+      "targetBytes": 65224,
+      "sourceSha256": "d73a4e1528760f9620d06739c57e170c0602b6607b316ec069a1b7c5ed680793",
+      "targetSha256": "d73a4e1528760f9620d06739c57e170c0602b6607b316ec069a1b7c5ed680793",
+      "resample": "none",
+      "encoding": "quality-88"
     },
     {
       "source": "public/assets/ui/biome-screens/fungal-ending.webp",
@@ -8282,19 +8282,19 @@
       "sourceFormat": "webp",
       "targetFormat": "webp",
       "sourceDimensions": [
-        1672,
-        941
+        836,
+        470
       ],
       "targetDimensions": [
         836,
         470
       ],
-      "sourceBytes": 123508,
-      "targetBytes": 52720,
-      "sourceSha256": "7ced2f6c6a4aa9fc738111fd02777c710886eb738f6c23d3fd4dec6f11effbaf",
-      "targetSha256": "af63d484929abda96452e601e1c1f8e18b2de9b81c3fdd51ed935bfa7c79fc14",
-      "resample": "lanczos",
-      "encoding": "quality-82"
+      "sourceBytes": 62118,
+      "targetBytes": 62118,
+      "sourceSha256": "55365e961a47499b74702742e972102a19a91029e38c6de3cec25e43a574d6a0",
+      "targetSha256": "55365e961a47499b74702742e972102a19a91029e38c6de3cec25e43a574d6a0",
+      "resample": "none",
+      "encoding": "quality-88"
     },
     {
       "source": "public/assets/ui/biome-screens/fungal-main.webp",
@@ -8302,19 +8302,19 @@
       "sourceFormat": "webp",
       "targetFormat": "webp",
       "sourceDimensions": [
-        1672,
-        941
+        836,
+        470
       ],
       "targetDimensions": [
         836,
         470
       ],
-      "sourceBytes": 183092,
-      "targetBytes": 79124,
-      "sourceSha256": "b843649e11cac3f03b244293dce5e54fddc3001491b924ee2724551f5e678210",
-      "targetSha256": "888d84c6f7063482c51ec8b9c081b53e6f325c0d10415e6e496bab8030d81a86",
-      "resample": "lanczos",
-      "encoding": "quality-82"
+      "sourceBytes": 89130,
+      "targetBytes": 89130,
+      "sourceSha256": "3880d8898a44dec746a89d7781c0553110a3743e1598999dd0a14e0f1ef75903",
+      "targetSha256": "3880d8898a44dec746a89d7781c0553110a3743e1598999dd0a14e0f1ef75903",
+      "resample": "none",
+      "encoding": "quality-88"
     },
     {
       "source": "public/assets/ui/biome-screens/grim-ending.webp",
@@ -8322,19 +8322,19 @@
       "sourceFormat": "webp",
       "targetFormat": "webp",
       "sourceDimensions": [
-        1672,
-        941
+        836,
+        470
       ],
       "targetDimensions": [
         836,
         470
       ],
-      "sourceBytes": 103620,
-      "targetBytes": 42928,
-      "sourceSha256": "b0b7940615c6eda1946352500152ce0cb546d50f102c7dca1ae4bdc3ddcb0469",
-      "targetSha256": "a923d3b3fe0c3afbe7c29ed20013556a37eea9836205360518d6a0641dbeb5e9",
-      "resample": "lanczos",
-      "encoding": "quality-82"
+      "sourceBytes": 49484,
+      "targetBytes": 49484,
+      "sourceSha256": "1649b61bbfebf1fb9ce5923784aab5229a280921cb8e7b6237baa4e4fc3bd8ca",
+      "targetSha256": "1649b61bbfebf1fb9ce5923784aab5229a280921cb8e7b6237baa4e4fc3bd8ca",
+      "resample": "none",
+      "encoding": "quality-88"
     },
     {
       "source": "public/assets/ui/biome-screens/grim-main.webp",
@@ -8342,19 +8342,19 @@
       "sourceFormat": "webp",
       "targetFormat": "webp",
       "sourceDimensions": [
-        1672,
-        941
+        836,
+        470
       ],
       "targetDimensions": [
         836,
         470
       ],
-      "sourceBytes": 104908,
-      "targetBytes": 45774,
-      "sourceSha256": "a059828d07fc79038268c4f162eb31e347d9c68cc825b048af41488975c358f5",
-      "targetSha256": "f3b27469e55763381363c248fd04c76edf33bc3a645944e854ebe28ba53d5b3d",
-      "resample": "lanczos",
-      "encoding": "quality-82"
+      "sourceBytes": 85402,
+      "targetBytes": 85402,
+      "sourceSha256": "1e2bf567fdf428fbb1362b50880e1c18cf63f0df28defffd1a54739bf1ca28c3",
+      "targetSha256": "1e2bf567fdf428fbb1362b50880e1c18cf63f0df28defffd1a54739bf1ca28c3",
+      "resample": "none",
+      "encoding": "quality-88"
     },
     {
       "source": "public/assets/ui/biome-screens/iron-ending.webp",
@@ -8362,19 +8362,19 @@
       "sourceFormat": "webp",
       "targetFormat": "webp",
       "sourceDimensions": [
-        1672,
-        941
+        836,
+        470
       ],
       "targetDimensions": [
         836,
         470
       ],
-      "sourceBytes": 115880,
-      "targetBytes": 47054,
-      "sourceSha256": "30cd1c571a9271acf29a041218256c1de0cbe4cd5a7343dd734aa0c103e0badc",
-      "targetSha256": "f72a900e2f4eb403cdfbd591382971e2c1e9c4376cf941caeb442da7beac2150",
-      "resample": "lanczos",
-      "encoding": "quality-82"
+      "sourceBytes": 46918,
+      "targetBytes": 46918,
+      "sourceSha256": "9caee07951386b06e6029a34ee466dbb288e75ed831b31541b24d1e6a318228b",
+      "targetSha256": "9caee07951386b06e6029a34ee466dbb288e75ed831b31541b24d1e6a318228b",
+      "resample": "none",
+      "encoding": "quality-88"
     },
     {
       "source": "public/assets/ui/biome-screens/iron-main.webp",
@@ -8382,19 +8382,19 @@
       "sourceFormat": "webp",
       "targetFormat": "webp",
       "sourceDimensions": [
-        1672,
-        941
+        836,
+        470
       ],
       "targetDimensions": [
         836,
         470
       ],
-      "sourceBytes": 151724,
-      "targetBytes": 61104,
-      "sourceSha256": "f38bfba5eeccb52ecbdd3a00a5cf4de7c38470128f572c0050602fc4607f104c",
-      "targetSha256": "155761a95124b2b1c34370c9e21fc1246c9c3c5d398ea00a798b74cc4298ba22",
-      "resample": "lanczos",
-      "encoding": "quality-82"
+      "sourceBytes": 80120,
+      "targetBytes": 80120,
+      "sourceSha256": "3bd6dbcc7de01d0ff57a6bfd9bd19b8373dfb221e9360a0b0c8b5dba96f379eb",
+      "targetSha256": "3bd6dbcc7de01d0ff57a6bfd9bd19b8373dfb221e9360a0b0c8b5dba96f379eb",
+      "resample": "none",
+      "encoding": "quality-88"
     },
     {
       "source": "public/assets/ui/biome-screens/molten-ending.webp",
@@ -8402,19 +8402,19 @@
       "sourceFormat": "webp",
       "targetFormat": "webp",
       "sourceDimensions": [
-        1672,
-        941
+        836,
+        470
       ],
       "targetDimensions": [
         836,
         470
       ],
-      "sourceBytes": 116136,
-      "targetBytes": 46734,
-      "sourceSha256": "d3a9e1610658a6b0c3a4703172fa06c7830855a9402ea077b9088963c520e431",
-      "targetSha256": "44cde107d2ea3d5853f01eb6253bb6c0346372ed106d38f4503963e25f6a7ca1",
-      "resample": "lanczos",
-      "encoding": "quality-82"
+      "sourceBytes": 68018,
+      "targetBytes": 68018,
+      "sourceSha256": "3c9b5e99ee8a4b2bd111a35922f80caf09d6f5b0a5287485ebd85488284a5b25",
+      "targetSha256": "3c9b5e99ee8a4b2bd111a35922f80caf09d6f5b0a5287485ebd85488284a5b25",
+      "resample": "none",
+      "encoding": "quality-88"
     },
     {
       "source": "public/assets/ui/biome-screens/molten-main.webp",
@@ -8422,19 +8422,19 @@
       "sourceFormat": "webp",
       "targetFormat": "webp",
       "sourceDimensions": [
-        1672,
-        941
+        836,
+        470
       ],
       "targetDimensions": [
         836,
         470
       ],
-      "sourceBytes": 96770,
-      "targetBytes": 38716,
-      "sourceSha256": "ec791112b02c0d2e1467e393106da74c9ae7c21155fd1ad6f77afa99562c134e",
-      "targetSha256": "64f7acd209732089446172610193badb9b8643572fd90cadf0dd12d88bbe27c9",
-      "resample": "lanczos",
-      "encoding": "quality-82"
+      "sourceBytes": 76250,
+      "targetBytes": 76250,
+      "sourceSha256": "a3b7c6985635610eba4f271536ee8ba65bf2cb5be650341c80e5d412ddb9b974",
+      "targetSha256": "a3b7c6985635610eba4f271536ee8ba65bf2cb5be650341c80e5d412ddb9b974",
+      "resample": "none",
+      "encoding": "quality-88"
     },
     {
       "source": "public/assets/ui/biome-screens/obsidian-ending.webp",
@@ -8442,19 +8442,19 @@
       "sourceFormat": "webp",
       "targetFormat": "webp",
       "sourceDimensions": [
-        1672,
-        941
+        836,
+        470
       ],
       "targetDimensions": [
         836,
         470
       ],
-      "sourceBytes": 154568,
-      "targetBytes": 60818,
-      "sourceSha256": "1b4c330ff7537cb6b85192e6dc79046b4b83f94220816ae2ed99b68797f9f8da",
-      "targetSha256": "79ee2aec7ed7ee0af7ce1a654960a74776060351ebcab2203b86e4e4060ac0ef",
-      "resample": "lanczos",
-      "encoding": "quality-82"
+      "sourceBytes": 54616,
+      "targetBytes": 54616,
+      "sourceSha256": "bc6c570fa1c71ccce243383cf82feecc96f8992525dea945581edabfb40b9870",
+      "targetSha256": "bc6c570fa1c71ccce243383cf82feecc96f8992525dea945581edabfb40b9870",
+      "resample": "none",
+      "encoding": "quality-88"
     },
     {
       "source": "public/assets/ui/biome-screens/obsidian-main.webp",
@@ -8462,19 +8462,19 @@
       "sourceFormat": "webp",
       "targetFormat": "webp",
       "sourceDimensions": [
-        1672,
-        941
+        836,
+        470
       ],
       "targetDimensions": [
         836,
         470
       ],
-      "sourceBytes": 151928,
-      "targetBytes": 62948,
-      "sourceSha256": "73d2312cce890640a25d20ee199b500f536b08639d5b028fd4b08b49cdaa924f",
-      "targetSha256": "99496564ec7b634822d583a8469c14875ae7b3c81b8a82423501f78c76acd1a8",
-      "resample": "lanczos",
-      "encoding": "quality-82"
+      "sourceBytes": 78520,
+      "targetBytes": 78520,
+      "sourceSha256": "747d475bbe0d4e6ff7463f611acea1097b9e144d60b7c53337176cc0554e6493",
+      "targetSha256": "747d475bbe0d4e6ff7463f611acea1097b9e144d60b7c53337176cc0554e6493",
+      "resample": "none",
+      "encoding": "quality-88"
     },
     {
       "source": "public/assets/ui/biome-screens/sunken-ending.webp",
@@ -8482,19 +8482,19 @@
       "sourceFormat": "webp",
       "targetFormat": "webp",
       "sourceDimensions": [
-        1672,
-        941
+        836,
+        470
       ],
       "targetDimensions": [
         836,
         470
       ],
-      "sourceBytes": 136086,
-      "targetBytes": 56098,
-      "sourceSha256": "814d6d3c9699da1927982338d9ca7715a332eec69533acbcf2dfa6a5d1eb8403",
-      "targetSha256": "0524063dd340b9c71e23e384b274c6b925b22782af299fe9f872f7a423b9681c",
-      "resample": "lanczos",
-      "encoding": "quality-82"
+      "sourceBytes": 55484,
+      "targetBytes": 55484,
+      "sourceSha256": "f9c9d7a0e6af4b0813b325ace17b2c9b81ffe4cc562831ef3d808537de395822",
+      "targetSha256": "f9c9d7a0e6af4b0813b325ace17b2c9b81ffe4cc562831ef3d808537de395822",
+      "resample": "none",
+      "encoding": "quality-88"
     },
     {
       "source": "public/assets/ui/biome-screens/sunken-main.webp",
@@ -8502,19 +8502,19 @@
       "sourceFormat": "webp",
       "targetFormat": "webp",
       "sourceDimensions": [
-        1672,
-        941
+        836,
+        470
       ],
       "targetDimensions": [
         836,
         470
       ],
-      "sourceBytes": 166498,
-      "targetBytes": 70984,
-      "sourceSha256": "32ff796bcb7544b8435d212d0cb5a67597d31485bcc9cbea598bfa457c09f31c",
-      "targetSha256": "27bf47071b5c1786a190fbc53df8968e683d7f49d03e8cb8ee6eaab8445b10ee",
-      "resample": "lanczos",
-      "encoding": "quality-82"
+      "sourceBytes": 69248,
+      "targetBytes": 69248,
+      "sourceSha256": "017b8bccf032e42adc957f00657668ec14d61dbfc488f5badbcb92403e068103",
+      "targetSha256": "017b8bccf032e42adc957f00657668ec14d61dbfc488f5badbcb92403e068103",
+      "resample": "none",
+      "encoding": "quality-88"
     },
     {
       "source": "public/assets/ui/biome-screens/verdant-ending.webp",
@@ -8522,19 +8522,19 @@
       "sourceFormat": "webp",
       "targetFormat": "webp",
       "sourceDimensions": [
-        1672,
-        941
+        836,
+        470
       ],
       "targetDimensions": [
         836,
         470
       ],
-      "sourceBytes": 140410,
-      "targetBytes": 60818,
-      "sourceSha256": "39344442cccb48617e367f6792980f5cbc8023e8a0d46ce0518302f6b33e9739",
-      "targetSha256": "95fe35e7c89a9bd60e0fe85fc6a89f017813dc23de8d534e2227a8682762d841",
-      "resample": "lanczos",
-      "encoding": "quality-82"
+      "sourceBytes": 63286,
+      "targetBytes": 63286,
+      "sourceSha256": "f1213a759c39d0ed752bcd305f4ebe39b4ffa7467f68eac6c5b9407025668e5a",
+      "targetSha256": "f1213a759c39d0ed752bcd305f4ebe39b4ffa7467f68eac6c5b9407025668e5a",
+      "resample": "none",
+      "encoding": "quality-88"
     },
     {
       "source": "public/assets/ui/biome-screens/verdant-main.webp",
@@ -8542,19 +8542,19 @@
       "sourceFormat": "webp",
       "targetFormat": "webp",
       "sourceDimensions": [
-        1672,
-        941
+        836,
+        470
       ],
       "targetDimensions": [
         836,
         470
       ],
-      "sourceBytes": 163508,
-      "targetBytes": 67868,
-      "sourceSha256": "7b25e06cbf315a6f1c61e439dfe5e777797b6b40282c38de08172f906fd884a2",
-      "targetSha256": "b94fe2cd1684919a1bcc21c8dba9d67569bdf29d08c9528a3fe89244f8c7ce0f",
-      "resample": "lanczos",
-      "encoding": "quality-82"
+      "sourceBytes": 67076,
+      "targetBytes": 67076,
+      "sourceSha256": "ab0a3049d4f9a0823fddf9856e9f540658594cd1e3e5c56eac57756fc296f58e",
+      "targetSha256": "ab0a3049d4f9a0823fddf9856e9f540658594cd1e3e5c56eac57756fc296f58e",
+      "resample": "none",
+      "encoding": "quality-88"
     },
     {
       "source": "public/assets/ui/dungeon-cover-v1.webp",
@@ -8595,6 +8595,306 @@
       "targetSha256": "5f5ce0f45b40dba03607c2acb8e786e722dedf732091b3690167f9d3e4568983",
       "resample": "lanczos",
       "encoding": "quality-82"
+    },
+    {
+      "source": "public/assets/ui/pickup-icons/annihilation-pulse.webp",
+      "target": "public/assets/ui/pickup-icons/annihilation-pulse.webp",
+      "sourceFormat": "webp",
+      "targetFormat": "webp",
+      "sourceDimensions": [
+        192,
+        192
+      ],
+      "targetDimensions": [
+        192,
+        192
+      ],
+      "sourceBytes": 14780,
+      "targetBytes": 14780,
+      "sourceSha256": "a8d0040dd0ad1819ab6f3a554bc8092516fc5a58531d0213e464f0ecaa709248",
+      "targetSha256": "a8d0040dd0ad1819ab6f3a554bc8092516fc5a58531d0213e464f0ecaa709248",
+      "resample": "none",
+      "encoding": "lossless"
+    },
+    {
+      "source": "public/assets/ui/pickup-icons/clarity.webp",
+      "target": "public/assets/ui/pickup-icons/clarity.webp",
+      "sourceFormat": "webp",
+      "targetFormat": "webp",
+      "sourceDimensions": [
+        192,
+        192
+      ],
+      "targetDimensions": [
+        192,
+        192
+      ],
+      "sourceBytes": 6042,
+      "targetBytes": 6042,
+      "sourceSha256": "8c1732919122ac5f299cfc6f1a27142272e404aed5ffec8dccc8575ee5291596",
+      "targetSha256": "8c1732919122ac5f299cfc6f1a27142272e404aed5ffec8dccc8575ee5291596",
+      "resample": "none",
+      "encoding": "lossless"
+    },
+    {
+      "source": "public/assets/ui/pickup-icons/cull-brand.webp",
+      "target": "public/assets/ui/pickup-icons/cull-brand.webp",
+      "sourceFormat": "webp",
+      "targetFormat": "webp",
+      "sourceDimensions": [
+        128,
+        128
+      ],
+      "targetDimensions": [
+        128,
+        128
+      ],
+      "sourceBytes": 5942,
+      "targetBytes": 5942,
+      "sourceSha256": "e0504385486aa24193153fd209ce8ef0f62547e70ed694bc062b68332cf86c94",
+      "targetSha256": "e0504385486aa24193153fd209ce8ef0f62547e70ed694bc062b68332cf86c94",
+      "resample": "none",
+      "encoding": "lossless"
+    },
+    {
+      "source": "public/assets/ui/pickup-icons/flask.webp",
+      "target": "public/assets/ui/pickup-icons/flask.webp",
+      "sourceFormat": "webp",
+      "targetFormat": "webp",
+      "sourceDimensions": [
+        192,
+        192
+      ],
+      "targetDimensions": [
+        192,
+        192
+      ],
+      "sourceBytes": 7278,
+      "targetBytes": 7278,
+      "sourceSha256": "38addfc4b9c1eff1b3f59e085f9c6708d6bafa784e652f0195f426492bebb42e",
+      "targetSha256": "38addfc4b9c1eff1b3f59e085f9c6708d6bafa784e652f0195f426492bebb42e",
+      "resample": "none",
+      "encoding": "lossless"
+    },
+    {
+      "source": "public/assets/ui/pickup-icons/frenzy-curse.webp",
+      "target": "public/assets/ui/pickup-icons/frenzy-curse.webp",
+      "sourceFormat": "webp",
+      "targetFormat": "webp",
+      "sourceDimensions": [
+        192,
+        192
+      ],
+      "targetDimensions": [
+        192,
+        192
+      ],
+      "sourceBytes": 8834,
+      "targetBytes": 8834,
+      "sourceSha256": "a8b8e1c23da2e4125f63f19330ef003324e5eaba88c617ac8c79b5274cb2118d",
+      "targetSha256": "a8b8e1c23da2e4125f63f19330ef003324e5eaba88c617ac8c79b5274cb2118d",
+      "resample": "none",
+      "encoding": "lossless"
+    },
+    {
+      "source": "public/assets/ui/pickup-icons/gloom-curse.webp",
+      "target": "public/assets/ui/pickup-icons/gloom-curse.webp",
+      "sourceFormat": "webp",
+      "targetFormat": "webp",
+      "sourceDimensions": [
+        192,
+        192
+      ],
+      "targetDimensions": [
+        192,
+        192
+      ],
+      "sourceBytes": 12636,
+      "targetBytes": 12636,
+      "sourceSha256": "8732cc6ffba60135c7c66c6bf295da1730a3cd176daafd4cda00a2cb175b774b",
+      "targetSha256": "8732cc6ffba60135c7c66c6bf295da1730a3cd176daafd4cda00a2cb175b774b",
+      "resample": "none",
+      "encoding": "lossless"
+    },
+    {
+      "source": "public/assets/ui/pickup-icons/luminous-ward.webp",
+      "target": "public/assets/ui/pickup-icons/luminous-ward.webp",
+      "sourceFormat": "webp",
+      "targetFormat": "webp",
+      "sourceDimensions": [
+        192,
+        192
+      ],
+      "targetDimensions": [
+        192,
+        192
+      ],
+      "sourceBytes": 10584,
+      "targetBytes": 10584,
+      "sourceSha256": "646c9536758e3dbd8e009cc959205f75c69154aa92e3f484efe2ea00f7136801",
+      "targetSha256": "646c9536758e3dbd8e009cc959205f75c69154aa92e3f484efe2ea00f7136801",
+      "resample": "none",
+      "encoding": "lossless"
+    },
+    {
+      "source": "public/assets/ui/pickup-icons/map.webp",
+      "target": "public/assets/ui/pickup-icons/map.webp",
+      "sourceFormat": "webp",
+      "targetFormat": "webp",
+      "sourceDimensions": [
+        192,
+        192
+      ],
+      "targetDimensions": [
+        192,
+        192
+      ],
+      "sourceBytes": 14308,
+      "targetBytes": 14308,
+      "sourceSha256": "1ca557037d3768d99a5e08eaab3aa13a30d319cf02ec707e3da13e8ec7421b34",
+      "targetSha256": "1ca557037d3768d99a5e08eaab3aa13a30d319cf02ec707e3da13e8ec7421b34",
+      "resample": "none",
+      "encoding": "lossless"
+    },
+    {
+      "source": "public/assets/ui/pickup-icons/mirror-curse.webp",
+      "target": "public/assets/ui/pickup-icons/mirror-curse.webp",
+      "sourceFormat": "webp",
+      "targetFormat": "webp",
+      "sourceDimensions": [
+        128,
+        128
+      ],
+      "targetDimensions": [
+        128,
+        128
+      ],
+      "sourceBytes": 4242,
+      "targetBytes": 4242,
+      "sourceSha256": "dd3a26f8f2854c56fc105813744fa79b51fec5c7886b68b87296732617eed97d",
+      "targetSha256": "dd3a26f8f2854c56fc105813744fa79b51fec5c7886b68b87296732617eed97d",
+      "resample": "none",
+      "encoding": "lossless"
+    },
+    {
+      "source": "public/assets/ui/pickup-icons/mobility.webp",
+      "target": "public/assets/ui/pickup-icons/mobility.webp",
+      "sourceFormat": "webp",
+      "targetFormat": "webp",
+      "sourceDimensions": [
+        192,
+        192
+      ],
+      "targetDimensions": [
+        192,
+        192
+      ],
+      "sourceBytes": 10564,
+      "targetBytes": 10564,
+      "sourceSha256": "736ca32c1cc9f15e04f1150d503e9ca2cd0668033dea92791acc65606e534c35",
+      "targetSha256": "736ca32c1cc9f15e04f1150d503e9ca2cd0668033dea92791acc65606e534c35",
+      "resample": "none",
+      "encoding": "lossless"
+    },
+    {
+      "source": "public/assets/ui/pickup-icons/phoenix-egg.webp",
+      "target": "public/assets/ui/pickup-icons/phoenix-egg.webp",
+      "sourceFormat": "webp",
+      "targetFormat": "webp",
+      "sourceDimensions": [
+        128,
+        128
+      ],
+      "targetDimensions": [
+        128,
+        128
+      ],
+      "sourceBytes": 4196,
+      "targetBytes": 4196,
+      "sourceSha256": "daefc46bd3d3b2c0280049cc1240ef969c40d0363df91206dcb3b214484f6367",
+      "targetSha256": "daefc46bd3d3b2c0280049cc1240ef969c40d0363df91206dcb3b214484f6367",
+      "resample": "none",
+      "encoding": "lossless"
+    },
+    {
+      "source": "public/assets/ui/pickup-icons/slow-curse.webp",
+      "target": "public/assets/ui/pickup-icons/slow-curse.webp",
+      "sourceFormat": "webp",
+      "targetFormat": "webp",
+      "sourceDimensions": [
+        192,
+        192
+      ],
+      "targetDimensions": [
+        192,
+        192
+      ],
+      "sourceBytes": 19196,
+      "targetBytes": 19196,
+      "sourceSha256": "ac9b40e94b984ebef8b878e6e032b2d19beb41789bc9e6313c49c94dbabd3371",
+      "targetSha256": "ac9b40e94b984ebef8b878e6e032b2d19beb41789bc9e6313c49c94dbabd3371",
+      "resample": "none",
+      "encoding": "lossless"
+    },
+    {
+      "source": "public/assets/ui/pickup-icons/spin-curse.webp",
+      "target": "public/assets/ui/pickup-icons/spin-curse.webp",
+      "sourceFormat": "webp",
+      "targetFormat": "webp",
+      "sourceDimensions": [
+        128,
+        128
+      ],
+      "targetDimensions": [
+        128,
+        128
+      ],
+      "sourceBytes": 4908,
+      "targetBytes": 4908,
+      "sourceSha256": "ee41a8e56634d5bf0ea33e45728eed6a17847a8b702916fc0ab3dadba9ef6fae",
+      "targetSha256": "ee41a8e56634d5bf0ea33e45728eed6a17847a8b702916fc0ab3dadba9ef6fae",
+      "resample": "none",
+      "encoding": "lossless"
+    },
+    {
+      "source": "public/assets/ui/pickup-icons/swarm-curse.webp",
+      "target": "public/assets/ui/pickup-icons/swarm-curse.webp",
+      "sourceFormat": "webp",
+      "targetFormat": "webp",
+      "sourceDimensions": [
+        192,
+        192
+      ],
+      "targetDimensions": [
+        192,
+        192
+      ],
+      "sourceBytes": 15264,
+      "targetBytes": 15264,
+      "sourceSha256": "870aab40ac61dd5be82e60217477c8cdf1f5800090278fa462dc45903a1de177",
+      "targetSha256": "870aab40ac61dd5be82e60217477c8cdf1f5800090278fa462dc45903a1de177",
+      "resample": "none",
+      "encoding": "lossless"
+    },
+    {
+      "source": "public/assets/ui/pickup-icons/time-freeze.webp",
+      "target": "public/assets/ui/pickup-icons/time-freeze.webp",
+      "sourceFormat": "webp",
+      "targetFormat": "webp",
+      "sourceDimensions": [
+        192,
+        192
+      ],
+      "targetDimensions": [
+        192,
+        192
+      ],
+      "sourceBytes": 7404,
+      "targetBytes": 7404,
+      "sourceSha256": "28a7165d21321a5bbb89d32f7f9952fe90a13ffb00a005079ad654674e687dc5",
+      "targetSha256": "28a7165d21321a5bbb89d32f7f9952fe90a13ffb00a005079ad654674e687dc5",
+      "resample": "none",
+      "encoding": "lossless"
     },
     {
       "source": "public/assets/ui/portraits/armored-snail.png",
@@ -10115,6 +10415,317 @@
       "targetSha256": "babaea21567618201f632280fc7d2bb49c0c38c8966fea8237e4b734941869bc",
       "resample": "nearest",
       "encoding": "lossless"
+    },
+    {
+      "source": "public/assets/ui/stone-icons/ash.webp",
+      "target": "public/assets/ui/stone-icons/ash.webp",
+      "sourceFormat": "webp",
+      "targetFormat": "webp",
+      "sourceDimensions": [
+        256,
+        256
+      ],
+      "targetDimensions": [
+        256,
+        256
+      ],
+      "sourceBytes": 13410,
+      "targetBytes": 13410,
+      "sourceSha256": "c4773defc5c3f09392713154d2dad2cd998cfe264b82db31fe3c2591762f28c6",
+      "targetSha256": "c4773defc5c3f09392713154d2dad2cd998cfe264b82db31fe3c2591762f28c6",
+      "resample": "none",
+      "encoding": "lossless"
+    },
+    {
+      "source": "public/assets/ui/stone-icons/crypt.webp",
+      "target": "public/assets/ui/stone-icons/crypt.webp",
+      "sourceFormat": "webp",
+      "targetFormat": "webp",
+      "sourceDimensions": [
+        256,
+        256
+      ],
+      "targetDimensions": [
+        256,
+        256
+      ],
+      "sourceBytes": 10606,
+      "targetBytes": 10606,
+      "sourceSha256": "be6b5a5995280e2523855eaa8091446e22c9fda50128ae455bafbc22eb7138af",
+      "targetSha256": "be6b5a5995280e2523855eaa8091446e22c9fda50128ae455bafbc22eb7138af",
+      "resample": "none",
+      "encoding": "lossless"
+    },
+    {
+      "source": "public/assets/ui/stone-icons/ember.webp",
+      "target": "public/assets/ui/stone-icons/ember.webp",
+      "sourceFormat": "webp",
+      "targetFormat": "webp",
+      "sourceDimensions": [
+        256,
+        256
+      ],
+      "targetDimensions": [
+        256,
+        256
+      ],
+      "sourceBytes": 11986,
+      "targetBytes": 11986,
+      "sourceSha256": "c00e3c3d231c04a0cfa1bd6428669592895d2e63f1b6377c3ec802d855f521b9",
+      "targetSha256": "c00e3c3d231c04a0cfa1bd6428669592895d2e63f1b6377c3ec802d855f521b9",
+      "resample": "none",
+      "encoding": "lossless"
+    },
+    {
+      "source": "public/assets/ui/stone-icons/verdant.webp",
+      "target": "public/assets/ui/stone-icons/verdant.webp",
+      "sourceFormat": "webp",
+      "targetFormat": "webp",
+      "sourceDimensions": [
+        256,
+        256
+      ],
+      "targetDimensions": [
+        256,
+        256
+      ],
+      "sourceBytes": 17204,
+      "targetBytes": 17204,
+      "sourceSha256": "27345768be60038df314e7fce7c64b772abe6fd1c1f902adddc3bea43a14f180",
+      "targetSha256": "27345768be60038df314e7fce7c64b772abe6fd1c1f902adddc3bea43a14f180",
+      "resample": "none",
+      "encoding": "lossless"
+    },
+    {
+      "source": "public/assets/sprites/uncanny-walls/ancient-uncanny-walls.webp",
+      "target": "public/assets/sprites/uncanny-walls/ancient-uncanny-walls.webp",
+      "sourceFormat": "webp",
+      "targetFormat": "webp",
+      "sourceDimensions": [
+        2880,
+        2880
+      ],
+      "targetDimensions": [
+        2880,
+        2880
+      ],
+      "sourceBytes": 3490736,
+      "targetBytes": 3490736,
+      "sourceSha256": "ab5a9cc04f0d82745d4966a6ec3db37dfd287047ab33aba0882bc3ed1a292824",
+      "targetSha256": "ab5a9cc04f0d82745d4966a6ec3db37dfd287047ab33aba0882bc3ed1a292824",
+      "resample": "none",
+      "encoding": "lossless",
+      "dimensionPolicy": "native"
+    },
+    {
+      "source": "public/assets/sprites/uncanny-walls/ash-uncanny-walls.webp",
+      "target": "public/assets/sprites/uncanny-walls/ash-uncanny-walls.webp",
+      "sourceFormat": "webp",
+      "targetFormat": "webp",
+      "sourceDimensions": [
+        2880,
+        2880
+      ],
+      "targetDimensions": [
+        2880,
+        2880
+      ],
+      "sourceBytes": 4746932,
+      "targetBytes": 4746932,
+      "sourceSha256": "19855c59e60819996f3128802201d5749c5a09215e8ef7405c957762be9f0706",
+      "targetSha256": "19855c59e60819996f3128802201d5749c5a09215e8ef7405c957762be9f0706",
+      "resample": "none",
+      "encoding": "lossless",
+      "dimensionPolicy": "native"
+    },
+    {
+      "source": "public/assets/sprites/uncanny-walls/backrooms-uncanny-walls.webp",
+      "target": "public/assets/sprites/uncanny-walls/backrooms-uncanny-walls.webp",
+      "sourceFormat": "webp",
+      "targetFormat": "webp",
+      "sourceDimensions": [
+        2880,
+        2880
+      ],
+      "targetDimensions": [
+        2880,
+        2880
+      ],
+      "sourceBytes": 4735628,
+      "targetBytes": 4735628,
+      "sourceSha256": "bb97098bc2cd9fb174ae8756ff26540f7c762d9381f25bdb79838c5ef78fbc48",
+      "targetSha256": "bb97098bc2cd9fb174ae8756ff26540f7c762d9381f25bdb79838c5ef78fbc48",
+      "resample": "none",
+      "encoding": "lossless",
+      "dimensionPolicy": "native"
+    },
+    {
+      "source": "public/assets/sprites/uncanny-walls/frost-uncanny-walls.webp",
+      "target": "public/assets/sprites/uncanny-walls/frost-uncanny-walls.webp",
+      "sourceFormat": "webp",
+      "targetFormat": "webp",
+      "sourceDimensions": [
+        2880,
+        2880
+      ],
+      "targetDimensions": [
+        2880,
+        2880
+      ],
+      "sourceBytes": 3890504,
+      "targetBytes": 3890504,
+      "sourceSha256": "514992801d2a427748488f474ed416a8e373bed0518634a13dbfeeaffd6ed1ba",
+      "targetSha256": "514992801d2a427748488f474ed416a8e373bed0518634a13dbfeeaffd6ed1ba",
+      "resample": "none",
+      "encoding": "lossless",
+      "dimensionPolicy": "native"
+    },
+    {
+      "source": "public/assets/sprites/uncanny-walls/fungal-uncanny-walls.webp",
+      "target": "public/assets/sprites/uncanny-walls/fungal-uncanny-walls.webp",
+      "sourceFormat": "webp",
+      "targetFormat": "webp",
+      "sourceDimensions": [
+        2880,
+        2880
+      ],
+      "targetDimensions": [
+        2880,
+        2880
+      ],
+      "sourceBytes": 3878304,
+      "targetBytes": 3878304,
+      "sourceSha256": "76072ae48a8270aa132887b7363ae6f7a78d09356c0cc4814d2860247200320f",
+      "targetSha256": "76072ae48a8270aa132887b7363ae6f7a78d09356c0cc4814d2860247200320f",
+      "resample": "none",
+      "encoding": "lossless",
+      "dimensionPolicy": "native"
+    },
+    {
+      "source": "public/assets/sprites/uncanny-walls/grim-uncanny-walls.webp",
+      "target": "public/assets/sprites/uncanny-walls/grim-uncanny-walls.webp",
+      "sourceFormat": "webp",
+      "targetFormat": "webp",
+      "sourceDimensions": [
+        2880,
+        2880
+      ],
+      "targetDimensions": [
+        2880,
+        2880
+      ],
+      "sourceBytes": 2958326,
+      "targetBytes": 2958326,
+      "sourceSha256": "ec93a0c06616b61ef86f4654beabacbc3725942a3b4ae2d9a5d4f5a793a61a81",
+      "targetSha256": "ec93a0c06616b61ef86f4654beabacbc3725942a3b4ae2d9a5d4f5a793a61a81",
+      "resample": "none",
+      "encoding": "lossless",
+      "dimensionPolicy": "native"
+    },
+    {
+      "source": "public/assets/sprites/uncanny-walls/iron-uncanny-walls.webp",
+      "target": "public/assets/sprites/uncanny-walls/iron-uncanny-walls.webp",
+      "sourceFormat": "webp",
+      "targetFormat": "webp",
+      "sourceDimensions": [
+        2880,
+        2880
+      ],
+      "targetDimensions": [
+        2880,
+        2880
+      ],
+      "sourceBytes": 4778910,
+      "targetBytes": 4778910,
+      "sourceSha256": "9049929ce88cf31a7f63ba20bca61b06fde6f7cfb85975736bd6bf459e9e50e3",
+      "targetSha256": "9049929ce88cf31a7f63ba20bca61b06fde6f7cfb85975736bd6bf459e9e50e3",
+      "resample": "none",
+      "encoding": "lossless",
+      "dimensionPolicy": "native"
+    },
+    {
+      "source": "public/assets/sprites/uncanny-walls/molten-uncanny-walls.webp",
+      "target": "public/assets/sprites/uncanny-walls/molten-uncanny-walls.webp",
+      "sourceFormat": "webp",
+      "targetFormat": "webp",
+      "sourceDimensions": [
+        2880,
+        2880
+      ],
+      "targetDimensions": [
+        2880,
+        2880
+      ],
+      "sourceBytes": 3753248,
+      "targetBytes": 3753248,
+      "sourceSha256": "2224031f9f98890527237d60c8599571e05820262e86f64a3d86e13363dbc63b",
+      "targetSha256": "2224031f9f98890527237d60c8599571e05820262e86f64a3d86e13363dbc63b",
+      "resample": "none",
+      "encoding": "lossless",
+      "dimensionPolicy": "native"
+    },
+    {
+      "source": "public/assets/sprites/uncanny-walls/obsidian-uncanny-walls.webp",
+      "target": "public/assets/sprites/uncanny-walls/obsidian-uncanny-walls.webp",
+      "sourceFormat": "webp",
+      "targetFormat": "webp",
+      "sourceDimensions": [
+        2880,
+        2880
+      ],
+      "targetDimensions": [
+        2880,
+        2880
+      ],
+      "sourceBytes": 4035518,
+      "targetBytes": 4035518,
+      "sourceSha256": "1d945bebc7f7e22ac21cc483a9b87252e0624657718456311b6bace3d8115796",
+      "targetSha256": "1d945bebc7f7e22ac21cc483a9b87252e0624657718456311b6bace3d8115796",
+      "resample": "none",
+      "encoding": "lossless",
+      "dimensionPolicy": "native"
+    },
+    {
+      "source": "public/assets/sprites/uncanny-walls/sunken-uncanny-walls.webp",
+      "target": "public/assets/sprites/uncanny-walls/sunken-uncanny-walls.webp",
+      "sourceFormat": "webp",
+      "targetFormat": "webp",
+      "sourceDimensions": [
+        2880,
+        2880
+      ],
+      "targetDimensions": [
+        2880,
+        2880
+      ],
+      "sourceBytes": 4928150,
+      "targetBytes": 4928150,
+      "sourceSha256": "3a4443033d3ce123f34c4d990f9f75168bcb073fd1dd03bb7e0bae6b8d45fea9",
+      "targetSha256": "3a4443033d3ce123f34c4d990f9f75168bcb073fd1dd03bb7e0bae6b8d45fea9",
+      "resample": "none",
+      "encoding": "lossless",
+      "dimensionPolicy": "native"
+    },
+    {
+      "source": "public/assets/sprites/uncanny-walls/verdant-uncanny-walls.webp",
+      "target": "public/assets/sprites/uncanny-walls/verdant-uncanny-walls.webp",
+      "sourceFormat": "webp",
+      "targetFormat": "webp",
+      "sourceDimensions": [
+        2880,
+        2880
+      ],
+      "targetDimensions": [
+        2880,
+        2880
+      ],
+      "sourceBytes": 3309234,
+      "targetBytes": 3309234,
+      "sourceSha256": "f49b09b2c19c5cc0f28e249b555784673f7b2a346cd19c64c4182a602cb336a9",
+      "targetSha256": "f49b09b2c19c5cc0f28e249b555784673f7b2a346cd19c64c4182a602cb336a9",
+      "resample": "none",
+      "encoding": "lossless",
+      "dimensionPolicy": "native"
     }
   ]
 }

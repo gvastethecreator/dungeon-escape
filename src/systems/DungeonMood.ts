@@ -1,10 +1,5 @@
 import type { DungeonData } from "../dungeon/types";
-import {
-  isBiomeId,
-  listBiomeIds,
-  parseBiomeId,
-  type BiomeId,
-} from "./BiomeIdentity";
+import { isBiomeId, listBiomeIds, parseBiomeId, type BiomeId } from "./BiomeIdentity";
 
 /** Dungeon-wide look: forge theme when present, else profile/seed. */
 export type DungeonMoodId = BiomeId;
@@ -482,7 +477,7 @@ const PROFILE_PREFERENCE_CHANCE = 50;
  * locked the alternate branch to only three biomes (obsidian/sunken/fungal).
  */
 function moodChannel(seedHash: number, salt: number): number {
-  return (Math.imul(Math.abs(seedHash) ^ salt, 2654435761) >>> 0);
+  return Math.imul(Math.abs(seedHash) ^ salt, 2654435761) >>> 0;
 }
 
 function pickRegularMood(seedHash: number, salt = 0xb7e15163): DungeonMoodId {
@@ -552,7 +547,6 @@ export function resolveDungeonMood(dungeon: DungeonData, profile?: string): Dung
     return MOODS[forgeKey as DungeonMoodId];
   }
   const profileKey = (profile ?? "").toLowerCase();
-  const preferred =
-    profileKey && PROFILE_MOOD[profileKey] ? PROFILE_MOOD[profileKey]! : null;
+  const preferred = profileKey && PROFILE_MOOD[profileKey] ? PROFILE_MOOD[profileKey]! : null;
   return MOODS[pickSeededMood(dungeon.seedHash, preferred)];
 }

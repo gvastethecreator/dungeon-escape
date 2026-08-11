@@ -1,0 +1,37 @@
+{
+  "version": 1,
+  "sourceType": "imagegen",
+  "artEngine": "imagegen",
+  "verificationStatus": "approved-user",
+  "acceptedSource": "sources/ancient/carrion-stalker.png",
+  "sha256": "acb929feefc538fa857386c03bfabd10cc467c7a62fd044d83368c19cf0d6125",
+  "sizeBytes": 1167139,
+  "prompt": "prompts/ancient/carrion-stalker.txt",
+  "promptSha256": "5e4542e3ef3166f407bca1ca3535709eaa98d36ac64d7ffd7f4fbcd1149a0ad3",
+  "baseReference": "reference/base/carrion-stalker.png",
+  "baseReferenceSha256": "a23b7d2aa9472a94b669c349425d002a22c4ef78c64f3ac2bec15b6933ec46f3",
+  "moodReference": "../arch10-browser/normal-final-play.png",
+  "moodReferenceSha256": "1abfe5348c02bdd01cd7917c358b03c7b7fbf1565e0e329a8ca4cbac10c48d1c",
+  "materialReferences": [
+    "../../public/assets/textures/biomes/ancient/wall.webp",
+    "../../public/assets/textures/biomes/ancient/floor.webp",
+    "../../public/assets/textures/biomes/ancient/ceiling.webp"
+  ],
+  "materialReferenceSha256": {
+    "../../public/assets/textures/biomes/ancient/wall.webp": "7c437949256b4e0ba8a6574db001a93f3832b736943e6f3d4f5d459ae3b23949",
+    "../../public/assets/textures/biomes/ancient/floor.webp": "519fb1a1d31ff0bfec77420d08db80cbb4b092c14d0198b1cac18eec503f9163",
+    "../../public/assets/textures/biomes/ancient/ceiling.webp": "e37e8bdb9c48c4f8f4756aaba073ac6bdc707b188d19da241c2ea70936824723"
+  },
+  "approval": {
+    "status": "approved-user",
+    "date": "2026-08-04",
+    "review_record": ".scratch/biome-enemy-base-sprites/reviews.json",
+    "notes": "Reinicio clásico: carroñero cuadrúpedo bajo y veloz."
+  },
+  "consolidation": {
+    "package": "assets-source/enemies/biomes-v2",
+    "original_source": ".scratch/biome-enemy-base-sprites/new/ancient/carrion-stalker.png",
+    "original_prompt": ".scratch/biome-enemy-base-sprites/prompts/ancient/carrion-stalker.txt",
+    "original_provenance": ".scratch/biome-enemy-base-sprites/provenance/ancient/carrion-stalker.json"
+  }
+}

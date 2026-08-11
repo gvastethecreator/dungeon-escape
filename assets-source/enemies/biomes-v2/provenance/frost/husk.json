@@ -1,0 +1,37 @@
+{
+  "version": 1,
+  "sourceType": "imagegen",
+  "artEngine": "imagegen",
+  "verificationStatus": "approved-user",
+  "acceptedSource": "sources/frost/husk.png",
+  "sha256": "ddbf65d1fe38a1dc4ab399780b455fb10e35338e39f2c413812b95e80cf9068f",
+  "sizeBytes": 965773,
+  "prompt": "prompts/frost/husk.txt",
+  "promptSha256": "4e03af119f2a5bfa87755561d9598fd8b37e751b99e23999ee630ddddd451998",
+  "baseReference": "reference/base/husk.png",
+  "baseReferenceSha256": "e365c908ebe0fa93163caac01bc5d4e7c5a806f369877953fe045a173de0b5de",
+  "moodReference": "../biome-particles/play-frost.png",
+  "moodReferenceSha256": "b72b98c857af88bae6bf9c326508e73df44ca347168a26515ef00e98d962de6d",
+  "materialReferences": [
+    "../../public/assets/textures/biomes/frost/wall.webp",
+    "../../public/assets/textures/biomes/frost/floor.webp",
+    "../../public/assets/textures/biomes/frost/ceiling.webp"
+  ],
+  "materialReferenceSha256": {
+    "../../public/assets/textures/biomes/frost/wall.webp": "f80e113b74af92a1a9e3547ea00865045eca1ada62c05d667946db30929224b2",
+    "../../public/assets/textures/biomes/frost/floor.webp": "ec3dd7c3ef99a5706b74bc849c817e2d6b8b1d20eb0fd73098c360ce7db04e1f",
+    "../../public/assets/textures/biomes/frost/ceiling.webp": "b97757c3bb4287a4b34a54eb48aed09a77a4603cef0761a3628108d5dae3c748"
+  },
+  "approval": {
+    "status": "approved-user",
+    "date": "2026-08-04",
+    "review_record": ".scratch/biome-enemy-base-sprites/reviews.json",
+    "notes": "Depredador aviar zancudo de plumaje oscuro y escarcha mínima; sin lectura humanoide ni acuática."
+  },
+  "consolidation": {
+    "package": "assets-source/enemies/biomes-v2",
+    "original_source": ".scratch/biome-enemy-base-sprites/new/frost/husk.png",
+    "original_prompt": ".scratch/biome-enemy-base-sprites/prompts/frost/husk.txt",
+    "original_provenance": ".scratch/biome-enemy-base-sprites/provenance/frost/husk.json"
+  }
+}

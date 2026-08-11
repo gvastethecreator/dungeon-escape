@@ -12,7 +12,11 @@ import {
   tickEnemySim,
   type EnemySimBody,
 } from "../src/world/EnemySim";
-import { ENEMY_ARCHETYPES, getEnemySpriteRenderMetrics } from "../src/world/EnemyArchetypes";
+import {
+  ENEMY_ARCHETYPES,
+  getEnemySpriteRenderMetrics,
+  getEnemyVisualBodySize,
+} from "../src/world/EnemyArchetypes";
 import { LUMINOUS_WARD_REPEL_RADIUS } from "../src/game/LuminousWard";
 
 function body(kind: EnemySimBody["kind"], x: number, z: number): EnemySimBody {
@@ -228,16 +232,20 @@ describe("EnemySim", () => {
     expect(enemy.moving).toBe(false);
   });
 
-  test("uses the selected biome alpha bounds for billboard scale", () => {
+  test("uses the selected base body and idle bounds for billboard scale", () => {
     const ashGhost = getEnemySpriteRenderMetrics("ghost", "ash");
     const frostGhost = getEnemySpriteRenderMetrics("ghost", "frost");
     const ashGoblin = getEnemySpriteRenderMetrics("goblin", "ash");
     const verdantGoblin = getEnemySpriteRenderMetrics("goblin", "verdant");
     expect(frostGhost.planeHeight).toBeLessThan(ashGhost.planeHeight);
-    // Verdant's goblin crop is narrower. The billboard grows to keep the
-    // visible body width stable instead of making that biome look undersized.
-    expect(verdantGoblin.planeWidth).toBeGreaterThan(ashGoblin.planeWidth);
-    expect(getEnemySpriteRenderMetrics("ghost", "unknown-biome")).toEqual(ashGhost);
+    expect(verdantGoblin.planeWidth).toBeLessThan(ashGoblin.planeWidth);
+    expect(getEnemyVisualBodySize("goblin", "verdant").width).toBeLessThan(
+      getEnemyVisualBodySize("goblin", "ash").width,
+    );
+    expect(getEnemyVisualBodySize("ghost", "unknown-biome")).toEqual({
+      width: ENEMY_ARCHETYPES.ghost.width,
+      height: ENEMY_ARCHETYPES.ghost.height,
+    });
   });
 
   test("spectral enemies fade out, relocate sideways and return closer", () => {

@@ -1,10 +1,6 @@
 /** Timed player slowdown from a cursed chest. */
 
-import {
-  activateTimedSeconds,
-  isTimedSecondsActive,
-  tickTimedSeconds,
-} from "./TimedSeconds";
+import { activateTimedSeconds, isTimedSecondsActive, tickTimedSeconds } from "./TimedSeconds";
 
 export const SLOW_CURSE_DURATION_SECONDS = 14;
 /** Multiplies walk/sprint while the curse is active. */

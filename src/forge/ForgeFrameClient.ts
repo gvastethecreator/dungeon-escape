@@ -174,8 +174,7 @@ export class ForgeFrameClient {
     this.#activePresentation?.supersede();
     this.setVisible(true);
     const presentationId = this.#nextPresentationId;
-    this.#nextPresentationId =
-      presentationId === Number.MAX_SAFE_INTEGER ? 1 : presentationId + 1;
+    this.#nextPresentationId = presentationId === Number.MAX_SAFE_INTEGER ? 1 : presentationId + 1;
 
     let settleCompletion: (result: ForgeAnimationResult) => void = () => undefined;
     let detachAbort = (): void => undefined;

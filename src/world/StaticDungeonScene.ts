@@ -104,7 +104,11 @@ import {
 } from "./AtmospherePropsKit";
 import type { DungeonMood } from "../systems/DungeonMood";
 import { getDungeonMood } from "../systems/DungeonMood";
-import { FIRE_LIGHT_TUNING, MAX_DYNAMIC_FIRE_LIGHTS } from "../systems/LightTuning";
+import {
+  DYNAMIC_FIRE_LIGHTS_PER_FLOOR,
+  FIRE_LIGHT_TUNING,
+  MAX_DYNAMIC_FIRE_LIGHTS,
+} from "../systems/LightTuning";
 import { HazardTileSystem } from "./HazardTileSystem";
 
 import {
@@ -461,6 +465,8 @@ export class StaticDungeonScene {
     StaticDoorActor[]
   >();
   private runtimeChestTemplate: ForgeChestKit | null = null;
+  private readonly runtimeChestTemplateBounds = new THREE.Box3();
+  private readonly runtimeBoundsScratch = new THREE.Box3();
   private readonly runtimeDoorTemplates = new Map<string, THREE.Group>();
   private readonly runtimeDoorTemplateGeometries = new Set<THREE.BufferGeometry>();
   private readonly runtimeClassicPropBatches = new Map<
@@ -727,6 +733,44 @@ export class StaticDungeonScene {
     decorDensity: number,
     preparedPlan?: ResidentDungeonPlan,
   ): StaticDungeonSceneHandles {
+    const steps = this.buildStackSteps(floors, mood, decorDensity, preparedPlan);
+    let result = steps.next();
+    while (!result.done) result = steps.next();
+    return result.value;
+  }
+
+  /**
+   * Same resident transaction as buildStack, split at floor boundaries so the
+   * load cover and browser event loop can progress during a four-floor build.
+   * Every floor is still fully committed before input is enabled.
+   */
+  async buildStackWithYield(
+    floors: readonly DungeonData[],
+    mood: DungeonMood,
+    decorDensity: number,
+    yieldToMain: () => Promise<void>,
+    preparedPlan?: ResidentDungeonPlan,
+  ): Promise<StaticDungeonSceneHandles> {
+    const steps = this.buildStackSteps(floors, mood, decorDensity, preparedPlan);
+    try {
+      let result = steps.next();
+      while (!result.done) {
+        await yieldToMain();
+        result = steps.next();
+      }
+      return result.value;
+    } catch (error) {
+      steps.return(this.handles);
+      throw error;
+    }
+  }
+
+  private *buildStackSteps(
+    floors: readonly DungeonData[],
+    mood: DungeonMood,
+    decorDensity: number,
+    preparedPlan?: ResidentDungeonPlan,
+  ): Generator<void, StaticDungeonSceneHandles, void> {
     if (this.disposed) throw new Error("StaticDungeonScene has been disposed.");
     if (floors.length === 0) throw new Error("buildStack requires at least one floor.");
     // Validate metadata-backed stacks before clear, including a one-floor
@@ -770,6 +814,7 @@ export class StaticDungeonScene {
         const counts = this.buildFloorContents(dungeon, mood, floorBuild);
         totalFloorCells += counts.floorCells;
         totalWallCells += counts.wallCells;
+        yield;
       }
       this.currentResidentFloor = null;
       this.currentFloorRenderGroup = null;
@@ -1063,6 +1108,7 @@ export class StaticDungeonScene {
     this.runtimeWeaponRackBatches.clear();
     this.disposeRuntimeDoorTemplates();
     this.runtimeChestTemplate = null;
+    this.runtimeChestTemplateBounds.makeEmpty();
     for (const texture of [this.torchFloorPoolTexture, this.staticContactShadowTexture]) {
       if (!texture) continue;
       this.textureSink?.unregister(texture);
@@ -1505,8 +1551,9 @@ export class StaticDungeonScene {
   /** Opaque wall volume that closes gaps behind the textured face panels. */
   private addWallCellCaps(dungeon: DungeonData, wallCells: readonly GridCell[]): void {
     if (wallCells.length === 0) return;
-    // Slightly smaller than a tile so face panels fully cover the silhouette.
-    const core = this.tileSize * 0.96;
+    // Cover the full cell with a tiny overlap. Exact-width or undersized cores
+    // can expose light through concave and diagonal wall corners.
+    const core = this.tileSize * 1.002;
     const geometry = new THREE.BoxGeometry(core, this.wallHeight, core);
     // Reuse the biome wall map so exposed caps and corners never become flat
     // black blocks. The darker multiplier keeps them behind the face panels.
@@ -1909,13 +1956,12 @@ export class StaticDungeonScene {
       const theme = roomTheme(dungeon, room);
       const wallSeats = this.getRoomWallSeats(dungeon, room);
       const candidates = doorwaysByRoom.get(room.id) ?? [];
-      const doorway =
-        candidates[Math.abs(room.id * 7 + dungeon.seedHash) % Math.max(candidates.length, 1)];
-      if (
-        doorway &&
-        (occupancy.getMask(doorway.cell.x, doorway.cell.y) & FloorOccupancyBit.Object) === 0 &&
-        room.role !== "entrance"
-      ) {
+      for (const doorway of candidates) {
+        if (
+          (occupancy.getMask(doorway.cell.x, doorway.cell.y) & FloorOccupancyBit.Object) !== 0
+        ) {
+          continue;
+        }
         const cellWorld = gridToWorld(dungeon, doorway.cell, this.tileSize);
         const placement = doorwayPlacement(cellWorld, doorway.outDx, doorway.outDy, this.tileSize);
         // Slightly wider than one tile so posts bite into the side masonry.
@@ -2548,8 +2594,12 @@ export class StaticDungeonScene {
       kit.root.scale,
     );
     this.add(kit.root);
-    kit.root.updateWorldMatrix(true, true);
-    this.registerSolidObject(kit.root, { x: prop.x, y: prop.y });
+    kit.root.updateMatrix();
+    this.registerSolidBounds(
+      this.runtimeBoundsScratch.copy(this.runtimeChestTemplateBounds).applyMatrix4(kit.root.matrix),
+      { x: prop.x, y: prop.y },
+      true,
+    );
 
     const anchor = new THREE.Vector3(0, 0.91, 0.02);
     kit.root.localToWorld(anchor);
@@ -2661,6 +2711,19 @@ export class StaticDungeonScene {
         geometryStrategy: this.runtimeModelBatchingGeometryStrategy,
         geometryKeyPrefix: this.runtimeChestCatalogKey(),
       });
+      const templateRoot = this.runtimeChestTemplate.root;
+      const templatePosition = templateRoot.position.clone();
+      const templateQuaternion = templateRoot.quaternion.clone();
+      const templateScale = templateRoot.scale.clone();
+      templateRoot.position.set(0, 0, 0);
+      templateRoot.quaternion.identity();
+      templateRoot.scale.set(1, 1, 1);
+      templateRoot.updateMatrixWorld(true);
+      this.runtimeChestTemplateBounds.setFromObject(templateRoot);
+      templateRoot.position.copy(templatePosition);
+      templateRoot.quaternion.copy(templateQuaternion);
+      templateRoot.scale.copy(templateScale);
+      templateRoot.updateMatrixWorld(true);
       const authoringRuntime = this.runtimeChestTemplate.root.userData.sculptRuntime as
         | Record<string, unknown>
         | undefined;
@@ -2732,11 +2795,6 @@ export class StaticDungeonScene {
       this.commitDoorFrameBatches(runtime);
       this.commitChestBatches(runtime);
     }
-  }
-
-  private registerSolidObject(object: THREE.Object3D, cell: GridCell): void {
-    object.updateWorldMatrix(true, true);
-    this.registerSolidBounds(new THREE.Box3().setFromObject(object), cell);
   }
 
   private registerSolidBounds(
@@ -2978,7 +3036,15 @@ export class StaticDungeonScene {
     });
     // This budget belongs to the whole resident stack, not each visible slab.
     // A Backrooms campaign otherwise created ten detached practicals per floor.
+    const stackFloorBudget = this.stackBuildActive
+      ? Math.max(
+          0,
+          DYNAMIC_FIRE_LIGHTS_PER_FLOOR -
+            (this.currentResidentFloor?.dynamicFireLights.length ?? 0),
+        )
+      : MAX_DYNAMIC_FIRE_LIGHTS;
     const target = Math.min(
+      stackFloorBudget,
       Math.max(0, MAX_DYNAMIC_FIRE_LIGHTS - this.dynamicFireLightCount),
       anchors.length,
     );
@@ -3108,13 +3174,19 @@ export class StaticDungeonScene {
     facing?: THREE.Vector3,
     dynamicLight = lit,
   ): void {
+    const stackFloorLightCount = this.currentResidentFloor?.dynamicFireLights.length ?? 0;
+    const canAddDynamicLight =
+      lit &&
+      dynamicLight &&
+      this.dynamicFireLightCount < MAX_DYNAMIC_FIRE_LIGHTS &&
+      (!this.stackBuildActive || stackFloorLightCount < DYNAMIC_FIRE_LIGHTS_PER_FLOOR);
     if (kind === "torch" && facing) {
       const fixtureKind = Math.floor(phase * 10) % 4 === 0 ? "lantern" : "torch";
       const torch =
         fixtureKind === "lantern"
           ? createWallLantern(position, facing, lit, this.materials)
           : createWallTorch(position, facing, lit, this.materials);
-      const keepDynamicLight = dynamicLight && this.dynamicFireLightCount < MAX_DYNAMIC_FIRE_LIGHTS;
+      const keepDynamicLight = canAddDynamicLight;
       if (keepDynamicLight) {
         // Fake light pooling on the floor — LOD-faded with the other halos.
         const pool = createTorchFloorPool(position, facing, this.getTorchFloorPoolTexture());
@@ -3150,7 +3222,7 @@ export class StaticDungeonScene {
     if (kind === "campfire" || kind === "candle") {
       const campfire = createFloorCampfire(position, lit, this.materials, Math.floor(phase * 10));
       this.add(campfire.root);
-      const keepDynamicLight = dynamicLight && this.dynamicFireLightCount < MAX_DYNAMIC_FIRE_LIGHTS;
+      const keepDynamicLight = canAddDynamicLight;
       const light = keepDynamicLight
         ? this.detachFireLight(campfire.root, campfire.light)
         : this.removeFireLight(campfire.root, campfire.light, campfire.halos);
@@ -3225,8 +3297,7 @@ export class StaticDungeonScene {
     root.add(flame, halo);
     const baseIntensity = coldFlame ? 6.5 : 18;
     const lightRange = coldFlame ? 5.5 : 8;
-    const keepDynamicLight =
-      lit && dynamicLight && this.dynamicFireLightCount < MAX_DYNAMIC_FIRE_LIGHTS;
+    const keepDynamicLight = canAddDynamicLight;
     const light = keepDynamicLight
       ? new THREE.PointLight(coldFlame ? 0x78a8c2 : 0xc98a50, baseIntensity, lightRange, 2.12)
       : null;
@@ -4958,10 +5029,8 @@ export class StaticDungeonScene {
     this.pendingPhoenixArmed = armed === true;
   }
 
-  private cloneRuntimeRewardTemplate(template: THREE.Object3D): THREE.Object3D {
-    const originalUserData: Array<readonly [THREE.Object3D, Record<string, unknown>]> = [];
+  private sanitizeRuntimeRewardTemplate(template: THREE.Object3D): void {
     template.traverse((object) => {
-      originalUserData.push([object, object.userData]);
       const runtimeUserData: Record<string, unknown> = {};
       for (const key of ["pickupKind", "vfxOnly", "componentId", "closedProfile"] as const) {
         const value = object.userData[key];
@@ -4969,14 +5038,10 @@ export class StaticDungeonScene {
       }
       object.userData = runtimeUserData;
     });
+  }
 
-    let clone: THREE.Object3D;
-    try {
-      clone = template.clone(true);
-    } finally {
-      for (const [object, userData] of originalUserData) object.userData = userData;
-    }
-
+  private cloneRuntimeRewardTemplate(template: THREE.Object3D): THREE.Object3D {
+    const clone = template.clone(true);
     // Geometry and materials stay shared with the resident template until a
     // mutable opacity/glow path calls the explicit pickup COW seam.
     markPickupMaterialsShared(clone);
@@ -5002,6 +5067,7 @@ export class StaticDungeonScene {
       this.detachRewardTemplateMaterials(template);
       preparePickupOpacity(template);
       this.catalogRewardTemplateGeometries(rewardKind, template);
+      this.sanitizeRuntimeRewardTemplate(template);
       markPickupMaterialsShared(template);
       this.runtimeRewardTemplates.set(rewardKind, template);
     }

@@ -16,6 +16,7 @@ import type {
   StaticFloorBiomeSprite,
 } from "./StaticDungeonScene";
 import { computeTorchLod } from "./TorchLod";
+import type { UncannyWallRuntime } from "./UncannyWallRuntime";
 import { tickVolumetricBeamTime } from "./VolumetricBeam";
 
 export interface FixedSceneEffectsFrame {
@@ -26,6 +27,7 @@ export interface FixedSceneEffectsFrame {
   tileSize: number;
   floorSprites: readonly StaticFloorBiomeSprite[];
   ceilingSprites: readonly StaticCeilingBiomeSprite[];
+  uncannyWallRuntime: UncannyWallRuntime | null;
   fires: readonly StaticFireEffect[];
   portalBeam: THREE.Mesh | null;
   stoneBeams: readonly THREE.Mesh[];
@@ -38,6 +40,7 @@ export interface FixedSceneEffectsDiagnostics {
   updateCalls: number;
   lastFloorSpriteIterations: number;
   lastCeilingSpriteIterations: number;
+  lastUncannyWallInstances: number;
   lastFireLosIterations: number;
   lastFireUpdates: number;
   lastStoneBeamUpdates: number;
@@ -62,6 +65,7 @@ export class FixedSceneEffects {
     updateCalls: 0,
     lastFloorSpriteIterations: 0,
     lastCeilingSpriteIterations: 0,
+    lastUncannyWallInstances: 0,
     lastFireLosIterations: 0,
     lastFireUpdates: 0,
     lastStoneBeamUpdates: 0,
@@ -75,11 +79,16 @@ export class FixedSceneEffects {
     this.diagnostics.updateCalls += 1;
     this.diagnostics.lastFloorSpriteIterations = 0;
     this.diagnostics.lastCeilingSpriteIterations = 0;
+    this.diagnostics.lastUncannyWallInstances = 0;
     this.diagnostics.lastFireLosIterations = 0;
     this.diagnostics.lastFireUpdates = 0;
     this.diagnostics.lastStoneBeamUpdates = 0;
     this.diagnostics.lastAmbientBeamUpdates = 0;
     this.diagnostics.lastLiquidSurfaceUpdates = 0;
+    if (frame.uncannyWallRuntime) {
+      frame.uncannyWallRuntime.update(frame.delta, frame.viewerPosition);
+      this.diagnostics.lastUncannyWallInstances = frame.uncannyWallRuntime.mesh.count;
+    }
     if (frame.viewerPosition) {
       this.floorSpritePhase = (this.floorSpritePhase + 1) % BIOME_SPRITE_STAGGER;
       this.updateFloorSprites(frame.floorSprites, frame.viewerPosition);

@@ -19,28 +19,12 @@ import {
   type CullBrandState,
 } from "./CullBrand";
 import { activateFogClear, isFogClearActive, tickFogClear } from "./FogClear";
-import {
-  activateFrenzyCurse,
-  isFrenzyCurseActive,
-  tickFrenzyCurse,
-} from "./FrenzyCurse";
+import { activateFrenzyCurse, isFrenzyCurseActive, tickFrenzyCurse } from "./FrenzyCurse";
 import { activateGloomCurse, isGloomCurseActive, tickGloomCurse } from "./GloomCurse";
-import {
-  activateLuminousWard,
-  isLuminousWardActive,
-  tickLuminousWard,
-} from "./LuminousWard";
+import { activateLuminousWard, isLuminousWardActive, tickLuminousWard } from "./LuminousWard";
 import { activateMirrorCurse, isMirrorCurseActive, tickMirrorCurse } from "./MirrorCurse";
-import {
-  activateMobilityBoost,
-  isMobilityBoostActive,
-  tickMobilityBoost,
-} from "./MobilityBoost";
-import {
-  armPhoenixCharge,
-  clampPhoenixCharges,
-  hasPhoenixCharge,
-} from "./PhoenixEgg";
+import { activateMobilityBoost, isMobilityBoostActive, tickMobilityBoost } from "./MobilityBoost";
+import { armPhoenixCharge, clampPhoenixCharges, hasPhoenixCharge } from "./PhoenixEgg";
 import { activateSlowCurse, isSlowCurseActive, tickSlowCurse } from "./SlowCurse";
 import { activateSpinCurse, isSpinCurseActive, tickSpinCurse } from "./SpinCurse";
 import { activateSwarmCurse, isSwarmCurseActive } from "./SwarmCurse";
@@ -188,10 +172,7 @@ export function restoreRunPowerRuntime(
  * Returns true when the kind was handled (including map / swarm).
  * Control curses clear the sibling control window.
  */
-export function applyPickupToRunPowers(
-  state: RunPowerRuntimeState,
-  kind: string,
-): boolean {
+export function applyPickupToRunPowers(state: RunPowerRuntimeState, kind: string): boolean {
   switch (kind) {
     case "time-freeze":
       state.timeFreezeSeconds = activateTimeFreeze();

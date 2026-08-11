@@ -1,0 +1,37 @@
+{
+  "version": 1,
+  "sourceType": "imagegen",
+  "artEngine": "imagegen",
+  "verificationStatus": "approved-user",
+  "acceptedSource": "sources/verdant/bone-slime.png",
+  "sha256": "11db284d2153c1c458a683a2917cdb73220a1289bfff06984f41d1540ddddcf4",
+  "sizeBytes": 1058351,
+  "prompt": "prompts/verdant/bone-slime.txt",
+  "promptSha256": "58e9e063c16f62b259accbb171dce53424ac3b26a48505379902984e03201728",
+  "baseReference": "reference/base/bone-slime.png",
+  "baseReferenceSha256": "62d0174c09c0769c9cac166f2104c8fff91f0e3e73dfc4eb78d5377137819dda",
+  "moodReference": "reference/mood/verdant.png",
+  "moodReferenceSha256": "8666d392d410af1d96c7b1a8e3b3177709a7dccaf3c74016d115b72d302b7a9a",
+  "materialReferences": [
+    "../../public/assets/textures/biomes/verdant/wall.webp",
+    "../../public/assets/textures/biomes/verdant/floor.webp",
+    "../../public/assets/textures/biomes/verdant/ceiling.webp"
+  ],
+  "materialReferenceSha256": {
+    "../../public/assets/textures/biomes/verdant/wall.webp": "fdf355131f3ed206817cb33a56ac048d52bfd805640203316ff170c781c3047d",
+    "../../public/assets/textures/biomes/verdant/floor.webp": "772b3c463a46b2092b4b8fc7180f336b49021e247f7a16545017b718866a6cf0",
+    "../../public/assets/textures/biomes/verdant/ceiling.webp": "bf551698b4c6a1497a2d8c472b318340cf0f7c942d34f61939c2628aaecc5523"
+  },
+  "approval": {
+    "status": "approved-user",
+    "date": "2026-08-04",
+    "review_record": ".scratch/biome-enemy-base-sprites/reviews.json",
+    "notes": "Slime-babosa de savia conservado por indicación del usuario."
+  },
+  "consolidation": {
+    "package": "assets-source/enemies/biomes-v2",
+    "original_source": ".scratch/biome-enemy-base-sprites/new/verdant/bone-slime.png",
+    "original_prompt": ".scratch/biome-enemy-base-sprites/prompts/verdant/bone-slime.txt",
+    "original_provenance": ".scratch/biome-enemy-base-sprites/provenance/verdant/bone-slime.json"
+  }
+}

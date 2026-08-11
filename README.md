@@ -27,6 +27,9 @@ Use **New Game** to start a fresh dungeon run. Use **Custom Run** to open the Fo
 ## Documentation
 
 - [Development](docs/DEVELOPMENT.md)
+- [Dependencies and upgrade notes](docs/DEPENDENCIES.md)
+- [Maintenance status](docs/MAINTENANCE.md)
+- [Architecture, performance, and UX review](docs/REVIEWS.md)
 - [Standalone architecture](docs/STANDALONE.md)
 - [Editor, world signals, and jump](docs/DUNGEON-EDITOR-WORLD-JUMP.md)
 - [Performance and topology](docs/DUNGEON-PERFORMANCE-TOPOLOGY.md)

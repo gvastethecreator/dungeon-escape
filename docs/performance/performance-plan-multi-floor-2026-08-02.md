@@ -52,33 +52,33 @@ After this batch, **obsidian/backrooms** load and run with **far fewer colliders
 
 ### Gameplay
 
-| Rule | Proof |
-| --- | --- |
-| Stairs walkable; no interact prompt | `multi-floor-browser-smoke.mjs` + unit floors |
-| No spawn teleport on floor rebind | Smoke + source assert `bindDungeon` |
-| Floor label follows height | Smoke floor 1→2→1 |
-| Stones total 4; portal on last slab | Completeness + placement tests |
-| Collision on active slab matches today | controller-pose + play smoke |
+| Rule                                   | Proof                                         |
+| -------------------------------------- | --------------------------------------------- |
+| Stairs walkable; no interact prompt    | `multi-floor-browser-smoke.mjs` + unit floors |
+| No spawn teleport on floor rebind      | Smoke + source assert `bindDungeon`           |
+| Floor label follows height             | Smoke floor 1→2→1                             |
+| Stones total 4; portal on last slab    | Completeness + placement tests                |
+| Collision on active slab matches today | controller-pose + play smoke                  |
 
 ### Visual / HUD (improve-ui, game HUD)
 
-| Rule | Proof |
-| --- | --- |
-| Active slab looks complete (props, lights) | Screenshot spawn + upper slab |
-| Shaft remains readable through open ceiling | Climb screenshot |
-| Inactive slabs may drop **distant** props/lights only if approved | Visual compare through hole |
-| HUD floor label stays correct after rebind | Smoke + `updateReadout` path |
-| No new full-screen floor fade | Code + smoke |
+| Rule                                                              | Proof                         |
+| ----------------------------------------------------------------- | ----------------------------- |
+| Active slab looks complete (props, lights)                        | Screenshot spawn + upper slab |
+| Shaft remains readable through open ceiling                       | Climb screenshot              |
+| Inactive slabs may drop **distant** props/lights only if approved | Visual compare through hole   |
+| HUD floor label stays correct after rebind                        | Smoke + `updateReadout` path  |
+| No new full-screen floor fade                                     | Code + smoke                  |
 
 ### Correctness from multi-floor lessons (must re-check)
 
-| Past failure | Guard in this batch |
-| --- | --- |
-| `setDungeon` on rebind teleports | Never reintroduce; smoke host assert |
-| `restorePose` snapped Y to eyeHeight | Keep multi-Y restore; unit test |
-| Deck colliders block restore on treads | Heightfield or stand-on-top filter |
-| HUD not refreshed on rebind | Keep `updateReadout`/`drawMap` on rebind |
-| Same-XZ interact across slabs | Keep vertical band |
+| Past failure                           | Guard in this batch                      |
+| -------------------------------------- | ---------------------------------------- |
+| `setDungeon` on rebind teleports       | Never reintroduce; smoke host assert     |
+| `restorePose` snapped Y to eyeHeight   | Keep multi-Y restore; unit test          |
+| Deck colliders block restore on treads | Heightfield or stand-on-top filter       |
+| HUD not refreshed on rebind            | Keep `updateReadout`/`drawMap` on rebind |
+| Same-XZ interact across slabs          | Keep vertical band                       |
 
 ---
 
@@ -88,26 +88,26 @@ After this batch, **obsidian/backrooms** load and run with **far fewer colliders
 
 Source: `docs/performance/performance-review-2026-08-01-b.md` + sample JSON under `.scratch/planning/…/post-revert-1/`.
 
-| Metric | Approx. median |
-| --- | ---: |
-| map load | ~438 ms |
-| world build | ~420 ms |
-| draw calls | ~275 |
-| materials | ~333 |
-| geometries | ~389 |
-| frame p95 | ~10.1 ms |
-| long task | ~831 ms |
+| Metric      | Approx. median |
+| ----------- | -------------: |
+| map load    |        ~438 ms |
+| world build |        ~420 ms |
+| draw calls  |           ~275 |
+| materials   |           ~333 |
+| geometries  |           ~389 |
+| frame p95   |       ~10.1 ms |
+| long task   |        ~831 ms |
 
 **Note:** Frost is **1 floor**. It is the **control**, not the multi-floor stress case.
 
 ### 4.2 Generation cost (measured 2026-08-02, Bun, 5 samples)
 
-| Workload | Floors | Gen median |
-| --- | ---: | ---: |
-| ancient | 1 | 2.8 ms |
-| grim | 2 | 12.6 ms |
-| obsidian | 3 | 23.8 ms |
-| backrooms | 3 | 42.1 ms |
+| Workload  | Floors | Gen median |
+| --------- | -----: | ---------: |
+| ancient   |      1 |     2.8 ms |
+| grim      |      2 |    12.6 ms |
+| obsidian  |      3 |    23.8 ms |
+| backrooms |      3 |    42.1 ms |
 
 **Conclusion:** generation is **not** the main multi-floor cost versus world build (~400 ms class).
 
@@ -115,12 +115,12 @@ Source: `docs/performance/performance-review-2026-08-01-b.md` + sample JSON unde
 
 Current code: **one AABB per walkable cell on raised slabs** + **20 tread AABBs per shaft**.
 
-| Biome | Map | Deck colliders (est.) | Treads | **New colliders** |
-| --- | --- | ---: | ---: | ---: |
-| ancient 1 | 51×51 | 0 | 0 | 0 |
-| grim 2 | 63×63 | ~631 | 20 | **~651** |
-| obsidian 3 | 83×83 | ~2969 | 40 | **~3009** |
-| backrooms 3 | 121×121 | ~4992 | 40 | **~5032** |
+| Biome       | Map     | Deck colliders (est.) | Treads | **New colliders** |
+| ----------- | ------- | --------------------: | -----: | ----------------: |
+| ancient 1   | 51×51   |                     0 |      0 |                 0 |
+| grim 2      | 63×63   |                  ~631 |     20 |          **~651** |
+| obsidian 3  | 83×83   |                 ~2969 |     40 |         **~3009** |
+| backrooms 3 | 121×121 |                 ~4992 |     40 |         **~5032** |
 
 **Hot path:** every frame `refreshVerticalSupport` + vault query the spatial index over this set.
 
@@ -128,19 +128,19 @@ Current code: **one AABB per walkable cell on raised slabs** + **20 tread AABBs 
 
 `StaticDungeonScene.buildStack` for each floor index:
 
-1. `buildFloorContents` → architecture, **cave props**, doors, **lights**, **atmosphere**, markers, stairs, objectives  
-2. Hazards only when `floorWorldY === 0` (already limited)  
+1. `buildFloorContents` → architecture, **cave props**, doors, **lights**, **atmosphere**, markers, stairs, objectives
+2. Hazards only when `floorWorldY === 0` (already limited)
 3. Completeness/stone work runs per floor
 
 **Inferred cost:** world build scales ~linear with floor count for props/lights/meshes, worse than generation.
 
 ### 4.5 Missing baseline (must capture before tickets)
 
-| Metric | Status |
-| --- | --- |
-| `mapLoadMs` / `mapLoadWorldMs` obsidian 3 | **not captured** |
+| Metric                                       | Status           |
+| -------------------------------------------- | ---------------- |
+| `mapLoadMs` / `mapLoadWorldMs` obsidian 3    | **not captured** |
 | draw calls / lights / geometries multi-floor | **not captured** |
-| frame p95 walk on upper slab | **not captured** |
+| frame p95 walk on upper slab                 | **not captured** |
 
 **Gate G0 (before any ticket work):** 3 cold Chrome samples:
 
@@ -207,9 +207,9 @@ User: Walk / climb multi-floor → CPU frame pressure
 
 **Mechanism (default if approved):** For `index !== 0` at build time, build:
 
-- architecture + open vertical + stairs  
-- markers (spawn only floor 0; portal only last)  
-- objectives/stones as today  
+- architecture + open vertical + stairs
+- markers (spawn only floor 0; portal only last)
+- objectives/stones as today
 
 Defer or skip: cave props, atmosphere props, ambient godrays, wall sprites density, optional doors on far slabs.
 
@@ -437,42 +437,42 @@ BIOME=obsidian bun run scripts/multi-floor-browser-smoke.mjs
 
 ### Quality equivalence
 
-| Check | Command / artifact |
-| --- | --- |
-| Climb/descend | browser smoke PASS |
-| Units | `multi-floor-smoke`, `vertical-motion`, `controller-pose`, `dungeon-floors` |
-| Typecheck | `bun run typecheck` |
-| Visual | screenshots spawn, stair, upper, descend |
-| HUD | floor N/M updates on rebind |
+| Check         | Command / artifact                                                          |
+| ------------- | --------------------------------------------------------------------------- |
+| Climb/descend | browser smoke PASS                                                          |
+| Units         | `multi-floor-smoke`, `vertical-motion`, `controller-pose`, `dungeon-floors` |
+| Typecheck     | `bun run typecheck`                                                         |
+| Visual        | screenshots spawn, stair, upper, descend                                    |
+| HUD           | floor N/M updates on rebind                                                 |
 
 ---
 
 ## 9. Anti-error checklist (read before each PERF)
 
-1. Do not call `controller.setDungeon` on height rebind.  
-2. Do not snap restore Y to single-floor eye only.  
-3. Do not yield build without load cover.  
-4. Do not remove stair tread colliders when removing deck AABBs.  
-5. Do not leave open shaft cells with solid floor support.  
-6. Do not apply inactive-slab darkening that hides the active slab.  
-7. Do not skip portal on last floor or duplicate four stones per floor.  
-8. Do not claim frame gains from load-only changes (or the reverse).  
-9. Do not use Frost-only metrics to claim multi-floor wins.  
-10. Revert a PERF if quality fails or gain is noise (document negative experiment).  
-11. Dirty tree: touch only listed files; leave unrelated WIP alone.  
+1. Do not call `controller.setDungeon` on height rebind.
+2. Do not snap restore Y to single-floor eye only.
+3. Do not yield build without load cover.
+4. Do not remove stair tread colliders when removing deck AABBs.
+5. Do not leave open shaft cells with solid floor support.
+6. Do not apply inactive-slab darkening that hides the active slab.
+7. Do not skip portal on last floor or duplicate four stones per floor.
+8. Do not claim frame gains from load-only changes (or the reverse).
+9. Do not use Frost-only metrics to claim multi-floor wins.
+10. Revert a PERF if quality fails or gain is noise (document negative experiment).
+11. Dirty tree: touch only listed files; leave unrelated WIP alone.
 12. After collider layout changes, re-run climb smoke before the next PERF.
 
 ---
 
 ## 10. Wayfinder frontier
 
-| Ticket | Type | Question | Default |
-| --- | --- | --- | --- |
-| W1 | grilling | Capture G0 CDP multi-floor before tickets? | **Yes** |
-| W2 | grilling | Inactive slabs: architecture-only + hydrate props on rebind? | **Yes** |
-| W3 | grilling | Heightfield OK instead of per-cell deck AABBs? | **Yes** |
-| W4 | research | Exact prop/light counts on obsidian stack after G0 | After G0 capture |
-| W5 | task | Frost control must stay within noise of batch-B medians | Enforce at G1 |
+| Ticket | Type     | Question                                                     | Default          |
+| ------ | -------- | ------------------------------------------------------------ | ---------------- |
+| W1     | grilling | Capture G0 CDP multi-floor before tickets?                   | **Yes**          |
+| W2     | grilling | Inactive slabs: architecture-only + hydrate props on rebind? | **Yes**          |
+| W3     | grilling | Heightfield OK instead of per-cell deck AABBs?               | **Yes**          |
+| W4     | research | Exact prop/light counts on obsidian stack after G0           | After G0 capture |
+| W5     | task     | Frost control must stay within noise of batch-B medians      | Enforce at G1    |
 
 Details: `.scratch/wayfinder/multi-floor-performance/`.
 
@@ -480,21 +480,21 @@ Details: `.scratch/wayfinder/multi-floor-performance/`.
 
 ## 11. Rejected ideas (do not implement)
 
-| Idea | Why |
-| --- | --- |
-| Drop to one resident floor + fade | Breaks product goal |
-| Lower DPR / kill CRT always | Quality cut |
-| Classic prop material bake global | Failed PERF-14 (worse world ms) |
-| Pad batch with gen-only micro-opts | Gen already cheap vs build |
-| Hide inactive slabs entirely | Breaks shaft depth read |
+| Idea                               | Why                             |
+| ---------------------------------- | ------------------------------- |
+| Drop to one resident floor + fade  | Breaks product goal             |
+| Lower DPR / kill CRT always        | Quality cut                     |
+| Classic prop material bake global  | Failed PERF-14 (worse world ms) |
+| Pad batch with gen-only micro-opts | Gen already cheap vs build      |
+| Hide inactive slabs entirely       | Breaks shaft depth read         |
 
 ---
 
 ## 12. Defaults if you approve without answers
 
-1. Workloads: **obsidian 3** primary + **frost 1** control.  
-2. Inactive slabs: **architecture + stairs + objectives**; props hydrate on first enter.  
-3. Heightfield: **yes** for deck support.  
+1. Workloads: **obsidian 3** primary + **frost 1** control.
+2. Inactive slabs: **architecture + stairs + objectives**; props hydrate on first enter.
+3. Heightfield: **yes** for deck support.
 4. G0 CDP capture before coding tickets.
 
 ---
@@ -503,9 +503,9 @@ Details: `.scratch/wayfinder/multi-floor-performance/`.
 
 Reply with one of:
 
-- `aprobado` — use all defaults; run G0 then tickets  
-- `aprobado + sin hydrate` — keep all props at build; still do lights/Y and heightfield  
-- `aprobado + solo grim` — stress on 2 floors only  
-- Or list PERF IDs to drop/keep  
+- `aprobado` — use all defaults; run G0 then tickets
+- `aprobado + sin hydrate` — keep all props at build; still do lights/Y and heightfield
+- `aprobado + solo grim` — stress on 2 floors only
+- Or list PERF IDs to drop/keep
 
 **No product code and no tickets until that reply.**

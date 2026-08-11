@@ -1,0 +1,3238 @@
+{
+  "version": 2,
+  "kind": "dungeon-enemy-runtime-size-catalog",
+  "method": {
+    "body_size": "canonical world height scaled by approved base-source foreground height",
+    "pixel_aspect": "one uniform world scale for source pixels in both axes; width derives from source aspect",
+    "atlas_framing": "first idle frame only; active movement and attack extents do not change body size",
+    "source_background_threshold": 4,
+    "atlas_alpha_threshold": 8,
+    "reference_cell": 320,
+    "runtime_cell": 160
+  },
+  "counts": {
+    "biomes": 11,
+    "enemies": 11,
+    "entries": 121
+  },
+  "biome_order": [
+    "ancient",
+    "molten",
+    "frost",
+    "grim",
+    "verdant",
+    "ash",
+    "iron",
+    "obsidian",
+    "sunken",
+    "fungal",
+    "backrooms"
+  ],
+  "enemy_order": [
+    "carrion",
+    "goblin",
+    "ghost",
+    "ratling",
+    "husk",
+    "imp",
+    "zombie-orc",
+    "spider",
+    "bone-slime",
+    "white-eyed-shadow",
+    "carrion-stalker"
+  ],
+  "reference": {
+    "carrion": {
+      "height": 0.95,
+      "opaque_height": 259
+    },
+    "goblin": {
+      "height": 1.55,
+      "opaque_height": 288
+    },
+    "ghost": {
+      "height": 1.95,
+      "opaque_height": 288
+    },
+    "ratling": {
+      "height": 1.2,
+      "opaque_height": 287
+    },
+    "husk": {
+      "height": 1.95,
+      "opaque_height": 287
+    },
+    "imp": {
+      "height": 1.05,
+      "opaque_height": 255
+    },
+    "zombie-orc": {
+      "height": 2.2,
+      "opaque_height": 287
+    },
+    "spider": {
+      "height": 0.75,
+      "opaque_height": 172
+    },
+    "bone-slime": {
+      "height": 1.0,
+      "opaque_height": 230
+    },
+    "white-eyed-shadow": {
+      "height": 1.95,
+      "opaque_height": 288
+    },
+    "carrion-stalker": {
+      "height": 1.08,
+      "opaque_height": 272
+    }
+  },
+  "entries": [
+    {
+      "key": "ancient/carrion",
+      "biome": "ancient",
+      "enemy": "carrion",
+      "body_size_meters": {
+        "width": 1.023,
+        "height": 0.937
+      },
+      "base_source": {
+        "path": "sources/ancient/carrion.png",
+        "sha256": "4707d86c057c62cbc66fb7726697561fc0b621b2772b6b3ba3ed239a859e54d1",
+        "canvas": [1254, 1254],
+        "foreground_bounds": [71, 138, 1164, 1139]
+      },
+      "runtime_idle": {
+        "atlas": "public/assets/sprites/enemies-v8/biomes/ancient-enemies.webp",
+        "atlas_size": [640, 3520],
+        "row": 0,
+        "cell": 160,
+        "alpha_bounds": [10, 23, 150, 152],
+        "opaque_width": 140,
+        "opaque_height": 129,
+        "top_padding": 23,
+        "bottom_padding": 8
+      }
+    },
+    {
+      "key": "ancient/goblin",
+      "biome": "ancient",
+      "enemy": "goblin",
+      "body_size_meters": {
+        "width": 1.08,
+        "height": 1.43
+      },
+      "base_source": {
+        "path": "sources/ancient/goblin.png",
+        "sha256": "1d358b817a75603e63577a18ee739d011a01040019641072ddf12bbf9731ce7e",
+        "canvas": [1254, 1254],
+        "foreground_bounds": [226, 97, 1012, 1138]
+      },
+      "runtime_idle": {
+        "atlas": "public/assets/sprites/enemies-v8/biomes/ancient-enemies.webp",
+        "atlas_size": [640, 3520],
+        "row": 2,
+        "cell": 160,
+        "alpha_bounds": [27, 12, 133, 152],
+        "opaque_width": 106,
+        "opaque_height": 140,
+        "top_padding": 12,
+        "bottom_padding": 8
+      }
+    },
+    {
+      "key": "ancient/ghost",
+      "biome": "ancient",
+      "enemy": "ghost",
+      "body_size_meters": {
+        "width": 1.262,
+        "height": 1.946
+      },
+      "base_source": {
+        "path": "sources/ancient/ghost.png",
+        "sha256": "ae0f7988d3048083d666e69fe3c11620d63a258a4e3e3e25f973352100600bdd",
+        "canvas": [1254, 1254],
+        "foreground_bounds": [263, 64, 993, 1190]
+      },
+      "runtime_idle": {
+        "atlas": "public/assets/sprites/enemies-v8/biomes/ancient-enemies.webp",
+        "atlas_size": [640, 3520],
+        "row": 4,
+        "cell": 160,
+        "alpha_bounds": [34, 12, 125, 152],
+        "opaque_width": 91,
+        "opaque_height": 140,
+        "top_padding": 12,
+        "bottom_padding": 8
+      }
+    },
+    {
+      "key": "ancient/ratling",
+      "biome": "ancient",
+      "enemy": "ratling",
+      "body_size_meters": {
+        "width": 1.031,
+        "height": 1.159
+      },
+      "base_source": {
+        "path": "sources/ancient/ratling.png",
+        "sha256": "c872684a11d00b928233fbb2ada442ef59647817ccf541d31328a93757d931d7",
+        "canvas": [1254, 1254],
+        "foreground_bounds": [143, 100, 1109, 1186]
+      },
+      "runtime_idle": {
+        "atlas": "public/assets/sprites/enemies-v8/biomes/ancient-enemies.webp",
+        "atlas_size": [640, 3520],
+        "row": 6,
+        "cell": 160,
+        "alpha_bounds": [17, 12, 142, 152],
+        "opaque_width": 125,
+        "opaque_height": 140,
+        "top_padding": 12,
+        "bottom_padding": 8
+      }
+    },
+    {
+      "key": "ancient/husk",
+      "biome": "ancient",
+      "enemy": "husk",
+      "body_size_meters": {
+        "width": 0.891,
+        "height": 1.847
+      },
+      "base_source": {
+        "path": "sources/ancient/husk.png",
+        "sha256": "71e5e825399eeec5ac68b8c9cfd329bf5bf3306a23b8b78d47e8a04b1667f49f",
+        "canvas": [1254, 1254],
+        "foreground_bounds": [372, 94, 886, 1159]
+      },
+      "runtime_idle": {
+        "atlas": "public/assets/sprites/enemies-v8/biomes/ancient-enemies.webp",
+        "atlas_size": [640, 3520],
+        "row": 8,
+        "cell": 160,
+        "alpha_bounds": [44, 12, 116, 152],
+        "opaque_width": 72,
+        "opaque_height": 140,
+        "top_padding": 12,
+        "bottom_padding": 8
+      }
+    },
+    {
+      "key": "ancient/imp",
+      "biome": "ancient",
+      "enemy": "imp",
+      "body_size_meters": {
+        "width": 1.071,
+        "height": 1.05
+      },
+      "base_source": {
+        "path": "sources/ancient/imp.png",
+        "sha256": "0ae8089e25c1a46443f117a2ca090375b17ae9f85ca62db779aac07c37b6f7ba",
+        "canvas": [1254, 1254],
+        "foreground_bounds": [115, 131, 1134, 1130]
+      },
+      "runtime_idle": {
+        "atlas": "public/assets/sprites/enemies-v8/biomes/ancient-enemies.webp",
+        "atlas_size": [640, 3520],
+        "row": 10,
+        "cell": 160,
+        "alpha_bounds": [10, 16, 150, 151],
+        "opaque_width": 140,
+        "opaque_height": 135,
+        "top_padding": 16,
+        "bottom_padding": 9
+      }
+    },
+    {
+      "key": "ancient/zombie-orc",
+      "biome": "ancient",
+      "enemy": "zombie-orc",
+      "body_size_meters": {
+        "width": 1.813,
+        "height": 2.163
+      },
+      "base_source": {
+        "path": "sources/ancient/zombie-orc.png",
+        "sha256": "82a71c4dbe0314c45234c19b45a8bcecd425677edc4dea41a99010948e3333a6",
+        "canvas": [1254, 1254],
+        "foreground_bounds": [162, 74, 1089, 1180]
+      },
+      "runtime_idle": {
+        "atlas": "public/assets/sprites/enemies-v8/biomes/ancient-enemies.webp",
+        "atlas_size": [640, 3520],
+        "row": 12,
+        "cell": 160,
+        "alpha_bounds": [23, 2, 137, 152],
+        "opaque_width": 114,
+        "opaque_height": 150,
+        "top_padding": 2,
+        "bottom_padding": 8
+      }
+    },
+    {
+      "key": "ancient/spider",
+      "biome": "ancient",
+      "enemy": "spider",
+      "body_size_meters": {
+        "width": 1.266,
+        "height": 0.792
+      },
+      "base_source": {
+        "path": "sources/ancient/spider.png",
+        "sha256": "01a060bad3d9980c87ec9e04314e940337c21359465badcd93c82887587cd899",
+        "canvas": [1254, 1254],
+        "foreground_bounds": [55, 275, 1193, 987]
+      },
+      "runtime_idle": {
+        "atlas": "public/assets/sprites/enemies-v8/biomes/ancient-enemies.webp",
+        "atlas_size": [640, 3520],
+        "row": 14,
+        "cell": 160,
+        "alpha_bounds": [13, 50, 146, 140],
+        "opaque_width": 133,
+        "opaque_height": 90,
+        "top_padding": 50,
+        "bottom_padding": 20
+      }
+    },
+    {
+      "key": "ancient/bone-slime",
+      "biome": "ancient",
+      "enemy": "bone-slime",
+      "body_size_meters": {
+        "width": 1.335,
+        "height": 0.901
+      },
+      "base_source": {
+        "path": "sources/ancient/bone-slime.png",
+        "sha256": "1c349aa5eb2d31e3d9cc4b25545b24c1285092b603cf4a0ea662bc58a9510970",
+        "canvas": [1254, 1254],
+        "foreground_bounds": [23, 237, 1226, 1049]
+      },
+      "runtime_idle": {
+        "atlas": "public/assets/sprites/enemies-v8/biomes/ancient-enemies.webp",
+        "atlas_size": [640, 3520],
+        "row": 16,
+        "cell": 160,
+        "alpha_bounds": [5, 51, 155, 152],
+        "opaque_width": 150,
+        "opaque_height": 101,
+        "top_padding": 51,
+        "bottom_padding": 8
+      }
+    },
+    {
+      "key": "ancient/white-eyed-shadow",
+      "biome": "ancient",
+      "enemy": "white-eyed-shadow",
+      "body_size_meters": {
+        "width": 0.705,
+        "height": 1.876
+      },
+      "base_source": {
+        "path": "sources/ancient/white-eyed-shadow.png",
+        "sha256": "0325f4140d7aef33a46645e1dbf24c5796e74f44e53e996ca6bf830440e6989c",
+        "canvas": [1254, 1254],
+        "foreground_bounds": [425, 84, 833, 1170]
+      },
+      "runtime_idle": {
+        "atlas": "public/assets/sprites/enemies-v8/biomes/ancient-enemies.webp",
+        "atlas_size": [640, 3520],
+        "row": 18,
+        "cell": 160,
+        "alpha_bounds": [53, 5, 108, 155],
+        "opaque_width": 55,
+        "opaque_height": 150,
+        "top_padding": 5,
+        "bottom_padding": 5
+      }
+    },
+    {
+      "key": "ancient/carrion-stalker",
+      "biome": "ancient",
+      "enemy": "carrion-stalker",
+      "body_size_meters": {
+        "width": 1.037,
+        "height": 1.037
+      },
+      "base_source": {
+        "path": "sources/ancient/carrion-stalker.png",
+        "sha256": "acb929feefc538fa857386c03bfabd10cc467c7a62fd044d83368c19cf0d6125",
+        "canvas": [1254, 1254],
+        "foreground_bounds": [84, 123, 1107, 1146]
+      },
+      "runtime_idle": {
+        "atlas": "public/assets/sprites/enemies-v8/biomes/ancient-enemies.webp",
+        "atlas_size": [640, 3520],
+        "row": 20,
+        "cell": 160,
+        "alpha_bounds": [5, 7, 155, 155],
+        "opaque_width": 150,
+        "opaque_height": 148,
+        "top_padding": 7,
+        "bottom_padding": 5
+      }
+    },
+    {
+      "key": "molten/carrion",
+      "biome": "molten",
+      "enemy": "carrion",
+      "body_size_meters": {
+        "width": 1.122,
+        "height": 0.811
+      },
+      "base_source": {
+        "path": "sources/molten/carrion.png",
+        "sha256": "1f350fbd035e4ee304380d1ba00c1432a0739ac597032bcd58945da837322ecc",
+        "canvas": [1254, 1254],
+        "foreground_bounds": [27, 213, 1225, 1079]
+      },
+      "runtime_idle": {
+        "atlas": "public/assets/sprites/enemies-v8/biomes/molten-enemies.webp",
+        "atlas_size": [640, 3520],
+        "row": 0,
+        "cell": 160,
+        "alpha_bounds": [5, 46, 155, 155],
+        "opaque_width": 150,
+        "opaque_height": 109,
+        "top_padding": 46,
+        "bottom_padding": 5
+      }
+    },
+    {
+      "key": "molten/goblin",
+      "biome": "molten",
+      "enemy": "goblin",
+      "body_size_meters": {
+        "width": 1.136,
+        "height": 1.316
+      },
+      "base_source": {
+        "path": "sources/molten/goblin.png",
+        "sha256": "e4c9ed1cf0ac47feb47446dd475a2972a2212d2566c4ecd7b5afa2ad0d25b043",
+        "canvas": [1254, 1254],
+        "foreground_bounds": [221, 133, 1048, 1091]
+      },
+      "runtime_idle": {
+        "atlas": "public/assets/sprites/enemies-v8/biomes/molten-enemies.webp",
+        "atlas_size": [640, 3520],
+        "row": 2,
+        "cell": 160,
+        "alpha_bounds": [15, 5, 145, 155],
+        "opaque_width": 130,
+        "opaque_height": 150,
+        "top_padding": 5,
+        "bottom_padding": 5
+      }
+    },
+    {
+      "key": "molten/ghost",
+      "biome": "molten",
+      "enemy": "ghost",
+      "body_size_meters": {
+        "width": 1.254,
+        "height": 1.994
+      },
+      "base_source": {
+        "path": "sources/molten/ghost.png",
+        "sha256": "26d68a6831388fade7e0f4163769fdc909ae869a47485e650de1c0b30c150417",
+        "canvas": [1254, 1254],
+        "foreground_bounds": [262, 54, 988, 1208]
+      },
+      "runtime_idle": {
+        "atlas": "public/assets/sprites/enemies-v8/biomes/molten-enemies.webp",
+        "atlas_size": [640, 3520],
+        "row": 4,
+        "cell": 160,
+        "alpha_bounds": [33, 5, 127, 155],
+        "opaque_width": 94,
+        "opaque_height": 150,
+        "top_padding": 5,
+        "bottom_padding": 5
+      }
+    },
+    {
+      "key": "molten/ratling",
+      "biome": "molten",
+      "enemy": "ratling",
+      "body_size_meters": {
+        "width": 1.043,
+        "height": 1.111
+      },
+      "base_source": {
+        "path": "sources/molten/ratling.png",
+        "sha256": "0a1d7f64d22981fa88682d65c82433953ff7be8060c364cebc442e2f02446757",
+        "canvas": [1254, 1254],
+        "foreground_bounds": [129, 93, 1106, 1134]
+      },
+      "runtime_idle": {
+        "atlas": "public/assets/sprites/enemies-v8/biomes/molten-enemies.webp",
+        "atlas_size": [640, 3520],
+        "row": 6,
+        "cell": 160,
+        "alpha_bounds": [10, 5, 150, 155],
+        "opaque_width": 140,
+        "opaque_height": 150,
+        "top_padding": 5,
+        "bottom_padding": 5
+      }
+    },
+    {
+      "key": "molten/husk",
+      "biome": "molten",
+      "enemy": "husk",
+      "body_size_meters": {
+        "width": 0.928,
+        "height": 1.97
+      },
+      "base_source": {
+        "path": "sources/molten/husk.png",
+        "sha256": "517848c03373ea2d70c6a809922dff2b9ba26f86f7f85bb0deecbc0783ea33ad",
+        "canvas": [1254, 1254],
+        "foreground_bounds": [360, 59, 895, 1195]
+      },
+      "runtime_idle": {
+        "atlas": "public/assets/sprites/enemies-v8/biomes/molten-enemies.webp",
+        "atlas_size": [640, 3520],
+        "row": 8,
+        "cell": 160,
+        "alpha_bounds": [45, 5, 115, 155],
+        "opaque_width": 70,
+        "opaque_height": 150,
+        "top_padding": 5,
+        "bottom_padding": 5
+      }
+    },
+    {
+      "key": "molten/imp",
+      "biome": "molten",
+      "enemy": "imp",
+      "body_size_meters": {
+        "width": 1.227,
+        "height": 1.0
+      },
+      "base_source": {
+        "path": "sources/molten/imp.png",
+        "sha256": "58aa63006c47d841c294d3ba64a592766569355cfd1d53d851fc1c9687f9b173",
+        "canvas": [1254, 1254],
+        "foreground_bounds": [43, 132, 1211, 1084]
+      },
+      "runtime_idle": {
+        "atlas": "public/assets/sprites/enemies-v8/biomes/molten-enemies.webp",
+        "atlas_size": [640, 3520],
+        "row": 10,
+        "cell": 160,
+        "alpha_bounds": [5, 19, 155, 141],
+        "opaque_width": 150,
+        "opaque_height": 122,
+        "top_padding": 19,
+        "bottom_padding": 19
+      }
+    },
+    {
+      "key": "molten/zombie-orc",
+      "biome": "molten",
+      "enemy": "zombie-orc",
+      "body_size_meters": {
+        "width": 1.872,
+        "height": 2.083
+      },
+      "base_source": {
+        "path": "sources/molten/zombie-orc.png",
+        "sha256": "c936aa34252f245b2cb11f75de33a8a5d870fd09c5ae448588e4a0a89d2caf9c",
+        "canvas": [1254, 1254],
+        "foreground_bounds": [146, 94, 1103, 1159]
+      },
+      "runtime_idle": {
+        "atlas": "public/assets/sprites/enemies-v8/biomes/molten-enemies.webp",
+        "atlas_size": [640, 3520],
+        "row": 12,
+        "cell": 160,
+        "alpha_bounds": [12, 5, 148, 155],
+        "opaque_width": 136,
+        "opaque_height": 150,
+        "top_padding": 5,
+        "bottom_padding": 5
+      }
+    },
+    {
+      "key": "molten/spider",
+      "biome": "molten",
+      "enemy": "spider",
+      "body_size_meters": {
+        "width": 1.295,
+        "height": 0.858
+      },
+      "base_source": {
+        "path": "sources/molten/spider.png",
+        "sha256": "d00004f218f9838e19a2c505b9ada83fb20045b4969dff21fbcc242afcad522d",
+        "canvas": [1254, 1254],
+        "foreground_bounds": [46, 282, 1210, 1053]
+      },
+      "runtime_idle": {
+        "atlas": "public/assets/sprites/enemies-v8/biomes/molten-enemies.webp",
+        "atlas_size": [640, 3520],
+        "row": 14,
+        "cell": 160,
+        "alpha_bounds": [5, 56, 155, 155],
+        "opaque_width": 150,
+        "opaque_height": 99,
+        "top_padding": 56,
+        "bottom_padding": 5
+      }
+    },
+    {
+      "key": "molten/bone-slime",
+      "biome": "molten",
+      "enemy": "bone-slime",
+      "body_size_meters": {
+        "width": 1.301,
+        "height": 0.812
+      },
+      "base_source": {
+        "path": "sources/molten/bone-slime.png",
+        "sha256": "536d8cdbabdc40786e6614cc84c31a761723fd7d796049a0bddd0ebfe7324db7",
+        "canvas": [1254, 1254],
+        "foreground_bounds": [41, 284, 1214, 1016]
+      },
+      "runtime_idle": {
+        "atlas": "public/assets/sprites/enemies-v8/biomes/molten-enemies.webp",
+        "atlas_size": [640, 3520],
+        "row": 16,
+        "cell": 160,
+        "alpha_bounds": [5, 62, 155, 155],
+        "opaque_width": 150,
+        "opaque_height": 93,
+        "top_padding": 62,
+        "bottom_padding": 5
+      }
+    },
+    {
+      "key": "molten/white-eyed-shadow",
+      "biome": "molten",
+      "enemy": "white-eyed-shadow",
+      "body_size_meters": {
+        "width": 0.857,
+        "height": 1.985
+      },
+      "base_source": {
+        "path": "sources/molten/white-eyed-shadow.png",
+        "sha256": "b1689eefbcac5ac7ad98765657f803ec4121edb2320a1d73a7c7e628f6c5f4c6",
+        "canvas": [1254, 1254],
+        "foreground_bounds": [385, 40, 881, 1189]
+      },
+      "runtime_idle": {
+        "atlas": "public/assets/sprites/enemies-v8/biomes/molten-enemies.webp",
+        "atlas_size": [640, 3520],
+        "row": 18,
+        "cell": 160,
+        "alpha_bounds": [48, 5, 112, 155],
+        "opaque_width": 64,
+        "opaque_height": 150,
+        "top_padding": 5,
+        "bottom_padding": 5
+      }
+    },
+    {
+      "key": "molten/carrion-stalker",
+      "biome": "molten",
+      "enemy": "carrion-stalker",
+      "body_size_meters": {
+        "width": 1.229,
+        "height": 0.888
+      },
+      "base_source": {
+        "path": "sources/molten/carrion-stalker.png",
+        "sha256": "26898a07f178293e4364cdd1662dd50db505e4fec1a63d761b07cee5a69ba726",
+        "canvas": [1254, 1254],
+        "foreground_bounds": [28, 187, 1240, 1063]
+      },
+      "runtime_idle": {
+        "atlas": "public/assets/sprites/enemies-v8/biomes/molten-enemies.webp",
+        "atlas_size": [640, 3520],
+        "row": 20,
+        "cell": 160,
+        "alpha_bounds": [5, 46, 155, 155],
+        "opaque_width": 150,
+        "opaque_height": 109,
+        "top_padding": 46,
+        "bottom_padding": 5
+      }
+    },
+    {
+      "key": "frost/carrion",
+      "biome": "frost",
+      "enemy": "carrion",
+      "body_size_meters": {
+        "width": 1.068,
+        "height": 0.819
+      },
+      "base_source": {
+        "path": "sources/frost/carrion.png",
+        "sha256": "9a051f15f3e685e2e58b315825559013595a444c19a1d5cb70e6582d2828ca37",
+        "canvas": [1254, 1254],
+        "foreground_bounds": [56, 187, 1197, 1062]
+      },
+      "runtime_idle": {
+        "atlas": "public/assets/sprites/enemies-v8/biomes/frost-enemies.webp",
+        "atlas_size": [640, 1760],
+        "row": 0,
+        "cell": 160,
+        "alpha_bounds": [19, 18, 136, 152],
+        "opaque_width": 117,
+        "opaque_height": 134,
+        "top_padding": 18,
+        "bottom_padding": 8
+      }
+    },
+    {
+      "key": "frost/goblin",
+      "biome": "frost",
+      "enemy": "goblin",
+      "body_size_meters": {
+        "width": 1.097,
+        "height": 1.204
+      },
+      "base_source": {
+        "path": "sources/frost/goblin.png",
+        "sha256": "7e20dd7bba630b007b657e3dedb7c988b2703c6d9e4ebdc098bfb1c6b458ee3c",
+        "canvas": [1254, 1254],
+        "foreground_bounds": [224, 193, 1023, 1070]
+      },
+      "runtime_idle": {
+        "atlas": "public/assets/sprites/enemies-v8/biomes/frost-enemies.webp",
+        "atlas_size": [640, 1760],
+        "row": 1,
+        "cell": 160,
+        "alpha_bounds": [40, 28, 119, 152],
+        "opaque_width": 79,
+        "opaque_height": 124,
+        "top_padding": 28,
+        "bottom_padding": 8
+      }
+    },
+    {
+      "key": "frost/ghost",
+      "biome": "frost",
+      "enemy": "ghost",
+      "body_size_meters": {
+        "width": 0.89,
+        "height": 1.99
+      },
+      "base_source": {
+        "path": "sources/frost/ghost.png",
+        "sha256": "b69ba7e5ac08ed55c48ed4c5e92bc8cfa694d31bf8650e0639c0096f501c4267",
+        "canvas": [1254, 1254],
+        "foreground_bounds": [363, 37, 878, 1189]
+      },
+      "runtime_idle": {
+        "atlas": "public/assets/sprites/enemies-v8/biomes/frost-enemies.webp",
+        "atlas_size": [640, 1760],
+        "row": 2,
+        "cell": 160,
+        "alpha_bounds": [27, 15, 136, 152],
+        "opaque_width": 109,
+        "opaque_height": 137,
+        "top_padding": 15,
+        "bottom_padding": 8
+      }
+    },
+    {
+      "key": "frost/ratling",
+      "biome": "frost",
+      "enemy": "ratling",
+      "body_size_meters": {
+        "width": 1.19,
+        "height": 1.056
+      },
+      "base_source": {
+        "path": "sources/frost/ratling.png",
+        "sha256": "f051ea3f3951f28af0dcba5124051fc1f23799211afa1f41490c8bd18cb60bb0",
+        "canvas": [1254, 1254],
+        "foreground_bounds": [65, 113, 1181, 1103]
+      },
+      "runtime_idle": {
+        "atlas": "public/assets/sprites/enemies-v8/biomes/frost-enemies.webp",
+        "atlas_size": [640, 1760],
+        "row": 3,
+        "cell": 160,
+        "alpha_bounds": [16, 18, 150, 152],
+        "opaque_width": 134,
+        "opaque_height": 134,
+        "top_padding": 18,
+        "bottom_padding": 8
+      }
+    },
+    {
+      "key": "frost/husk",
+      "biome": "frost",
+      "enemy": "husk",
+      "body_size_meters": {
+        "width": 1.026,
+        "height": 2.051
+      },
+      "base_source": {
+        "path": "sources/frost/husk.png",
+        "sha256": "ddbf65d1fe38a1dc4ab399780b455fb10e35338e39f2c413812b95e80cf9068f",
+        "canvas": [1254, 1254],
+        "foreground_bounds": [344, 39, 936, 1222]
+      },
+      "runtime_idle": {
+        "atlas": "public/assets/sprites/enemies-v8/biomes/frost-enemies.webp",
+        "atlas_size": [640, 1760],
+        "row": 4,
+        "cell": 160,
+        "alpha_bounds": [49, 11, 115, 151],
+        "opaque_width": 66,
+        "opaque_height": 140,
+        "top_padding": 11,
+        "bottom_padding": 9
+      }
+    },
+    {
+      "key": "frost/imp",
+      "biome": "frost",
+      "enemy": "imp",
+      "body_size_meters": {
+        "width": 1.167,
+        "height": 0.932
+      },
+      "base_source": {
+        "path": "sources/frost/imp.png",
+        "sha256": "ac2c1128eb838e3c88752cfe7aa618f9ab0ed4dcb40fb2afd736d96a8c9faacc",
+        "canvas": [1254, 1254],
+        "foreground_bounds": [71, 140, 1182, 1027]
+      },
+      "runtime_idle": {
+        "atlas": "public/assets/sprites/enemies-v8/biomes/frost-enemies.webp",
+        "atlas_size": [640, 1760],
+        "row": 5,
+        "cell": 160,
+        "alpha_bounds": [39, 46, 132, 152],
+        "opaque_width": 93,
+        "opaque_height": 106,
+        "top_padding": 46,
+        "bottom_padding": 8
+      }
+    },
+    {
+      "key": "frost/zombie-orc",
+      "biome": "frost",
+      "enemy": "zombie-orc",
+      "body_size_meters": {
+        "width": 1.837,
+        "height": 2.203
+      },
+      "base_source": {
+        "path": "sources/frost/zombie-orc.png",
+        "sha256": "6f599adf4aeaf28dd3d34d766b24cd99b3256d2daecb89a963a9e1da19f3f38f",
+        "canvas": [1254, 1254],
+        "foreground_bounds": [161, 53, 1100, 1179]
+      },
+      "runtime_idle": {
+        "atlas": "public/assets/sprites/enemies-v8/biomes/frost-enemies.webp",
+        "atlas_size": [640, 1760],
+        "row": 6,
+        "cell": 160,
+        "alpha_bounds": [31, 21, 133, 152],
+        "opaque_width": 102,
+        "opaque_height": 131,
+        "top_padding": 21,
+        "bottom_padding": 8
+      }
+    },
+    {
+      "key": "frost/spider",
+      "biome": "frost",
+      "enemy": "spider",
+      "body_size_meters": {
+        "width": 1.21,
+        "height": 0.863
+      },
+      "base_source": {
+        "path": "sources/frost/spider.png",
+        "sha256": "b13fbdc14e14727fac0cf4100319f877dc7dfe0e862f3f86d4fa1c7912dad6e7",
+        "canvas": [1254, 1254],
+        "foreground_bounds": [82, 322, 1170, 1098]
+      },
+      "runtime_idle": {
+        "atlas": "public/assets/sprites/enemies-v8/biomes/frost-enemies.webp",
+        "atlas_size": [640, 1760],
+        "row": 7,
+        "cell": 160,
+        "alpha_bounds": [13, 28, 145, 150],
+        "opaque_width": 132,
+        "opaque_height": 122,
+        "top_padding": 28,
+        "bottom_padding": 10
+      }
+    },
+    {
+      "key": "frost/bone-slime",
+      "biome": "frost",
+      "enemy": "bone-slime",
+      "body_size_meters": {
+        "width": 1.303,
+        "height": 0.814
+      },
+      "base_source": {
+        "path": "sources/frost/bone-slime.png",
+        "sha256": "9c70c627642cd710619626789231972ed1c37639471c5efc542aa7dc557e8856",
+        "canvas": [1254, 1254],
+        "foreground_bounds": [38, 246, 1213, 980]
+      },
+      "runtime_idle": {
+        "atlas": "public/assets/sprites/enemies-v8/biomes/frost-enemies.webp",
+        "atlas_size": [640, 1760],
+        "row": 8,
+        "cell": 160,
+        "alpha_bounds": [19, 49, 139, 145],
+        "opaque_width": 120,
+        "opaque_height": 96,
+        "top_padding": 49,
+        "bottom_padding": 15
+      }
+    },
+    {
+      "key": "frost/white-eyed-shadow",
+      "biome": "frost",
+      "enemy": "white-eyed-shadow",
+      "body_size_meters": {
+        "width": 0.762,
+        "height": 1.916
+      },
+      "base_source": {
+        "path": "sources/frost/white-eyed-shadow.png",
+        "sha256": "1cae8fed3736e17d9e7a1c6b765fccb92c3e85a39a9dc4c811aa969ddcfcb8ca",
+        "canvas": [1254, 1254],
+        "foreground_bounds": [424, 69, 865, 1178]
+      },
+      "runtime_idle": {
+        "atlas": "public/assets/sprites/enemies-v8/biomes/frost-enemies.webp",
+        "atlas_size": [640, 1760],
+        "row": 9,
+        "cell": 160,
+        "alpha_bounds": [66, 23, 113, 151],
+        "opaque_width": 47,
+        "opaque_height": 128,
+        "top_padding": 23,
+        "bottom_padding": 9
+      }
+    },
+    {
+      "key": "frost/carrion-stalker",
+      "biome": "frost",
+      "enemy": "carrion-stalker",
+      "body_size_meters": {
+        "width": 1.225,
+        "height": 0.95
+      },
+      "base_source": {
+        "path": "sources/frost/carrion-stalker.png",
+        "sha256": "ce59ffc2ada8a076433898a1c86f6bc67386b0e8a8fe3c444a39796b559416c6",
+        "canvas": [1254, 1254],
+        "foreground_bounds": [20, 157, 1230, 1095]
+      },
+      "runtime_idle": {
+        "atlas": "public/assets/sprites/enemies-v8/biomes/frost-enemies.webp",
+        "atlas_size": [640, 1760],
+        "row": 10,
+        "cell": 160,
+        "alpha_bounds": [15, 22, 144, 152],
+        "opaque_width": 129,
+        "opaque_height": 130,
+        "top_padding": 22,
+        "bottom_padding": 8
+      }
+    },
+    {
+      "key": "grim/carrion",
+      "biome": "grim",
+      "enemy": "carrion",
+      "body_size_meters": {
+        "width": 1.098,
+        "height": 0.957
+      },
+      "base_source": {
+        "path": "sources/grim/carrion.png",
+        "sha256": "2349dfe69c87bce84ffa4e4f0c7e2665c141744e5a31b4deea8d6adfc62d5405",
+        "canvas": [1254, 1254],
+        "foreground_bounds": [40, 110, 1213, 1132]
+      },
+      "runtime_idle": {
+        "atlas": "public/assets/sprites/enemies-v8/biomes/grim-enemies.webp",
+        "atlas_size": [640, 1760],
+        "row": 0,
+        "cell": 160,
+        "alpha_bounds": [15, 52, 151, 152],
+        "opaque_width": 136,
+        "opaque_height": 100,
+        "top_padding": 52,
+        "bottom_padding": 8
+      }
+    },
+    {
+      "key": "grim/goblin",
+      "biome": "grim",
+      "enemy": "goblin",
+      "body_size_meters": {
+        "width": 1.409,
+        "height": 1.388
+      },
+      "base_source": {
+        "path": "sources/grim/goblin.png",
+        "sha256": "b4ddd26d8615cb88555131c80405bb60a673cc36b4dab57016dbc55015d973d2",
+        "canvas": [1254, 1254],
+        "foreground_bounds": [121, 121, 1147, 1132]
+      },
+      "runtime_idle": {
+        "atlas": "public/assets/sprites/enemies-v8/biomes/grim-enemies.webp",
+        "atlas_size": [640, 1760],
+        "row": 1,
+        "cell": 160,
+        "alpha_bounds": [43, 41, 116, 152],
+        "opaque_width": 73,
+        "opaque_height": 111,
+        "top_padding": 41,
+        "bottom_padding": 8
+      }
+    },
+    {
+      "key": "grim/ghost",
+      "biome": "grim",
+      "enemy": "ghost",
+      "body_size_meters": {
+        "width": 1.192,
+        "height": 1.94
+      },
+      "base_source": {
+        "path": "sources/grim/ghost.png",
+        "sha256": "accde88f269dc5b0c00b5d43987a360b9c000f48534a9d25ee2e2dd1bc355ce1",
+        "canvas": [1254, 1254],
+        "foreground_bounds": [285, 65, 975, 1188]
+      },
+      "runtime_idle": {
+        "atlas": "public/assets/sprites/enemies-v8/biomes/grim-enemies.webp",
+        "atlas_size": [640, 1760],
+        "row": 2,
+        "cell": 160,
+        "alpha_bounds": [9, 8, 150, 151],
+        "opaque_width": 141,
+        "opaque_height": 143,
+        "top_padding": 8,
+        "bottom_padding": 9
+      }
+    },
+    {
+      "key": "grim/ratling",
+      "biome": "grim",
+      "enemy": "ratling",
+      "body_size_meters": {
+        "width": 1.256,
+        "height": 0.939
+      },
+      "base_source": {
+        "path": "sources/grim/ratling.png",
+        "sha256": "ea0e8a323d00847ac581325ccbec78da8f426b5fd94b7f144c2087163b853f23",
+        "canvas": [1254, 1254],
+        "foreground_bounds": [47, 192, 1224, 1072]
+      },
+      "runtime_idle": {
+        "atlas": "public/assets/sprites/enemies-v8/biomes/grim-enemies.webp",
+        "atlas_size": [640, 1760],
+        "row": 3,
+        "cell": 160,
+        "alpha_bounds": [27, 12, 133, 152],
+        "opaque_width": 106,
+        "opaque_height": 140,
+        "top_padding": 12,
+        "bottom_padding": 8
+      }
+    },
+    {
+      "key": "grim/husk",
+      "biome": "grim",
+      "enemy": "husk",
+      "body_size_meters": {
+        "width": 1.014,
+        "height": 1.876
+      },
+      "base_source": {
+        "path": "sources/grim/husk.png",
+        "sha256": "a4326a424acbd17bb03a10b117f7d123088f2dea87006734432ece6074b08c7e",
+        "canvas": [1254, 1254],
+        "foreground_bounds": [361, 80, 946, 1162]
+      },
+      "runtime_idle": {
+        "atlas": "public/assets/sprites/enemies-v8/biomes/grim-enemies.webp",
+        "atlas_size": [640, 1760],
+        "row": 4,
+        "cell": 160,
+        "alpha_bounds": [40, 10, 121, 151],
+        "opaque_width": 81,
+        "opaque_height": 141,
+        "top_padding": 10,
+        "bottom_padding": 9
+      }
+    },
+    {
+      "key": "grim/imp",
+      "biome": "grim",
+      "enemy": "imp",
+      "body_size_meters": {
+        "width": 1.145,
+        "height": 1.158
+      },
+      "base_source": {
+        "path": "sources/grim/imp.png",
+        "sha256": "6bfa82ba4638ae29fb8a0cb63b84d7a41ebee5a2c8ca1be764c60208cc814350",
+        "canvas": [1254, 1254],
+        "foreground_bounds": [82, 76, 1172, 1178]
+      },
+      "runtime_idle": {
+        "atlas": "public/assets/sprites/enemies-v8/biomes/grim-enemies.webp",
+        "atlas_size": [640, 1760],
+        "row": 5,
+        "cell": 160,
+        "alpha_bounds": [49, 57, 123, 152],
+        "opaque_width": 74,
+        "opaque_height": 95,
+        "top_padding": 57,
+        "bottom_padding": 8
+      }
+    },
+    {
+      "key": "grim/zombie-orc",
+      "biome": "grim",
+      "enemy": "zombie-orc",
+      "body_size_meters": {
+        "width": 1.979,
+        "height": 2.044
+      },
+      "base_source": {
+        "path": "sources/grim/zombie-orc.png",
+        "sha256": "55a7128ae88a46a7766bcdeae26935051cd8ce965b56da97bce529a66396ecab",
+        "canvas": [1254, 1254],
+        "foreground_bounds": [136, 88, 1148, 1133]
+      },
+      "runtime_idle": {
+        "atlas": "public/assets/sprites/enemies-v8/biomes/grim-enemies.webp",
+        "atlas_size": [640, 1760],
+        "row": 6,
+        "cell": 160,
+        "alpha_bounds": [31, 11, 132, 152],
+        "opaque_width": 101,
+        "opaque_height": 141,
+        "top_padding": 11,
+        "bottom_padding": 8
+      }
+    },
+    {
+      "key": "grim/spider",
+      "biome": "grim",
+      "enemy": "spider",
+      "body_size_meters": {
+        "width": 1.313,
+        "height": 1.063
+      },
+      "base_source": {
+        "path": "sources/grim/spider.png",
+        "sha256": "37cb7f95f86622228123783390d6c8e05543c1deba6b4eaa9bdafff7e684f23b",
+        "canvas": [1254, 1254],
+        "foreground_bounds": [36, 202, 1216, 1157]
+      },
+      "runtime_idle": {
+        "atlas": "public/assets/sprites/enemies-v8/biomes/grim-enemies.webp",
+        "atlas_size": [640, 1760],
+        "row": 7,
+        "cell": 160,
+        "alpha_bounds": [13, 67, 143, 152],
+        "opaque_width": 130,
+        "opaque_height": 85,
+        "top_padding": 67,
+        "bottom_padding": 8
+      }
+    },
+    {
+      "key": "grim/bone-slime",
+      "biome": "grim",
+      "enemy": "bone-slime",
+      "body_size_meters": {
+        "width": 1.346,
+        "height": 1.003
+      },
+      "base_source": {
+        "path": "sources/grim/bone-slime.png",
+        "sha256": "78c4a5f28678dd48e4ee37cd316b2d5dd20fc6c0107631f6dba0e1d22a039060",
+        "canvas": [1254, 1254],
+        "foreground_bounds": [22, 171, 1235, 1075]
+      },
+      "runtime_idle": {
+        "atlas": "public/assets/sprites/enemies-v8/biomes/grim-enemies.webp",
+        "atlas_size": [640, 1760],
+        "row": 8,
+        "cell": 160,
+        "alpha_bounds": [15, 35, 137, 152],
+        "opaque_width": 122,
+        "opaque_height": 117,
+        "top_padding": 35,
+        "bottom_padding": 8
+      }
+    },
+    {
+      "key": "grim/white-eyed-shadow",
+      "biome": "grim",
+      "enemy": "white-eyed-shadow",
+      "body_size_meters": {
+        "width": 0.878,
+        "height": 2.058
+      },
+      "base_source": {
+        "path": "sources/grim/white-eyed-shadow.png",
+        "sha256": "e2bbff0ccde8b9dfc7c009af93d66e48e67d8053c70d5b08ca94e0b3dcbd31c2",
+        "canvas": [1254, 1254],
+        "foreground_bounds": [385, 31, 893, 1222]
+      },
+      "runtime_idle": {
+        "atlas": "public/assets/sprites/enemies-v8/biomes/grim-enemies.webp",
+        "atlas_size": [640, 1760],
+        "row": 9,
+        "cell": 160,
+        "alpha_bounds": [47, 25, 132, 151],
+        "opaque_width": 85,
+        "opaque_height": 126,
+        "top_padding": 25,
+        "bottom_padding": 9
+      }
+    },
+    {
+      "key": "grim/carrion-stalker",
+      "biome": "grim",
+      "enemy": "carrion-stalker",
+      "body_size_meters": {
+        "width": 1.12,
+        "height": 1.112
+      },
+      "base_source": {
+        "path": "sources/grim/carrion-stalker.png",
+        "sha256": "8d6803cd5e52728d6cb17e7edafb6eb4c65afae6fb9af24a24cc2d4a62f3a0d0",
+        "canvas": [1254, 1254],
+        "foreground_bounds": [69, 78, 1174, 1175]
+      },
+      "runtime_idle": {
+        "atlas": "public/assets/sprites/enemies-v8/biomes/grim-enemies.webp",
+        "atlas_size": [640, 1760],
+        "row": 10,
+        "cell": 160,
+        "alpha_bounds": [15, 28, 144, 152],
+        "opaque_width": 129,
+        "opaque_height": 124,
+        "top_padding": 28,
+        "bottom_padding": 8
+      }
+    },
+    {
+      "key": "verdant/carrion",
+      "biome": "verdant",
+      "enemy": "carrion",
+      "body_size_meters": {
+        "width": 1.073,
+        "height": 0.894
+      },
+      "base_source": {
+        "path": "sources/verdant/carrion.png",
+        "sha256": "2d816ebf42ff6eed91861f0e2ee8cf7c501cd48c338b1f8564fb6eac6a3b0f52",
+        "canvas": [1254, 1254],
+        "foreground_bounds": [53, 163, 1199, 1118]
+      },
+      "runtime_idle": {
+        "atlas": "public/assets/sprites/enemies-v8/biomes/verdant-enemies.webp",
+        "atlas_size": [640, 1760],
+        "row": 0,
+        "cell": 160,
+        "alpha_bounds": [14, 22, 144, 152],
+        "opaque_width": 130,
+        "opaque_height": 130,
+        "top_padding": 22,
+        "bottom_padding": 8
+      }
+    },
+    {
+      "key": "verdant/goblin",
+      "biome": "verdant",
+      "enemy": "goblin",
+      "body_size_meters": {
+        "width": 0.801,
+        "height": 1.615
+      },
+      "base_source": {
+        "path": "sources/verdant/goblin.png",
+        "sha256": "16b92675be15f08bfa2d3afd20df0e6c2467550d39f10815a6f5c4d582ff7785",
+        "canvas": [1254, 1254],
+        "foreground_bounds": [348, 23, 931, 1199]
+      },
+      "runtime_idle": {
+        "atlas": "public/assets/sprites/enemies-v8/biomes/verdant-enemies.webp",
+        "atlas_size": [640, 1760],
+        "row": 1,
+        "cell": 160,
+        "alpha_bounds": [28, 8, 132, 151],
+        "opaque_width": 104,
+        "opaque_height": 143,
+        "top_padding": 8,
+        "bottom_padding": 9
+      }
+    },
+    {
+      "key": "verdant/ghost",
+      "biome": "verdant",
+      "enemy": "ghost",
+      "body_size_meters": {
+        "width": 1.085,
+        "height": 1.996
+      },
+      "base_source": {
+        "path": "sources/verdant/ghost.png",
+        "sha256": "4dc388f66367f48227b7580086d3d1abb9e13ba0aec286df86793705ed7bae73",
+        "canvas": [1254, 1254],
+        "foreground_bounds": [312, 55, 940, 1210]
+      },
+      "runtime_idle": {
+        "atlas": "public/assets/sprites/enemies-v8/biomes/verdant-enemies.webp",
+        "atlas_size": [640, 1760],
+        "row": 2,
+        "cell": 160,
+        "alpha_bounds": [34, 8, 128, 151],
+        "opaque_width": 94,
+        "opaque_height": 143,
+        "top_padding": 8,
+        "bottom_padding": 9
+      }
+    },
+    {
+      "key": "verdant/ratling",
+      "biome": "verdant",
+      "enemy": "ratling",
+      "body_size_meters": {
+        "width": 1.033,
+        "height": 1.095
+      },
+      "base_source": {
+        "path": "sources/verdant/ratling.png",
+        "sha256": "fed39639bf8a4090821d855c012de703be72d0c9c422ab1b01a8e21002407dd0",
+        "canvas": [1254, 1254],
+        "foreground_bounds": [138, 98, 1106, 1124]
+      },
+      "runtime_idle": {
+        "atlas": "public/assets/sprites/enemies-v8/biomes/verdant-enemies.webp",
+        "atlas_size": [640, 1760],
+        "row": 3,
+        "cell": 160,
+        "alpha_bounds": [29, 32, 138, 152],
+        "opaque_width": 109,
+        "opaque_height": 120,
+        "top_padding": 32,
+        "bottom_padding": 8
+      }
+    },
+    {
+      "key": "verdant/husk",
+      "biome": "verdant",
+      "enemy": "husk",
+      "body_size_meters": {
+        "width": 1.035,
+        "height": 1.867
+      },
+      "base_source": {
+        "path": "sources/verdant/husk.png",
+        "sha256": "a40d61cc9bb134f37018e17463c84c6288be49eab35e15d404ae295be029d873",
+        "canvas": [1254, 1254],
+        "foreground_bounds": [350, 114, 947, 1191]
+      },
+      "runtime_idle": {
+        "atlas": "public/assets/sprites/enemies-v8/biomes/verdant-enemies.webp",
+        "atlas_size": [640, 1760],
+        "row": 4,
+        "cell": 160,
+        "alpha_bounds": [49, 11, 114, 150],
+        "opaque_width": 65,
+        "opaque_height": 139,
+        "top_padding": 11,
+        "bottom_padding": 10
+      }
+    },
+    {
+      "key": "verdant/imp",
+      "biome": "verdant",
+      "enemy": "imp",
+      "body_size_meters": {
+        "width": 1.116,
+        "height": 1.098
+      },
+      "base_source": {
+        "path": "sources/verdant/imp.png",
+        "sha256": "bda11520b4ff74a9918410e1ed60bda90ff7acc01c06cead294dce352fc4ce99",
+        "canvas": [1254, 1254],
+        "foreground_bounds": [88, 108, 1150, 1153]
+      },
+      "runtime_idle": {
+        "atlas": "public/assets/sprites/enemies-v8/biomes/verdant-enemies.webp",
+        "atlas_size": [640, 1760],
+        "row": 5,
+        "cell": 160,
+        "alpha_bounds": [16, 37, 152, 152],
+        "opaque_width": 136,
+        "opaque_height": 115,
+        "top_padding": 37,
+        "bottom_padding": 8
+      }
+    },
+    {
+      "key": "verdant/zombie-orc",
+      "biome": "verdant",
+      "enemy": "zombie-orc",
+      "body_size_meters": {
+        "width": 1.807,
+        "height": 2.22
+      },
+      "base_source": {
+        "path": "sources/verdant/zombie-orc.png",
+        "sha256": "4b0f2b91969a281d3be67ddd909f9e4ec8e191bffc18fa401f2fae37f265f6ed",
+        "canvas": [1254, 1254],
+        "foreground_bounds": [140, 44, 1064, 1179]
+      },
+      "runtime_idle": {
+        "atlas": "public/assets/sprites/enemies-v8/biomes/verdant-enemies.webp",
+        "atlas_size": [640, 1760],
+        "row": 6,
+        "cell": 160,
+        "alpha_bounds": [30, 22, 135, 152],
+        "opaque_width": 105,
+        "opaque_height": 130,
+        "top_padding": 22,
+        "bottom_padding": 8
+      }
+    },
+    {
+      "key": "verdant/spider",
+      "biome": "verdant",
+      "enemy": "spider",
+      "body_size_meters": {
+        "width": 1.35,
+        "height": 1.015
+      },
+      "base_source": {
+        "path": "sources/verdant/spider.png",
+        "sha256": "ffca7891370afbdd5f7a7f7fe1feca21a64a6c50699276a8ae14330ae7595c7c",
+        "canvas": [1254, 1254],
+        "foreground_bounds": [21, 225, 1234, 1137]
+      },
+      "runtime_idle": {
+        "atlas": "public/assets/sprites/enemies-v8/biomes/verdant-enemies.webp",
+        "atlas_size": [640, 1760],
+        "row": 7,
+        "cell": 160,
+        "alpha_bounds": [14, 51, 152, 152],
+        "opaque_width": 138,
+        "opaque_height": 101,
+        "top_padding": 51,
+        "bottom_padding": 8
+      }
+    },
+    {
+      "key": "verdant/bone-slime",
+      "biome": "verdant",
+      "enemy": "bone-slime",
+      "body_size_meters": {
+        "width": 1.328,
+        "height": 0.762
+      },
+      "base_source": {
+        "path": "sources/verdant/bone-slime.png",
+        "sha256": "11db284d2153c1c458a683a2917cdb73220a1289bfff06984f41d1540ddddcf4",
+        "canvas": [1254, 1254],
+        "foreground_bounds": [28, 318, 1225, 1005]
+      },
+      "runtime_idle": {
+        "atlas": "public/assets/sprites/enemies-v8/biomes/verdant-enemies.webp",
+        "atlas_size": [640, 1760],
+        "row": 8,
+        "cell": 160,
+        "alpha_bounds": [14, 31, 144, 147],
+        "opaque_width": 130,
+        "opaque_height": 116,
+        "top_padding": 31,
+        "bottom_padding": 13
+      }
+    },
+    {
+      "key": "verdant/white-eyed-shadow",
+      "biome": "verdant",
+      "enemy": "white-eyed-shadow",
+      "body_size_meters": {
+        "width": 1.273,
+        "height": 1.961
+      },
+      "base_source": {
+        "path": "sources/verdant/white-eyed-shadow.png",
+        "sha256": "35525bc7ebb617f1931787c457f634e83aaf9eaae515ac5963bba612f31f58c8",
+        "canvas": [1254, 1254],
+        "foreground_bounds": [223, 55, 960, 1190]
+      },
+      "runtime_idle": {
+        "atlas": "public/assets/sprites/enemies-v8/biomes/verdant-enemies.webp",
+        "atlas_size": [640, 1760],
+        "row": 9,
+        "cell": 160,
+        "alpha_bounds": [59, 28, 114, 152],
+        "opaque_width": 55,
+        "opaque_height": 124,
+        "top_padding": 28,
+        "bottom_padding": 8
+      }
+    },
+    {
+      "key": "verdant/carrion-stalker",
+      "biome": "verdant",
+      "enemy": "carrion-stalker",
+      "body_size_meters": {
+        "width": 1.129,
+        "height": 0.985
+      },
+      "base_source": {
+        "path": "sources/verdant/carrion-stalker.png",
+        "sha256": "3a38a68c91a6b57f62b1ef5aa5f31d73259c11a2c1a450bad7869a89847422f3",
+        "canvas": [1254, 1254],
+        "foreground_bounds": [68, 147, 1182, 1119]
+      },
+      "runtime_idle": {
+        "atlas": "public/assets/sprites/enemies-v8/biomes/verdant-enemies.webp",
+        "atlas_size": [640, 1760],
+        "row": 10,
+        "cell": 160,
+        "alpha_bounds": [13, 15, 145, 152],
+        "opaque_width": 132,
+        "opaque_height": 137,
+        "top_padding": 15,
+        "bottom_padding": 8
+      }
+    },
+    {
+      "key": "ash/carrion",
+      "biome": "ash",
+      "enemy": "carrion",
+      "body_size_meters": {
+        "width": 1.099,
+        "height": 0.864
+      },
+      "base_source": {
+        "path": "sources/ash/carrion.png",
+        "sha256": "780772a4b69866536f5ee0dd5218032ca7ddaba65100a6b11d227ac062ef2fc8",
+        "canvas": [1254, 1254],
+        "foreground_bounds": [41, 190, 1215, 1113]
+      },
+      "runtime_idle": {
+        "atlas": "public/assets/sprites/enemies-v8/biomes/ash-enemies.webp",
+        "atlas_size": [640, 1760],
+        "row": 0,
+        "cell": 160,
+        "alpha_bounds": [20, 19, 134, 152],
+        "opaque_width": 114,
+        "opaque_height": 133,
+        "top_padding": 19,
+        "bottom_padding": 8
+      }
+    },
+    {
+      "key": "ash/goblin",
+      "biome": "ash",
+      "enemy": "goblin",
+      "body_size_meters": {
+        "width": 1.057,
+        "height": 1.42
+      },
+      "base_source": {
+        "path": "sources/ash/goblin.png",
+        "sha256": "455269f6269b3a6a6efa3cee3e2207620ec7dcabb13763803c7fd54d8249de85",
+        "canvas": [1254, 1254],
+        "foreground_bounds": [243, 84, 1013, 1118]
+      },
+      "runtime_idle": {
+        "atlas": "public/assets/sprites/enemies-v8/biomes/ash-enemies.webp",
+        "atlas_size": [640, 1760],
+        "row": 1,
+        "cell": 160,
+        "alpha_bounds": [37, 38, 117, 152],
+        "opaque_width": 80,
+        "opaque_height": 114,
+        "top_padding": 38,
+        "bottom_padding": 8
+      }
+    },
+    {
+      "key": "ash/ghost",
+      "biome": "ash",
+      "enemy": "ghost",
+      "body_size_meters": {
+        "width": 1.255,
+        "height": 2.06
+      },
+      "base_source": {
+        "path": "sources/ash/ghost.png",
+        "sha256": "c7c9a43ef6725a6ec86077f13b31e7a526c076ede2029d0aa11f983414284255",
+        "canvas": [1254, 1254],
+        "foreground_bounds": [265, 28, 991, 1220]
+      },
+      "runtime_idle": {
+        "atlas": "public/assets/sprites/enemies-v8/biomes/ash-enemies.webp",
+        "atlas_size": [640, 1760],
+        "row": 2,
+        "cell": 160,
+        "alpha_bounds": [47, 19, 116, 149],
+        "opaque_width": 69,
+        "opaque_height": 130,
+        "top_padding": 19,
+        "bottom_padding": 11
+      }
+    },
+    {
+      "key": "ash/ratling",
+      "biome": "ash",
+      "enemy": "ratling",
+      "body_size_meters": {
+        "width": 0.944,
+        "height": 0.893
+      },
+      "base_source": {
+        "path": "sources/ash/ratling.png",
+        "sha256": "12a7076d40b658fe25a9d9f5794a04e13cb484737583fd8f18d03ea8df63f97b",
+        "canvas": [1254, 1254],
+        "foreground_bounds": [182, 204, 1067, 1041]
+      },
+      "runtime_idle": {
+        "atlas": "public/assets/sprites/enemies-v8/biomes/ash-enemies.webp",
+        "atlas_size": [640, 1760],
+        "row": 3,
+        "cell": 160,
+        "alpha_bounds": [19, 9, 148, 152],
+        "opaque_width": 129,
+        "opaque_height": 143,
+        "top_padding": 9,
+        "bottom_padding": 8
+      }
+    },
+    {
+      "key": "ash/husk",
+      "biome": "ash",
+      "enemy": "husk",
+      "body_size_meters": {
+        "width": 0.881,
+        "height": 1.983
+      },
+      "base_source": {
+        "path": "sources/ash/husk.png",
+        "sha256": "ddfb945cf072806080e5c3d58345344763e9113232728eb81f38363021d56e8f",
+        "canvas": [1254, 1254],
+        "foreground_bounds": [382, 55, 890, 1199]
+      },
+      "runtime_idle": {
+        "atlas": "public/assets/sprites/enemies-v8/biomes/ash-enemies.webp",
+        "atlas_size": [640, 1760],
+        "row": 4,
+        "cell": 160,
+        "alpha_bounds": [50, 12, 114, 152],
+        "opaque_width": 64,
+        "opaque_height": 140,
+        "top_padding": 12,
+        "bottom_padding": 8
+      }
+    },
+    {
+      "key": "ash/imp",
+      "biome": "ash",
+      "enemy": "imp",
+      "body_size_meters": {
+        "width": 1.23,
+        "height": 0.957
+      },
+      "base_source": {
+        "path": "sources/ash/imp.png",
+        "sha256": "a578bd8ea759154e96f2026c97f6975c813824d19c488cc44799f9f295e0a494",
+        "canvas": [1254, 1254],
+        "foreground_bounds": [41, 155, 1212, 1066]
+      },
+      "runtime_idle": {
+        "atlas": "public/assets/sprites/enemies-v8/biomes/ash-enemies.webp",
+        "atlas_size": [640, 1760],
+        "row": 5,
+        "cell": 160,
+        "alpha_bounds": [13, 24, 152, 150],
+        "opaque_width": 139,
+        "opaque_height": 126,
+        "top_padding": 24,
+        "bottom_padding": 10
+      }
+    },
+    {
+      "key": "ash/zombie-orc",
+      "biome": "ash",
+      "enemy": "zombie-orc",
+      "body_size_meters": {
+        "width": 1.927,
+        "height": 2.328
+      },
+      "base_source": {
+        "path": "sources/ash/zombie-orc.png",
+        "sha256": "73f00fefddc30063a121550873db149df4d0c094f333e665bb1a331f85b73c78",
+        "canvas": [1254, 1254],
+        "foreground_bounds": [141, 22, 1126, 1212]
+      },
+      "runtime_idle": {
+        "atlas": "public/assets/sprites/enemies-v8/biomes/ash-enemies.webp",
+        "atlas_size": [640, 1760],
+        "row": 6,
+        "cell": 160,
+        "alpha_bounds": [30, 18, 134, 152],
+        "opaque_width": 104,
+        "opaque_height": 134,
+        "top_padding": 18,
+        "bottom_padding": 8
+      }
+    },
+    {
+      "key": "ash/spider",
+      "biome": "ash",
+      "enemy": "spider",
+      "body_size_meters": {
+        "width": 1.247,
+        "height": 1.049
+      },
+      "base_source": {
+        "path": "sources/ash/spider.png",
+        "sha256": "74d8d44202c876849f19a944498f535cceb8104d94d591262e2402bbbe605d09",
+        "canvas": [1254, 1254],
+        "foreground_bounds": [63, 169, 1184, 1112]
+      },
+      "runtime_idle": {
+        "atlas": "public/assets/sprites/enemies-v8/biomes/ash-enemies.webp",
+        "atlas_size": [640, 1760],
+        "row": 7,
+        "cell": 160,
+        "alpha_bounds": [10, 67, 146, 151],
+        "opaque_width": 136,
+        "opaque_height": 84,
+        "top_padding": 67,
+        "bottom_padding": 9
+      }
+    },
+    {
+      "key": "ash/bone-slime",
+      "biome": "ash",
+      "enemy": "bone-slime",
+      "body_size_meters": {
+        "width": 1.199,
+        "height": 0.744
+      },
+      "base_source": {
+        "path": "sources/ash/bone-slime.png",
+        "sha256": "b73953a25815f22f3328e89a5364840eb84fba39e5f33951bb30d42249dd5e45",
+        "canvas": [1254, 1254],
+        "foreground_bounds": [86, 295, 1167, 966]
+      },
+      "runtime_idle": {
+        "atlas": "public/assets/sprites/enemies-v8/biomes/ash-enemies.webp",
+        "atlas_size": [640, 1760],
+        "row": 8,
+        "cell": 160,
+        "alpha_bounds": [19, 48, 148, 152],
+        "opaque_width": 129,
+        "opaque_height": 104,
+        "top_padding": 48,
+        "bottom_padding": 8
+      }
+    },
+    {
+      "key": "ash/white-eyed-shadow",
+      "biome": "ash",
+      "enemy": "white-eyed-shadow",
+      "body_size_meters": {
+        "width": 0.812,
+        "height": 2.011
+      },
+      "base_source": {
+        "path": "sources/ash/white-eyed-shadow.png",
+        "sha256": "11ec976cbebbec0b59b14bd9c0f1973fa2125f1a17825aad8c429b6b21b73787",
+        "canvas": [1254, 1254],
+        "foreground_bounds": [373, 39, 843, 1203]
+      },
+      "runtime_idle": {
+        "atlas": "public/assets/sprites/enemies-v8/biomes/ash-enemies.webp",
+        "atlas_size": [640, 1760],
+        "row": 9,
+        "cell": 160,
+        "alpha_bounds": [59, 28, 114, 152],
+        "opaque_width": 55,
+        "opaque_height": 124,
+        "top_padding": 28,
+        "bottom_padding": 8
+      }
+    },
+    {
+      "key": "ash/carrion-stalker",
+      "biome": "ash",
+      "enemy": "carrion-stalker",
+      "body_size_meters": {
+        "width": 0.943,
+        "height": 0.966
+      },
+      "base_source": {
+        "path": "sources/ash/carrion-stalker.png",
+        "sha256": "ef662268a988174aaaf9c9f53475fd5bf8d14d0279e00e3e4b7840ae329dcfba",
+        "canvas": [1254, 1254],
+        "foreground_bounds": [160, 145, 1090, 1098]
+      },
+      "runtime_idle": {
+        "atlas": "public/assets/sprites/enemies-v8/biomes/ash-enemies.webp",
+        "atlas_size": [640, 1760],
+        "row": 10,
+        "cell": 160,
+        "alpha_bounds": [15, 29, 144, 152],
+        "opaque_width": 129,
+        "opaque_height": 123,
+        "top_padding": 29,
+        "bottom_padding": 8
+      }
+    },
+    {
+      "key": "iron/carrion",
+      "biome": "iron",
+      "enemy": "carrion",
+      "body_size_meters": {
+        "width": 0.98,
+        "height": 0.871
+      },
+      "base_source": {
+        "path": "sources/iron/carrion.png",
+        "sha256": "d6a1b9d3debe4ab33b2ea26f1885a95df6c8f4cfc03d11030dd8e3249732cb86",
+        "canvas": [1254, 1254],
+        "foreground_bounds": [103, 143, 1150, 1074]
+      },
+      "runtime_idle": {
+        "atlas": "public/assets/sprites/enemies-v8/biomes/iron-enemies.webp",
+        "atlas_size": [640, 1760],
+        "row": 0,
+        "cell": 160,
+        "alpha_bounds": [17, 36, 143, 152],
+        "opaque_width": 126,
+        "opaque_height": 116,
+        "top_padding": 36,
+        "bottom_padding": 8
+      }
+    },
+    {
+      "key": "iron/goblin",
+      "biome": "iron",
+      "enemy": "goblin",
+      "body_size_meters": {
+        "width": 1.076,
+        "height": 1.279
+      },
+      "base_source": {
+        "path": "sources/iron/goblin.png",
+        "sha256": "0f6ca1677d685e677bd50d2882558e1ee581c6a7f609e129261733ffeb044147",
+        "canvas": [1254, 1254],
+        "foreground_bounds": [227, 149, 1010, 1080]
+      },
+      "runtime_idle": {
+        "atlas": "public/assets/sprites/enemies-v8/biomes/iron-enemies.webp",
+        "atlas_size": [640, 1760],
+        "row": 1,
+        "cell": 160,
+        "alpha_bounds": [40, 40, 119, 152],
+        "opaque_width": 79,
+        "opaque_height": 112,
+        "top_padding": 40,
+        "bottom_padding": 8
+      }
+    },
+    {
+      "key": "iron/ghost",
+      "biome": "iron",
+      "enemy": "ghost",
+      "body_size_meters": {
+        "width": 1.478,
+        "height": 1.932
+      },
+      "base_source": {
+        "path": "sources/iron/ghost.png",
+        "sha256": "8fa3c833efb044ba2b1f08c703bb7b6d56eb33d6a08bc68222df6e3f92532e8c",
+        "canvas": [1254, 1254],
+        "foreground_bounds": [207, 64, 1062, 1182]
+      },
+      "runtime_idle": {
+        "atlas": "public/assets/sprites/enemies-v8/biomes/iron-enemies.webp",
+        "atlas_size": [640, 1760],
+        "row": 2,
+        "cell": 160,
+        "alpha_bounds": [50, 14, 117, 152],
+        "opaque_width": 67,
+        "opaque_height": 138,
+        "top_padding": 14,
+        "bottom_padding": 8
+      }
+    },
+    {
+      "key": "iron/ratling",
+      "biome": "iron",
+      "enemy": "ratling",
+      "body_size_meters": {
+        "width": 1.049,
+        "height": 0.863
+      },
+      "base_source": {
+        "path": "sources/iron/ratling.png",
+        "sha256": "8fc958cdbede9c6ee26937d9df7e0f54f73a2a3c110213d2cc83d1e85b304e1f",
+        "canvas": [1254, 1254],
+        "foreground_bounds": [140, 251, 1123, 1060]
+      },
+      "runtime_idle": {
+        "atlas": "public/assets/sprites/enemies-v8/biomes/iron-enemies.webp",
+        "atlas_size": [640, 1760],
+        "row": 3,
+        "cell": 160,
+        "alpha_bounds": [21, 13, 143, 152],
+        "opaque_width": 122,
+        "opaque_height": 139,
+        "top_padding": 13,
+        "bottom_padding": 8
+      }
+    },
+    {
+      "key": "iron/husk",
+      "biome": "iron",
+      "enemy": "husk",
+      "body_size_meters": {
+        "width": 1.197,
+        "height": 1.904
+      },
+      "base_source": {
+        "path": "sources/iron/husk.png",
+        "sha256": "65bb605400a666032b03411b1f8b330cc8210d9472735160f9dbb01a6976364e",
+        "canvas": [1254, 1254],
+        "foreground_bounds": [281, 74, 971, 1172]
+      },
+      "runtime_idle": {
+        "atlas": "public/assets/sprites/enemies-v8/biomes/iron-enemies.webp",
+        "atlas_size": [640, 1760],
+        "row": 4,
+        "cell": 160,
+        "alpha_bounds": [43, 10, 120, 152],
+        "opaque_width": 77,
+        "opaque_height": 142,
+        "top_padding": 10,
+        "bottom_padding": 8
+      }
+    },
+    {
+      "key": "iron/imp",
+      "biome": "iron",
+      "enemy": "imp",
+      "body_size_meters": {
+        "width": 1.231,
+        "height": 0.879
+      },
+      "base_source": {
+        "path": "sources/iron/imp.png",
+        "sha256": "c8aefc27093f58ae89fd372e7f934ea1ca0ff26df96294fd2be317786d183a05",
+        "canvas": [1254, 1254],
+        "foreground_bounds": [41, 186, 1213, 1023]
+      },
+      "runtime_idle": {
+        "atlas": "public/assets/sprites/enemies-v8/biomes/iron-enemies.webp",
+        "atlas_size": [640, 1760],
+        "row": 5,
+        "cell": 160,
+        "alpha_bounds": [14, 16, 152, 152],
+        "opaque_width": 138,
+        "opaque_height": 136,
+        "top_padding": 16,
+        "bottom_padding": 8
+      }
+    },
+    {
+      "key": "iron/zombie-orc",
+      "biome": "iron",
+      "enemy": "zombie-orc",
+      "body_size_meters": {
+        "width": 1.915,
+        "height": 2.21
+      },
+      "base_source": {
+        "path": "sources/iron/zombie-orc.png",
+        "sha256": "a1291671ba0880ee046b55d3984e73a2488b11710fec1a2417545eea7bd4d490",
+        "canvas": [1254, 1254],
+        "foreground_bounds": [99, 59, 1078, 1189]
+      },
+      "runtime_idle": {
+        "atlas": "public/assets/sprites/enemies-v8/biomes/iron-enemies.webp",
+        "atlas_size": [640, 1760],
+        "row": 6,
+        "cell": 160,
+        "alpha_bounds": [31, 21, 134, 152],
+        "opaque_width": 103,
+        "opaque_height": 131,
+        "top_padding": 21,
+        "bottom_padding": 8
+      }
+    },
+    {
+      "key": "iron/spider",
+      "biome": "iron",
+      "enemy": "spider",
+      "body_size_meters": {
+        "width": 1.278,
+        "height": 0.771
+      },
+      "base_source": {
+        "path": "sources/iron/spider.png",
+        "sha256": "86ccec131e0f257ce1d5678f7fab6faf071f3cd9077508df0f8e8d2e66e962ef",
+        "canvas": [1254, 1254],
+        "foreground_bounds": [52, 335, 1201, 1028]
+      },
+      "runtime_idle": {
+        "atlas": "public/assets/sprites/enemies-v8/biomes/iron-enemies.webp",
+        "atlas_size": [640, 1760],
+        "row": 7,
+        "cell": 160,
+        "alpha_bounds": [11, 33, 148, 152],
+        "opaque_width": 137,
+        "opaque_height": 119,
+        "top_padding": 33,
+        "bottom_padding": 8
+      }
+    },
+    {
+      "key": "iron/bone-slime",
+      "biome": "iron",
+      "enemy": "bone-slime",
+      "body_size_meters": {
+        "width": 1.31,
+        "height": 0.7
+      },
+      "base_source": {
+        "path": "sources/iron/bone-slime.png",
+        "sha256": "e1cfa10642298aef63b5d8561c04f4cb5357c2bcd0f4e1a3520ebe5c17327820",
+        "canvas": [1254, 1254],
+        "foreground_bounds": [37, 296, 1218, 927]
+      },
+      "runtime_idle": {
+        "atlas": "public/assets/sprites/enemies-v8/biomes/iron-enemies.webp",
+        "atlas_size": [640, 1760],
+        "row": 8,
+        "cell": 160,
+        "alpha_bounds": [17, 45, 142, 151],
+        "opaque_width": 125,
+        "opaque_height": 106,
+        "top_padding": 45,
+        "bottom_padding": 9
+      }
+    },
+    {
+      "key": "iron/white-eyed-shadow",
+      "biome": "iron",
+      "enemy": "white-eyed-shadow",
+      "body_size_meters": {
+        "width": 1.149,
+        "height": 1.913
+      },
+      "base_source": {
+        "path": "sources/iron/white-eyed-shadow.png",
+        "sha256": "0a508f41a8842862eac5b3f25cab169d1b183ff9e3a7fe7da9c5c26b6e8ab961",
+        "canvas": [1254, 1254],
+        "foreground_bounds": [301, 70, 966, 1177]
+      },
+      "runtime_idle": {
+        "atlas": "public/assets/sprites/enemies-v8/biomes/iron-enemies.webp",
+        "atlas_size": [640, 1760],
+        "row": 9,
+        "cell": 160,
+        "alpha_bounds": [64, 28, 107, 152],
+        "opaque_width": 43,
+        "opaque_height": 124,
+        "top_padding": 28,
+        "bottom_padding": 8
+      }
+    },
+    {
+      "key": "iron/carrion-stalker",
+      "biome": "iron",
+      "enemy": "carrion-stalker",
+      "body_size_meters": {
+        "width": 1.183,
+        "height": 0.999
+      },
+      "base_source": {
+        "path": "sources/iron/carrion-stalker.png",
+        "sha256": "117d8dc0947ffa59904c05bfc074a2d4a1e9a9038fc30d19cd77dc20c3e7bd27",
+        "canvas": [1254, 1254],
+        "foreground_bounds": [43, 143, 1211, 1129]
+      },
+      "runtime_idle": {
+        "atlas": "public/assets/sprites/enemies-v8/biomes/iron-enemies.webp",
+        "atlas_size": [640, 1760],
+        "row": 10,
+        "cell": 160,
+        "alpha_bounds": [13, 25, 146, 152],
+        "opaque_width": 133,
+        "opaque_height": 127,
+        "top_padding": 25,
+        "bottom_padding": 8
+      }
+    },
+    {
+      "key": "obsidian/carrion",
+      "biome": "obsidian",
+      "enemy": "carrion",
+      "body_size_meters": {
+        "width": 0.976,
+        "height": 0.886
+      },
+      "base_source": {
+        "path": "sources/obsidian/carrion.png",
+        "sha256": "5639390c321ee2a17c1d332aee32a24e9f33ecc2affcdddc064e434e3b58ad2b",
+        "canvas": [1254, 1254],
+        "foreground_bounds": [103, 138, 1146, 1085]
+      },
+      "runtime_idle": {
+        "atlas": "public/assets/sprites/enemies-v8/biomes/obsidian-enemies.webp",
+        "atlas_size": [640, 1760],
+        "row": 0,
+        "cell": 160,
+        "alpha_bounds": [18, 39, 136, 152],
+        "opaque_width": 118,
+        "opaque_height": 113,
+        "top_padding": 39,
+        "bottom_padding": 8
+      }
+    },
+    {
+      "key": "obsidian/goblin",
+      "biome": "obsidian",
+      "enemy": "goblin",
+      "body_size_meters": {
+        "width": 1.005,
+        "height": 1.435
+      },
+      "base_source": {
+        "path": "sources/obsidian/goblin.png",
+        "sha256": "8f26ef7314bf3ee9c5debe101b52f636fb3611d82dd869ad23882c1bd56e7843",
+        "canvas": [1254, 1254],
+        "foreground_bounds": [273, 67, 1005, 1112]
+      },
+      "runtime_idle": {
+        "atlas": "public/assets/sprites/enemies-v8/biomes/obsidian-enemies.webp",
+        "atlas_size": [640, 1760],
+        "row": 1,
+        "cell": 160,
+        "alpha_bounds": [40, 25, 119, 149],
+        "opaque_width": 79,
+        "opaque_height": 124,
+        "top_padding": 25,
+        "bottom_padding": 11
+      }
+    },
+    {
+      "key": "obsidian/ghost",
+      "biome": "obsidian",
+      "enemy": "ghost",
+      "body_size_meters": {
+        "width": 1.018,
+        "height": 1.925
+      },
+      "base_source": {
+        "path": "sources/obsidian/ghost.png",
+        "sha256": "3681a1bd56415b921ef1ff6b80e19221fecb9d121efb0cb00d916d2f39c3eb10",
+        "canvas": [1254, 1254],
+        "foreground_bounds": [331, 51, 920, 1165]
+      },
+      "runtime_idle": {
+        "atlas": "public/assets/sprites/enemies-v8/biomes/obsidian-enemies.webp",
+        "atlas_size": [640, 1760],
+        "row": 2,
+        "cell": 160,
+        "alpha_bounds": [37, 8, 120, 152],
+        "opaque_width": 83,
+        "opaque_height": 144,
+        "top_padding": 8,
+        "bottom_padding": 8
+      }
+    },
+    {
+      "key": "obsidian/ratling",
+      "biome": "obsidian",
+      "enemy": "ratling",
+      "body_size_meters": {
+        "width": 1.05,
+        "height": 0.982
+      },
+      "base_source": {
+        "path": "sources/obsidian/ratling.png",
+        "sha256": "d67f6c95e486190b7b777fce579da919a97dc4d73f930b83b8e0a612c33d06c4",
+        "canvas": [1254, 1254],
+        "foreground_bounds": [131, 143, 1115, 1063]
+      },
+      "runtime_idle": {
+        "atlas": "public/assets/sprites/enemies-v8/biomes/obsidian-enemies.webp",
+        "atlas_size": [640, 1760],
+        "row": 3,
+        "cell": 160,
+        "alpha_bounds": [31, 15, 136, 152],
+        "opaque_width": 105,
+        "opaque_height": 137,
+        "top_padding": 15,
+        "bottom_padding": 8
+      }
+    },
+    {
+      "key": "obsidian/husk",
+      "biome": "obsidian",
+      "enemy": "husk",
+      "body_size_meters": {
+        "width": 0.973,
+        "height": 1.883
+      },
+      "base_source": {
+        "path": "sources/obsidian/husk.png",
+        "sha256": "7b71f7f52e6ca2d474fa9ec01ed7c16a7f5bd60938d2135aa7f31f09834c2389",
+        "canvas": [1254, 1254],
+        "foreground_bounds": [355, 62, 916, 1148]
+      },
+      "runtime_idle": {
+        "atlas": "public/assets/sprites/enemies-v8/biomes/obsidian-enemies.webp",
+        "atlas_size": [640, 1760],
+        "row": 4,
+        "cell": 160,
+        "alpha_bounds": [46, 9, 117, 152],
+        "opaque_width": 71,
+        "opaque_height": 143,
+        "top_padding": 9,
+        "bottom_padding": 8
+      }
+    },
+    {
+      "key": "obsidian/imp",
+      "biome": "obsidian",
+      "enemy": "imp",
+      "body_size_meters": {
+        "width": 1.275,
+        "height": 0.713
+      },
+      "base_source": {
+        "path": "sources/obsidian/imp.png",
+        "sha256": "9073b515a75a7e689f406bd182400017d74e4f73d9b9dd6b86ff8ea8c199a3cd",
+        "canvas": [1254, 1254],
+        "foreground_bounds": [20, 272, 1234, 951]
+      },
+      "runtime_idle": {
+        "atlas": "public/assets/sprites/enemies-v8/biomes/obsidian-enemies.webp",
+        "atlas_size": [640, 1760],
+        "row": 5,
+        "cell": 160,
+        "alpha_bounds": [12, 38, 152, 152],
+        "opaque_width": 140,
+        "opaque_height": 114,
+        "top_padding": 38,
+        "bottom_padding": 8
+      }
+    },
+    {
+      "key": "obsidian/zombie-orc",
+      "biome": "obsidian",
+      "enemy": "zombie-orc",
+      "body_size_meters": {
+        "width": 2.025,
+        "height": 2.16
+      },
+      "base_source": {
+        "path": "sources/obsidian/zombie-orc.png",
+        "sha256": "412a209a6106b675f6fae1b27528031cd60c4fbf1d1a6c8b994415fb14dfc112",
+        "canvas": [1254, 1254],
+        "foreground_bounds": [69, 74, 1104, 1178]
+      },
+      "runtime_idle": {
+        "atlas": "public/assets/sprites/enemies-v8/biomes/obsidian-enemies.webp",
+        "atlas_size": [640, 1760],
+        "row": 6,
+        "cell": 160,
+        "alpha_bounds": [31, 20, 134, 152],
+        "opaque_width": 103,
+        "opaque_height": 132,
+        "top_padding": 20,
+        "bottom_padding": 8
+      }
+    },
+    {
+      "key": "obsidian/spider",
+      "biome": "obsidian",
+      "enemy": "spider",
+      "body_size_meters": {
+        "width": 1.231,
+        "height": 0.739
+      },
+      "base_source": {
+        "path": "sources/obsidian/spider.png",
+        "sha256": "2868c13f56c26cfcc78c15583f29a8e7c27d6693827bf02ef31db60b58bfea4e",
+        "canvas": [1254, 1254],
+        "foreground_bounds": [75, 335, 1181, 999]
+      },
+      "runtime_idle": {
+        "atlas": "public/assets/sprites/enemies-v8/biomes/obsidian-enemies.webp",
+        "atlas_size": [640, 1760],
+        "row": 7,
+        "cell": 160,
+        "alpha_bounds": [11, 69, 145, 151],
+        "opaque_width": 134,
+        "opaque_height": 82,
+        "top_padding": 69,
+        "bottom_padding": 9
+      }
+    },
+    {
+      "key": "obsidian/bone-slime",
+      "biome": "obsidian",
+      "enemy": "bone-slime",
+      "body_size_meters": {
+        "width": 1.183,
+        "height": 0.813
+      },
+      "base_source": {
+        "path": "sources/obsidian/bone-slime.png",
+        "sha256": "5c7e591183846025f5adac80cb458f0d2c1f92a612af545a22172da84269687a",
+        "canvas": [1254, 1254],
+        "foreground_bounds": [93, 316, 1160, 1049]
+      },
+      "runtime_idle": {
+        "atlas": "public/assets/sprites/enemies-v8/biomes/obsidian-enemies.webp",
+        "atlas_size": [640, 1760],
+        "row": 8,
+        "cell": 160,
+        "alpha_bounds": [13, 50, 149, 151],
+        "opaque_width": 136,
+        "opaque_height": 101,
+        "top_padding": 50,
+        "bottom_padding": 9
+      }
+    },
+    {
+      "key": "obsidian/white-eyed-shadow",
+      "biome": "obsidian",
+      "enemy": "white-eyed-shadow",
+      "body_size_meters": {
+        "width": 0.878,
+        "height": 1.787
+      },
+      "base_source": {
+        "path": "sources/obsidian/white-eyed-shadow.png",
+        "sha256": "01c928d286fd3c838cffd7684c2eed89a8e9baf62e0ba942d1a09f784ea8db31",
+        "canvas": [1254, 1254],
+        "foreground_bounds": [371, 94, 879, 1128]
+      },
+      "runtime_idle": {
+        "atlas": "public/assets/sprites/enemies-v8/biomes/obsidian-enemies.webp",
+        "atlas_size": [640, 1760],
+        "row": 9,
+        "cell": 160,
+        "alpha_bounds": [59, 27, 113, 152],
+        "opaque_width": 54,
+        "opaque_height": 125,
+        "top_padding": 27,
+        "bottom_padding": 8
+      }
+    },
+    {
+      "key": "obsidian/carrion-stalker",
+      "biome": "obsidian",
+      "enemy": "carrion-stalker",
+      "body_size_meters": {
+        "width": 1.057,
+        "height": 0.958
+      },
+      "base_source": {
+        "path": "sources/obsidian/carrion-stalker.png",
+        "sha256": "c5969a31b25bbd5abaacafba0ec9aeb2c82b303fa32b7c1a78324530fed28349",
+        "canvas": [1254, 1254],
+        "foreground_bounds": [105, 133, 1148, 1078]
+      },
+      "runtime_idle": {
+        "atlas": "public/assets/sprites/enemies-v8/biomes/obsidian-enemies.webp",
+        "atlas_size": [640, 1760],
+        "row": 10,
+        "cell": 160,
+        "alpha_bounds": [13, 28, 145, 152],
+        "opaque_width": 132,
+        "opaque_height": 124,
+        "top_padding": 28,
+        "bottom_padding": 8
+      }
+    },
+    {
+      "key": "sunken/carrion",
+      "biome": "sunken",
+      "enemy": "carrion",
+      "body_size_meters": {
+        "width": 1.054,
+        "height": 0.803
+      },
+      "base_source": {
+        "path": "sources/sunken/carrion.png",
+        "sha256": "d88d9eb31c1824438b23e9281fdd7ba6cde28d1ee0af59bf9dd9a08274443028",
+        "canvas": [1254, 1254],
+        "foreground_bounds": [65, 200, 1191, 1058]
+      },
+      "runtime_idle": {
+        "atlas": "public/assets/sprites/enemies-v8/biomes/sunken-enemies.webp",
+        "atlas_size": [640, 1760],
+        "row": 0,
+        "cell": 160,
+        "alpha_bounds": [16, 39, 152, 152],
+        "opaque_width": 136,
+        "opaque_height": 113,
+        "top_padding": 39,
+        "bottom_padding": 8
+      }
+    },
+    {
+      "key": "sunken/goblin",
+      "biome": "sunken",
+      "enemy": "goblin",
+      "body_size_meters": {
+        "width": 1.501,
+        "height": 1.123
+      },
+      "base_source": {
+        "path": "sources/sunken/goblin.png",
+        "sha256": "fe8563fc9747b8d5aab0203038a014c961b3bbf31b247c8e3bd9bb9eecb03f3e",
+        "canvas": [1254, 1254],
+        "foreground_bounds": [82, 177, 1175, 995]
+      },
+      "runtime_idle": {
+        "atlas": "public/assets/sprites/enemies-v8/biomes/sunken-enemies.webp",
+        "atlas_size": [640, 1760],
+        "row": 1,
+        "cell": 160,
+        "alpha_bounds": [41, 38, 118, 152],
+        "opaque_width": 77,
+        "opaque_height": 114,
+        "top_padding": 38,
+        "bottom_padding": 8
+      }
+    },
+    {
+      "key": "sunken/ghost",
+      "biome": "sunken",
+      "enemy": "ghost",
+      "body_size_meters": {
+        "width": 0.93,
+        "height": 1.97
+      },
+      "base_source": {
+        "path": "sources/sunken/ghost.png",
+        "sha256": "9104efafb8054bf07b4992c144254f7ffd88649d5469468bd200d866ab5e8d7a",
+        "canvas": [1254, 1254],
+        "foreground_bounds": [358, 60, 896, 1200]
+      },
+      "runtime_idle": {
+        "atlas": "public/assets/sprites/enemies-v8/biomes/sunken-enemies.webp",
+        "atlas_size": [640, 1760],
+        "row": 2,
+        "cell": 160,
+        "alpha_bounds": [44, 10, 122, 149],
+        "opaque_width": 78,
+        "opaque_height": 139,
+        "top_padding": 10,
+        "bottom_padding": 11
+      }
+    },
+    {
+      "key": "sunken/ratling",
+      "biome": "sunken",
+      "enemy": "ratling",
+      "body_size_meters": {
+        "width": 1.171,
+        "height": 0.783
+      },
+      "base_source": {
+        "path": "sources/sunken/ratling.png",
+        "sha256": "f0a5b160a0249939412814ff997971748ae9a97dc386e8f0b6b8f2369dfa3ef3",
+        "canvas": [1254, 1254],
+        "foreground_bounds": [78, 272, 1176, 1006]
+      },
+      "runtime_idle": {
+        "atlas": "public/assets/sprites/enemies-v8/biomes/sunken-enemies.webp",
+        "atlas_size": [640, 1760],
+        "row": 3,
+        "cell": 160,
+        "alpha_bounds": [29, 32, 138, 152],
+        "opaque_width": 109,
+        "opaque_height": 120,
+        "top_padding": 32,
+        "bottom_padding": 8
+      }
+    },
+    {
+      "key": "sunken/husk",
+      "biome": "sunken",
+      "enemy": "husk",
+      "body_size_meters": {
+        "width": 0.917,
+        "height": 1.938
+      },
+      "base_source": {
+        "path": "sources/sunken/husk.png",
+        "sha256": "9c8782f4d42255c3a2fe58054b8d519746a2b683d7e38f12dc6721325e3b3bf7",
+        "canvas": [1254, 1254],
+        "foreground_bounds": [382, 45, 911, 1163]
+      },
+      "runtime_idle": {
+        "atlas": "public/assets/sprites/enemies-v8/biomes/sunken-enemies.webp",
+        "atlas_size": [640, 1760],
+        "row": 4,
+        "cell": 160,
+        "alpha_bounds": [45, 12, 118, 152],
+        "opaque_width": 73,
+        "opaque_height": 140,
+        "top_padding": 12,
+        "bottom_padding": 8
+      }
+    },
+    {
+      "key": "sunken/imp",
+      "biome": "sunken",
+      "enemy": "imp",
+      "body_size_meters": {
+        "width": 1.129,
+        "height": 0.649
+      },
+      "base_source": {
+        "path": "sources/sunken/imp.png",
+        "sha256": "fec6ec18978e44ec5060ee3654fcf3b1253e3ba49739c9c43f5bd9f9d2ed1841",
+        "canvas": [1254, 1254],
+        "foreground_bounds": [91, 336, 1166, 954]
+      },
+      "runtime_idle": {
+        "atlas": "public/assets/sprites/enemies-v8/biomes/sunken-enemies.webp",
+        "atlas_size": [640, 1760],
+        "row": 5,
+        "cell": 160,
+        "alpha_bounds": [50, 53, 123, 149],
+        "opaque_width": 73,
+        "opaque_height": 96,
+        "top_padding": 53,
+        "bottom_padding": 11
+      }
+    },
+    {
+      "key": "sunken/zombie-orc",
+      "biome": "sunken",
+      "enemy": "zombie-orc",
+      "body_size_meters": {
+        "width": 2.015,
+        "height": 2.15
+      },
+      "base_source": {
+        "path": "sources/sunken/zombie-orc.png",
+        "sha256": "bb7d52b2d65ba8a22811c1bd6da512a5dd5310860e4006a6e407f16e609abb6e",
+        "canvas": [1254, 1254],
+        "foreground_bounds": [56, 69, 1086, 1168]
+      },
+      "runtime_idle": {
+        "atlas": "public/assets/sprites/enemies-v8/biomes/sunken-enemies.webp",
+        "atlas_size": [640, 1760],
+        "row": 6,
+        "cell": 160,
+        "alpha_bounds": [29, 18, 135, 152],
+        "opaque_width": 106,
+        "opaque_height": 134,
+        "top_padding": 18,
+        "bottom_padding": 8
+      }
+    },
+    {
+      "key": "sunken/spider",
+      "biome": "sunken",
+      "enemy": "spider",
+      "body_size_meters": {
+        "width": 1.217,
+        "height": 0.612
+      },
+      "base_source": {
+        "path": "sources/sunken/spider.png",
+        "sha256": "9dcac92834c608f2c0dec9abf05e4d4b31711d716c2e69c09a6e6acfae17c099",
+        "canvas": [1254, 1254],
+        "foreground_bounds": [73, 391, 1167, 941]
+      },
+      "runtime_idle": {
+        "atlas": "public/assets/sprites/enemies-v8/biomes/sunken-enemies.webp",
+        "atlas_size": [640, 1760],
+        "row": 7,
+        "cell": 160,
+        "alpha_bounds": [10, 47, 151, 152],
+        "opaque_width": 141,
+        "opaque_height": 105,
+        "top_padding": 47,
+        "bottom_padding": 8
+      }
+    },
+    {
+      "key": "sunken/bone-slime",
+      "biome": "sunken",
+      "enemy": "bone-slime",
+      "body_size_meters": {
+        "width": 1.209,
+        "height": 0.878
+      },
+      "base_source": {
+        "path": "sources/sunken/bone-slime.png",
+        "sha256": "9f3a63d334629cf2e60b04cea4bde8da3143accd0c7c22408533c91648db65d9",
+        "canvas": [1254, 1254],
+        "foreground_bounds": [85, 238, 1174, 1029]
+      },
+      "runtime_idle": {
+        "atlas": "public/assets/sprites/enemies-v8/biomes/sunken-enemies.webp",
+        "atlas_size": [640, 1760],
+        "row": 8,
+        "cell": 160,
+        "alpha_bounds": [15, 33, 143, 148],
+        "opaque_width": 128,
+        "opaque_height": 115,
+        "top_padding": 33,
+        "bottom_padding": 12
+      }
+    },
+    {
+      "key": "sunken/white-eyed-shadow",
+      "biome": "sunken",
+      "enemy": "white-eyed-shadow",
+      "body_size_meters": {
+        "width": 0.899,
+        "height": 1.925
+      },
+      "base_source": {
+        "path": "sources/sunken/white-eyed-shadow.png",
+        "sha256": "dcf8ade2483d0ec195b4ad849c94d1316e4af9917d2d05abf935d0301f0817b2",
+        "canvas": [1254, 1254],
+        "foreground_bounds": [385, 55, 905, 1169]
+      },
+      "runtime_idle": {
+        "atlas": "public/assets/sprites/enemies-v8/biomes/sunken-enemies.webp",
+        "atlas_size": [640, 1760],
+        "row": 9,
+        "cell": 160,
+        "alpha_bounds": [61, 27, 113, 152],
+        "opaque_width": 52,
+        "opaque_height": 125,
+        "top_padding": 27,
+        "bottom_padding": 8
+      }
+    },
+    {
+      "key": "sunken/carrion-stalker",
+      "biome": "sunken",
+      "enemy": "carrion-stalker",
+      "body_size_meters": {
+        "width": 1.203,
+        "height": 0.87
+      },
+      "base_source": {
+        "path": "sources/sunken/carrion-stalker.png",
+        "sha256": "8f2d5d3bd000ddc0ff94c91de75e8b02d1d9054766909058148dab19dd4663a0",
+        "canvas": [1254, 1254],
+        "foreground_bounds": [34, 194, 1222, 1053]
+      },
+      "runtime_idle": {
+        "atlas": "public/assets/sprites/enemies-v8/biomes/sunken-enemies.webp",
+        "atlas_size": [640, 1760],
+        "row": 10,
+        "cell": 160,
+        "alpha_bounds": [23, 38, 152, 152],
+        "opaque_width": 129,
+        "opaque_height": 114,
+        "top_padding": 38,
+        "bottom_padding": 8
+      }
+    },
+    {
+      "key": "fungal/carrion",
+      "biome": "fungal",
+      "enemy": "carrion",
+      "body_size_meters": {
+        "width": 1.069,
+        "height": 0.887
+      },
+      "base_source": {
+        "path": "sources/fungal/carrion.png",
+        "sha256": "a7e3b63f44ee2fa6cec40d471a7980bf99a4d8bdba37e79859c2287fa4c25c4c",
+        "canvas": [1254, 1254],
+        "foreground_bounds": [60, 153, 1202, 1101]
+      },
+      "runtime_idle": {
+        "atlas": "public/assets/sprites/enemies-v8/biomes/fungal-enemies.webp",
+        "atlas_size": [640, 1760],
+        "row": 0,
+        "cell": 160,
+        "alpha_bounds": [14, 19, 139, 152],
+        "opaque_width": 125,
+        "opaque_height": 133,
+        "top_padding": 19,
+        "bottom_padding": 8
+      }
+    },
+    {
+      "key": "fungal/goblin",
+      "biome": "fungal",
+      "enemy": "goblin",
+      "body_size_meters": {
+        "width": 1.083,
+        "height": 1.461
+      },
+      "base_source": {
+        "path": "sources/fungal/goblin.png",
+        "sha256": "5405a113fc4ab65cb8885ebe6b488a633347aee6c967b6613cc69a37b1ea546b",
+        "canvas": [1254, 1254],
+        "foreground_bounds": [232, 81, 1021, 1145]
+      },
+      "runtime_idle": {
+        "atlas": "public/assets/sprites/enemies-v8/biomes/fungal-enemies.webp",
+        "atlas_size": [640, 1760],
+        "row": 1,
+        "cell": 160,
+        "alpha_bounds": [31, 15, 131, 152],
+        "opaque_width": 100,
+        "opaque_height": 137,
+        "top_padding": 15,
+        "bottom_padding": 8
+      }
+    },
+    {
+      "key": "fungal/ghost",
+      "biome": "fungal",
+      "enemy": "ghost",
+      "body_size_meters": {
+        "width": 1.413,
+        "height": 1.928
+      },
+      "base_source": {
+        "path": "sources/fungal/ghost.png",
+        "sha256": "a05918ebb8469acb948c5dfe895ef52bfab5bd021d1f2041728ebc99ab92f9ef",
+        "canvas": [1254, 1254],
+        "foreground_bounds": [216, 63, 1034, 1179]
+      },
+      "runtime_idle": {
+        "atlas": "public/assets/sprites/enemies-v8/biomes/fungal-enemies.webp",
+        "atlas_size": [640, 1760],
+        "row": 2,
+        "cell": 160,
+        "alpha_bounds": [38, 8, 127, 152],
+        "opaque_width": 89,
+        "opaque_height": 144,
+        "top_padding": 8,
+        "bottom_padding": 8
+      }
+    },
+    {
+      "key": "fungal/ratling",
+      "biome": "fungal",
+      "enemy": "ratling",
+      "body_size_meters": {
+        "width": 1.151,
+        "height": 1.065
+      },
+      "base_source": {
+        "path": "sources/fungal/ratling.png",
+        "sha256": "0cc533ba1c89ce551a884168c1e77507524dcad9a0dd1fcb9f2f3001145a56cb",
+        "canvas": [1254, 1254],
+        "foreground_bounds": [150, 123, 1229, 1121]
+      },
+      "runtime_idle": {
+        "atlas": "public/assets/sprites/enemies-v8/biomes/fungal-enemies.webp",
+        "atlas_size": [640, 1760],
+        "row": 3,
+        "cell": 160,
+        "alpha_bounds": [25, 10, 141, 152],
+        "opaque_width": 116,
+        "opaque_height": 142,
+        "top_padding": 10,
+        "bottom_padding": 8
+      }
+    },
+    {
+      "key": "fungal/husk",
+      "biome": "fungal",
+      "enemy": "husk",
+      "body_size_meters": {
+        "width": 0.945,
+        "height": 1.97
+      },
+      "base_source": {
+        "path": "sources/fungal/husk.png",
+        "sha256": "17d0503f162b4e8d24aa0c58ee1e5b46d63e011eabfb420efa8f11c3ec3487ce",
+        "canvas": [1254, 1254],
+        "foreground_bounds": [356, 52, 901, 1188]
+      },
+      "runtime_idle": {
+        "atlas": "public/assets/sprites/enemies-v8/biomes/fungal-enemies.webp",
+        "atlas_size": [640, 1760],
+        "row": 4,
+        "cell": 160,
+        "alpha_bounds": [42, 8, 121, 152],
+        "opaque_width": 79,
+        "opaque_height": 144,
+        "top_padding": 8,
+        "bottom_padding": 8
+      }
+    },
+    {
+      "key": "fungal/imp",
+      "biome": "fungal",
+      "enemy": "imp",
+      "body_size_meters": {
+        "width": 1.268,
+        "height": 0.833
+      },
+      "base_source": {
+        "path": "sources/fungal/imp.png",
+        "sha256": "df97df3cd5e2a9d37e74b257bf23e81ed709b5f5a38386835f20879909e8c4e6",
+        "canvas": [1254, 1254],
+        "foreground_bounds": [21, 195, 1228, 988]
+      },
+      "runtime_idle": {
+        "atlas": "public/assets/sprites/enemies-v8/biomes/fungal-enemies.webp",
+        "atlas_size": [640, 1760],
+        "row": 5,
+        "cell": 160,
+        "alpha_bounds": [24, 44, 152, 152],
+        "opaque_width": 128,
+        "opaque_height": 108,
+        "top_padding": 44,
+        "bottom_padding": 8
+      }
+    },
+    {
+      "key": "fungal/zombie-orc",
+      "biome": "fungal",
+      "enemy": "zombie-orc",
+      "body_size_meters": {
+        "width": 1.596,
+        "height": 2.285
+      },
+      "base_source": {
+        "path": "sources/fungal/zombie-orc.png",
+        "sha256": "662e759b470bb95ba869430ef383dee6a059bba32cab0726b7c1edba9c7f4983",
+        "canvas": [1254, 1254],
+        "foreground_bounds": [238, 24, 1054, 1192]
+      },
+      "runtime_idle": {
+        "atlas": "public/assets/sprites/enemies-v8/biomes/fungal-enemies.webp",
+        "atlas_size": [640, 1760],
+        "row": 6,
+        "cell": 160,
+        "alpha_bounds": [22, 12, 142, 152],
+        "opaque_width": 120,
+        "opaque_height": 140,
+        "top_padding": 12,
+        "bottom_padding": 8
+      }
+    },
+    {
+      "key": "fungal/spider",
+      "biome": "fungal",
+      "enemy": "spider",
+      "body_size_meters": {
+        "width": 1.244,
+        "height": 0.761
+      },
+      "base_source": {
+        "path": "sources/fungal/spider.png",
+        "sha256": "dde4556c8f1d389527dfd389bbb521e8016333e6b494884b14f0b048a6694dae",
+        "canvas": [1254, 1254],
+        "foreground_bounds": [60, 300, 1178, 984]
+      },
+      "runtime_idle": {
+        "atlas": "public/assets/sprites/enemies-v8/biomes/fungal-enemies.webp",
+        "atlas_size": [640, 1760],
+        "row": 7,
+        "cell": 160,
+        "alpha_bounds": [17, 36, 150, 152],
+        "opaque_width": 133,
+        "opaque_height": 116,
+        "top_padding": 36,
+        "bottom_padding": 8
+      }
+    },
+    {
+      "key": "fungal/bone-slime",
+      "biome": "fungal",
+      "enemy": "bone-slime",
+      "body_size_meters": {
+        "width": 1.342,
+        "height": 0.779
+      },
+      "base_source": {
+        "path": "sources/fungal/bone-slime.png",
+        "sha256": "51d20d3c19d24bc2c03370d33e3329f9f3c4efb5388ee4a9939ed2fff0418cf0",
+        "canvas": [1254, 1254],
+        "foreground_bounds": [20, 268, 1229, 970]
+      },
+      "runtime_idle": {
+        "atlas": "public/assets/sprites/enemies-v8/biomes/fungal-enemies.webp",
+        "atlas_size": [640, 1760],
+        "row": 8,
+        "cell": 160,
+        "alpha_bounds": [25, 28, 147, 150],
+        "opaque_width": 122,
+        "opaque_height": 122,
+        "top_padding": 28,
+        "bottom_padding": 10
+      }
+    },
+    {
+      "key": "fungal/white-eyed-shadow",
+      "biome": "fungal",
+      "enemy": "white-eyed-shadow",
+      "body_size_meters": {
+        "width": 0.859,
+        "height": 1.911
+      },
+      "base_source": {
+        "path": "sources/fungal/white-eyed-shadow.png",
+        "sha256": "062c3e0227451aa632fd8e4c0dee972bafb404c6682e614477017c8f2fb254e8",
+        "canvas": [1254, 1254],
+        "foreground_bounds": [386, 53, 883, 1159]
+      },
+      "runtime_idle": {
+        "atlas": "public/assets/sprites/enemies-v8/biomes/fungal-enemies.webp",
+        "atlas_size": [640, 1760],
+        "row": 9,
+        "cell": 160,
+        "alpha_bounds": [60, 22, 112, 152],
+        "opaque_width": 52,
+        "opaque_height": 130,
+        "top_padding": 22,
+        "bottom_padding": 8
+      }
+    },
+    {
+      "key": "fungal/carrion-stalker",
+      "biome": "fungal",
+      "enemy": "carrion-stalker",
+      "body_size_meters": {
+        "width": 1.17,
+        "height": 0.759
+      },
+      "base_source": {
+        "path": "sources/fungal/carrion-stalker.png",
+        "sha256": "59266f0ba61985f02810d3645a26eeb93dba035a972e36e1ef7bc3d1a06ee59a",
+        "canvas": [1254, 1254],
+        "foreground_bounds": [48, 248, 1203, 997]
+      },
+      "runtime_idle": {
+        "atlas": "public/assets/sprites/enemies-v8/biomes/fungal-enemies.webp",
+        "atlas_size": [640, 1760],
+        "row": 10,
+        "cell": 160,
+        "alpha_bounds": [17, 16, 141, 152],
+        "opaque_width": 124,
+        "opaque_height": 136,
+        "top_padding": 16,
+        "bottom_padding": 8
+      }
+    },
+    {
+      "key": "backrooms/carrion",
+      "biome": "backrooms",
+      "enemy": "carrion",
+      "body_size_meters": {
+        "width": 1.076,
+        "height": 0.86
+      },
+      "base_source": {
+        "path": "sources/backrooms/carrion.png",
+        "sha256": "756b6acf45eae0d50b672dd83c623ccadc16c9d5ca83170fa485b8a7d7040eb4",
+        "canvas": [1254, 1254],
+        "foreground_bounds": [52, 163, 1202, 1082]
+      },
+      "runtime_idle": {
+        "atlas": "public/assets/sprites/enemies-v8/biomes/backrooms-enemies.webp",
+        "atlas_size": [640, 1760],
+        "row": 0,
+        "cell": 160,
+        "alpha_bounds": [20, 49, 134, 152],
+        "opaque_width": 114,
+        "opaque_height": 103,
+        "top_padding": 49,
+        "bottom_padding": 8
+      }
+    },
+    {
+      "key": "backrooms/goblin",
+      "biome": "backrooms",
+      "enemy": "goblin",
+      "body_size_meters": {
+        "width": 1.412,
+        "height": 1.379
+      },
+      "base_source": {
+        "path": "sources/backrooms/goblin.png",
+        "sha256": "f9096ed79d74af7c281c66baa33a6fcbd88d4987a957a2c0d88eb18badd4a13e",
+        "canvas": [1254, 1254],
+        "foreground_bounds": [120, 109, 1148, 1113]
+      },
+      "runtime_idle": {
+        "atlas": "public/assets/sprites/enemies-v8/biomes/backrooms-enemies.webp",
+        "atlas_size": [640, 1760],
+        "row": 1,
+        "cell": 160,
+        "alpha_bounds": [44, 40, 115, 152],
+        "opaque_width": 71,
+        "opaque_height": 112,
+        "top_padding": 40,
+        "bottom_padding": 8
+      }
+    },
+    {
+      "key": "backrooms/ghost",
+      "biome": "backrooms",
+      "enemy": "ghost",
+      "body_size_meters": {
+        "width": 0.911,
+        "height": 1.925
+      },
+      "base_source": {
+        "path": "sources/backrooms/ghost.png",
+        "sha256": "ace0475236959aac04801e7c919a58719b1d1ddc4c16ef13cfc8b06c9c5ce20b",
+        "canvas": [1254, 1254],
+        "foreground_bounds": [360, 71, 887, 1185]
+      },
+      "runtime_idle": {
+        "atlas": "public/assets/sprites/enemies-v8/biomes/backrooms-enemies.webp",
+        "atlas_size": [640, 1760],
+        "row": 2,
+        "cell": 160,
+        "alpha_bounds": [54, 18, 113, 152],
+        "opaque_width": 59,
+        "opaque_height": 134,
+        "top_padding": 18,
+        "bottom_padding": 8
+      }
+    },
+    {
+      "key": "backrooms/ratling",
+      "biome": "backrooms",
+      "enemy": "ratling",
+      "body_size_meters": {
+        "width": 1.245,
+        "height": 0.84
+      },
+      "base_source": {
+        "path": "sources/backrooms/ratling.png",
+        "sha256": "28ec771e0c12216b8821452d6e87111b5bfe3825f2e2202d4043b97d0e6a43bd",
+        "canvas": [1254, 1254],
+        "foreground_bounds": [44, 231, 1210, 1018]
+      },
+      "runtime_idle": {
+        "atlas": "public/assets/sprites/enemies-v8/biomes/backrooms-enemies.webp",
+        "atlas_size": [640, 1760],
+        "row": 3,
+        "cell": 160,
+        "alpha_bounds": [30, 25, 137, 152],
+        "opaque_width": 107,
+        "opaque_height": 127,
+        "top_padding": 25,
+        "bottom_padding": 8
+      }
+    },
+    {
+      "key": "backrooms/husk",
+      "biome": "backrooms",
+      "enemy": "husk",
+      "body_size_meters": {
+        "width": 0.943,
+        "height": 1.954
+      },
+      "base_source": {
+        "path": "sources/backrooms/husk.png",
+        "sha256": "b2aa13f900a74df3e189739bcde484b3ad7b501055ee147457c58c7f0ea3d8d3",
+        "canvas": [1254, 1254],
+        "foreground_bounds": [359, 67, 903, 1194]
+      },
+      "runtime_idle": {
+        "atlas": "public/assets/sprites/enemies-v8/biomes/backrooms-enemies.webp",
+        "atlas_size": [640, 1760],
+        "row": 4,
+        "cell": 160,
+        "alpha_bounds": [49, 10, 114, 152],
+        "opaque_width": 65,
+        "opaque_height": 142,
+        "top_padding": 10,
+        "bottom_padding": 8
+      }
+    },
+    {
+      "key": "backrooms/imp",
+      "biome": "backrooms",
+      "enemy": "imp",
+      "body_size_meters": {
+        "width": 1.138,
+        "height": 0.802
+      },
+      "base_source": {
+        "path": "sources/backrooms/imp.png",
+        "sha256": "5beabbde77eb6bc5a5a9bbc17de01b959b4527125eab66266392375d649c1a29",
+        "canvas": [1254, 1254],
+        "foreground_bounds": [85, 180, 1168, 943]
+      },
+      "runtime_idle": {
+        "atlas": "public/assets/sprites/enemies-v8/biomes/backrooms-enemies.webp",
+        "atlas_size": [640, 1760],
+        "row": 5,
+        "cell": 160,
+        "alpha_bounds": [31, 49, 147, 152],
+        "opaque_width": 116,
+        "opaque_height": 103,
+        "top_padding": 49,
+        "bottom_padding": 8
+      }
+    },
+    {
+      "key": "backrooms/zombie-orc",
+      "biome": "backrooms",
+      "enemy": "zombie-orc",
+      "body_size_meters": {
+        "width": 1.692,
+        "height": 2.167
+      },
+      "base_source": {
+        "path": "sources/backrooms/zombie-orc.png",
+        "sha256": "5a4a6fd6c92ea3ab05181eea15c25000a4cfc2be476b2754acfabbe2e9425e66",
+        "canvas": [1254, 1254],
+        "foreground_bounds": [143, 62, 1008, 1170]
+      },
+      "runtime_idle": {
+        "atlas": "public/assets/sprites/enemies-v8/biomes/backrooms-enemies.webp",
+        "atlas_size": [640, 1760],
+        "row": 6,
+        "cell": 160,
+        "alpha_bounds": [31, 13, 132, 152],
+        "opaque_width": 101,
+        "opaque_height": 139,
+        "top_padding": 13,
+        "bottom_padding": 8
+      }
+    },
+    {
+      "key": "backrooms/spider",
+      "biome": "backrooms",
+      "enemy": "spider",
+      "body_size_meters": {
+        "width": 1.32,
+        "height": 0.845
+      },
+      "base_source": {
+        "path": "sources/backrooms/spider.png",
+        "sha256": "2ca58e7270b047b82315a277a3f2fe209abb767e1db9d2d2d5884e8149594f93",
+        "canvas": [1254, 1254],
+        "foreground_bounds": [34, 422, 1220, 1181]
+      },
+      "runtime_idle": {
+        "atlas": "public/assets/sprites/enemies-v8/biomes/backrooms-enemies.webp",
+        "atlas_size": [640, 1760],
+        "row": 7,
+        "cell": 160,
+        "alpha_bounds": [13, 74, 143, 152],
+        "opaque_width": 130,
+        "opaque_height": 78,
+        "top_padding": 74,
+        "bottom_padding": 8
+      }
+    },
+    {
+      "key": "backrooms/bone-slime",
+      "biome": "backrooms",
+      "enemy": "bone-slime",
+      "body_size_meters": {
+        "width": 1.316,
+        "height": 0.734
+      },
+      "base_source": {
+        "path": "sources/backrooms/bone-slime.png",
+        "sha256": "e9634575e7a6e005213c7d3975935c9eed2f742238476b61dcff78e0826e49d1",
+        "canvas": [1254, 1254],
+        "foreground_bounds": [29, 288, 1216, 950]
+      },
+      "runtime_idle": {
+        "atlas": "public/assets/sprites/enemies-v8/biomes/backrooms-enemies.webp",
+        "atlas_size": [640, 1760],
+        "row": 8,
+        "cell": 160,
+        "alpha_bounds": [18, 55, 138, 151],
+        "opaque_width": 120,
+        "opaque_height": 96,
+        "top_padding": 55,
+        "bottom_padding": 9
+      }
+    },
+    {
+      "key": "backrooms/white-eyed-shadow",
+      "biome": "backrooms",
+      "enemy": "white-eyed-shadow",
+      "body_size_meters": {
+        "width": 0.665,
+        "height": 2.008
+      },
+      "base_source": {
+        "path": "sources/backrooms/white-eyed-shadow.png",
+        "sha256": "6c5c5a025ffaac43a04d20b7a0c4866136c1b94673b33442e7a4f2666e32c09a",
+        "canvas": [1254, 1254],
+        "foreground_bounds": [442, 43, 827, 1205]
+      },
+      "runtime_idle": {
+        "atlas": "public/assets/sprites/enemies-v8/biomes/backrooms-enemies.webp",
+        "atlas_size": [640, 1760],
+        "row": 9,
+        "cell": 160,
+        "alpha_bounds": [64, 28, 107, 152],
+        "opaque_width": 43,
+        "opaque_height": 124,
+        "top_padding": 28,
+        "bottom_padding": 8
+      }
+    },
+    {
+      "key": "backrooms/carrion-stalker",
+      "biome": "backrooms",
+      "enemy": "carrion-stalker",
+      "body_size_meters": {
+        "width": 1.207,
+        "height": 0.99
+      },
+      "base_source": {
+        "path": "sources/backrooms/carrion-stalker.png",
+        "sha256": "a97ef23b6ffb860c1a84018256afc63ec91806d27ed46df421cf08635d51e21b",
+        "canvas": [1254, 1254],
+        "foreground_bounds": [33, 156, 1224, 1133]
+      },
+      "runtime_idle": {
+        "atlas": "public/assets/sprites/enemies-v8/biomes/backrooms-enemies.webp",
+        "atlas_size": [640, 1760],
+        "row": 10,
+        "cell": 160,
+        "alpha_bounds": [15, 29, 144, 152],
+        "opaque_width": 129,
+        "opaque_height": 123,
+        "top_padding": 29,
+        "bottom_padding": 8
+      }
+    }
+  ]
+}

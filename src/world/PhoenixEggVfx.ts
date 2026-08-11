@@ -24,12 +24,7 @@ export class PhoenixEggVfx {
     // Intentionally empty: pulse rings + enemy bursts cover the rebirth moment.
   }
 
-  update(
-    _charges: number,
-    _elapsed: number,
-    _delta: number,
-    _viewer: PhoenixViewer,
-  ): void {
+  update(_charges: number, _elapsed: number, _delta: number, _viewer: PhoenixViewer): void {
     // Equipped state is silent — no floating motes while carrying the egg.
   }
 

@@ -4,12 +4,7 @@ import { FLOOR, generateDungeon } from "../src/dungeon/generateDungeon";
 import type { DungeonData, DungeonRoom } from "../src/dungeon/types";
 
 function roomContains(room: DungeonRoom, x: number, y: number): boolean {
-  return (
-    x >= room.x &&
-    x < room.x + room.width &&
-    y >= room.y &&
-    y < room.y + room.height
-  );
+  return x >= room.x && x < room.x + room.width && y >= room.y && y < room.y + room.height;
 }
 
 function actualRoomOpenings(dungeon: DungeonData, room: DungeonRoom): Set<string> {
@@ -43,7 +38,8 @@ describe("classic dungeon topology contract", () => {
 
     for (let edgeIndex = 0; edgeIndex < dungeon.edges.length; edgeIndex += 1) {
       const edge = dungeon.edges[edgeIndex];
-      const doorways = topology?.doorways.filter((doorway) => doorway.edgeIndex === edgeIndex) ?? [];
+      const doorways =
+        topology?.doorways.filter((doorway) => doorway.edgeIndex === edgeIndex) ?? [];
       expect(doorways).toHaveLength(2);
       expect(new Set(doorways.map((doorway) => doorway.roomId))).toEqual(
         new Set([edge?.left, edge?.right]),
@@ -51,9 +47,9 @@ describe("classic dungeon topology contract", () => {
       for (const doorway of doorways) {
         expect(dungeon.grid[doorway.cell.y]?.[doorway.cell.x]).toBe(FLOOR);
         expect(dungeon.grid[doorway.outside.y]?.[doorway.outside.x]).toBe(FLOOR);
-        expect(dungeon.distances[doorway.cell.y * dungeon.width + doorway.cell.x]).toBeGreaterThanOrEqual(
-          0,
-        );
+        expect(
+          dungeon.distances[doorway.cell.y * dungeon.width + doorway.cell.x],
+        ).toBeGreaterThanOrEqual(0);
       }
     }
   });
@@ -71,8 +67,7 @@ describe("classic dungeon topology contract", () => {
           topology?.doorways
             .filter((doorway) => doorway.roomId === room.id)
             .map(
-              (doorway) =>
-                `${doorway.cell.x},${doorway.cell.y},${doorway.outDx},${doorway.outDy}`,
+              (doorway) => `${doorway.cell.x},${doorway.cell.y},${doorway.outDx},${doorway.outDy}`,
             ),
         );
         expect(actualRoomOpenings(dungeon, room)).toEqual(expected);

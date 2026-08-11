@@ -7,6 +7,7 @@ import {
   generateDungeonFloorSet,
   MAX_DUNGEON_FLOORS,
 } from "../src/dungeon/generateDungeonFloors";
+import { stairFlightFootprintCells } from "../src/dungeon/StairShaftPlan";
 import { WORLD_TILE_SIZE } from "../src/world/WorldMetrics";
 
 describe("multi-floor dungeon generation", () => {
@@ -31,7 +32,9 @@ describe("multi-floor dungeon generation", () => {
       const expectedOpenCells = new Set(
         first.shaftPlan.links
           .filter((link) => link.lowerFloor === index || link.upperFloor === index)
-          .flatMap((link) => link.footprint.map((cell) => `${cell.x},${cell.y}`)),
+          .flatMap((link) =>
+            stairFlightFootprintCells(link.footprint).map((cell) => `${cell.x},${cell.y}`),
+          ),
       );
       expect(new Set(floor.floor?.openVerticalCells?.map((cell) => `${cell.x},${cell.y}`))).toEqual(
         expectedOpenCells,

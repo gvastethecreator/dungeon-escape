@@ -14,9 +14,6 @@ export function isLeaderboardEligible(source: RunSource): boolean {
 }
 
 /** Forge maps are always custom — never Hall of Escapes material. */
-export function runSourceForDungeon(
-  intended: RunSource,
-  hasForgeMetadata: boolean,
-): RunSource {
+export function runSourceForDungeon(intended: RunSource, hasForgeMetadata: boolean): RunSource {
   return hasForgeMetadata ? "custom" : intended;
 }

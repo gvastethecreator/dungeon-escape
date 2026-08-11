@@ -48,30 +48,84 @@ describe("biome screen art", () => {
     const manifest = JSON.parse(
       await Bun.file(
         new URL(
-          "../assets-source/imagegen/biome-screen-art-v1/biome-screen-art-manifest.json",
+          "../assets-source/imagegen/biome-screen-art-v2/biome-screen-art-manifest.json",
           import.meta.url,
         ),
       ).text(),
     ) as {
-      biomes: Record<string, { enemyReferences: { main: string[]; ending: string[] } }>;
+      version: number;
+      target: { width: number; height: number; format: string };
+      biomes: Record<
+        string,
+        {
+          assets: Record<
+            "main" | "ending",
+            {
+              enemies: string[];
+              references: string[];
+              status: string;
+              publicSize: [number, number];
+              publicSha256: string;
+            }
+          >;
+        }
+      >;
     };
 
+    expect(manifest.version).toBe(2);
+    expect(manifest.target).toEqual({ width: 836, height: 470, format: "webp" });
+
     for (const biomeId of biomeIds) {
-      const assignments = manifest.biomes[biomeId]!.enemyReferences;
+      const assets = manifest.biomes[biomeId]!.assets;
+      const assignments = {
+        main: assets.main.enemies,
+        ending: assets.ending.enemies,
+      };
       expect(assignments.main).toHaveLength(3);
       expect(assignments.ending).toHaveLength(3);
       expect(assignments.main.some((enemy) => assignments.ending.includes(enemy))).toBe(false);
-      for (const enemy of [...assignments.main, ...assignments.ending]) {
-        const reference = Bun.file(
-          new URL(
-            `../assets-source/imagegen/biome-screen-art-v1/references/enemies/${enemy}`,
-            import.meta.url,
-          ),
-        );
-        expect(await reference.exists()).toBe(true);
+      for (const kind of ["main", "ending"] as const) {
+        expect(assets[kind].status).toBe("integrated");
+        expect(assets[kind].publicSize).toEqual([836, 470]);
+        expect(assets[kind].publicSha256).toMatch(/^[a-f0-9]{64}$/);
+        expect(assets[kind].references).toHaveLength(4);
+        for (const path of assets[kind].references) {
+          const reference = Bun.file(new URL(`../${path}`, import.meta.url));
+          expect(await reference.exists()).toBe(true);
+        }
       }
       expect(biomeScreenArtSrc(biomeId, "main")).toContain(`${biomeId}-main.webp`);
       expect(biomeScreenArtSrc(biomeId, "ending")).toContain(`${biomeId}-ending.webp`);
+    }
+  });
+
+  test("tracks all 121 current enemy references from promoted animation rows", async () => {
+    const references = JSON.parse(
+      await Bun.file(
+        new URL(
+          "../assets-source/imagegen/biome-screen-art-v2/references/reference-manifest.json",
+          import.meta.url,
+        ),
+      ).text(),
+    ) as {
+      count: number;
+      records: Array<{
+        biome: string;
+        sourceAnimationPackage: string;
+        sourceRect: [number, number, number, number];
+        sha256: string;
+      }>;
+    };
+
+    expect(references.count).toBe(121);
+    expect(references.records).toHaveLength(121);
+    for (const biomeId of biomeIds) {
+      expect(references.records.filter((record) => record.biome === biomeId)).toHaveLength(11);
+    }
+    for (const reference of references.records) {
+      expect(reference.sourceAnimationPackage).toEndWith("-enemies-animated.json");
+      expect(reference.sourceRect.slice(2)).toEqual([160, 160]);
+      expect(reference.sha256).toMatch(/^[a-f0-9]{64}$/);
     }
   });
 });

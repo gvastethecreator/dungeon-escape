@@ -29,9 +29,7 @@ export function tryConsumePhoenixCharge(charges: number): {
 }
 
 /** Resolve after a successful phoenix revive (never 0). */
-export function phoenixReviveResolve(
-  reviveResolve = PHOENIX_REVIVE_RESOLVE,
-): number {
+export function phoenixReviveResolve(reviveResolve = PHOENIX_REVIVE_RESOLVE): number {
   const value = Number.isFinite(reviveResolve) ? reviveResolve : PHOENIX_REVIVE_RESOLVE;
   return Math.min(100, Math.max(1, Math.round(value)));
 }

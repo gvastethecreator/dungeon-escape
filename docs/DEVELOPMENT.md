@@ -24,13 +24,24 @@ Available entries:
 ## Checks
 
 ```bash
+bun run install:check
+bun run check
+```
+
+The combined check covers types, lint, formatting, tests, the runtime asset boundary, and the code-only build. Individual commands remain available:
+
+```bash
 bun run test
 bun run typecheck:all
 bun run build:code
 bun run lint
 bun run fmt:check
 bun run audit:runtime-assets
+bun run smoke:mobile
+bun run smoke:multi-floor
 ```
+
+Use `bun run clean` to remove generated build and test output. It intentionally keeps authored work and review evidence under `.scratch/`.
 
 `build:code` checks browser, server, and worker types and builds every HTML entry into
 `.scratch/build/code` without copying the large runtime asset catalog. Use it for normal code
@@ -46,7 +57,7 @@ bun run optimize:runtime-assets
 bun run audit:runtime-assets
 ```
 
-The optimizer converts runtime rasters to WebP and writes each image at `floor(source / 2)` on both axes. Pixel-art families use nearest-neighbor sampling; continuous art uses Lanczos. The generated manifest is `assets-source/runtime-optimization-manifest.json`. Re-running the command is idempotent when the published files match that manifest.
+The optimizer converts runtime rasters to WebP and writes each image at `floor(source / 2)` on both axes. Pixel-art families use nearest-neighbor sampling; continuous art uses Lanczos. Published animation atlases and generated pickup or stone icons keep their authored runtime dimensions. The generated manifest is `assets-source/runtime-optimization-manifest.json`. Re-running the command is idempotent when the published files match that manifest.
 
 The audit rejects source-only folders, orphan enemy atlases, PNG/JPEG runtime files, broken concrete URLs, and any output whose dimensions, byte size, or SHA-256 differ from the manifest. `cloudflare:deploy` runs this audit before the production build.
 

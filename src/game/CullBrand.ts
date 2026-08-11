@@ -32,9 +32,7 @@ export function tickCullBrand(state: CullBrandState, delta: number): void {
 }
 
 export function isCullBrandActive(state: CullBrandState): boolean {
-  return (
-    state.charges > 0 && Number.isFinite(state.remaining) && state.remaining > 0.0001
-  );
+  return state.charges > 0 && Number.isFinite(state.remaining) && state.remaining > 0.0001;
 }
 
 /**
@@ -48,11 +46,7 @@ export function tryConsumeCullBrand(state: CullBrandState): boolean {
   return true;
 }
 
-export function restoreCullBrand(
-  state: CullBrandState,
-  remaining = 0,
-  charges = 0,
-): void {
+export function restoreCullBrand(state: CullBrandState, remaining = 0, charges = 0): void {
   const safeRemaining = Math.max(0, Number.isFinite(remaining) ? remaining : 0);
   const safeCharges = Math.max(0, Math.floor(Number.isFinite(charges) ? charges : 0));
   if (safeRemaining <= 0 || safeCharges <= 0) {

@@ -1,0 +1,37 @@
+{
+  "version": 1,
+  "sourceType": "imagegen",
+  "artEngine": "imagegen",
+  "verificationStatus": "approved-user",
+  "acceptedSource": "sources/fungal/goblin.png",
+  "sha256": "5405a113fc4ab65cb8885ebe6b488a633347aee6c967b6613cc69a37b1ea546b",
+  "sizeBytes": 586733,
+  "prompt": "prompts/fungal/goblin.txt",
+  "promptSha256": "f893fef02330d4203c85f5e4f67262f83e973fedcffbb2750f5a47f6ac174f4b",
+  "baseReference": "reference/base/goblin.png",
+  "baseReferenceSha256": "f6310f6b8465bb1d0bac4b31d460dd62eb385ad27ca346fe94afa5aa1aa3d514",
+  "moodReference": "../portal-biome-matrix/fungal-portal-open.png",
+  "moodReferenceSha256": "f7a1aa05222f7609fb251f4e223aa1cc7232ba449a0d5cb121c4a76a41678aef",
+  "materialReferences": [
+    "../../public/assets/textures/biomes/fungal/wall.webp",
+    "../../public/assets/textures/biomes/fungal/floor.webp",
+    "../../public/assets/textures/biomes/fungal/ceiling.webp"
+  ],
+  "materialReferenceSha256": {
+    "../../public/assets/textures/biomes/fungal/wall.webp": "b42cd01d98cf468b060ac8072bc0a3f750319a83b17beefa17ae2cf24527b7fa",
+    "../../public/assets/textures/biomes/fungal/floor.webp": "4d66f2c22b8c1d4312fef8eca54bc5e2272865ed305ba6e3e0f8ff7bde449723",
+    "../../public/assets/textures/biomes/fungal/ceiling.webp": "930a77a7544dd4c1c02ac637bda7e7b27c12c8177f29f889e1cf19a80250bf02"
+  },
+  "approval": {
+    "status": "approved-user",
+    "date": "2026-08-04",
+    "review_record": ".scratch/biome-enemy-base-sprites/reviews.json",
+    "notes": "Autoauditoría visual completa; pendiente de aprobación del usuario."
+  },
+  "consolidation": {
+    "package": "assets-source/enemies/biomes-v2",
+    "original_source": ".scratch/biome-enemy-base-sprites/new/fungal/goblin.png",
+    "original_prompt": ".scratch/biome-enemy-base-sprites/prompts/fungal/goblin.txt",
+    "original_provenance": ".scratch/biome-enemy-base-sprites/provenance/fungal/goblin.json"
+  }
+}

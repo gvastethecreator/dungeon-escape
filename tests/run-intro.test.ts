@@ -29,7 +29,7 @@ describe("new-game map theater intro", () => {
     expect(source).toContain("setSceneLoaderVisible");
     expect(source).toContain("sceneLoaderEnemy.show(resolveSceneLoaderMoodId())");
     expect(source).toContain("sceneLoaderEnemy.hide()");
-    expect(source).toContain("generateCompletableDungeon");
+    expect(source).toContain("generateDungeonBuild");
     expect(forge).toContain("black-flag:forge-presentation");
     expect(forge).toContain("hostDungeon");
     expect(forge).toContain("buildScene(hostDungeon)");

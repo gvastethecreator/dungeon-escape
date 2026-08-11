@@ -1,10 +1,6 @@
 /** Timed control curse: continuous yaw bias that disorients aim. */
 
-import {
-  activateTimedSeconds,
-  isTimedSecondsActive,
-  tickTimedSeconds,
-} from "./TimedSeconds";
+import { activateTimedSeconds, isTimedSecondsActive, tickTimedSeconds } from "./TimedSeconds";
 
 export const SPIN_CURSE_DURATION_SECONDS = 10;
 /** Radians per second added to look yaw while active. */

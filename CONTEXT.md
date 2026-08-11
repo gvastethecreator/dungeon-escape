@@ -13,6 +13,12 @@ Una colección determinista de nivel de campaña de uno a cuatro pisos hermanos 
 **Dungeon floor campaign**:
 La campaña determinista que genera todos los pisos del `Dungeon floor stack` desde una semilla raíz de campaña para mantener los `Stair shaft` alineados. Todos los pisos se construyen y quedan residentes antes de input; subir nunca materializa un piso.
 
+**Dungeon generation engine**:
+The pure owner of topology settings, single-floor generation, and resident-stack generation. It has no DOM, editor, Three.js, or world dependency.
+
+**Creation adapter**:
+The boundary that copies Creation controls into one `DungeonParams` snapshot and loads the plan-view renderer on demand. Play never reads these controls.
+
 **Stair shaft**:
 An aligned vertical opening with walkable tread colliders linking floor `i` to `i+1`. Players climb the steps; there is no interact prompt and no floor-load transition.
 

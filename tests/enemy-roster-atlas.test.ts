@@ -9,6 +9,7 @@ import {
   enemyAnimationSetsForMood,
   enemyAnimationsForMood,
   enemyAtlasSrcForMood,
+  enemyAtlasUsesAttackRows,
   listEnemyAtlasSources,
   type EnemyAtlasFrame,
 } from "../src/world/EnemySpriteAtlas";
@@ -71,7 +72,9 @@ describe("enemy atlas runtime contract", () => {
       for (const kind of ENEMY_ROSTER) {
         expect(animations[kind].src).toBe(src);
         expect(animations[kind].frames).toHaveLength(4);
-        expect(animations[kind].size).toEqual(moodId === "ancient" ? [640, 3520] : [640, 1760]);
+        expect(animations[kind].size).toEqual(
+          enemyAtlasUsesAttackRows(moodId) ? [640, 3520] : [640, 1760],
+        );
       }
       const file = Bun.file(new URL(`../public${src}`, import.meta.url));
       expect(await file.exists()).toBe(true);
@@ -79,14 +82,17 @@ describe("enemy atlas runtime contract", () => {
     }
   });
 
-  test("Ancient exposes four movement and four attack frames per enemy", () => {
-    const sets = enemyAnimationSetsForMood("ancient");
-    for (const [index, kind] of ENEMY_ROSTER.entries()) {
-      expect(sets[kind].movement.size).toEqual([640, 3520]);
-      expect(sets[kind].movement.frames[0]?.y).toBe(index * 320);
-      expect(sets[kind].attack?.frames).toHaveLength(4);
-      expect(sets[kind].attack?.frames[0]?.y).toBe(index * 320 + 160);
-      expect(sets[kind].attack?.loop).toBe(false);
+  test("every biome exposes four movement and four attack frames per enemy", () => {
+    for (const moodId of listDungeonMoodIds()) {
+      expect(enemyAtlasUsesAttackRows(moodId)).toBe(true);
+      const sets = enemyAnimationSetsForMood(moodId);
+      for (const [index, kind] of ENEMY_ROSTER.entries()) {
+        expect(sets[kind].movement.size).toEqual([640, 3520]);
+        expect(sets[kind].movement.frames[0]?.y).toBe(index * 320);
+        expect(sets[kind].attack?.frames).toHaveLength(4);
+        expect(sets[kind].attack?.frames[0]?.y).toBe(index * 320 + 160);
+        expect(sets[kind].attack?.loop).toBe(false);
+      }
     }
   });
 });

@@ -4,6 +4,8 @@ Updated: 2026-07-28
 
 ## Play path
 
+- `DungeonGenerationEngine` receives an explicit settings snapshot. It does not read Creation controls or load editor code.
+- Play activation skips the plan-view projection. `DungeonEditorView` loads only when Creation or Debug opens the runtime map surface.
 - The controller and simulation reuse frame-temporary objects.
 - World audio anchors update every 125 ms instead of every frame.
 - Collision resolves a blocked move with seven approach steps, keeping the player against visible geometry.

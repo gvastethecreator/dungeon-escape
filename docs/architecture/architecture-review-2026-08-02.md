@@ -94,13 +94,13 @@ Compañero visual: `.scratch/reports/architecture-review-2026-08-02/index.html`
 
 ## Verificación final
 
-| Comando | Resultado |
-| --- | --- |
-| Pruebas enfocadas del lote | pasan |
-| `bun test tests` | 967 pass, 2 fail, 969 tests, 156678 asserts |
-| `bun run typecheck:all` | pasa |
-| `bun run lint` | pasa (1 warning previo en MaterialLibrary, no del lote) |
-| Navegador Play | no ejecutado |
+| Comando                    | Resultado                                               |
+| -------------------------- | ------------------------------------------------------- |
+| Pruebas enfocadas del lote | pasan                                                   |
+| `bun test tests`           | 967 pass, 2 fail, 969 tests, 156678 asserts             |
+| `bun run typecheck:all`    | pasa                                                    |
+| `bun run lint`             | pasa (1 warning previo en MaterialLibrary, no del lote) |
+| Navegador Play             | no ejecutado                                            |
 
 Fallos residuales de baseline:
 

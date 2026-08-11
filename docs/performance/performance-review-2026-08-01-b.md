@@ -13,16 +13,16 @@ El segundo lote añade caches de plantillas y materiales, batch de marcos de pue
 
 Las ganancias medidas en el workload Frost/critical son **modestas y honestas**:
 
-| Métrica | Baseline mediana | Final mediana | Delta |
-|---|---:|---:|---:|
-| Carga del mapa | 436 ms | 438 ms | ~0 (ruido) |
-| Build de mundo | 417 ms | 420 ms | ~0 (ruido) |
-| Draw calls | 285 | 275 | **-10 (-3,5%)** |
-| Materiales | 336 | 333 | **-3 (-0,9%)** |
-| Geometrías | 403 | 389 | **-14 (-3,5%)** |
-| Programas | 62 | 61 | **-1** |
-| Long task arranque | 861 ms | 832 ms | **-29 ms (-3,4%)** |
-| Frame p95 | 10,1 ms | 10,1 ms | 0 |
+| Métrica            | Baseline mediana | Final mediana |              Delta |
+| ------------------ | ---------------: | ------------: | -----------------: |
+| Carga del mapa     |           436 ms |        438 ms |         ~0 (ruido) |
+| Build de mundo     |           417 ms |        420 ms |         ~0 (ruido) |
+| Draw calls         |              285 |           275 |    **-10 (-3,5%)** |
+| Materiales         |              336 |           333 |     **-3 (-0,9%)** |
+| Geometrías         |              403 |           389 |    **-14 (-3,5%)** |
+| Programas          |               62 |            61 |             **-1** |
+| Long task arranque |           861 ms |        832 ms | **-29 ms (-3,4%)** |
+| Frame p95          |          10,1 ms |       10,1 ms |                  0 |
 
 Un experimento de **bake global de props clásicos por material (PERF-14)** subió `mapLoadWorldMs` de ~417 a ~503 ms. Se **revirtió**. Queda documentado como experimento negativo.
 
@@ -100,13 +100,13 @@ Un experimento de **bake global de props clásicos por material (PERF-14)** subi
 
 ## Verificación
 
-| Gate | Resultado |
-|---|---|
-| Focused tests batching/materials/doors | pass |
-| `bun test tests` | 904 pass, 2 fail (baseline) |
-| `bun run typecheck` | pass |
-| `bun run lint` | pass |
-| Chrome 3 muestras post-revert | pass; 0 errores en muestras válidas |
+| Gate                                   | Resultado                           |
+| -------------------------------------- | ----------------------------------- |
+| Focused tests batching/materials/doors | pass                                |
+| `bun test tests`                       | 904 pass, 2 fail (baseline)         |
+| `bun run typecheck`                    | pass                                |
+| `bun run lint`                         | pass                                |
+| Chrome 3 muestras post-revert          | pass; 0 errores en muestras válidas |
 
 ## Experimentos negativos
 
@@ -117,14 +117,14 @@ Un experimento de **bake global de props clásicos por material (PERF-14)** subi
 
 Revisión rigurosa del diff encontró omisiones reales. Correcciones aplicadas de inmediato:
 
-| Gap | Severidad | Corrección |
-|---|---|---|
-| `disposeDungeonMaterials` no limpiaba variantes cacheadas | Alta (use-after-free de texturas) | `clearDungeonMaterialVariantsFor` en dispose |
-| Cache de plantillas sin token de materials | Alta (materiales de otro set) | `cacheKey` incluye `dungeonMaterialsCacheToken` |
-| Cache de plantillas no se limpiaba al dispose del mundo | Media (fuga) | `clearStaticPropTemplateBatchCache` en `DungeonWorld.dispose` |
-| `createDoorAppearance` clonaba iron/leaf por puerta | Media (fuga de materiales + omisión PERF-13) | `getDungeonMaterialVariant` para leaf y hardware; limpia maps de wood en leaf |
-| `AnnihilationPulseVfx.setWarmupVisible` no reseteaba idle | Baja | `idleClean = false` en warmup |
-| Tests insuficientes de isolation | Media | Tests de dispose, cache miss entre materials sets |
+| Gap                                                       | Severidad                                    | Corrección                                                                    |
+| --------------------------------------------------------- | -------------------------------------------- | ----------------------------------------------------------------------------- |
+| `disposeDungeonMaterials` no limpiaba variantes cacheadas | Alta (use-after-free de texturas)            | `clearDungeonMaterialVariantsFor` en dispose                                  |
+| Cache de plantillas sin token de materials                | Alta (materiales de otro set)                | `cacheKey` incluye `dungeonMaterialsCacheToken`                               |
+| Cache de plantillas no se limpiaba al dispose del mundo   | Media (fuga)                                 | `clearStaticPropTemplateBatchCache` en `DungeonWorld.dispose`                 |
+| `createDoorAppearance` clonaba iron/leaf por puerta       | Media (fuga de materiales + omisión PERF-13) | `getDungeonMaterialVariant` para leaf y hardware; limpia maps de wood en leaf |
+| `AnnihilationPulseVfx.setWarmupVisible` no reseteaba idle | Baja                                         | `idleClean = false` en warmup                                                 |
+| Tests insuficientes de isolation                          | Media                                        | Tests de dispose, cache miss entre materials sets                             |
 
 Wayfinder: `.scratch/wayfinder/dungeon-perf-b-gap-review/`  
 Tickets: `.scratch/dungeon-perf-b-gap-fixes/tickets.md`

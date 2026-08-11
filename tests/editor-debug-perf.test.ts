@@ -18,7 +18,10 @@ function installWindow(devicePixelRatio = 1): () => void {
   };
 }
 
-function makeTrackedCanvas(width = 200, height = 120): {
+function makeTrackedCanvas(
+  width = 200,
+  height = 120,
+): {
   canvas: HTMLCanvasElement;
   paintOps: () => number;
   filterSets: () => number;

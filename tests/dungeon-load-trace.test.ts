@@ -21,9 +21,7 @@ type TestDungeon = { id: string };
 type TestMood = { id: string };
 type TestPlayer = { x: number; z: number };
 
-class TraceAwareWorld
-  implements PlayWorldPort<TestDungeon, TestMood, TestPlayer, PlayWorldUpdate>
-{
+class TraceAwareWorld implements PlayWorldPort<TestDungeon, TestMood, TestPlayer, PlayWorldUpdate> {
   seenTrace: DungeonLoadPhaseObserver | undefined;
 
   constructor(private readonly advance: (milliseconds: number) => void) {}
@@ -308,9 +306,7 @@ describe("DungeonLoadTrace", () => {
     expect(rebuildCallbackExecuted).toBe(false);
     expect(sequence).toBe(1);
     expect(controller.active()).toBeNull();
-    expect(published).toMatchObject([
-      { loadId: "intro-rebuild-1", terminal: "error" },
-    ]);
+    expect(published).toMatchObject([{ loadId: "intro-rebuild-1", terminal: "error" }]);
 
     const normalTrace = runDirectRebuild();
     expect(normalTrace).not.toBeNull();
@@ -378,7 +374,10 @@ describe("DungeonLoadTrace", () => {
     );
     const firstRafStart = warmup.indexOf("window.requestAnimationFrame(() =>");
     const secondRafStart = warmup.indexOf("window.requestAnimationFrame(() =>", firstRafStart + 1);
-    const staleWarmupStart = warmup.indexOf("if (!isCurrentRendererWarmup(sequence, trace))", secondRafStart);
+    const staleWarmupStart = warmup.indexOf(
+      "if (!isCurrentRendererWarmup(sequence, trace))",
+      secondRafStart,
+    );
     const currentWarmupStart = warmup.indexOf("let warmupError: unknown = null;", staleWarmupStart);
     expect(staleWarmupStart).toBeGreaterThan(secondRafStart);
     expect(currentWarmupStart).toBeGreaterThan(staleWarmupStart);
@@ -406,7 +405,7 @@ describe("DungeonLoadTrace", () => {
     expect(intro).toContain("const trace = activeRunIntroTrace;");
     expect(intro).toContain("await buildDungeon(seed, {}, trace);");
     expect(forge).toContain("const trace = openDungeonLoadTrace();");
-    expect(forge).toContain("finishDungeonLoadTrace(trace, \"error\", message);");
+    expect(forge).toContain('finishDungeonLoadTrace(trace, "error", message);');
     expect(spawn.indexOf("supersedeActiveDungeonLoadTrace(")).toBeLessThan(
       spawn.indexOf("const warmupSequence = beginRendererWarmup();"),
     );
@@ -417,8 +416,6 @@ describe("DungeonLoadTrace", () => {
       directBuild.indexOf(
         "if (cancelRunIntroBeforeDirectDungeonBuild(trace)) return getRuntimeState();",
       ),
-    ).toBeLessThan(
-      directBuild.indexOf("const loadTrace = trace ?? openDungeonLoadTrace();"),
-    );
+    ).toBeLessThan(directBuild.indexOf("const loadTrace = trace ?? openDungeonLoadTrace();"));
   });
 });

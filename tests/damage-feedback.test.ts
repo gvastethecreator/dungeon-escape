@@ -72,4 +72,3 @@ describe("damage feedback — HUD markup and styles", () => {
     expect(src).toContain("hitTrauma: simulationActive ? hitTrauma : 0");
   });
 });
-

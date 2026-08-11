@@ -1,0 +1,37 @@
+{
+  "version": 1,
+  "sourceType": "imagegen",
+  "artEngine": "imagegen",
+  "verificationStatus": "approved-user",
+  "acceptedSource": "sources/grim/ratling.png",
+  "sha256": "ea0e8a323d00847ac581325ccbec78da8f426b5fd94b7f144c2087163b853f23",
+  "sizeBytes": 1132503,
+  "prompt": "prompts/grim/ratling.txt",
+  "promptSha256": "bbad26f4ac1706e4b9e4dcc337172191131593662b930a55ef045ed51b469955",
+  "baseReference": "reference/base/ratling.png",
+  "baseReferenceSha256": "e041fc27ae3e8c40bcb688f77758587b4a8cbd3dd50e6ed3876559913472aea5",
+  "moodReference": "reference/mood/grim.png",
+  "moodReferenceSha256": "121ea9379a94d96432574be71df86fdb17545d912c9fe0ddfb93172f785a8952",
+  "materialReferences": [
+    "../../public/assets/textures/biomes/grim/wall.webp",
+    "../../public/assets/textures/biomes/grim/floor.webp",
+    "../../public/assets/textures/biomes/grim/ceiling.webp"
+  ],
+  "materialReferenceSha256": {
+    "../../public/assets/textures/biomes/grim/wall.webp": "8c28a9220859a18ad733af07a74c1dc2a638d0fbada61a8f33eb7106b3574a84",
+    "../../public/assets/textures/biomes/grim/floor.webp": "f77e0f28436b86859767fff4b88b6753bcf39ef8ad3aa9d4e9dd9f8816d1d8ee",
+    "../../public/assets/textures/biomes/grim/ceiling.webp": "6585284f91101a9110bffc0ae02c90426b9bb80153dee3247993876dc03202c7"
+  },
+  "approval": {
+    "status": "approved-user",
+    "date": "2026-08-04",
+    "review_record": ".scratch/biome-enemy-base-sprites/reviews.json",
+    "notes": "V2: rata cuadrúpeda con patas traseras gigantes, columna exterior, incisivos largos y saco laríngeo."
+  },
+  "consolidation": {
+    "package": "assets-source/enemies/biomes-v2",
+    "original_source": ".scratch/biome-enemy-base-sprites/new/grim/ratling.png",
+    "original_prompt": ".scratch/biome-enemy-base-sprites/prompts/grim/ratling.txt",
+    "original_provenance": ".scratch/biome-enemy-base-sprites/provenance/grim/ratling.json"
+  }
+}
