@@ -1551,9 +1551,10 @@ export class StaticDungeonScene {
   /** Opaque wall volume that closes gaps behind the textured face panels. */
   private addWallCellCaps(dungeon: DungeonData, wallCells: readonly GridCell[]): void {
     if (wallCells.length === 0) return;
-    // Cover the full cell with a tiny overlap. Exact-width or undersized cores
-    // can expose light through concave and diagonal wall corners.
-    const core = this.tileSize * 1.002;
+    // Keep the structural fill behind the authored face panels. The previous
+    // 1.002 overlap put its dark cloned material in front of those panels and
+    // made one wall alternate between two texture treatments at corners.
+    const core = this.tileSize * 0.994;
     const geometry = new THREE.BoxGeometry(core, this.wallHeight, core);
     // Reuse the biome wall map so exposed caps and corners never become flat
     // black blocks. The darker multiplier keeps them behind the face panels.
@@ -1957,9 +1958,7 @@ export class StaticDungeonScene {
       const wallSeats = this.getRoomWallSeats(dungeon, room);
       const candidates = doorwaysByRoom.get(room.id) ?? [];
       for (const doorway of candidates) {
-        if (
-          (occupancy.getMask(doorway.cell.x, doorway.cell.y) & FloorOccupancyBit.Object) !== 0
-        ) {
+        if ((occupancy.getMask(doorway.cell.x, doorway.cell.y) & FloorOccupancyBit.Object) !== 0) {
           continue;
         }
         const cellWorld = gridToWorld(dungeon, doorway.cell, this.tileSize);

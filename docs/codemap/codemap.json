@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-08-11T17:04:22Z",
-  "generated_from_commit": "989ccf79c8ed75ef3093862f9c8eeaae8532ecee",
+  "generated_at": "2026-08-11T18:04:22Z",
+  "generated_from_commit": "dbe6d3eb1bb8910db9f4dfa1b911148d377aea4f",
   "scope": [
     "."
   ],
@@ -773,6 +773,20 @@
           {
             "path": "scripts/apply-reviewed-video-region-lock.py",
             "symbol": "json"
+          }
+        ]
+      }
+    },
+    {
+      "from": "scripts",
+      "to": "src-audio",
+      "type": "imports",
+      "evidence": {
+        "status": "verified",
+        "locations": [
+          {
+            "path": "scripts/audit-library-audio-catalog.ts",
+            "symbol": "../src/audio/AudioAssetCatalog"
           }
         ]
       }
