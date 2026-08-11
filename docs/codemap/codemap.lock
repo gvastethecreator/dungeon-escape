@@ -1,7 +1,7 @@
 {
-  "current_commit": "989ccf79c8ed75ef3093862f9c8eeaae8532ecee",
+  "current_commit": "dbe6d3eb1bb8910db9f4dfa1b911148d377aea4f",
   "working_tree_dirty": true,
-  "generated_at": "2026-08-11T17:04:22Z",
+  "generated_at": "2026-08-11T18:04:22Z",
   "scanned_scope": [
     "."
   ],
@@ -11,6 +11,15 @@
     ".hg",
     ".next",
     ".nuxt",
+    ".proof-deploy-1eb1cf00",
+    ".proof-deploy-dead-1eb1cf00",
+    ".proof-escape-dead-final",
+    ".proof-escape-dead-final-2",
+    ".proof-escape-mobile",
+    ".proof-escape-smoke",
+    ".proof-escape-smoke-final",
+    ".proof-escape-smoke-final-2",
+    ".proof-escape-you-died",
     ".svn",
     ".turbo",
     ".venv",
@@ -32,7 +41,7 @@
       "id": ".",
       "path": ".",
       "file_count": 17,
-      "fingerprint": "c889dc7d068e421383a4aa85de9c9c69c9834a06e60808b01a4da294526ab837"
+      "fingerprint": "1f269cd6d441f77b365fdb90aee2920d20e499c1eeb4126d020b6c27ada10aa6"
     },
     {
       "id": ".github",
@@ -49,8 +58,8 @@
     {
       "id": "assets-source",
       "path": "assets-source",
-      "file_count": 1621,
-      "fingerprint": "fbc573182c92392445fc4f41e593bc8db064e4faa07119840353df65cb87183e"
+      "file_count": 1770,
+      "fingerprint": "49c7c6e925f4bcbb8b2528599d471d14dcaf789a6334e5e12bfffac84340ad89"
     },
     {
       "id": "docs",
@@ -67,14 +76,14 @@
     {
       "id": "public",
       "path": "public",
-      "file_count": 718,
-      "fingerprint": "9eac6b1a09e86049a559618ce23a809a22e82c345838772f4cf08b0a65c8ca00"
+      "file_count": 772,
+      "fingerprint": "78350fee8724e3a12ba5a7a3585e3d54611c24253492d1c34de18157d55fa69b"
     },
     {
       "id": "scripts",
       "path": "scripts",
-      "file_count": 55,
-      "fingerprint": "64b63f7ffee56cea61de80f6ed77744ccdfc838bf2fd5737507b216be289b540"
+      "file_count": 63,
+      "fingerprint": "0eae002fea6141d4d4da38b7e85e9a1655eae8615f817c00c89a771342db36da"
     },
     {
       "id": "server",
@@ -85,14 +94,14 @@
     {
       "id": "src",
       "path": "src",
-      "file_count": 227,
-      "fingerprint": "7ae32904324103968d746123a2a3c4d3d968668fb653ab083fb706e902bcc04e"
+      "file_count": 229,
+      "fingerprint": "55e95e73ef5bebd506e4e636b2b66078f19a796e28a2eef8cb6cb228f5ace4b4"
     },
     {
       "id": "tests",
       "path": "tests",
-      "file_count": 204,
-      "fingerprint": "ab51452b9e856d5dc1276ab0cfd1c08424b879d7c0c05b1418ea81d095dc7ff8"
+      "file_count": 205,
+      "fingerprint": "da1b1f91387e1bb9005d8f7cfec33305361dcab3e4d919c38a06753c6f69ae13"
     },
     {
       "id": "worker",

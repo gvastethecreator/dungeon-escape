@@ -7,10 +7,27 @@ describe("pause options behavior", () => {
     expect(html).toContain('id="music-volume"');
     expect(html).toContain('id="effects-volume"');
     expect(html).toContain('id="texture-smoothing-toggle"');
+    expect(html).toContain('id="palette-effect"');
+    expect(html).toContain('id="palette-dither"');
+    expect(html).toContain('id="display-post-fx-lab"');
+    expect(html).toContain('id="display-palette-stage"');
+    expect(html).toContain('data-display-tuning="halation"');
+    expect(html).toContain('data-display-tuning="phosphorMask"');
+    expect(html).toContain('data-display-tuning="paletteShadowGuard"');
+    expect(html).toContain('data-display-tuning="paletteFlatGuard"');
+    expect(html).toContain('data-display-tuning="paletteDetailBoost"');
+    expect(html).toContain('id="display-post-fx-copy"');
+    expect(html).toContain('id="display-post-fx-reset"');
     expect(main).toContain("audio.setMusicVolume(userSettings.musicVolume)");
     expect(main).toContain("audio.setEffectsVolume(userSettings.effectsVolume)");
     expect(main).toContain("textureRegistry.setSmoothing(textureSmoothing)");
     expect(main).toContain("textureRegistry.diagnostics().registered");
+    expect(main).toContain("povPost.setPaletteEffect(");
+    expect(main).toContain("paletteDitherStrength: profile.recommendedDitherStrength");
+    expect(main).toContain("updateUserSettings({ paletteDitherStrength })");
+    expect(main).toContain("povPost.setDisplayTuning(displayPostFxTuning)");
+    expect(main).toContain("if (!localDevTools) return;");
+    expect(main).toContain("writeDisplayPostFxTuning(displayPostFxTuning)");
     expect(main).not.toContain("applyTextureSmoothing(");
     expect(main.indexOf("readUserSettings()")).toBeLessThan(
       main.indexOf("new SceneTextureRegistry("),

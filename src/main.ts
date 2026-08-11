@@ -52,6 +52,18 @@ import { resolveExplorationFogMultiplier } from "./systems/ExplorationFog";
 import { SceneTextureRegistry } from "./systems/SceneTextureRegistry";
 import { resolveDungeonExposure } from "./systems/LightTuning";
 import { PovPostFx } from "./systems/PovPostFx";
+import {
+  normalizePalettePostEffectId,
+  palettePostEffectProfile,
+} from "./systems/PalettePostEffect";
+import {
+  DEFAULT_DISPLAY_POST_FX_TUNING,
+  displayPostFxPreset,
+  normalizeDisplayPostFxTuning,
+  readDisplayPostFxTuning,
+  writeDisplayPostFxTuning,
+  type DisplayPostFxTuning,
+} from "./systems/DisplayPostFxTuning";
 import { computeCriticalHealthFeel } from "./systems/CriticalHealthFeel";
 import { computeBiomeLensFeel } from "./systems/BiomeLensFeel";
 import {
@@ -332,6 +344,22 @@ const elements = {
   effectsVolume: requireElement<HTMLInputElement>("#effects-volume"),
   effectsVolumeValue: requireElement<HTMLOutputElement>("#effects-volume-value"),
   textureSmoothingToggle: requireElement<HTMLButtonElement>("#texture-smoothing-toggle"),
+  paletteEffectSelect: requireElement<HTMLSelectElement>("#palette-effect"),
+  paletteDither: requireElement<HTMLInputElement>("#palette-dither"),
+  paletteDitherValue: requireElement<HTMLOutputElement>("#palette-dither-value"),
+  displayPostFxLab: requireElement<HTMLDetailsElement>("#display-post-fx-lab"),
+  displayPostFxPreset: requireElement<HTMLSelectElement>("#display-post-fx-preset"),
+  displayPaletteStage: requireElement<HTMLSelectElement>("#display-palette-stage"),
+  displayTuningInputs: [...document.querySelectorAll<HTMLInputElement>("[data-display-tuning]")],
+  displayTuningOutputs: [
+    ...document.querySelectorAll<HTMLOutputElement>("[data-display-tuning-output]"),
+  ],
+  displayPostFxConfig: requireElement<HTMLTextAreaElement>("#display-post-fx-config"),
+  displayPostFxCopy: requireElement<HTMLButtonElement>("#display-post-fx-copy"),
+  displayPostFxReset: requireElement<HTMLButtonElement>("#display-post-fx-reset"),
+  displayDebugFrame: requireElement<HTMLOutputElement>("#display-debug-frame"),
+  displayDebugCalls: requireElement<HTMLOutputElement>("#display-debug-calls"),
+  displayDebugPrograms: requireElement<HTMLOutputElement>("#display-debug-programs"),
   welcomeMusicToggle: requireElement<HTMLButtonElement>("#welcome-music-toggle"),
   bootScreen: requireElement<HTMLElement>("#boot-screen"),
   bootFill: requireElement<HTMLElement>("#boot-fill"),
@@ -402,7 +430,10 @@ function applyLocalDevToolsChrome(): void {
   elements.shell.dataset.localDevTools = localDevTools ? "true" : "false";
   elements.recordPanel.hidden = !localDevTools;
   elements.recordPanel.setAttribute("aria-hidden", localDevTools ? "false" : "true");
+  elements.displayPostFxLab.hidden = !localDevTools;
+  elements.displayPostFxLab.setAttribute("aria-hidden", localDevTools ? "false" : "true");
   if (!localDevTools) elements.recordPanel.open = false;
+  if (!localDevTools) elements.displayPostFxLab.open = false;
 }
 
 /** Open Map Tools only when local developer chrome is enabled. */
@@ -449,6 +480,9 @@ renderer.setPixelRatio(resolveRenderPixelRatio(window.devicePixelRatio, renderCa
 renderer.info.autoReset = false;
 
 let userSettings: UserSettings = readUserSettings();
+let displayPostFxTuning: DisplayPostFxTuning = localDevTools
+  ? readDisplayPostFxTuning()
+  : { ...DEFAULT_DISPLAY_POST_FX_TUNING };
 const textureRegistry = new SceneTextureRegistry(userSettings.textureSmoothing);
 const lighting = new LightingRig(scene);
 // Neutral IBL so MeshStandard metals leave flat gray (low mood intensity keeps interiors grim).
@@ -468,6 +502,7 @@ const dungeonLoadTraces = new DungeonLoadTraceController();
 // Fog column shares WorldMetrics with the architecture stack.
 const atmosphere = new AtmosphereSystem(scene, TILE_SIZE, WORLD_WALL_HEIGHT, textureRegistry);
 const povPost = new PovPostFx();
+povPost.setDisplayTuning(displayPostFxTuning);
 // CRT history + multi-sample composite is the usual Firefox stutter source.
 povPost.setCrtEnabled(renderCaps.enableCrtByDefault);
 const povFeel = new PovFeelState();
@@ -612,6 +647,7 @@ let rendererWarmupTrace: DungeonLoadTrace | undefined;
 const runIntroLoadTraces = new WeakMap<RunIntroRequest, DungeonLoadTrace>();
 let activeRunIntroTrace: DungeonLoadTrace | undefined;
 let lastDebugDraw = 0;
+let lastDisplayLabDraw = 0;
 let regenerateTimer = 0;
 let currentThreatDistance: number | null = null;
 let editorSurface: "runtime" | "forge" = "forge";
@@ -4252,9 +4288,120 @@ function syncCrtToggleUi(): void {
   elements.crtToggle.title = crtEnabled ? "Turn CRT off" : "Turn CRT on";
 }
 
+function syncPaletteEffectUi(): void {
+  const ditherPercent = Math.round(userSettings.paletteDitherStrength * 100);
+  elements.paletteEffectSelect.value = userSettings.paletteEffect;
+  elements.paletteDither.value = String(ditherPercent);
+  elements.paletteDitherValue.value = `${ditherPercent}%`;
+  elements.paletteDither.disabled = userSettings.paletteEffect === "off";
+  povPost.setPaletteEffect(userSettings.paletteEffect, userSettings.paletteDitherStrength);
+}
+
+const DISPLAY_TUNING_FIELDS = [
+  "paletteDitherScale",
+  "paletteShadowGuard",
+  "paletteFlatGuard",
+  "paletteDetailBoost",
+  "paletteLightnessBias",
+  "halation",
+  "persistence",
+  "scanlines",
+  "phosphorMask",
+  "brightness",
+  "curvatureScale",
+  "grainScale",
+] as const satisfies readonly Exclude<keyof DisplayPostFxTuning, "paletteStage">[];
+type DisplayTuningField = (typeof DISPLAY_TUNING_FIELDS)[number];
+
+function isDisplayTuningField(value: string | undefined): value is DisplayTuningField {
+  return DISPLAY_TUNING_FIELDS.includes(value as DisplayTuningField);
+}
+
+function displayTuningLabel(field: DisplayTuningField, value: number): string {
+  if (field === "paletteLightnessBias") {
+    const percent = Math.round(value * 100);
+    return `${percent > 0 ? "+" : ""}${percent}% L`;
+  }
+  return field === "brightness" ||
+    field === "curvatureScale" ||
+    field === "grainScale" ||
+    field === "paletteDitherScale" ||
+    field === "paletteShadowGuard" ||
+    field === "paletteFlatGuard" ||
+    field === "paletteDetailBoost"
+    ? `${value.toFixed(2)}×`
+    : `${Math.round(value * 100)}%`;
+}
+
+function currentDisplayPostFxConfig(): string {
+  return JSON.stringify(
+    {
+      paletteEffect: userSettings.paletteEffect,
+      paletteDitherStrength: userSettings.paletteDitherStrength,
+      paletteProfile: palettePostEffectProfile(userSettings.paletteEffect),
+      crtEnabled,
+      tuning: displayPostFxTuning,
+    },
+    null,
+    2,
+  );
+}
+
+function persistDisplayPostFxTuning(): void {
+  if (localDevTools) writeDisplayPostFxTuning(displayPostFxTuning);
+}
+
+function syncDisplayPostFxLabUi(presetId = "custom"): void {
+  elements.displayPostFxPreset.value = presetId;
+  elements.displayPaletteStage.value = displayPostFxTuning.paletteStage;
+  for (const input of elements.displayTuningInputs) {
+    const field = input.dataset.displayTuning;
+    if (!isDisplayTuningField(field)) continue;
+    input.value = String(Math.round(displayPostFxTuning[field] * 100));
+  }
+  for (const output of elements.displayTuningOutputs) {
+    const field = output.dataset.displayTuningOutput;
+    if (!isDisplayTuningField(field)) continue;
+    output.value = displayTuningLabel(field, displayPostFxTuning[field]);
+  }
+  elements.displayPostFxConfig.value = currentDisplayPostFxConfig();
+  povPost.setDisplayTuning(displayPostFxTuning);
+}
+
+function markDisplayPostFxCustom(): void {
+  if (localDevTools) {
+    elements.displayPostFxPreset.value = "custom";
+    elements.displayPostFxConfig.value = currentDisplayPostFxConfig();
+  }
+}
+
+function applyDisplayPostFxPreset(presetId: string): void {
+  if (!localDevTools) return;
+  const preset = displayPostFxPreset(presetId);
+  if (!preset) return;
+  displayPostFxTuning = { ...preset.tuning };
+  updateUserSettings({
+    paletteEffect: preset.paletteEffect,
+    paletteDitherStrength: preset.paletteDitherStrength,
+  });
+  if (!crtEnabled) {
+    crtEnabled = true;
+    crtManualOverride = true;
+    crtAutoDisabled = false;
+    povPost.setCrtEnabled(true);
+    syncCrtToggleUi();
+  }
+  persistDisplayPostFxTuning();
+  syncPaletteEffectUi();
+  syncDisplayPostFxLabUi(preset.id);
+  setStatus(`${preset.label} applied.`);
+}
+
 // Apply capability default before first paint (toggle reflects Firefox/low-end path).
 povPost.setCrtEnabled(crtEnabled);
 syncCrtToggleUi();
+syncPaletteEffectUi();
+syncDisplayPostFxLabUi();
 syncAudioToggleUi();
 syncVolumeControl(elements.musicVolume, elements.musicVolumeValue, userSettings.musicVolume);
 syncVolumeControl(elements.effectsVolume, elements.effectsVolumeValue, userSettings.effectsVolume);
@@ -4266,7 +4413,67 @@ elements.crtToggle.addEventListener("click", () => {
   crtAutoDisabled = false;
   povPost.setCrtEnabled(crtEnabled);
   syncCrtToggleUi();
+  markDisplayPostFxCustom();
   setStatus(crtEnabled ? "CRT on." : "CRT off.");
+});
+elements.paletteEffectSelect.addEventListener("change", () => {
+  const paletteEffect = normalizePalettePostEffectId(elements.paletteEffectSelect.value);
+  const profile = palettePostEffectProfile(paletteEffect);
+  updateUserSettings({
+    paletteEffect,
+    ...(profile ? { paletteDitherStrength: profile.recommendedDitherStrength } : {}),
+  });
+  syncPaletteEffectUi();
+  markDisplayPostFxCustom();
+  setStatus(paletteEffect === "off" ? "Color palette off." : "Color palette changed.");
+});
+elements.paletteDither.addEventListener("input", () => {
+  const paletteDitherStrength = Number(elements.paletteDither.value) / 100;
+  updateUserSettings({ paletteDitherStrength });
+  syncPaletteEffectUi();
+  markDisplayPostFxCustom();
+});
+elements.paletteDither.addEventListener("change", () => playCue("uiTick"));
+elements.displayPostFxPreset.addEventListener("change", () => {
+  applyDisplayPostFxPreset(elements.displayPostFxPreset.value);
+});
+elements.displayPaletteStage.addEventListener("change", () => {
+  if (!localDevTools) return;
+  displayPostFxTuning = normalizeDisplayPostFxTuning({
+    ...displayPostFxTuning,
+    paletteStage: elements.displayPaletteStage.value,
+  });
+  persistDisplayPostFxTuning();
+  syncDisplayPostFxLabUi();
+});
+for (const input of elements.displayTuningInputs) {
+  input.addEventListener("input", () => {
+    if (!localDevTools) return;
+    const field = input.dataset.displayTuning;
+    if (!isDisplayTuningField(field)) return;
+    displayPostFxTuning = normalizeDisplayPostFxTuning({
+      ...displayPostFxTuning,
+      [field]: Number(input.value) / 100,
+    });
+    syncDisplayPostFxLabUi();
+  });
+  input.addEventListener("change", () => {
+    if (!localDevTools) return;
+    persistDisplayPostFxTuning();
+    playCue("uiTick");
+  });
+}
+elements.displayPostFxCopy.addEventListener("click", () => {
+  if (!localDevTools) return;
+  const config = currentDisplayPostFxConfig();
+  elements.displayPostFxConfig.value = config;
+  void navigator.clipboard
+    ?.writeText(config)
+    .then(() => setStatus("Display configuration copied."))
+    .catch(() => setStatus("Copy failed. Select the display configuration manually."));
+});
+elements.displayPostFxReset.addEventListener("click", () => {
+  applyDisplayPostFxPreset("balanced");
 });
 elements.retry.addEventListener("click", () => {
   void rebuildDungeonCovered(() => buildDungeon());
@@ -4825,6 +5032,12 @@ function frame(now: number): void {
       frameMs <= 18 ? "FRAME OK" : frameMs <= 28 ? "FRAME WARN" : "FRAME HOT";
     elements.debugPanel.dataset.frameState = frameMs <= 18 ? "ok" : frameMs <= 28 ? "warn" : "hot";
     lastDebugDraw = now;
+  }
+  if (localDevTools && elements.displayPostFxLab.open && now - lastDisplayLabDraw > 240) {
+    elements.displayDebugFrame.value = `${smoothedFrameMs.toFixed(1)}ms`;
+    elements.displayDebugCalls.value = String(lastRenderSnapshot.calls);
+    elements.displayDebugPrograms.value = String(renderer.info.programs?.length ?? 0);
+    lastDisplayLabDraw = now;
   }
   if (renderWarmupReady) {
     povPost.render(renderer, scene, camera);

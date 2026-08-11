@@ -787,7 +787,230 @@
               <span class="options-toggle__label">CRT</span>
               <span class="options-toggle__value" data-toggle-value>ON</span>
             </button>
+            <div class="options-volume-grid options-palette-grid">
+              <label class="options-volume options-palette" for="palette-effect">
+                <span>Color palette</span>
+                <select id="palette-effect" aria-label="Limit the game color palette">
+                  <option value="off">Original colors</option>
+                  <option value="game-boy-olive">Game Boy Olive</option>
+                  <option value="cga-0-high">CGA 0 High</option>
+                  <option value="ega-16">EGA 16</option>
+                  <option value="commodore-64">Commodore 64</option>
+                  <option value="pico-8">PICO-8</option>
+                  <option value="zx-spectrum">ZX Spectrum</option>
+                </select>
+              </label>
+              <label class="options-volume" for="palette-dither">
+                <span>Dithering</span>
+                <output id="palette-dither-value" for="palette-dither">72%</output>
+                <input id="palette-dither" type="range" min="0" max="100" step="4" value="72" />
+              </label>
+            </div>
           </fieldset>
+
+          <details id="display-post-fx-lab" class="display-post-fx-lab" data-local-dev-only="true">
+            <summary>
+              <span>DISPLAY LAB</span>
+              <small>LOCAL</small>
+            </summary>
+            <div class="display-post-fx-lab__body">
+              <label class="options-volume options-palette" for="display-post-fx-preset">
+                <span>Preset</span>
+                <select id="display-post-fx-preset">
+                  <option value="custom">Custom</option>
+                  <option value="balanced">Balanced CRT</option>
+                  <option value="clean">Clean CRT</option>
+                  <option value="pico-arcade">PICO Arcade</option>
+                  <option value="c64-tube">C64 Tube</option>
+                  <option value="game-boy-tube">Game Boy Tube</option>
+                  <option value="cga-hard">Hard CGA</option>
+                  <option value="ega-monitor">EGA Monitor</option>
+                  <option value="zx-crisp">ZX Crisp</option>
+                </select>
+              </label>
+              <label class="options-volume options-palette" for="display-palette-stage">
+                <span>Palette stage</span>
+                <select id="display-palette-stage">
+                  <option value="world">World grade · before CRT</option>
+                  <option value="final">Final screen · exact palette</option>
+                </select>
+              </label>
+              <div class="display-post-fx-lab__metrics" aria-label="Live render metrics">
+                <span>FRAME <output id="display-debug-frame">—</output></span>
+                <span>CALLS <output id="display-debug-calls">—</output></span>
+                <span>PROGRAMS <output id="display-debug-programs">—</output></span>
+              </div>
+              <div class="display-post-fx-lab__ranges">
+                <label class="options-volume" for="display-palette-dither-scale">
+                  <span>Palette dither scale</span>
+                  <output data-display-tuning-output="paletteDitherScale">1.00×</output>
+                  <input
+                    id="display-palette-dither-scale"
+                    data-display-tuning="paletteDitherScale"
+                    type="range"
+                    min="25"
+                    max="200"
+                    step="5"
+                    value="100"
+                  />
+                </label>
+                <label class="options-volume" for="display-palette-shadow-guard">
+                  <span>Shadow guard</span>
+                  <output data-display-tuning-output="paletteShadowGuard">1.00×</output>
+                  <input
+                    id="display-palette-shadow-guard"
+                    data-display-tuning="paletteShadowGuard"
+                    type="range"
+                    min="0"
+                    max="150"
+                    step="5"
+                    value="100"
+                  />
+                </label>
+                <label class="options-volume" for="display-palette-flat-guard">
+                  <span>Flat background guard</span>
+                  <output data-display-tuning-output="paletteFlatGuard">1.00×</output>
+                  <input
+                    id="display-palette-flat-guard"
+                    data-display-tuning="paletteFlatGuard"
+                    type="range"
+                    min="0"
+                    max="150"
+                    step="5"
+                    value="100"
+                  />
+                </label>
+                <label class="options-volume" for="display-palette-detail-boost">
+                  <span>Edge detail</span>
+                  <output data-display-tuning-output="paletteDetailBoost">1.00×</output>
+                  <input
+                    id="display-palette-detail-boost"
+                    data-display-tuning="paletteDetailBoost"
+                    type="range"
+                    min="50"
+                    max="200"
+                    step="5"
+                    value="100"
+                  />
+                </label>
+                <label class="options-volume" for="display-palette-lightness-bias">
+                  <span>Palette exposure</span>
+                  <output data-display-tuning-output="paletteLightnessBias">0% L</output>
+                  <input
+                    id="display-palette-lightness-bias"
+                    data-display-tuning="paletteLightnessBias"
+                    type="range"
+                    min="-10"
+                    max="10"
+                    step="1"
+                    value="0"
+                  />
+                </label>
+                <label class="options-volume" for="display-tuning-halation">
+                  <span>Halation</span>
+                  <output data-display-tuning-output="halation">16%</output>
+                  <input
+                    id="display-tuning-halation"
+                    data-display-tuning="halation"
+                    type="range"
+                    min="0"
+                    max="35"
+                    step="1"
+                    value="16"
+                  />
+                </label>
+                <label class="options-volume" for="display-tuning-persistence">
+                  <span>Persistence</span>
+                  <output data-display-tuning-output="persistence">16%</output>
+                  <input
+                    id="display-tuning-persistence"
+                    data-display-tuning="persistence"
+                    type="range"
+                    min="0"
+                    max="35"
+                    step="1"
+                    value="16"
+                  />
+                </label>
+                <label class="options-volume" for="display-tuning-scanlines">
+                  <span>Scanlines</span>
+                  <output data-display-tuning-output="scanlines">38%</output>
+                  <input
+                    id="display-tuning-scanlines"
+                    data-display-tuning="scanlines"
+                    type="range"
+                    min="0"
+                    max="100"
+                    step="2"
+                    value="38"
+                  />
+                </label>
+                <label class="options-volume" for="display-tuning-phosphor-mask">
+                  <span>Phosphor mask</span>
+                  <output data-display-tuning-output="phosphorMask">26%</output>
+                  <input
+                    id="display-tuning-phosphor-mask"
+                    data-display-tuning="phosphorMask"
+                    type="range"
+                    min="0"
+                    max="100"
+                    step="2"
+                    value="26"
+                  />
+                </label>
+                <label class="options-volume" for="display-tuning-brightness">
+                  <span>CRT brightness</span>
+                  <output data-display-tuning-output="brightness">1.04×</output>
+                  <input
+                    id="display-tuning-brightness"
+                    data-display-tuning="brightness"
+                    type="range"
+                    min="90"
+                    max="115"
+                    step="1"
+                    value="104"
+                  />
+                </label>
+                <label class="options-volume" for="display-tuning-curvature-scale">
+                  <span>Curvature</span>
+                  <output data-display-tuning-output="curvatureScale">1.00×</output>
+                  <input
+                    id="display-tuning-curvature-scale"
+                    data-display-tuning="curvatureScale"
+                    type="range"
+                    min="0"
+                    max="200"
+                    step="5"
+                    value="100"
+                  />
+                </label>
+                <label class="options-volume" for="display-tuning-grain-scale">
+                  <span>Grain</span>
+                  <output data-display-tuning-output="grainScale">1.00×</output>
+                  <input
+                    id="display-tuning-grain-scale"
+                    data-display-tuning="grainScale"
+                    type="range"
+                    min="0"
+                    max="200"
+                    step="5"
+                    value="100"
+                  />
+                </label>
+              </div>
+              <textarea
+                id="display-post-fx-config"
+                rows="5"
+                readonly
+                spellcheck="false"
+                aria-label="Current display configuration"
+              ></textarea>
+              <div class="display-post-fx-lab__actions">
+                <button id="display-post-fx-copy" type="button">COPY CONFIG</button>
+                <button id="display-post-fx-reset" type="button">RESET</button>
+              </div>
+            </div>
+          </details>
 
           <!-- Play pause only: leave run, then restart (secondary / destructive). -->
           <nav class="options-session" aria-label="Run actions">
