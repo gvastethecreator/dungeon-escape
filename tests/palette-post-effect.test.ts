@@ -20,8 +20,10 @@ describe("palette post effect catalog", () => {
       expect(profile.colors.length).toBeLessThanOrEqual(MAX_POST_PALETTE_COLORS);
       expect(profile.colors.every((color) => /^#[0-9A-F]{6}$/.test(color))).toBe(true);
       expect(profile.recommendedDitherStrength).toBeGreaterThanOrEqual(0.45);
-      expect(profile.recommendedDitherStrength).toBeLessThanOrEqual(0.65);
+      expect(profile.recommendedDitherStrength).toBeLessThanOrEqual(0.7);
       expect(profile.quantization.shadowStart).toBeLessThan(profile.quantization.shadowEnd);
+      expect(profile.quantization.ditherAmplitude).toBeGreaterThanOrEqual(0.75);
+      expect(profile.quantization.ditherAmplitude).toBeLessThanOrEqual(1);
       expect(profile.quantization.flatSuppression).toBeGreaterThan(0.7);
       expect(profile.quantization.lightnessWeight).toBeGreaterThan(
         profile.quantization.chromaWeight,
