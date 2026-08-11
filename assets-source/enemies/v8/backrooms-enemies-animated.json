@@ -1,0 +1,179 @@
+{
+  "version": 1,
+  "kind": "biome-enemy-animation-atlas",
+  "biome": "backrooms",
+  "size": [640, 3520],
+  "cell": [160, 160],
+  "layout": "two interleaved rows per enemy: movement, attack",
+  "frames_per_state": 4,
+  "reviewed": [
+    "carrion",
+    "goblin",
+    "ghost",
+    "ratling",
+    "husk",
+    "imp",
+    "zombie-orc",
+    "spider",
+    "bone-slime",
+    "white-eyed-shadow",
+    "carrion-stalker"
+  ],
+  "enemies": {
+    "carrion": {
+      "status": "reviewed",
+      "candidate": ".scratch/biome-enemy-animation-spritesheets/candidates/backrooms/carrion",
+      "source_sha256": "9c3c31b5c2d45a8e43fc680c5915ee0a15b72f6df9b13a8722305f384df3006b",
+      "validation_fingerprint": "38255883742862a9968e001ec0ee997b0c5571d141e3949b45a7f78e2e25d1c9",
+      "movement_row": 0,
+      "attack_row": 1,
+      "movement_fps": 8,
+      "attack_fps": 10,
+      "pivot": {
+        "x": 80,
+        "bottom": 152
+      }
+    },
+    "goblin": {
+      "status": "reviewed",
+      "candidate": ".scratch/biome-enemy-animation-spritesheets/candidates/backrooms/goblin",
+      "source_sha256": "306322cf91366f3104d6950417420f54374cf316c4b02b64b2b62dde41549cd3",
+      "validation_fingerprint": "d1da8035d747886121ee6b0d7f89c6ec65f077d2c79cdc64d3546ff4b3197236",
+      "movement_row": 2,
+      "attack_row": 3,
+      "movement_fps": 8,
+      "attack_fps": 10,
+      "pivot": {
+        "x": 80,
+        "bottom": 152
+      }
+    },
+    "ghost": {
+      "status": "reviewed",
+      "candidate": ".scratch/biome-enemy-animation-spritesheets/candidates/backrooms/ghost",
+      "source_sha256": "9fd2bb577cdda0fb315e30f8d3fc4c33a3b47304f9b5ca5f53d37f2897b35d8a",
+      "validation_fingerprint": "98fed157f104c291eb7bfd9d7b2834484aa41a6ec058a211079737eb04262ca8",
+      "movement_row": 4,
+      "attack_row": 5,
+      "movement_fps": 8,
+      "attack_fps": 10,
+      "pivot": {
+        "x": 80,
+        "bottom": 152
+      }
+    },
+    "ratling": {
+      "status": "reviewed",
+      "candidate": ".scratch/biome-enemy-animation-spritesheets/candidates/backrooms/ratling",
+      "source_sha256": "d75ab4ad0790e531a63be19d5719d20ae72a6d4f54c8f1e1f0abb9adde473940",
+      "validation_fingerprint": "77ff5d165d6188b41077003ba5fe63c2e349e96a43bb14b173759d0ae21fe8d2",
+      "movement_row": 6,
+      "attack_row": 7,
+      "movement_fps": 8,
+      "attack_fps": 10,
+      "pivot": {
+        "x": 80,
+        "bottom": 152
+      }
+    },
+    "husk": {
+      "status": "reviewed",
+      "candidate": ".scratch/biome-enemy-animation-spritesheets/candidates/backrooms/husk",
+      "source_sha256": "4ec0516e38bdcca0e1574b325d620f3988827e0e26f941602b95441227a43c4e",
+      "validation_fingerprint": "55eb791d730910117b8c750fcbe0680d92b691a159bcc76790fef466cc96514d",
+      "movement_row": 8,
+      "attack_row": 9,
+      "movement_fps": 8,
+      "attack_fps": 10,
+      "pivot": {
+        "x": 80,
+        "bottom": 152
+      }
+    },
+    "imp": {
+      "status": "reviewed",
+      "candidate": ".scratch/biome-enemy-animation-spritesheets/candidates/backrooms/imp",
+      "source_sha256": "0af8ba56388e802b547e82c8dedba0e51208f730f3806679bab6741fc165081b",
+      "validation_fingerprint": "1dd42f21d6d6cf6077bab458f795e31e3cef05041a3798661307072105fd6822",
+      "movement_row": 10,
+      "attack_row": 11,
+      "movement_fps": 8,
+      "attack_fps": 10,
+      "pivot": {
+        "x": 80,
+        "bottom": 152
+      }
+    },
+    "zombie-orc": {
+      "status": "reviewed",
+      "candidate": ".scratch/biome-enemy-animation-spritesheets/candidates/backrooms/zombie-orc",
+      "source_sha256": "000b3db2c11ed5534d5f4ea2e0ea8b38788761d57e83d77188dfe4c2a5882b25",
+      "validation_fingerprint": "b37a3d9450dcc4f95d5ef95edd10837accde2489de71abfc8b26cbefe9e2b57d",
+      "movement_row": 12,
+      "attack_row": 13,
+      "movement_fps": 8,
+      "attack_fps": 10,
+      "pivot": {
+        "x": 80,
+        "bottom": 152
+      }
+    },
+    "spider": {
+      "status": "reviewed",
+      "candidate": ".scratch/biome-enemy-animation-spritesheets/candidates/backrooms/spider",
+      "source_sha256": "44917147ff62188983e6c1b4c9854ad83b41207ef5d90593af378114ffdc9663",
+      "validation_fingerprint": "2e049c71528543fc2d33dc7f6d7f54c4b886752c4b15be26749942b4b2296428",
+      "movement_row": 14,
+      "attack_row": 15,
+      "movement_fps": 8,
+      "attack_fps": 10,
+      "pivot": {
+        "x": 80,
+        "bottom": 152
+      }
+    },
+    "bone-slime": {
+      "status": "reviewed",
+      "candidate": ".scratch/biome-enemy-animation-spritesheets/candidates/backrooms/bone-slime",
+      "source_sha256": "55f102d1e1ad9b475c24db192ebf9f5b0bc95fcf65e06408127365e88ebfe645",
+      "validation_fingerprint": "39c0dfa8e5b08e3b33391c3af5e8cb2fcad8547d23b91c6f460240de4305b589",
+      "movement_row": 16,
+      "attack_row": 17,
+      "movement_fps": 8,
+      "attack_fps": 10,
+      "pivot": {
+        "x": 80,
+        "bottom": 152
+      }
+    },
+    "white-eyed-shadow": {
+      "status": "reviewed",
+      "candidate": ".scratch/biome-enemy-animation-spritesheets/candidates/backrooms/white-eyed-shadow",
+      "source_sha256": "14510907e24cbfcb44e62ab51893e1c140f7b18f7dd956e22acc0e987f891004",
+      "validation_fingerprint": "501fa2dd2fb8e9409b3a74909cf7e220fd63dad9c9e05131c3744bd145dbf344",
+      "movement_row": 18,
+      "attack_row": 19,
+      "movement_fps": 8,
+      "attack_fps": 10,
+      "pivot": {
+        "x": 80,
+        "bottom": 152
+      }
+    },
+    "carrion-stalker": {
+      "status": "reviewed",
+      "candidate": ".scratch/biome-enemy-animation-spritesheets/candidates/backrooms/carrion-stalker",
+      "source_sha256": "520c60f4d41ec9bb4be5f58381533219fb9ecfb956b21a8f14996293384c9c31",
+      "validation_fingerprint": "b25773dff5a0d8e091d5ae15d5524bbc978b146fd892917dccd8a56678b19d60",
+      "movement_row": 20,
+      "attack_row": 21,
+      "movement_fps": 8,
+      "attack_fps": 10,
+      "pivot": {
+        "x": 80,
+        "bottom": 152
+      }
+    }
+  },
+  "output_sha256": "6810889697686c6ba327de9f6c3025e7d913bc8afbd60a5781befc718d28d1e1"
+}

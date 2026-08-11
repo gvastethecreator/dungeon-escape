@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "install:check": "bun install --frozen-lockfile",
     "dev": "vite --host 127.0.0.1 --port 24211 --strictPort",
     "build": "bun run typecheck:all && vite build",
     "build:code": "bun run typecheck:all && vite build --mode code-verification",
@@ -15,8 +16,14 @@
     "typecheck:worker": "tsc -p tsconfig.worker.json --noEmit",
     "typecheck:all": "bun run typecheck && bun run typecheck:server && bun run typecheck:worker",
     "lint": "oxlint .",
-    "fmt": "oxfmt .",
-    "fmt:check": "oxfmt --check .",
+    "fmt": "oxfmt . '!docs/codemap/**' '!assets-source/runtime-optimization-manifest.json'",
+    "fmt:check": "oxfmt --check . '!docs/codemap/**' '!assets-source/runtime-optimization-manifest.json'",
+    "check": "bun run typecheck:all && bun run lint && bun run fmt:check && bun run test && bun run audit:runtime-assets && bun run build:code",
+    "clean": "bun run scripts/clean.mjs",
+    "deps:outdated": "bun outdated",
+    "deps:audit": "bun audit",
+    "smoke:multi-floor": "bun run scripts/multi-floor-browser-smoke.mjs",
+    "smoke:mobile": "bun run scripts/mobile-ui-smoke.mjs",
     "optimize:runtime-assets": "python scripts/optimize-runtime-assets.py",
     "audit:runtime-assets": "bun run scripts/audit-runtime-assets.ts",
     "audit:enemy-atlases": "python scripts/audit-enemy-atlases-v8.py --write-package-metadata",
@@ -32,15 +39,15 @@
     "three": "^0.185.1"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "^5.20260730.1",
+    "@cloudflare/workers-types": "^5.20260809.1",
     "@types/bun": "^1.3.14",
-    "@types/three": "^0.185.1",
-    "oxfmt": "^0.61.0",
-    "oxlint": "^1.76.0",
-    "playwright": "1.62.0",
+    "@types/three": "^0.185.4",
+    "oxfmt": "^0.62.0",
+    "oxlint": "^1.77.0",
+    "playwright": "1.62.1",
     "typescript": "^7.0.2",
-    "vite": "^8.2.0",
-    "wrangler": "^4.115.0"
+    "vite": "^8.2.1",
+    "wrangler": "^4.120.0"
   },
   "packageManager": "bun@1.3.14"
 }

@@ -2,6 +2,7 @@ import * as THREE from "three";
 
 import {
   ENEMY_ARCHETYPES,
+  getEnemyVisualBodySize,
   getEnemySpriteRenderMetrics,
   isLowProfileEnemy,
   type EnemyKind,
@@ -116,10 +117,11 @@ export class EnemyPresentation {
 
   writeContactShadow(actor: EnemyPresentationActor, visibility: number, moodId: string): void {
     const archetype = ENEMY_ARCHETYPES[actor.kind];
+    const body = getEnemyVisualBodySize(actor.kind, moodId);
     const sprite = getEnemySpriteRenderMetrics(actor.kind, moodId);
     const feetY = enemyOpaqueFeetY(actor.position.y, sprite.planeHeight, sprite.bottomPaddingRatio);
     const layout = resolveEnemyContactShadowLayout({
-      bodyWidth: archetype.width,
+      bodyWidth: body.width,
       lowProfile: isLowProfileEnemy(actor.kind),
       feetY,
       visibility,

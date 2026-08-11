@@ -97,8 +97,7 @@ export function tickHazardTraversal(
   if (input.immune) toxinRemaining = 0;
 
   let damage = 0;
-  const contact =
-    !input.airborne && !input.immune ? input.contactKind : null;
+  const contact = !input.airborne && !input.immune ? input.contactKind : null;
 
   if (contact === "fire" && fireCooldown === 0) {
     damage += HAZARD_FIRE_DAMAGE;

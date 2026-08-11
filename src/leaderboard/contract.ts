@@ -5,7 +5,7 @@ export const LEADERBOARD_SCORE_VERSION = 1;
 export const PLAYER_NAME_MAX_LENGTH = 20;
 export const LEADERBOARD_DEFAULT_LIMIT = 8;
 export const LEADERBOARD_MAX_LIMIT = 50;
-/** Matches campaign generation floor (Ancient = 10 rooms; editor min target = 8). */
+/** Covers the campaign generation floor (Ancient = 9 rooms) and editor minimum. */
 export const LEADERBOARD_MIN_ROOM_COUNT = 8;
 export const LEADERBOARD_MAX_ROOM_COUNT = 80;
 

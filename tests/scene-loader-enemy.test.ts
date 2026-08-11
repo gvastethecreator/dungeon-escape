@@ -29,9 +29,7 @@ describe("scene loader enemy teaser", () => {
 
     expect(style.backgroundImage).toBe(`url("${goblin.src}")`);
     expect(style.backgroundImage).toContain("/biomes/molten-enemies.webp");
-    expect(style.backgroundSize).toBe(
-      `${goblin.size[0] * scale}px ${goblin.size[1] * scale}px`,
-    );
+    expect(style.backgroundSize).toBe(`${goblin.size[0] * scale}px ${goblin.size[1] * scale}px`);
     expect(style.backgroundPosition).toBe(`0px -${row.y * scale}px`);
     expect(style.cellSizePx).toBe(SCENE_LOADER_ENEMY_DISPLAY_SIZE);
     expect(style.stripWidthPx).toBe(SCENE_LOADER_ENEMY_DISPLAY_SIZE * 4);

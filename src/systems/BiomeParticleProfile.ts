@@ -72,7 +72,9 @@ const layer = (
 /** Sparse ceiling fallers — keep under the ambient field budget. */
 const ceiling = (
   config: Omit<BiomeParticleLayerProfile, "minCount" | "maxCount" | "perFloor" | "wake" | "glow"> &
-    Partial<Pick<BiomeParticleLayerProfile, "minCount" | "maxCount" | "perFloor" | "wake" | "glow">>,
+    Partial<
+      Pick<BiomeParticleLayerProfile, "minCount" | "maxCount" | "perFloor" | "wake" | "glow">
+    >,
 ): BiomeParticleLayerProfile => ({
   minCount: 48,
   maxCount: 160,

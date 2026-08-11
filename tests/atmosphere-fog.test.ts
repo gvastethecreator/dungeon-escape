@@ -134,7 +134,10 @@ describe("soft ground fog", () => {
   test("biome event pulse intensifies ceiling fallers without screen overlays", () => {
     const scene = new THREE.Scene();
     const atmosphere = new AtmosphereSystem(scene, 2.4, SOFT_FOG_DEFAULT_WALL_HEIGHT);
-    atmosphere.setDungeon(generateDungeon("CEIL-PULSE", { roomTarget: 10 }), getDungeonMood("ancient"));
+    atmosphere.setDungeon(
+      generateDungeon("CEIL-PULSE", { roomTarget: 10 }),
+      getDungeonMood("ancient"),
+    );
     const profile = getBiomeParticleProfile("ancient");
     const ceiling = scene.getObjectByName(
       `Biome particles: ${profile.ceiling.name}`,

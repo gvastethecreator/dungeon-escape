@@ -74,4 +74,3 @@ describe("AdaptiveCrtPolicy", () => {
     expect(main).not.toContain("crtAutoDisabled !== previousAutoDisabled");
   });
 });
-

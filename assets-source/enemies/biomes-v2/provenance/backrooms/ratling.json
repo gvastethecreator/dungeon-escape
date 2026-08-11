@@ -1,0 +1,37 @@
+{
+  "version": 1,
+  "sourceType": "imagegen",
+  "artEngine": "imagegen",
+  "verificationStatus": "approved-user",
+  "acceptedSource": "sources/backrooms/ratling.png",
+  "sha256": "28ec771e0c12216b8821452d6e87111b5bfe3825f2e2202d4043b97d0e6a43bd",
+  "sizeBytes": 836078,
+  "prompt": "prompts/backrooms/ratling.txt",
+  "promptSha256": "a5edd795f00c00652cc3e9df480d96d23cd5cef7587e7456fa9dffd95d5b3a2a",
+  "baseReference": "reference/base/ratling.png",
+  "baseReferenceSha256": "e041fc27ae3e8c40bcb688f77758587b4a8cbd3dd50e6ed3876559913472aea5",
+  "moodReference": "../portal-biome-matrix/backrooms-portal-open.png",
+  "moodReferenceSha256": "ec3daed5ce31d03de2ff53b2aebf4ae034a07ac06b5ee677f6911cdf4162630f",
+  "materialReferences": [
+    "../../public/assets/textures/biomes/backrooms/wall.webp",
+    "../../public/assets/textures/biomes/backrooms/floor.webp",
+    "../../public/assets/textures/biomes/backrooms/ceiling.webp"
+  ],
+  "materialReferenceSha256": {
+    "../../public/assets/textures/biomes/backrooms/wall.webp": "a231313e602af052fdddc45f48df4f5b7b6d7933309186f195b5a89791bbecb6",
+    "../../public/assets/textures/biomes/backrooms/floor.webp": "bb4b1714a88246000d998b41041fe48aceff0ddb5dc25f25a64abe0fb37deb3f",
+    "../../public/assets/textures/biomes/backrooms/ceiling.webp": "5809fe650b6a2c74158e49e5749b02fb727a3bd99df3b632a4d3fd2c43aefdd7"
+  },
+  "approval": {
+    "status": "approved-user",
+    "date": "2026-08-04",
+    "review_record": ".scratch/biome-enemy-base-sprites/reviews.json",
+    "notes": "Autoauditoría visual completa; pendiente de aprobación del usuario."
+  },
+  "consolidation": {
+    "package": "assets-source/enemies/biomes-v2",
+    "original_source": ".scratch/biome-enemy-base-sprites/new/backrooms/ratling.png",
+    "original_prompt": ".scratch/biome-enemy-base-sprites/prompts/backrooms/ratling.txt",
+    "original_provenance": ".scratch/biome-enemy-base-sprites/provenance/backrooms/ratling.json"
+  }
+}

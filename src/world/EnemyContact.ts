@@ -24,9 +24,7 @@ const VAULT_CLEARANCE_METERS = 0.05;
  * mid jump (well below double-jump apex) reliably vaults them; tall humanoids
  * keep nearly full authored height.
  */
-function enemySolidBodyHeight(
-  archetype: Pick<EnemyArchetype, "height" | "lowProfile">,
-): number {
+function enemySolidBodyHeight(archetype: Pick<EnemyArchetype, "height" | "lowProfile">): number {
   const ratio = archetype.lowProfile ? 0.8 : 0.92;
   const body = archetype.height * ratio;
   // ~0.7 m top: single-jump apex is ~0.99 m of feet clearance in play stats.

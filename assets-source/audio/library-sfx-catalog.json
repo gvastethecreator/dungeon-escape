@@ -1,0 +1,335 @@
+{
+  "version": 1,
+  "sourceRoot": "F:\\# AUDIO\\# SAMPLES",
+  "outputRoot": "public/assets/audio/dungeon",
+  "licenseStatus": "user-review-required",
+  "encoding": {
+    "codec": "libopus",
+    "sampleRate": 48000,
+    "channels": 2,
+    "bitrateKbps": 64
+  },
+  "assets": [
+    {
+      "id": "ambience-biome-ancient",
+      "output": "ambience-ancient.opus",
+      "source": "#SFX\\AMBIENCE\\27e90ce1EerieDrones\\EerieDrones\\DSGNDron_Dungeon Atmosphere, Loop_Ocular Sounds_Eerie Drones_The Complete Drones Collection.wav",
+      "role": "Ancient dungeon loop",
+      "kind": "loop"
+    },
+    {
+      "id": "ambience-biome-ancient-accent",
+      "output": "ambience-ancient-accent.opus",
+      "source": "#SFX\\Medieval\\MedievalFantasySoundFxPackVol3\\Dungeon\\Dungeon Drip C.wav",
+      "role": "Ancient stone drip accent",
+      "kind": "one-shot",
+      "maxSeconds": 3
+    },
+    {
+      "id": "ambience-biome-molten",
+      "output": "ambience-molten.opus",
+      "source": "#SFX\\Fire\\CinematicFire\\CinematicFire\\FIRECrkl_Outside Fireplace, Big Fire, Heavy_Ocular Sounds_Cinematic Fire_The Cinematic Elements Collection.wav",
+      "role": "Molten fire bed",
+      "kind": "loop",
+      "loopStrategy": "crossfade",
+      "startSeconds": 2,
+      "segmentSeconds": 14,
+      "crossfadeSeconds": 1.5
+    },
+    {
+      "id": "ambience-biome-molten-accent",
+      "output": "ambience-molten-accent.opus",
+      "source": "#SFX\\Fire\\CinematicFire\\CinematicFire\\FIREIgn_Gas Burst, Exhaust 2_Ocular Sounds_Cinematic Fire_The Cinematic Elements Collection.wav",
+      "role": "Molten gas burst accent",
+      "kind": "one-shot",
+      "maxSeconds": 3.5
+    },
+    {
+      "id": "ambience-biome-frost",
+      "output": "ambience-frost.opus",
+      "source": "#SFX\\Nature\\WindAndAir\\Wind&Air\\WIND_Soft, Cold, Arctic, Loop_Ocular Sounds_Wind & Air_The Complete Ambiences Collection.wav",
+      "role": "Frost arctic wind loop",
+      "kind": "loop"
+    },
+    {
+      "id": "ambience-biome-frost-accent",
+      "output": "ambience-frost-accent.opus",
+      "source": "#SFX\\CROWDS\\GhosthackXBoomBundle\\MagicElementsMagicSpellsAndFoleys\\MagicIce\\Foleys\\Ghosthack-ME_Magic Ice_Ice Thin Break Clatter_02.wav",
+      "role": "Frost ice fracture accent",
+      "kind": "one-shot",
+      "maxSeconds": 3.2
+    },
+    {
+      "id": "ambience-biome-grim",
+      "output": "ambience-grim.opus",
+      "source": "#SFX\\AMBIENCE\\D20bb25fDarkDrones2\\DarkDrones\\DSGNDron_Gloomy, Mysterious, Haunting, Loop_Ocular Sounds_Dark Drones_The Complete Drones Collection.wav",
+      "role": "Grim haunted drone loop",
+      "kind": "loop"
+    },
+    {
+      "id": "ambience-biome-grim-accent",
+      "output": "ambience-grim-accent.opus",
+      "source": "#SFX\\Horror\\2d084bbbClassicHorror\\ClassicHorror\\DSGNImpt_Evil Bell, Sting, Drone_Ocular Sounds_Classic Horror_The Complete Horror Collection.wav",
+      "role": "Grim bell sting accent",
+      "kind": "one-shot",
+      "maxSeconds": 4
+    },
+    {
+      "id": "ambience-biome-verdant",
+      "output": "ambience-verdant.opus",
+      "source": "#SFX\\Nature\\WindAndAir\\Wind&Air\\WINDTurb_Medium Wind, Leaves Blowing, Outside, Loop_Ocular Sounds_Wind & Air_The Complete Ambiences Collection.wav",
+      "role": "Verdant leaves and wind loop",
+      "kind": "loop"
+    },
+    {
+      "id": "ambience-biome-verdant-accent",
+      "output": "ambience-verdant-accent.opus",
+      "source": "#SFX\\Misc\\JoelSteudlerModernDaySfx\\OGG\\wood_snap_01.ogg",
+      "role": "Verdant branch snap accent",
+      "kind": "one-shot",
+      "maxSeconds": 2.2
+    },
+    {
+      "id": "ambience-biome-ash",
+      "output": "ambience-ash.opus",
+      "source": "#SFX\\Nature\\WindAndAir\\Wind&Air\\WIND_Steady Wind, Deep, Loop_Ocular Sounds_Wind & Air_The Complete Ambiences Collection.wav",
+      "role": "Ash wasteland wind loop",
+      "kind": "loop"
+    },
+    {
+      "id": "ambience-biome-ash-accent",
+      "output": "ambience-ash-accent.opus",
+      "source": "#SFX\\Fire\\CinematicFire\\CinematicFire\\FIREWhsh_Crackling Fire Whoosh_Ocular Sounds_Cinematic Fire_The Cinematic Elements Collection.wav",
+      "role": "Ash cinder gust accent",
+      "kind": "one-shot",
+      "maxSeconds": 3.2
+    },
+    {
+      "id": "ambience-biome-iron",
+      "output": "ambience-iron.opus",
+      "source": "#SFX\\Urban\\ELECTRICITY\\Buzz&Hum\\ELECBuzz_Factory Engine Hum Bass Rattle Metal Constant_B00M_ONE.wav",
+      "role": "Iron machinery loop",
+      "kind": "loop"
+    },
+    {
+      "id": "ambience-biome-iron-accent",
+      "output": "ambience-iron-accent.opus",
+      "source": "#SFX\\Risers\\0440cf95EpicRisers\\EpicRisers\\DSGNRise_Massive Metallic Stress, Highs Resonance, Med Reverb_Ocular Sounds_Epic RIsers_The Complete Risers Collection.wav",
+      "role": "Iron metal stress accent",
+      "kind": "one-shot",
+      "maxSeconds": 4
+    },
+    {
+      "id": "ambience-biome-obsidian",
+      "output": "ambience-obsidian.opus",
+      "source": "#SFX\\AMBIENCE\\D20bb25fDarkDrones2\\DarkDrones\\DSGNDron_Crystals, Electrical, Static, Loop_Ocular Sounds_Dark Drones_The Complete Drones Collection.wav",
+      "role": "Obsidian crystal static loop",
+      "kind": "loop"
+    },
+    {
+      "id": "ambience-biome-obsidian-accent",
+      "output": "ambience-obsidian-accent.opus",
+      "source": "#SFX\\Risers\\0440cf95EpicRisers\\EpicRisers\\DSGNRise_Crystal Resonance, Reverse Glassy Ends Edge, Med Reverb_Ocular Sounds_Epic RIsers_The Complete Risers Collection.wav",
+      "role": "Obsidian crystal resonance accent",
+      "kind": "one-shot",
+      "maxSeconds": 4
+    },
+    {
+      "id": "ambience-biome-sunken",
+      "output": "ambience-sunken.opus",
+      "source": "#SFX\\Nature\\WindAndAir\\Wind&Air\\WINDDsgn_Underwater Wind, Filtered, Howling, Inside, Interior, Loop_Ocular Sounds_Wind & Air_The Complete Ambiences Collection.wav",
+      "role": "Sunken underwater current loop",
+      "kind": "loop"
+    },
+    {
+      "id": "ambience-biome-sunken-accent",
+      "output": "ambience-sunken-accent.opus",
+      "source": "#SFX\\Nature\\CinematicWater\\CinematicWater\\WATRBubl_Bubbles Burst, Light Echo_Ocular Sounds_Cinematic Water_The Cinematic Elements Collection.wav",
+      "role": "Sunken bubble accent",
+      "kind": "one-shot",
+      "maxSeconds": 3.2
+    },
+    {
+      "id": "ambience-biome-fungal",
+      "output": "ambience-fungal.opus",
+      "source": "#SFX\\AMBIENCE\\FantasyAmbiences\\FantasyAmbiences\\AMBFant_Opressing Cave, Heavy Wind, Drops of Water, Organic Gurgle, Loopable_Ocular Sounds_Fantasy Ambiences_The Complete Fantasy Collection.wav",
+      "role": "Fungal wet organic loop",
+      "kind": "loop"
+    },
+    {
+      "id": "ambience-biome-fungal-accent",
+      "output": "ambience-fungal-accent.opus",
+      "source": "#SFX\\Horror\\MonstersAndCreatures\\Monsters&Creatures\\MOVECrea_Organic Insectoide Fast Movements Legs 1_Ocular Sounds_Monsters & Creatures_The Complete Fantasy Collection.wav",
+      "role": "Fungal insect movement accent",
+      "kind": "one-shot",
+      "maxSeconds": 3.2
+    },
+    {
+      "id": "ambience-biome-backrooms",
+      "output": "ambience-backrooms.opus",
+      "source": "#SFX\\AMBIENCE\\Roomtones\\Roomtones\\AMBRoom_Very Soft Electricity Buzz, Quiete Room, Loop_Ocular Sounds_Room Tones_The Complete Ambiences Collection.wav",
+      "role": "Backrooms fluorescent room loop",
+      "kind": "loop"
+    },
+    {
+      "id": "ambience-biome-backrooms-accent",
+      "output": "ambience-backrooms-accent.opus",
+      "source": "#SFX\\CROWDS\\GhosthackXBoomBundle\\MagicElementsMagicSpellsAndFoleys\\MagicLightning\\Foleys\\Ghosthack-ME_Magic Lightning_Fluorescent Lamp Medium.wav",
+      "role": "Backrooms light flicker accent",
+      "kind": "one-shot",
+      "maxSeconds": 3
+    },
+    {
+      "id": "pickup-stone-v2",
+      "output": "pickup-stone-v2.opus",
+      "source": "#SFX\\Magic\\BoomLibraryMagicAlchemyCk\\MAGShim_SHIMMER-Magical Crystal Glow Whoosh_B00M_MALCK.wav",
+      "role": "Magic stone pickup",
+      "kind": "one-shot",
+      "maxSeconds": 3.5
+    },
+    {
+      "id": "pickup-resolve-v2",
+      "output": "pickup-resolve-v2.opus",
+      "source": "#SFX\\Magic\\BoomLibraryMagicAlchemyDs\\MAGSpel_POTION HOLY-Sparkling Brew_B00M_MALDS.wav",
+      "role": "Resolve flask pickup",
+      "kind": "one-shot",
+      "maxSeconds": 3.2
+    },
+    {
+      "id": "pickup-time-freeze-v2",
+      "output": "pickup-time-freeze-v2.opus",
+      "source": "#SFX\\Bill Guern Sound Effects\\Bill Guern - Sound Effects - 01-16 Fx_Rewind.flac",
+      "role": "Time freeze pickup",
+      "kind": "one-shot",
+      "maxSeconds": 3
+    },
+    {
+      "id": "pickup-luminous-ward-v2",
+      "output": "pickup-luminous-ward-v2.opus",
+      "source": "#SFX\\CROWDS\\GhosthackXBoomBundle\\XenonCinematicSfx\\Transitions\\Ghosthack-X_Transition Medium_Flame Shield.wav",
+      "role": "Luminous ward pickup",
+      "kind": "one-shot",
+      "maxSeconds": 3.5
+    },
+    {
+      "id": "pickup-annihilation-pulse-v2",
+      "output": "pickup-annihilation-pulse-v2.opus",
+      "source": "#SFX\\Magic\\BoomLibraryMagicAlchemyCk\\DSGNImpt_IMPACT-Magic Sweetener Spark Liquid Energy Explosion_B00M_MALCK.wav",
+      "role": "Annihilation pulse pickup",
+      "kind": "one-shot",
+      "maxSeconds": 3.5
+    },
+    {
+      "id": "pickup-cull-brand-v2",
+      "output": "pickup-cull-brand-v2.opus",
+      "source": "#SFX\\Magic\\BoomLibraryMagicAlchemyCk\\WHSH_ZAP-Magic Whip Slash_B00M_MALCK.wav",
+      "role": "Cull brand pickup",
+      "kind": "one-shot",
+      "maxSeconds": 2.5
+    },
+    {
+      "id": "pickup-phoenix-egg-v2",
+      "output": "pickup-phoenix-egg-v2.opus",
+      "source": "#SFX\\Fire\\CinematicFire\\CinematicFire\\FIREWhsh_Deep Flames Whoosh_Ocular Sounds_Cinematic Fire_The Cinematic Elements Collection.wav",
+      "role": "Phoenix egg pickup",
+      "kind": "one-shot",
+      "maxSeconds": 3.5
+    },
+    {
+      "id": "pickup-map-v2",
+      "output": "pickup-map-v2.opus",
+      "source": "#SFX\\Best Sound Effects Office Sounds Vol.1\\16 Best Sound Effects - Flipping Through Legal Pad.flac",
+      "role": "Map pickup",
+      "kind": "one-shot",
+      "maxSeconds": 2.5
+    },
+    {
+      "id": "pickup-mobility-v2",
+      "output": "pickup-mobility-v2.opus",
+      "source": "#SFX\\Risers\\Whoosh\\Fast Whoosh.wav",
+      "role": "Mobility pickup",
+      "kind": "one-shot",
+      "maxSeconds": 1.8
+    },
+    {
+      "id": "pickup-clarity-v2",
+      "output": "pickup-clarity-v2.opus",
+      "source": "#SFX\\Magic\\BoomLibraryMagicAlchemyCk\\MAGSpel_SPELL-Magical Bell Fling_B00M_MALCK.wav",
+      "role": "Clarity pickup",
+      "kind": "one-shot",
+      "maxSeconds": 2.8
+    },
+    {
+      "id": "pickup-swarm-curse-v2",
+      "output": "pickup-swarm-curse-v2.opus",
+      "source": "#SFX\\Horror\\EpicStockMediaHumanoidCreatures4\\OneShot\\Designed\\Insectoid\\ESM_HC4_Cinematic_FX_insectoid_creature_attack_special_ability_01.wav",
+      "role": "Swarm curse pickup",
+      "kind": "one-shot",
+      "maxSeconds": 2.8
+    },
+    {
+      "id": "pickup-slow-curse-v2",
+      "output": "pickup-slow-curse-v2.opus",
+      "source": "#SFX\\Horror\\BloodbathBloodAndGoreSoundPack\\SingleElements\\SE - Long Slimey Slither (1).wav",
+      "role": "Slow curse pickup",
+      "kind": "one-shot",
+      "maxSeconds": 2.6
+    },
+    {
+      "id": "pickup-frenzy-curse-v2",
+      "output": "pickup-frenzy-curse-v2.opus",
+      "source": "#SFX\\Horror\\2d084bbbClassicHorror\\ClassicHorror\\DSGNErie_Pulse, Heartbeat, Dark Ambience, Sub, Low_Ocular Sounds_Classic Horror_The Complete Horror Collection.wav",
+      "role": "Frenzy curse pickup",
+      "kind": "one-shot",
+      "maxSeconds": 3.5
+    },
+    {
+      "id": "pickup-gloom-curse-v2",
+      "output": "pickup-gloom-curse-v2.opus",
+      "source": "#SFX\\Magic\\MagicSpells\\MagicSpells\\MAGSpel_Magic Of Shadows, Spell Short Launch, Spirits Cry_Ocular Sounds_Magic Spells_The Complete Fantasy Collection.wav",
+      "role": "Gloom curse pickup",
+      "kind": "one-shot",
+      "maxSeconds": 3.2
+    },
+    {
+      "id": "pickup-mirror-curse-v2",
+      "output": "pickup-mirror-curse-v2.opus",
+      "source": "#SFX\\CARTOON\\AnimeEssentials\\DSGNMisc_SHIMMER-Mirrored Movement_B00M_AE.wav",
+      "role": "Mirror curse pickup",
+      "kind": "one-shot",
+      "maxSeconds": 2.5
+    },
+    {
+      "id": "pickup-spin-curse-v2",
+      "output": "pickup-spin-curse-v2.opus",
+      "source": "#SFX\\Magic\\BoomLibraryMagicAlchemyDs\\DSGNWhsh_WHOOSH NEUTRAL-Scratching Whirlwind_B00M_MALDS.wav",
+      "role": "Spin curse pickup",
+      "kind": "one-shot",
+      "maxSeconds": 2.5
+    },
+    {
+      "id": "power-annihilation-pulse",
+      "output": "power-annihilation-pulse.opus",
+      "source": "#SFX\\CROWDS\\GhosthackXBoomBundle\\MagicElementsMagicSpellsAndFoleys\\MagicFire\\FireSpells\\Ghosthack-ME_Magic Fire_Pulse Fired Low.wav",
+      "role": "Annihilation pulse activation",
+      "kind": "one-shot",
+      "maxSeconds": 3
+    },
+    {
+      "id": "power-cull-brand-kill",
+      "output": "power-cull-brand-kill.opus",
+      "source": "#SFX\\Magic\\BoomLibraryMagicAlchemyCk\\DSGNImpt_IMPACT-Mystic Dark Energy Impact_B00M_MALCK.wav",
+      "role": "Cull brand kill activation",
+      "kind": "one-shot",
+      "maxSeconds": 2.8
+    },
+    {
+      "id": "power-phoenix-revive",
+      "output": "power-phoenix-revive.opus",
+      "source": "#SFX\\CROWDS\\GhosthackXBoomBundle\\MagicElementsMagicSpellsAndFoleys\\MagicFire\\FireSpells\\Ghosthack-ME_Magic Fire_Burst Dry Hard.wav",
+      "role": "Phoenix revive activation",
+      "kind": "one-shot",
+      "maxSeconds": 3
+    }
+  ]
+}

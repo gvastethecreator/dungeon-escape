@@ -167,11 +167,16 @@ describe("minimap marker layer", () => {
       pickups: [],
       spawn: { x: 1, y: 2 },
     };
-    drawMinimap(canvas, dungeon, { x: 2, y: 2 }, {
-      features,
-      explored,
-      playerYaw: 0,
-    });
+    drawMinimap(
+      canvas,
+      dungeon,
+      { x: 2, y: 2 },
+      {
+        features,
+        explored,
+        playerYaw: 0,
+      },
+    );
 
     // One explored floor + field + wall silhouettes + player underlay/tip.
     // Distant enemy/stone/exit/spawn must not paint their hues.
@@ -189,13 +194,19 @@ describe("minimap marker layer", () => {
 
   test("player marker is a heading triangle, not a circle", () => {
     const { canvas, calls } = makeCanvasStub();
-    drawMinimap(canvas, makeDungeon(), { x: 2, y: 2 }, {
-      playerYaw: Math.PI / 2,
-    });
+    drawMinimap(
+      canvas,
+      makeDungeon(),
+      { x: 2, y: 2 },
+      {
+        playerYaw: Math.PI / 2,
+      },
+    );
     const arcs = calls.filter((c) => c.op === "arc");
     const playerFills = calls.filter(
       (c) =>
-        c.op === "fill" && (c.fill === MINIMAP_COLORS.player || c.fill === MINIMAP_COLORS.playerCore),
+        c.op === "fill" &&
+        (c.fill === MINIMAP_COLORS.player || c.fill === MINIMAP_COLORS.playerCore),
     );
     // Arrow uses path fills, not arcs.
     expect(playerFills.length).toBeGreaterThanOrEqual(2);

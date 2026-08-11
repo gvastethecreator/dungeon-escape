@@ -1,0 +1,37 @@
+{
+  "version": 1,
+  "sourceType": "imagegen",
+  "artEngine": "imagegen",
+  "verificationStatus": "approved-user",
+  "acceptedSource": "sources/fungal/ghost.png",
+  "sha256": "a05918ebb8469acb948c5dfe895ef52bfab5bd021d1f2041728ebc99ab92f9ef",
+  "sizeBytes": 886882,
+  "prompt": "prompts/fungal/ghost.txt",
+  "promptSha256": "45918eb1b285d99cbaf3d2945a652cf311916f377bab58ad81ea8fd3cd9df9c9",
+  "baseReference": "reference/base/ghost.png",
+  "baseReferenceSha256": "ca9f6aa55460452bdc2ae718a47384e034978e963f7e8562f19f20bc98ca735e",
+  "moodReference": "../portal-biome-matrix/fungal-portal-open.png",
+  "moodReferenceSha256": "f7a1aa05222f7609fb251f4e223aa1cc7232ba449a0d5cb121c4a76a41678aef",
+  "materialReferences": [
+    "../../public/assets/textures/biomes/fungal/wall.webp",
+    "../../public/assets/textures/biomes/fungal/floor.webp",
+    "../../public/assets/textures/biomes/fungal/ceiling.webp"
+  ],
+  "materialReferenceSha256": {
+    "../../public/assets/textures/biomes/fungal/wall.webp": "b42cd01d98cf468b060ac8072bc0a3f750319a83b17beefa17ae2cf24527b7fa",
+    "../../public/assets/textures/biomes/fungal/floor.webp": "4d66f2c22b8c1d4312fef8eca54bc5e2272865ed305ba6e3e0f8ff7bde449723",
+    "../../public/assets/textures/biomes/fungal/ceiling.webp": "930a77a7544dd4c1c02ac637bda7e7b27c12c8177f29f889e1cf19a80250bf02"
+  },
+  "approval": {
+    "status": "approved-user",
+    "date": "2026-08-04",
+    "review_record": ".scratch/biome-enemy-base-sprites/reviews.json",
+    "notes": "Autoauditoría visual completa; pendiente de aprobación del usuario."
+  },
+  "consolidation": {
+    "package": "assets-source/enemies/biomes-v2",
+    "original_source": ".scratch/biome-enemy-base-sprites/new/fungal/ghost.png",
+    "original_prompt": ".scratch/biome-enemy-base-sprites/prompts/fungal/ghost.txt",
+    "original_provenance": ".scratch/biome-enemy-base-sprites/provenance/fungal/ghost.json"
+  }
+}

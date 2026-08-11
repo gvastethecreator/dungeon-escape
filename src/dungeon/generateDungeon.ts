@@ -501,11 +501,7 @@ export function generateDungeon(
   let lastError: unknown;
   for (let attempt = 0; attempt < attemptsPerSalt; attempt += 1) {
     try {
-      return generateDungeonAttempt(
-        normalizedSeed,
-        options,
-        safeSalt * attemptsPerSalt + attempt,
-      );
+      return generateDungeonAttempt(normalizedSeed, options, safeSalt * attemptsPerSalt + attempt);
     } catch (error) {
       lastError = error;
     }
@@ -521,7 +517,8 @@ export function isExitReachable(dungeon: DungeonData): boolean {
 /** Refresh connectivity derived from a grid after structural floor edits. */
 export function refreshDungeonConnectivity(dungeon: DungeonData): DungeonData {
   const fill = floodFill(dungeon.grid, dungeon.spawn);
-  const exitDistance = fill.distances[cellIndex(dungeon.width, dungeon.exit.x, dungeon.exit.y)] ?? -1;
+  const exitDistance =
+    fill.distances[cellIndex(dungeon.width, dungeon.exit.x, dungeon.exit.y)] ?? -1;
   return {
     ...dungeon,
     distances: fill.distances,

@@ -320,9 +320,13 @@ export function createMagicStone(
   }
   const pedestal = mesh(
     mergeParts(pedestalParts, `${stoneId} stepped stone pedestal geometry`),
-    getDungeonMaterialVariant(materials.darkStone, `magic-stone-pedestal-${stoneId}`, (material) => {
-      material.name = `${stoneId} stone pedestal material`;
-    }),
+    getDungeonMaterialVariant(
+      materials.darkStone,
+      `magic-stone-pedestal-${stoneId}`,
+      (material) => {
+        material.name = `${stoneId} stone pedestal material`;
+      },
+    ),
     `${stoneId} stone pedestal`,
   );
 

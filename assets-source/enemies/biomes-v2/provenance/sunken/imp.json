@@ -1,0 +1,37 @@
+{
+  "version": 1,
+  "sourceType": "imagegen",
+  "artEngine": "imagegen",
+  "verificationStatus": "approved-user",
+  "acceptedSource": "sources/sunken/imp.png",
+  "sha256": "fec6ec18978e44ec5060ee3654fcf3b1253e3ba49739c9c43f5bd9f9d2ed1841",
+  "sizeBytes": 366942,
+  "prompt": "prompts/sunken/imp.txt",
+  "promptSha256": "b45287b12a4f1c998b3e36f581a143826d51446212ce4e112471627e001f74e7",
+  "baseReference": "reference/base/imp.png",
+  "baseReferenceSha256": "4797388f5b93dd0bcfd063eda2f19c543be7f63ef7929c59a107c90040235db9",
+  "moodReference": "reference/mood/sunken.png",
+  "moodReferenceSha256": "07c1c9ea769d8616700dbd567589bc8b337337bc17adeb13314366f14da29cfd",
+  "materialReferences": [
+    "../../public/assets/textures/biomes/sunken/wall.webp",
+    "../../public/assets/textures/biomes/sunken/floor.webp",
+    "../../public/assets/textures/biomes/sunken/ceiling.webp"
+  ],
+  "materialReferenceSha256": {
+    "../../public/assets/textures/biomes/sunken/wall.webp": "e179fa7e329a341983d9dc378538b5691a2963f0cea0b82d9a80d458315e3fef",
+    "../../public/assets/textures/biomes/sunken/floor.webp": "5b2d915667e11bdc2e88279ae405fd8a7a9afcaf6030dcc08c0941904eded5b3",
+    "../../public/assets/textures/biomes/sunken/ceiling.webp": "9967b210d449f25233e7c2066b48454fe8e392892fed9994ea257798494289e3"
+  },
+  "approval": {
+    "status": "approved-user",
+    "date": "2026-08-04",
+    "review_record": ".scratch/biome-enemy-base-sprites/reviews.json",
+    "notes": "Autoauditoría visual completa; pendiente de aprobación del usuario."
+  },
+  "consolidation": {
+    "package": "assets-source/enemies/biomes-v2",
+    "original_source": ".scratch/biome-enemy-base-sprites/new/sunken/imp.png",
+    "original_prompt": ".scratch/biome-enemy-base-sprites/prompts/sunken/imp.txt",
+    "original_provenance": ".scratch/biome-enemy-base-sprites/provenance/sunken/imp.json"
+  }
+}

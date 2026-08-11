@@ -1,10 +1,6 @@
 /** Timed darkness curse: denser fog and a dimmer lantern. */
 
-import {
-  activateTimedSeconds,
-  isTimedSecondsActive,
-  tickTimedSeconds,
-} from "./TimedSeconds";
+import { activateTimedSeconds, isTimedSecondsActive, tickTimedSeconds } from "./TimedSeconds";
 
 export const GLOOM_CURSE_DURATION_SECONDS = 20;
 /**

@@ -93,20 +93,9 @@ describe("EnemyActivation", () => {
   });
 
   test("prefers newest tier with spread", () => {
-    const reserve = [
-      seat("ratling", 0, 0, 0),
-      seat("goblin", 2, 8, 0),
-      seat("husk", 2, 8.5, 0),
-    ];
-    const pool = preferEnemyActivationPool(
-      reserve,
-      [0, 1, 2],
-      [],
-      [{ x: 8, z: 0 }],
-      2,
-      3,
-    );
-    // index 1 is too close to pulse; newest tier that remains is index 2? 
+    const reserve = [seat("ratling", 0, 0, 0), seat("goblin", 2, 8, 0), seat("husk", 2, 8.5, 0)];
+    const pool = preferEnemyActivationPool(reserve, [0, 1, 2], [], [{ x: 8, z: 0 }], 2, 3);
+    // index 1 is too close to pulse; newest tier that remains is index 2?
     // 8.5 to 8 = 0.5 < 3 so both newest fail spread → fall back to candidates
     expect(pool.length).toBeGreaterThan(0);
     expect(pool).toContain(0);

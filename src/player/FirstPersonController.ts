@@ -507,10 +507,7 @@ export class FirstPersonController {
 
   setSolidColliders(colliders: readonly WorldCollider[]): void {
     this.solidColliders = colliders.map((collider) => ({ ...collider }));
-    this.solidColliderIndex = new WorldColliderSpatialIndex(
-      this.solidColliders,
-      this.tileSize * 2,
-    );
+    this.solidColliderIndex = new WorldColliderSpatialIndex(this.solidColliders, this.tileSize * 2);
     this.vaultedColliderIds.clear();
     this.activeColliders = [];
   }
@@ -699,9 +696,7 @@ export class FirstPersonController {
     const mouseDrive = this.locked && this.mouseForwardHeld;
     const moveSign = this.invertMove ? -1 : 1;
     const forwardInput =
-      (Number(
-        this.isActionActive("forward") || this.virtualPulse.has("forward") || mouseDrive,
-      ) -
+      (Number(this.isActionActive("forward") || this.virtualPulse.has("forward") || mouseDrive) -
         Number(this.isActionActive("backward") || this.virtualPulse.has("backward"))) *
       moveSign;
     const sidewaysInput =
@@ -952,13 +947,12 @@ export class FirstPersonController {
       if (!overlapsWorldCollider(this.position, this.radius * 1.15, collider)) continue;
       candidates.push(collider.maxY);
     }
-    const supportTop = pickSupportTop(candidates, feetY, STORY_MAX_STEP_UP, 0.12) ?? 0;
+    const supportTop = pickSupportTop(candidates, feetY, STORY_MAX_STEP_UP, STORY_MAX_STEP_UP) ?? 0;
     this.verticalConfig.floorEyeY = supportTop + this.eyeHeight - 0.08;
     // Closed rooms use one story of headroom; mid-flight shafts open to the next slab.
     const slabIndex = Math.max(0, Math.floor((supportTop + 0.05) / STORY_HEIGHT));
     const slabY = slabIndex * STORY_HEIGHT;
-    const onFlight =
-      supportTop > slabY + 0.12 && supportTop < slabY + STORY_HEIGHT - 0.12;
+    const onFlight = supportTop > slabY + 0.12 && supportTop < slabY + STORY_HEIGHT - 0.12;
     this.verticalConfig.ceilingHeight = onFlight
       ? slabY + STORY_HEIGHT * 2
       : closedCeilingY(slabY, STORY_HEIGHT);

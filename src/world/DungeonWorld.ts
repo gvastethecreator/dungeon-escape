@@ -533,7 +533,13 @@ export class DungeonWorld {
     this.clear();
     this.powers.phoenixCharges = carryPhoenix;
     await yieldToMain();
-    this.populateDungeon(dungeon, mood, options.stack, options.loadTrace);
+    await this.populateDungeonWithYield(
+      dungeon,
+      mood,
+      yieldToMain,
+      options.stack,
+      options.loadTrace,
+    );
   }
 
   private populateDungeon(
@@ -542,6 +548,63 @@ export class DungeonWorld {
     stack?: readonly DungeonData[],
     loadTrace?: DungeonLoadPhaseObserver,
   ): void {
+    const { residentFloors, residentPlan } = this.prepareDungeonPopulation(
+      dungeon,
+      mood,
+      stack,
+      loadTrace,
+    );
+    loadTrace?.begin("sceneCommit");
+    try {
+      const staticHandles =
+        residentFloors.length > 1
+          ? this.staticScene.buildStack(residentFloors, mood, this.decorDensity, residentPlan)
+          : this.staticScene.build(dungeon, mood, this.decorDensity, residentPlan);
+      this.borrowStaticHandles(staticHandles, dungeon.floor?.index ?? 0);
+    } finally {
+      loadTrace?.end("sceneCommit");
+    }
+    this.finishDungeonPopulation(dungeon, residentFloors, loadTrace);
+  }
+
+  private async populateDungeonWithYield(
+    dungeon: DungeonData,
+    mood: DungeonMood,
+    yieldToMain: () => Promise<void>,
+    stack?: readonly DungeonData[],
+    loadTrace?: DungeonLoadPhaseObserver,
+  ): Promise<void> {
+    const { residentFloors, residentPlan } = this.prepareDungeonPopulation(
+      dungeon,
+      mood,
+      stack,
+      loadTrace,
+    );
+    loadTrace?.begin("sceneCommit");
+    try {
+      const staticHandles =
+        residentFloors.length > 1
+          ? await this.staticScene.buildStackWithYield(
+              residentFloors,
+              mood,
+              this.decorDensity,
+              yieldToMain,
+              residentPlan,
+            )
+          : this.staticScene.build(dungeon, mood, this.decorDensity, residentPlan);
+      this.borrowStaticHandles(staticHandles, dungeon.floor?.index ?? 0);
+    } finally {
+      loadTrace?.end("sceneCommit");
+    }
+    this.finishDungeonPopulation(dungeon, residentFloors, loadTrace);
+  }
+
+  private prepareDungeonPopulation(
+    dungeon: DungeonData,
+    mood: DungeonMood,
+    stack?: readonly DungeonData[],
+    loadTrace?: DungeonLoadPhaseObserver,
+  ): { residentFloors: readonly DungeonData[]; residentPlan: ResidentDungeonPlan } {
     this.dungeon = dungeon;
     this.activeMood = mood;
     // Skip a second egg if the player already carries a phoenix charge.
@@ -567,19 +630,17 @@ export class DungeonWorld {
     } finally {
       loadTrace?.end("plan");
     }
-    loadTrace?.begin("sceneCommit");
-    try {
-      const staticHandles =
-        stack && stack.length > 1
-          ? this.staticScene.buildStack(stack, mood, this.decorDensity, residentPlan)
-          : this.staticScene.build(dungeon, mood, this.decorDensity, residentPlan);
-      this.borrowStaticHandles(staticHandles, dungeon.floor?.index ?? 0);
-    } finally {
-      loadTrace?.end("sceneCommit");
-    }
+    return { residentFloors, residentPlan };
+  }
+
+  private finishDungeonPopulation(
+    dungeon: DungeonData,
+    residentFloors: readonly DungeonData[],
+    loadTrace?: DungeonLoadPhaseObserver,
+  ): void {
     loadTrace?.begin("actors");
     try {
-      this.buildResidentEnemyRuntimes(stack && stack.length > 1 ? stack : [dungeon]);
+      this.buildResidentEnemyRuntimes(residentFloors);
       this.createSharedEnemyPresentation();
       this.bindActiveEnemyRuntime(dungeon.floor?.index ?? 0);
     } catch (error) {
@@ -636,6 +697,14 @@ export class DungeonWorld {
    * One reusable trail field and freeze field serve the active runtime. Their
    * capacities are maxima, not four per-floor allocations.
    */
+  private detachVfxPointLights(root: THREE.Object3D): void {
+    const lights: THREE.PointLight[] = [];
+    root.traverse((object) => {
+      if (object instanceof THREE.PointLight) lights.push(object);
+    });
+    for (const light of lights) light.removeFromParent();
+  }
+
   private createSharedEnemyPresentation(): void {
     const runtimes = [...this.residentEnemyRuntimesByIndex.values()];
     const maxSeats = Math.max(1, ...runtimes.map((runtime) => runtime.seatCount));
@@ -665,6 +734,7 @@ export class DungeonWorld {
     this.timeFreezeVfx = new TimeFreezeVfx(maxSeats, this.textureLifecycle.textureSink);
     this.group.add(this.timeFreezeVfx.root);
     this.luminousWardVfx = new LuminousWardVfx(this.textureLifecycle.textureSink);
+    this.detachVfxPointLights(this.luminousWardVfx.root);
     this.group.add(this.luminousWardVfx.root);
     this.cullBrandVfx = new CullBrandVfx(this.textureLifecycle.textureSink);
     this.group.add(this.cullBrandVfx.root);
@@ -672,12 +742,11 @@ export class DungeonWorld {
     this.group.add(this.controlCurseVfx.root);
     this.phoenixEggVfx = new PhoenixEggVfx();
     this.group.add(this.phoenixEggVfx.root);
-    this.stats.lights += 1;
     this.mobilityBoostVfx = new MobilityBoostVfx(undefined, this.textureLifecycle.textureSink);
     this.group.add(this.mobilityBoostVfx.root);
     this.annihilationPulseVfx = new AnnihilationPulseVfx();
+    this.detachVfxPointLights(this.annihilationPulseVfx.root);
     this.group.add(this.annihilationPulseVfx.root);
-    this.stats.lights += 1;
   }
 
   setDecorDensity(value: number): void {
@@ -901,10 +970,11 @@ export class DungeonWorld {
         const verticalDelta = Math.abs(player.y - doorPosition.y);
         const openDistance =
           (door.root.userData.openDistance as number) ?? DOOR_DEFAULT_OPEN_DISTANCE;
-        const targetOpen =
-          verticalDelta > 2.2
-            ? false
-            : resolveDoorTargetOpen(door.targetOpen, distance, openDistance);
+        const targetOpen = resolveDoorTargetOpen(
+          door.targetOpen,
+          verticalDelta <= 2.2 ? distance : Number.POSITIVE_INFINITY,
+          openDistance,
+        );
         if (targetOpen !== door.targetOpen) {
           door.targetOpen = targetOpen;
           if (!doorSound && verticalDelta <= 2.2) {
@@ -1154,6 +1224,7 @@ export class DungeonWorld {
         tileSize: this.tileSize,
         floorSprites: runtime.floorBiomeSprites,
         ceilingSprites: runtime.ceilingBiomeSprites,
+        uncannyWallRuntime: runtime.uncannyWallRuntime,
         fires: runtime.fires,
         // The portal is one global objective. It is passed through exactly this
         // active update, never once for every resident runtime.
@@ -1174,9 +1245,21 @@ export class DungeonWorld {
       y: 1.5,
       z: this.pickupBurstWarmupPosition.z,
     });
-    // Compile dormant variants once, then remove only their meshes from the draw list.
+    // Reward clones share their template geometry/materials. Compile one visible
+    // representative per active reward kind instead of drawing every dormant
+    // copy across the resident stack during the blocking first-frame warmup.
+    const warmupRepresentatives = new Set<string>();
     for (const pickup of this.pickups) {
-      setPickupDormant(pickup.object, visible ? false : pickup.collected || !pickup.available);
+      if (!visible) {
+        setPickupDormant(pickup.object, pickup.collected || !pickup.available);
+        continue;
+      }
+      const floorVisible =
+        this.residentFloorRuntimesByIndex.get(pickup.floorIndex)?.root.visible === true;
+      const key = pickup.kind === "stone" ? `stone:${pickup.stoneId ?? pickup.id}` : pickup.kind;
+      const representative = floorVisible && !warmupRepresentatives.has(key);
+      if (representative) warmupRepresentatives.add(key);
+      setPickupDormant(pickup.object, !representative);
     }
     // Portal open materials are usually hidden until the fourth stone.
     if (this.portalBeam) this.portalBeam.visible = visible || this.portalOpen;

@@ -229,7 +229,7 @@ describe("runtime model batching", () => {
     });
   });
 
-  test("batches door frames while leaves stay under local hinges", () => {
+  test("batches door frames and drives dynamic leaf instances from local hinges", () => {
     const materials = createDungeonMaterials();
     const parent = new THREE.Group();
     const doors = [0, 1, 2].map((index) => {
@@ -279,11 +279,23 @@ describe("runtime model batching", () => {
       });
       return count + total;
     }, 0);
-    expect(leafMeshesAfter).toBe(leafMeshesBefore);
+    expect(leafMeshesBefore).toBeGreaterThan(0);
+    expect(leafMeshesAfter).toBe(0);
+    const leftLeafBatch = result.root.children.find(
+      (object): object is THREE.InstancedMesh =>
+        object instanceof THREE.InstancedMesh && object.name.includes("left door leaf"),
+    );
+    expect(leftLeafBatch).toBeDefined();
+    const beforeMatrix = new THREE.Matrix4();
+    leftLeafBatch!.getMatrixAt(1, beforeMatrix);
 
     doors[1]!.left.rotation.y = -1.38;
     doors[1]!.root.updateMatrixWorld(true);
+    result.handles[1]!.updateLeafMatrices();
+    const afterMatrix = new THREE.Matrix4();
+    leftLeafBatch!.getMatrixAt(1, afterMatrix);
     expect(doors[1]!.left.rotation.y).toBeCloseTo(-1.38, 5);
+    expect(afterMatrix.equals(beforeMatrix)).toBe(false);
   });
 
   test("door leaf and hardware materials are shared across doors of the same set", () => {
@@ -295,7 +307,7 @@ describe("runtime model batching", () => {
       hardwareMaterial: materials.iron,
     });
     // Factory-level sharing is covered via StaticDungeonScene appearance path in play;
-    // here assert leaf meshes remain under hinges after frame batching (strategy B).
+    // here assert the authored source still exposes leaf meshes before runtime batching.
     const left = doorA.getObjectByName("Door leaf hinge");
     expect(left).toBeInstanceOf(THREE.Group);
     let leafMeshes = 0;

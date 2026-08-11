@@ -1,3 +1,17 @@
+@font-face {
+  font-family: "Mek Sans";
+  src: url("/assets/fonts/mek-sans-regular.woff2") format("woff2");
+  font-display: swap;
+  font-style: normal;
+  font-weight: 400;
+}
+@font-face {
+  font-family: "Mekzantine";
+  src: url("/assets/fonts/mekzantine-regular.woff2") format("woff2");
+  font-display: swap;
+  font-style: normal;
+  font-weight: 400;
+}
 :root {
   --bg: #050606;
   --panel: #070809f7;
@@ -10,9 +24,9 @@
   --violet: #827b86;
   --blood: #8b423b;
   --blue: #687d84;
-  --mono: "Pixelify Sans", "Courier New", ui-monospace, monospace;
-  --serif: "Jacquard 24", "Jacquard 12", "Times New Roman", serif;
-  --serif-compact: "Jacquard 12", "Jacquard 24", "Times New Roman", serif;
+  --mono: "Mek Sans", "Courier New", ui-monospace, monospace;
+  --serif: "Mekzantine", "Times New Roman", serif;
+  --serif-compact: "Mekzantine", "Times New Roman", serif;
 }
 * {
   box-sizing: border-box;

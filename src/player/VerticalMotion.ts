@@ -43,10 +43,7 @@ export const VERTICAL_EVENT = Object.freeze({
   steppedUp: 1 << 3,
 });
 
-export function createVerticalMotionState(
-  eyeHeight: number,
-  maxAirJumps = 1,
-): VerticalMotionState {
+export function createVerticalMotionState(eyeHeight: number, maxAirJumps = 1): VerticalMotionState {
   return {
     y: eyeHeight,
     velocity: 0,
@@ -123,6 +120,10 @@ export function stepVerticalMotion(
     if (raise > 0.001 && raise <= maxStepUp) {
       state.y = floorEyeY;
       events |= VERTICAL_EVENT.steppedUp;
+    } else if (raise < -0.001 && raise >= -maxStepUp) {
+      // A normal tread drop stays grounded. Larger support loss remains a real
+      // ledge and enters gravity below.
+      state.y = floorEyeY;
     } else if (raise < -0.001) {
       // Walked off a ledge or support dropped (top of stairs into open air).
       state.grounded = false;

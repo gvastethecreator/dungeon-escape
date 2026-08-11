@@ -18,7 +18,7 @@ describe("persistent leaderboard UI", () => {
     );
     expect(source).toContain("syncWelcomeLeaderboardVisibility()");
     expect(shell).toContain("await loadLeaderboard()");
-    expect(shell).toContain('welcomeLeaderboard.hidden = false');
+    expect(shell).toContain("welcomeLeaderboard.hidden = false");
     expect(shell).toContain('welcomeContent.classList.add("is-ranked")');
     expect(shell).toContain("void refreshLeaderboard()");
     expect(source).not.toContain("void refreshLeaderboard();\nconst localContinue");
@@ -98,10 +98,8 @@ describe("persistent leaderboard UI", () => {
     const source = await Bun.file(new URL("../src/main.ts", import.meta.url)).text();
     const shell = await Bun.file(new URL("../src/shell.ts", import.meta.url)).text();
     expect(source).toContain("return continueBiomeLabel(state, presentation)");
-    expect(source).not.toContain('return `${seed} · ${continueBiomeLabel');
-    expect(shell).toContain(
-      'element<HTMLElement>("welcome-save-title").textContent = biomeLabel',
-    );
+    expect(source).not.toContain("return `${seed} · ${continueBiomeLabel");
+    expect(shell).toContain('element<HTMLElement>("welcome-save-title").textContent = biomeLabel');
     expect(shell).not.toContain("`${save.state.seed} · ${biomeLabel}`");
   });
 
@@ -124,7 +122,9 @@ describe("persistent leaderboard UI", () => {
       /function showProfile[\s\S]*welcomeLeaderboard\.hidden = false[\s\S]*classList\.add\("is-ranked"\)/,
     );
     expect(shell).toMatch(/hydrateWelcome\(\);\s*void refreshLeaderboard\(\);/);
-    expect(source).toMatch(/setWelcomeOpen[\s\S]*showWelcomeHome\(\);\s*void refreshLeaderboard\(\);/);
+    expect(source).toMatch(
+      /setWelcomeOpen[\s\S]*showWelcomeHome\(\);\s*void refreshLeaderboard\(\);/,
+    );
   });
 
   test("victory form previews the portrait in an interactive wood frame", async () => {

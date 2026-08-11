@@ -11,14 +11,8 @@
       "id": "ancient",
       "source": "assets-source/imagegen/biome-door-textures-v2/ancient-door-albedo-source.png",
       "sourceSha256": "9bf3d2cc9ae868aaae214ccb219dacdc5afb86e24da586c1474e3cb049b3c592",
-      "sourceSize": [
-        1254,
-        1254
-      ],
-      "outputSize": [
-        512,
-        512
-      ],
+      "sourceSize": [1254, 1254],
+      "outputSize": [512, 512],
       "maps": {
         "albedo": "public/assets/textures/biomes/ancient/door.png",
         "normal": "public/assets/textures/biomes/ancient/door-normal.png",
@@ -32,21 +26,12 @@
         "metalness": "c272e340228b324999bba160721ffc84592ec67e94148b53934101a31901af3d"
       },
       "meanLuma": 0.4,
-      "roughnessRange": [
-        0.856,
-        0.936
-      ],
-      "metalnessRange": [
-        0.015,
-        0.5965
-      ],
+      "roughnessRange": [0.856, 0.936],
+      "metalnessRange": [0.015, 0.5965],
       "metalCoverage": 0.0517,
       "visualReview": {
         "decision": "kept",
-        "identityCues": [
-          "aged oak",
-          "worn rune bands"
-        ],
+        "identityCues": ["aged oak", "worn rune bands"],
         "lightingCheck": "no directional gradient or cast shadow observed"
       },
       "centerSplit": {
@@ -61,14 +46,8 @@
       "id": "molten",
       "source": "assets-source/imagegen/biome-door-textures-v2/molten-door-albedo-source.png",
       "sourceSha256": "5b9edb0bd3ecb62ac86abcbb6f89152791aa0b93f1a7d9c7851f6657d23bb6fe",
-      "sourceSize": [
-        1254,
-        1254
-      ],
-      "outputSize": [
-        512,
-        512
-      ],
+      "sourceSize": [1254, 1254],
+      "outputSize": [512, 512],
       "maps": {
         "albedo": "public/assets/textures/biomes/molten/door.png",
         "normal": "public/assets/textures/biomes/molten/door-normal.png",
@@ -82,21 +61,12 @@
         "metalness": "4bd9ed3340ed03afcd39c56d307e826955ad7ce40dc633b97c0fa4f4f208e81c"
       },
       "meanLuma": 0.34,
-      "roughnessRange": [
-        0.674,
-        0.794
-      ],
-      "metalnessRange": [
-        0.015,
-        0.4296
-      ],
+      "roughnessRange": [0.674, 0.794],
+      "metalnessRange": [0.015, 0.4296],
       "metalCoverage": 0.0313,
       "visualReview": {
         "decision": "kept",
-        "identityCues": [
-          "charred timber",
-          "ember-red seams"
-        ],
+        "identityCues": ["charred timber", "ember-red seams"],
         "lightingCheck": "no directional gradient or cast shadow observed"
       },
       "centerSplit": {
@@ -111,14 +81,8 @@
       "id": "frost",
       "source": "assets-source/imagegen/biome-door-textures-v2/frost-door-albedo-source.png",
       "sourceSha256": "03bcfee32d8eb7a6ef98ce9e4fab12a122325912f62266c4f41818c632dfc9bf",
-      "sourceSize": [
-        1254,
-        1254
-      ],
-      "outputSize": [
-        512,
-        512
-      ],
+      "sourceSize": [1254, 1254],
+      "outputSize": [512, 512],
       "maps": {
         "albedo": "public/assets/textures/biomes/frost/door.png",
         "normal": "public/assets/textures/biomes/frost/door-normal.png",
@@ -132,21 +96,12 @@
         "metalness": "7973979f050c12f3ad3df99777a42b5fca9ea57cd9ec049c7a0211085960db5d"
       },
       "meanLuma": 0.58,
-      "roughnessRange": [
-        0.594,
-        0.714
-      ],
-      "metalnessRange": [
-        0.1689,
-        0.68
-      ],
+      "roughnessRange": [0.594, 0.714],
+      "metalnessRange": [0.1689, 0.68],
       "metalCoverage": 1.0,
       "visualReview": {
         "decision": "kept",
-        "identityCues": [
-          "pale frozen timber",
-          "cold blue bands"
-        ],
+        "identityCues": ["pale frozen timber", "cold blue bands"],
         "lightingCheck": "no directional gradient or cast shadow observed"
       },
       "centerSplit": {
@@ -161,14 +116,8 @@
       "id": "grim",
       "source": "assets-source/imagegen/biome-door-textures-v2/grim-door-albedo-source.png",
       "sourceSha256": "754348cf71645912567adb824a494ebce9151f2d85a6ecd4fc5ee48b6c8d47b7",
-      "sourceSize": [
-        1254,
-        1254
-      ],
-      "outputSize": [
-        512,
-        512
-      ],
+      "sourceSize": [1254, 1254],
+      "outputSize": [512, 512],
       "maps": {
         "albedo": "public/assets/textures/biomes/grim/door.png",
         "normal": "public/assets/textures/biomes/grim/door-normal.png",
@@ -182,21 +131,12 @@
         "metalness": "07292b65a0c5c2ee5e590f6639a7d4a698f154bafbf3ec4d7c0b63d400170268"
       },
       "meanLuma": 0.36,
-      "roughnessRange": [
-        0.927,
-        0.987
-      ],
-      "metalnessRange": [
-        0.015,
-        0.667
-      ],
+      "roughnessRange": [0.927, 0.987],
+      "metalnessRange": [0.015, 0.667],
       "metalCoverage": 0.2847,
       "visualReview": {
         "decision": "regenerated",
-        "identityCues": [
-          "dark oak",
-          "readable gray iron"
-        ],
+        "identityCues": ["dark oak", "readable gray iron"],
         "lightingCheck": "no directional gradient or cast shadow observed"
       },
       "centerSplit": {
@@ -211,14 +151,8 @@
       "id": "verdant",
       "source": "assets-source/imagegen/biome-door-textures-v2/verdant-door-albedo-source.png",
       "sourceSha256": "3e93741c0834e85764e4a52d356b903ef2d7e847ba292a824a288f3e21daba43",
-      "sourceSize": [
-        1254,
-        1254
-      ],
-      "outputSize": [
-        512,
-        512
-      ],
+      "sourceSize": [1254, 1254],
+      "outputSize": [512, 512],
       "maps": {
         "albedo": "public/assets/textures/biomes/verdant/door.png",
         "normal": "public/assets/textures/biomes/verdant/door-normal.png",
@@ -232,21 +166,12 @@
         "metalness": "5dc71558efdd4f7963aba7a559c3c3b9ae14510e541d14583cfc171b6e2807f9"
       },
       "meanLuma": 0.4,
-      "roughnessRange": [
-        0.9015,
-        0.9715
-      ],
-      "metalnessRange": [
-        0.015,
-        0.1663
-      ],
+      "roughnessRange": [0.9015, 0.9715],
+      "metalnessRange": [0.015, 0.1663],
       "metalCoverage": 0.0,
       "visualReview": {
         "decision": "kept",
-        "identityCues": [
-          "olive timber",
-          "vine-carved bands"
-        ],
+        "identityCues": ["olive timber", "vine-carved bands"],
         "lightingCheck": "no directional gradient or cast shadow observed"
       },
       "centerSplit": {
@@ -261,14 +186,8 @@
       "id": "ash",
       "source": "assets-source/imagegen/biome-door-textures-v2/ash-door-albedo-source.png",
       "sourceSha256": "22fabc89bbba6d5873eaeffbadffbb88164f3102772870c77e23b4d8fd59213e",
-      "sourceSize": [
-        1254,
-        1254
-      ],
-      "outputSize": [
-        512,
-        512
-      ],
+      "sourceSize": [1254, 1254],
+      "outputSize": [512, 512],
       "maps": {
         "albedo": "public/assets/textures/biomes/ash/door.png",
         "normal": "public/assets/textures/biomes/ash/door-normal.png",
@@ -282,21 +201,12 @@
         "metalness": "a12e4faebaa264ab8d3520e7ab9e4effcd68278b35d12cda120e06b96c1ec7a7"
       },
       "meanLuma": 0.34,
-      "roughnessRange": [
-        0.876,
-        0.956
-      ],
-      "metalnessRange": [
-        0.015,
-        0.3514
-      ],
+      "roughnessRange": [0.876, 0.956],
+      "metalnessRange": [0.015, 0.3514],
       "metalCoverage": 0.0268,
       "visualReview": {
         "decision": "regenerated",
-        "identityCues": [
-          "carbonized wood",
-          "pale ash deposits"
-        ],
+        "identityCues": ["carbonized wood", "pale ash deposits"],
         "lightingCheck": "no directional gradient or cast shadow observed"
       },
       "centerSplit": {
@@ -311,14 +221,8 @@
       "id": "iron",
       "source": "assets-source/imagegen/biome-door-textures-v2/iron-door-albedo-source.png",
       "sourceSha256": "b277a383cc4e486ecd4063f687cf7ef0b9577dd88889ebfcaaa3369c939f1432",
-      "sourceSize": [
-        1254,
-        1254
-      ],
-      "outputSize": [
-        512,
-        512
-      ],
+      "sourceSize": [1254, 1254],
+      "outputSize": [512, 512],
       "maps": {
         "albedo": "public/assets/textures/biomes/iron/door.png",
         "normal": "public/assets/textures/biomes/iron/door-normal.png",
@@ -332,21 +236,12 @@
         "metalness": "8716ecf6801f1368346f623e4f00ebf7d96f6f8f99a1402ad6a735883fc91732"
       },
       "meanLuma": 0.36,
-      "roughnessRange": [
-        0.563,
-        0.703
-      ],
-      "metalnessRange": [
-        0.6855,
-        0.8737
-      ],
+      "roughnessRange": [0.563, 0.703],
+      "metalnessRange": [0.6855, 0.8737],
       "metalCoverage": 1.0,
       "visualReview": {
         "decision": "kept",
-        "identityCues": [
-          "charcoal plate",
-          "riveted bands"
-        ],
+        "identityCues": ["charcoal plate", "riveted bands"],
         "lightingCheck": "no directional gradient or cast shadow observed"
       },
       "centerSplit": {
@@ -361,14 +256,8 @@
       "id": "obsidian",
       "source": "assets-source/imagegen/biome-door-textures-v2/obsidian-door-albedo-source.png",
       "sourceSha256": "8e9c4ac3bf01e62572a3706f89b06f6b56217a1cb8c55a2912de6da0da48745e",
-      "sourceSize": [
-        1254,
-        1254
-      ],
-      "outputSize": [
-        512,
-        512
-      ],
+      "sourceSize": [1254, 1254],
+      "outputSize": [512, 512],
       "maps": {
         "albedo": "public/assets/textures/biomes/obsidian/door.png",
         "normal": "public/assets/textures/biomes/obsidian/door-normal.png",
@@ -382,21 +271,12 @@
         "metalness": "dd047963dd9c7dbbb38cd38c55784cdf00a8470efc5c092d2a88a9852fb8e584"
       },
       "meanLuma": 0.18,
-      "roughnessRange": [
-        0.392,
-        0.552
-      ],
-      "metalnessRange": [
-        0.015,
-        0.016
-      ],
+      "roughnessRange": [0.392, 0.552],
+      "metalnessRange": [0.015, 0.016],
       "metalCoverage": 0.0,
       "visualReview": {
         "decision": "regenerated",
-        "identityCues": [
-          "black volcanic glass",
-          "purple mineral edges"
-        ],
+        "identityCues": ["black volcanic glass", "purple mineral edges"],
         "lightingCheck": "no directional gradient or cast shadow observed"
       },
       "centerSplit": {
@@ -411,14 +291,8 @@
       "id": "sunken",
       "source": "assets-source/imagegen/biome-door-textures-v2/sunken-door-albedo-source.png",
       "sourceSha256": "f018521a07d6638c8e0bbe15fedee38e059d577425a5a0a8776c50271f2b6705",
-      "sourceSize": [
-        1254,
-        1254
-      ],
-      "outputSize": [
-        512,
-        512
-      ],
+      "sourceSize": [1254, 1254],
+      "outputSize": [512, 512],
       "maps": {
         "albedo": "public/assets/textures/biomes/sunken/door.png",
         "normal": "public/assets/textures/biomes/sunken/door-normal.png",
@@ -432,21 +306,12 @@
         "metalness": "49599f364f282874a7778400d448d3a2f389329bbed796e8a9a42c9f8ba2ce4f"
       },
       "meanLuma": 0.36,
-      "roughnessRange": [
-        0.765,
-        0.865
-      ],
-      "metalnessRange": [
-        0.015,
-        0.6617
-      ],
+      "roughnessRange": [0.765, 0.865],
+      "metalnessRange": [0.015, 0.6617],
       "metalCoverage": 0.1341,
       "visualReview": {
         "decision": "regenerated",
-        "identityCues": [
-          "waterlogged wood",
-          "green algae"
-        ],
+        "identityCues": ["waterlogged wood", "green algae"],
         "lightingCheck": "no directional gradient or cast shadow observed"
       },
       "centerSplit": {
@@ -461,14 +326,8 @@
       "id": "fungal",
       "source": "assets-source/imagegen/biome-door-textures-v2/fungal-door-albedo-source.png",
       "sourceSha256": "f1ece088fcc4096aeecea431023fc17dd144168151cc657eea41e84acfe9a896",
-      "sourceSize": [
-        1254,
-        1254
-      ],
-      "outputSize": [
-        512,
-        512
-      ],
+      "sourceSize": [1254, 1254],
+      "outputSize": [512, 512],
       "maps": {
         "albedo": "public/assets/textures/biomes/fungal/door.png",
         "normal": "public/assets/textures/biomes/fungal/door-normal.png",
@@ -482,21 +341,12 @@
         "metalness": "ddd076f2b24f59737cbb2f87df88ddcdaa46e0023f33857e0f416b576b826a2b"
       },
       "meanLuma": 0.38,
-      "roughnessRange": [
-        0.8505,
-        0.9405
-      ],
-      "metalnessRange": [
-        0.015,
-        0.1532
-      ],
+      "roughnessRange": [0.8505, 0.9405],
+      "metalnessRange": [0.015, 0.1532],
       "metalCoverage": 0.0,
       "visualReview": {
         "decision": "regenerated",
-        "identityCues": [
-          "shelf mushrooms",
-          "mycelium threads"
-        ],
+        "identityCues": ["shelf mushrooms", "mycelium threads"],
         "lightingCheck": "no directional gradient or cast shadow observed"
       },
       "centerSplit": {
@@ -511,14 +361,8 @@
       "id": "backrooms",
       "source": "assets-source/imagegen/biome-door-textures-v2/backrooms-door-albedo-source.png",
       "sourceSha256": "0e01a433f2b9309f3226bbe12c8a4c6ab766cbf54995149b59a2ab3c79a86042",
-      "sourceSize": [
-        1254,
-        1254
-      ],
-      "outputSize": [
-        512,
-        512
-      ],
+      "sourceSize": [1254, 1254],
+      "outputSize": [512, 512],
       "maps": {
         "albedo": "public/assets/textures/biomes/backrooms/door.png",
         "normal": "public/assets/textures/biomes/backrooms/door-normal.png",
@@ -532,21 +376,12 @@
         "metalness": "1ca9a81b7cd8dbfa2633bbf7ae014ae0c6b52c67b9fa058f0b7e3b0d56d4b5f4"
       },
       "meanLuma": 0.52,
-      "roughnessRange": [
-        0.8415,
-        0.9115
-      ],
-      "metalnessRange": [
-        0.2299,
-        0.2707
-      ],
+      "roughnessRange": [0.8415, 0.9115],
+      "metalnessRange": [0.2299, 0.2707],
       "metalCoverage": 1.0,
       "visualReview": {
         "decision": "kept",
-        "identityCues": [
-          "ochre painted steel",
-          "worn panel edges"
-        ],
+        "identityCues": ["ochre painted steel", "worn panel edges"],
         "lightingCheck": "no directional gradient or cast shadow observed"
       },
       "centerSplit": {

@@ -83,6 +83,7 @@ describe("FixedSceneEffects", () => {
       portalBeam,
       stoneBeams: [stoneBeam],
       ambientBeams: [ambientBeam],
+      uncannyWallRuntime: null,
       liquidSurfaces: [
         {
           kind: "pool",

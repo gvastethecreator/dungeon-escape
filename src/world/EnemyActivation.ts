@@ -51,8 +51,7 @@ export interface SafeSpawnDistanceInput {
  */
 export function resolveSafeSpawnDistance(input: SafeSpawnDistanceInput): number {
   const base = Number.isFinite(input.base) ? input.base : 0;
-  const pad =
-    input.pad === undefined ? ENEMY_ACTIVATION_FIELD_PAD : Math.max(0, input.pad);
+  const pad = input.pad === undefined ? ENEMY_ACTIVATION_FIELD_PAD : Math.max(0, input.pad);
   let safe = base;
   if (input.wardActive && input.wardRadius !== undefined && Number.isFinite(input.wardRadius)) {
     safe = Math.max(safe, input.wardRadius + pad);

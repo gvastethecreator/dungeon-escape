@@ -1,0 +1,37 @@
+{
+  "version": 1,
+  "sourceType": "imagegen",
+  "artEngine": "imagegen",
+  "verificationStatus": "approved-user",
+  "acceptedSource": "sources/sunken/carrion-stalker.png",
+  "sha256": "8f2d5d3bd000ddc0ff94c91de75e8b02d1d9054766909058148dab19dd4663a0",
+  "sizeBytes": 802661,
+  "prompt": "prompts/sunken/carrion-stalker.txt",
+  "promptSha256": "10b3d909ba8448a5c225b0b14e07bc26e3918f9a8016e8cf4353937322a6c78d",
+  "baseReference": "reference/base/carrion-stalker.png",
+  "baseReferenceSha256": "a23b7d2aa9472a94b669c349425d002a22c4ef78c64f3ac2bec15b6933ec46f3",
+  "moodReference": "reference/mood/sunken.png",
+  "moodReferenceSha256": "07c1c9ea769d8616700dbd567589bc8b337337bc17adeb13314366f14da29cfd",
+  "materialReferences": [
+    "../../public/assets/textures/biomes/sunken/wall.webp",
+    "../../public/assets/textures/biomes/sunken/floor.webp",
+    "../../public/assets/textures/biomes/sunken/ceiling.webp"
+  ],
+  "materialReferenceSha256": {
+    "../../public/assets/textures/biomes/sunken/wall.webp": "e179fa7e329a341983d9dc378538b5691a2963f0cea0b82d9a80d458315e3fef",
+    "../../public/assets/textures/biomes/sunken/floor.webp": "5b2d915667e11bdc2e88279ae405fd8a7a9afcaf6030dcc08c0941904eded5b3",
+    "../../public/assets/textures/biomes/sunken/ceiling.webp": "9967b210d449f25233e7c2066b48454fe8e392892fed9994ea257798494289e3"
+  },
+  "approval": {
+    "status": "approved-user",
+    "date": "2026-08-04",
+    "review_record": ".scratch/biome-enemy-base-sprites/reviews.json",
+    "notes": "Autoauditoría visual completa; pendiente de aprobación del usuario."
+  },
+  "consolidation": {
+    "package": "assets-source/enemies/biomes-v2",
+    "original_source": ".scratch/biome-enemy-base-sprites/new/sunken/carrion-stalker.png",
+    "original_prompt": ".scratch/biome-enemy-base-sprites/prompts/sunken/carrion-stalker.txt",
+    "original_provenance": ".scratch/biome-enemy-base-sprites/provenance/sunken/carrion-stalker.json"
+  }
+}

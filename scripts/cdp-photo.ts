@@ -9,7 +9,7 @@ import { listBiomeIds } from "../src/systems/BiomeIdentity";
  * Requires the Dungeon Escape dev server running on :24211.
  *
  * Usage:
- *   bun run scripts/cdp-photo.ts <seed> <outDir> [nameSubstring,dx,dz,pitch,label,instanceIndex,aimHeight]...
+ *   bun run scripts/cdp-photo.ts <seed> <outDir> [nameSubstring,dx,dz,pitch,label,instanceIndex,aimHeight,captureMode]...
  *   BIOME=frost MOOD=frost bun run scripts/cdp-photo.ts BIOME-1 .proof-hud
  *
  * Example:
@@ -21,6 +21,8 @@ import { listBiomeIds } from "../src/systems/BiomeIdentity";
  * Set env CRT=off to capture without the CRT composite (defaults to the live CRT setting).
  * Set env PHOTO_SIMULATION=off only when a frozen pre-play frame is required; live capture is the default.
  * Set env QA_STATE=portal to open the real four-stone portal for capture.
+ * Set env ESCAPE_SMOKE=on to press Escape twice and capture the options open/close path.
+ * Set env PHOTO_WIDTH and PHOTO_HEIGHT to inspect a responsive viewport.
  * Set env PERF_SECONDS=12 to record live p95/p99/max frame gaps after the shots.
  * Set env PHOTO_BASE_URL to profile a production preview on a different port.
  */
@@ -50,6 +52,15 @@ if (PHOTO_SIMULATION !== "on" && PHOTO_SIMULATION !== "off")
   throw new Error(
     `PHOTO_SIMULATION must be "on" or "off"; received ${JSON.stringify(PHOTO_SIMULATION)}.`,
   );
+const ESCAPE_SMOKE = (process.env.ESCAPE_SMOKE ?? "off").trim().toLowerCase();
+if (ESCAPE_SMOKE !== "on" && ESCAPE_SMOKE !== "off")
+  throw new Error(`ESCAPE_SMOKE must be "on" or "off"; received ${JSON.stringify(ESCAPE_SMOKE)}.`);
+const PHOTO_WIDTH = Number.parseInt(process.env.PHOTO_WIDTH ?? "1600", 10);
+const PHOTO_HEIGHT = Number.parseInt(process.env.PHOTO_HEIGHT ?? "900", 10);
+if (!Number.isInteger(PHOTO_WIDTH) || PHOTO_WIDTH < 320 || PHOTO_WIDTH > 4_000)
+  throw new Error(`PHOTO_WIDTH must be an integer from 320 to 4000; received ${PHOTO_WIDTH}.`);
+if (!Number.isInteger(PHOTO_HEIGHT) || PHOTO_HEIGHT < 320 || PHOTO_HEIGHT > 4_000)
+  throw new Error(`PHOTO_HEIGHT must be an integer from 320 to 4000; received ${PHOTO_HEIGHT}.`);
 
 type G0Workload = "backrooms" | "frost";
 type G0Status = "passed" | "failed" | "timed_out" | "cleanup_failed";
@@ -136,8 +147,13 @@ const pending = new Map<
 >();
 const browserErrors: string[] = [];
 const networkErrors: string[] = [];
-const captureRecords: Array<{ label: string; image: string; target?: string; status?: string }> =
-  [];
+const captureRecords: Array<{
+  label: string;
+  image: string;
+  target?: string;
+  status?: string;
+  animationSample?: { frameA: number; frameB: number; blend: number };
+}> = [];
 
 function send(
   ws: WebSocket,
@@ -450,7 +466,7 @@ const chromeArgs = [
   "--headless=new",
   "--disable-gpu-sandbox",
   "--no-first-run",
-  "--window-size=1600,900",
+  `--window-size=${PHOTO_WIDTH},${PHOTO_HEIGHT}`,
   "--hide-scrollbars",
   "about:blank",
 ];
@@ -524,29 +540,29 @@ try {
   await send(ws, "Log.enable");
   await send(ws, "Network.enable");
   await send(ws, "Emulation.setDeviceMetricsOverride", {
-    width: 1600,
-    height: 900,
+    width: PHOTO_WIDTH,
+    height: PHOTO_HEIGHT,
     deviceScaleFactor: 1,
     mobile: false,
   });
-  if (g0) {
-    g0BrowserVersion = await send(ws, "Browser.getVersion");
-    await send(ws, "Page.addScriptToEvaluateOnNewDocument", {
-      source: `(() => {
-        try {
-          localStorage.setItem('blackflag.dungeon.player.v1', JSON.stringify({
-            version: 1,
-            name: 'unlock',
-            avatarIndex: 0,
-            hasCompletedRun: true,
-            highestUnlockedRank: ${JSON.stringify(G0_HIGHEST_UNLOCKED_RANK)},
-            clears: { ancient: 1 },
-            updatedAt: Date.now(),
-          }));
-        } catch (_) {}
-      })()`,
-    });
-  }
+  if (g0) g0BrowserVersion = await send(ws, "Browser.getVersion");
+  // Photo runs are QA runs. Unlock the picker before application boot so any
+  // requested biome uses the same real New Game path as a progressed profile.
+  await send(ws, "Page.addScriptToEvaluateOnNewDocument", {
+    source: `(() => {
+      try {
+        localStorage.setItem('blackflag.dungeon.player.v1', JSON.stringify({
+          version: 1,
+          name: 'unlock',
+          avatarIndex: 0,
+          hasCompletedRun: true,
+          highestUnlockedRank: ${JSON.stringify(G0_HIGHEST_UNLOCKED_RANK)},
+          clears: { ancient: 1 },
+          updatedAt: Date.now(),
+        }));
+      } catch (_) {}
+    })()`,
+  });
   const moodQuery = moodParam ? `&mood=${encodeURIComponent(moodParam)}` : "";
   // Every photo run is a QA run. The flag keeps the requested campaign seed
   // deterministic while normal New Game continues to generate fresh seeds.
@@ -578,25 +594,29 @@ try {
   if (g0 && openedPicker?.result?.value !== true)
     throw new Error("G0 did not open the real biome picker.");
   if (openedPicker?.result?.value) {
-    await sleep(250);
-    const started = (await send(
-      ws,
-      "Runtime.evaluate",
-      {
-        expression: `(() => {
-        const preferred = ${JSON.stringify(biomeParam)};
-        const option = preferred
-          ? document.querySelector('.biome-picker-option[data-biome-id="' + preferred + '"]')
-          : document.querySelector(".biome-picker-option");
-        if (!(option instanceof HTMLButtonElement) || option.disabled) return false;
-        option.click();
-        return true;
-      })()`,
-        returnByValue: true,
-      },
-      "biome-start",
-    )) as { result?: { value?: boolean } };
-    if (!started.result?.value) throw new Error("Biome picker did not start a new game.");
+    let started = false;
+    for (let attempt = 0; attempt < 12 && !started; attempt += 1) {
+      await sleep(attempt === 0 ? 250 : 400);
+      const result = (await send(
+        ws,
+        "Runtime.evaluate",
+        {
+          expression: `(() => {
+          const preferred = ${JSON.stringify(biomeParam)};
+          const option = preferred
+            ? document.querySelector('.biome-picker-option[data-biome-id="' + preferred + '"]')
+            : document.querySelector(".biome-picker-option:not([disabled])");
+          if (!(option instanceof HTMLButtonElement) || option.disabled) return false;
+          option.click();
+          return true;
+        })()`,
+          returnByValue: true,
+        },
+        "biome-start",
+      )) as { result?: { value?: boolean } };
+      started = result.result?.value === true;
+    }
+    if (!started) throw new Error("Biome picker did not start a new game.");
     await sleep(2500);
   }
 
@@ -624,6 +644,33 @@ try {
   if (!g0) await setRequestedCrt(ws);
 
   if (PHOTO_SIMULATION === "on") {
+    // Use a trusted CDP gesture before the synthetic touch helper. Otherwise
+    // Chromium keeps AudioContext suspended and the smoke misses decode/load
+    // stutters that real players trigger on their first click.
+    await send(
+      ws,
+      "Input.dispatchKeyEvent",
+      {
+        type: "rawKeyDown",
+        key: "F13",
+        code: "F13",
+        windowsVirtualKeyCode: 124,
+        nativeVirtualKeyCode: 124,
+      },
+      "simulation-audio-gesture",
+    );
+    await send(
+      ws,
+      "Input.dispatchKeyEvent",
+      {
+        type: "keyUp",
+        key: "F13",
+        code: "F13",
+        windowsVirtualKeyCode: 124,
+        nativeVirtualKeyCode: 124,
+      },
+      "simulation-audio-gesture",
+    );
     const simulationStatus = (await send(
       ws,
       "Runtime.evaluate",
@@ -660,9 +707,80 @@ try {
     console.log(`saved ${path}`);
   }
 
+  let escapeSmokeResult: {
+    before: { open: boolean; hidden: boolean; activeId: string };
+    opened: { open: boolean; hidden: boolean; activeId: string };
+    closed: { open: boolean; hidden: boolean; activeId: string };
+  } | null = null;
+  if (ESCAPE_SMOKE === "on") {
+    const readOptionsState = async (phase: string) => {
+      const result = (await send(
+        ws,
+        "Runtime.evaluate",
+        {
+          expression: `(() => {
+            const menu = document.querySelector('#options-menu');
+            const shell = document.querySelector('.app-shell');
+            return {
+              open: shell?.classList.contains('options-open') ?? false,
+              hidden: menu instanceof HTMLElement ? menu.hidden : true,
+              activeId: document.activeElement?.id ?? '',
+            };
+          })()`,
+          returnByValue: true,
+        },
+        phase,
+      )) as { result?: { value?: { open?: boolean; hidden?: boolean; activeId?: string } } };
+      const value = result.result?.value ?? {};
+      return {
+        open: value.open === true,
+        hidden: value.hidden !== false,
+        activeId: value.activeId ?? "",
+      };
+    };
+    const pressEscape = async (phase: string): Promise<void> => {
+      await send(
+        ws,
+        "Input.dispatchKeyEvent",
+        {
+          type: "rawKeyDown",
+          key: "Escape",
+          code: "Escape",
+          windowsVirtualKeyCode: 27,
+          nativeVirtualKeyCode: 27,
+        },
+        phase,
+      );
+      await send(
+        ws,
+        "Input.dispatchKeyEvent",
+        {
+          type: "keyUp",
+          key: "Escape",
+          code: "Escape",
+          windowsVirtualKeyCode: 27,
+          nativeVirtualKeyCode: 27,
+        },
+        phase,
+      );
+      await sleep(120);
+    };
+    const before = await readOptionsState("escape-before");
+    await pressEscape("escape-open");
+    const opened = await readOptionsState("escape-open-state");
+    await capture("options-open");
+    await pressEscape("escape-close");
+    const closed = await readOptionsState("escape-close-state");
+    await capture("options-closed");
+    if (before.open || !before.hidden || !opened.open || opened.hidden || !closed.hidden) {
+      throw new Error(`Escape smoke failed: ${JSON.stringify({ before, opened, closed })}`);
+    }
+    escapeSmokeResult = { before, opened, closed };
+  }
+
   async function teleport(
     nameSubstring: string,
-    dx: number,
+    dx: number | "normal",
     dz: number,
     pitch: number,
     instanceIndex: number | null,
@@ -680,6 +798,7 @@ try {
       const v = new ctrl.position.constructor();
       target.updateWorldMatrix(true, false);
       let resolvedIndex = null;
+      let targetWorld = target.matrixWorld.clone();
       if (target.isInstancedMesh) {
         const requestedIndex = ${instanceIndex === null ? "null" : String(instanceIndex)};
         resolvedIndex = Number.isInteger(requestedIndex) ? requestedIndex : 0;
@@ -688,13 +807,15 @@ try {
         }
         const local = target.matrixWorld.clone().identity();
         target.getMatrixAt(resolvedIndex, local);
-        const world = target.matrixWorld.clone().multiply(local);
-        v.setFromMatrixPosition(world);
+        targetWorld = target.matrixWorld.clone().multiply(local);
+        v.setFromMatrixPosition(targetWorld);
       } else {
         target.getWorldPosition(v);
       }
-      const cameraX = v.x + ${dx};
-      const cameraZ = v.z + ${dz};
+      const normalCamera = ${JSON.stringify(dx === "normal")};
+      const normal = new ctrl.position.constructor(0, 0, 1).transformDirection(targetWorld);
+      const cameraX = normalCamera ? v.x + normal.x * ${dz} : v.x + ${dx === "normal" ? 0 : dx};
+      const cameraZ = normalCamera ? v.z + normal.z * ${dz} : v.z + ${dz};
       const ddx = v.x - cameraX;
       const ddz = v.z - cameraZ;
       const yaw = Math.atan2(-ddx, -ddz);
@@ -725,10 +846,59 @@ try {
     return result.result?.value ?? "NO_RESULT";
   }
 
+  async function waitForInstanceAnimation(
+    nameSubstring: string,
+    instanceIndex: number,
+    timeoutMs = 12_000,
+  ): Promise<{ frameA: number; frameB: number; blend: number }> {
+    const deadline = Date.now() + timeoutMs;
+    let last = { frameA: 0, frameB: 0, blend: 0 };
+    while (Date.now() < deadline) {
+      const result = (await send(
+        ws,
+        "Runtime.evaluate",
+        {
+          expression: `(() => {
+            let target = null;
+            window.__THREE_GAME_DIAGNOSTICS__?.getScene?.().traverse((object) => {
+              if (!target && object.isInstancedMesh && object.name.includes(${JSON.stringify(nameSubstring)})) {
+                target = object;
+              }
+            });
+            if (!target || ${instanceIndex} < 0 || ${instanceIndex} >= target.count) return null;
+            const frameA = target.geometry.getAttribute('uncannyFrameA');
+            const frameB = target.geometry.getAttribute('uncannyFrameB');
+            const blend = target.geometry.getAttribute('uncannyBlend');
+            if (!frameA || !frameB || !blend) return null;
+            return {
+              frameA: frameA.getX(${instanceIndex}),
+              frameB: frameB.getX(${instanceIndex}),
+              blend: blend.getX(${instanceIndex}),
+            };
+          })()`,
+          returnByValue: true,
+        },
+        "instance-animation",
+      )) as { result?: { value?: { frameA: number; frameB: number; blend: number } | null } };
+      const sample = result.result?.value;
+      if (sample) {
+        last = sample;
+        // Wait past the first blended pixels so the proof frame is visibly
+        // different from the authored hold pose, even for a 90 ms transition.
+        if (sample.frameA !== 0 || sample.frameB > 1 || sample.blend >= 0.35) return sample;
+      }
+      await sleep(16);
+    }
+    throw new Error(
+      `${nameSubstring} instance ${instanceIndex} did not leave its hold frame: ${JSON.stringify(last)}.`,
+    );
+  }
+
   await capture("spawn");
   for (const spec of shotSpecs) {
     await waitForGameReady(ws);
-    const [name, dx, dz, pitch, label, rawInstanceIndex, rawAimHeight] = spec.split(",");
+    const [name, rawDx, rawDz, pitch, label, rawInstanceIndex, rawAimHeight, captureMode] =
+      spec.split(",");
     if (!name || !label) continue;
     const parsedInstanceIndex =
       rawInstanceIndex === undefined || rawInstanceIndex === ""
@@ -740,10 +910,20 @@ try {
       throw new Error(`${label}: invalid instance index ${JSON.stringify(rawInstanceIndex)}.`);
     if (parsedAimHeight !== null && !Number.isFinite(parsedAimHeight))
       throw new Error(`${label}: invalid aim height ${JSON.stringify(rawAimHeight)}.`);
+    const dx = rawDx === "normal" ? "normal" : Number(rawDx ?? 1.6);
+    const dz = Number(rawDz ?? (dx === "normal" ? 2.8 : 1.6));
+    if (dx !== "normal" && !Number.isFinite(dx))
+      throw new Error(`${label}: invalid camera X offset ${JSON.stringify(rawDx)}.`);
+    if (!Number.isFinite(dz))
+      throw new Error(`${label}: invalid camera Z offset ${JSON.stringify(rawDz)}.`);
+    if (captureMode && captureMode !== "animate")
+      throw new Error(
+        `${label}: capture mode must be "animate"; received ${JSON.stringify(captureMode)}.`,
+      );
     const status = await teleport(
       name,
-      Number(dx ?? 1.6),
-      Number(dz ?? 1.6),
+      dx,
+      dz,
       Number(pitch ?? 0),
       parsedInstanceIndex,
       parsedAimHeight,
@@ -751,12 +931,17 @@ try {
     console.log(`${label}: ${status}`);
     if (!status?.startsWith("OK "))
       throw new Error(`${label}: teleport failed (${status ?? "missing result"}).`);
-    await sleep(900);
+    const animationSample =
+      captureMode === "animate"
+        ? await waitForInstanceAnimation(name, parsedInstanceIndex ?? 0)
+        : undefined;
+    await sleep(animationSample ? 40 : 900);
     await capture(label);
     const record = captureRecords.at(-1);
     if (record) {
       record.target = name;
       record.status = status;
+      record.animationSample = animationSample;
     }
   }
 
@@ -875,6 +1060,7 @@ try {
         const canvas = document.querySelector('#scene');
         return {
           renderer: diag?.getRenderer?.() ?? null,
+          audio: diag?.getAudio?.() ?? null,
           runtime: diag?.getState?.() ?? null,
           canvas: canvas instanceof HTMLCanvasElement
             ? { width: canvas.width, height: canvas.height, clientWidth: canvas.clientWidth, clientHeight: canvas.clientHeight }
@@ -900,6 +1086,7 @@ try {
         mood: moodParam || null,
         crt: CRT || null,
         photoSimulation: PHOTO_SIMULATION,
+        escapeSmoke: escapeSmokeResult,
         shots: captureRecords,
         browserErrors,
         networkErrors,

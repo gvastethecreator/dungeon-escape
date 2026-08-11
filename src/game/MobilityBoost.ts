@@ -1,10 +1,6 @@
 /** Sprint-and-stamina pickup rules. Kept pure for save/resume and gameplay tests. */
 
-import {
-  activateTimedSeconds,
-  isTimedSecondsActive,
-  tickTimedSeconds,
-} from "./TimedSeconds";
+import { activateTimedSeconds, isTimedSecondsActive, tickTimedSeconds } from "./TimedSeconds";
 
 export const MOBILITY_BOOST_DURATION_SECONDS = 14;
 export const MOBILITY_BOOST_SPEED_MULTIPLIER = 1.28;

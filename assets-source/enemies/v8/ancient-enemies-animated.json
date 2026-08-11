@@ -1,14 +1,8 @@
 {
   "version": 1,
   "kind": "ancient-enemy-animation-atlas",
-  "size": [
-    640,
-    3520
-  ],
-  "cell": [
-    160,
-    160
-  ],
+  "size": [640, 3520],
+  "cell": [160, 160],
   "layout": "two interleaved rows per enemy: movement, attack",
   "frames_per_state": 4,
   "enemies": {

@@ -53,16 +53,16 @@ source set.
 Each entry names the cropped PNG used as an image reference. The crop comes
 from the matching row in `public/assets/sprites/enemies-v8/biomes/`.
 
-| Biome | Main chase | Ending chase |
-| --- | --- | --- |
-| Ancient | spider, husk, imp | ghost, bone-slime, carrion-stalker |
-| Molten | imp, carrion-stalker, spider | goblin, zombie-orc, ghost |
-| Frost | ghost, husk, carrion-stalker | ratling, bone-slime, white-eyed-shadow |
-| Grim | ghost, husk, bone-slime | carrion, imp, white-eyed-shadow |
-| Verdant | carrion-stalker, goblin, bone-slime | ghost, ratling, imp |
-| Ash | husk, imp, spider | carrion, zombie-orc, white-eyed-shadow |
-| Iron | zombie-orc, ratling, husk | goblin, carrion-stalker, ghost |
-| Obsidian | white-eyed-shadow, ghost, spider | imp, bone-slime, carrion |
-| Sunken | ghost, carrion-stalker, spider | ratling, zombie-orc, bone-slime |
-| Fungal | bone-slime, ghost, spider | goblin, carrion, imp |
-| Backrooms | white-eyed-shadow, ratling, spider | ghost, zombie-orc, carrion-stalker |
+| Biome     | Main chase                          | Ending chase                           |
+| --------- | ----------------------------------- | -------------------------------------- |
+| Ancient   | spider, husk, imp                   | ghost, bone-slime, carrion-stalker     |
+| Molten    | imp, carrion-stalker, spider        | goblin, zombie-orc, ghost              |
+| Frost     | ghost, husk, carrion-stalker        | ratling, bone-slime, white-eyed-shadow |
+| Grim      | ghost, husk, bone-slime             | carrion, imp, white-eyed-shadow        |
+| Verdant   | carrion-stalker, goblin, bone-slime | ghost, ratling, imp                    |
+| Ash       | husk, imp, spider                   | carrion, zombie-orc, white-eyed-shadow |
+| Iron      | zombie-orc, ratling, husk           | goblin, carrion-stalker, ghost         |
+| Obsidian  | white-eyed-shadow, ghost, spider    | imp, bone-slime, carrion               |
+| Sunken    | ghost, carrion-stalker, spider      | ratling, zombie-orc, bone-slime        |
+| Fungal    | bone-slime, ghost, spider           | goblin, carrion, imp                   |
+| Backrooms | white-eyed-shadow, ratling, spider  | ghost, zombie-orc, carrion-stalker     |

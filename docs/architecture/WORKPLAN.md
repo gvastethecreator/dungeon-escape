@@ -112,18 +112,18 @@ Exactly ten accepted runtime deepenings are complete under
 [architecture-review-2026-08-02.md](architecture-review-2026-08-02.md)
 and `.scratch/dungeon-architecture-batch-2026-08-02/`.
 
-| ID | Módulo / interfaz | Resultado |
-| --- | --- | --- |
-| ARC-C01 | TimedSeconds | Reloj compartido para poderes y maldiciones |
-| ARC-C02 | RunPowerRuntime | Bolsa de estado de run fuera de campos sueltos en el facade |
-| ARC-C03 | ControlModsProjection | Proyección pura mirror/spin/slow/mobility |
-| ARC-C04 | applyPickupToRunPowers | Activación por kind sobre la bolsa |
-| ARC-C05 | PickupSessionEffects | Tabla de feedback de sesión por kind |
-| ARC-C06 | ChestPresentation | Tapa y reveal fuera de `DungeonWorld.update` |
-| ARC-C07 | PickupMotionPresentation | Idle y collect motion fuera del facade |
-| ARC-C08 | DoorLeafPresentation | Damp de hojas tras DoorOpenPolicy |
-| ARC-C09 | PlayStatusHud | Un snapshot sync/reset para chips de Play |
-| ARC-C10 | setLocomotionMods | Un seam de locomoción en el controller |
+| ID      | Módulo / interfaz        | Resultado                                                   |
+| ------- | ------------------------ | ----------------------------------------------------------- |
+| ARC-C01 | TimedSeconds             | Reloj compartido para poderes y maldiciones                 |
+| ARC-C02 | RunPowerRuntime          | Bolsa de estado de run fuera de campos sueltos en el facade |
+| ARC-C03 | ControlModsProjection    | Proyección pura mirror/spin/slow/mobility                   |
+| ARC-C04 | applyPickupToRunPowers   | Activación por kind sobre la bolsa                          |
+| ARC-C05 | PickupSessionEffects     | Tabla de feedback de sesión por kind                        |
+| ARC-C06 | ChestPresentation        | Tapa y reveal fuera de `DungeonWorld.update`                |
+| ARC-C07 | PickupMotionPresentation | Idle y collect motion fuera del facade                      |
+| ARC-C08 | DoorLeafPresentation     | Damp de hojas tras DoorOpenPolicy                           |
+| ARC-C09 | PlayStatusHud            | Un snapshot sync/reset para chips de Play                   |
+| ARC-C10 | setLocomotionMods        | Un seam de locomoción en el controller                      |
 
 Final proof: 967 tests pass and the same 2 baseline tests fail; client/server/worker types
 and lint pass. A9 remains deferred.
@@ -134,18 +134,18 @@ Exactly ten accepted responsibility moves are complete under
 [architecture-review-2026-08-01-b.md](architecture-review-2026-08-01-b.md)
 and `.scratch/dungeon-architecture-batch-2026-08-01-b/`.
 
-| ID | Módulo / interfaz | Resultado |
-| --- | --- | --- |
-| ARC-B01 | Audio asset catalog | Asset paths, groups, gains, spatial profiles, and mappings left `GameAudio` |
-| ARC-B02 | Creature take selector | Weighted themed selection and no-repeat state have one deterministic owner |
-| ARC-B03 | UI sound policy | Selector priority and disabled-control cues left the browser event adapter |
-| ARC-B04 | Player combat eye height | Controller defaults and floor destinations share one canonical value |
-| ARC-B05 | Enemy presentation | Simulation no longer owns billboard, shadow, animation, freeze, or trail writes |
-| ARC-B06 | Fixed scene effects | Fires, beams, liquids, and biome floor sprites left `DungeonWorld` |
-| ARC-B07 | Round results controller | Hall retries, stale requests, saved rank, and result states have one owner |
-| ARC-B08 | Floor transition transaction | Checkpoint, cover, activation, warmup, recovery, and input release are serial |
-| ARC-B09 | Forge presentation session | Iframe presentation identity and editor restoration reject late completion |
-| ARC-B10 | Camera motion projection | Camera feel and reduced motion are a pure reusable frame step |
+| ID      | Módulo / interfaz            | Resultado                                                                       |
+| ------- | ---------------------------- | ------------------------------------------------------------------------------- |
+| ARC-B01 | Audio asset catalog          | Asset paths, groups, gains, spatial profiles, and mappings left `GameAudio`     |
+| ARC-B02 | Creature take selector       | Weighted themed selection and no-repeat state have one deterministic owner      |
+| ARC-B03 | UI sound policy              | Selector priority and disabled-control cues left the browser event adapter      |
+| ARC-B04 | Player combat eye height     | Controller defaults and floor destinations share one canonical value            |
+| ARC-B05 | Enemy presentation           | Simulation no longer owns billboard, shadow, animation, freeze, or trail writes |
+| ARC-B06 | Fixed scene effects          | Fires, beams, liquids, and biome floor sprites left `DungeonWorld`              |
+| ARC-B07 | Round results controller     | Hall retries, stale requests, saved rank, and result states have one owner      |
+| ARC-B08 | Floor transition transaction | Checkpoint, cover, activation, warmup, recovery, and input release are serial   |
+| ARC-B09 | Forge presentation session   | Iframe presentation identity and editor restoration reject late completion      |
+| ARC-B10 | Camera motion projection     | Camera feel and reduced motion are a pure reusable frame step                   |
 
 Final proof: 889 tests pass and the same 2 baseline tests fail; client/server/worker types,
 lint, and the production build pass. The baseline failures are an asset-provenance gap and

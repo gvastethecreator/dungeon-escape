@@ -23,15 +23,15 @@ El diff se revisó contra el baseline fijo `2112fe9`. Como el lote está sin com
 
 ## Ledger de evidencia
 
-| Evidencia | Baseline | Resultado final | Lectura |
-| --- | ---: | ---: | --- |
-| Pruebas que pasan | 858 | 889 | +31 pruebas en los nuevos puntos de sustitución |
-| Pruebas que fallan | 2 | 2 | Sin regresiones nuevas en la suite completa |
-| Assertions | 154.963 | 155.269 | +306 comprobaciones |
-| `bun run typecheck:all` | pasa | pasa | Cliente, servidor y worker |
-| `bun run lint` | pasa | pasa | `oxlint .` sin errores |
-| `bun run build` | no usado como baseline | pasa | Vite 8.2.0, 187 módulos, 1,52 s |
-| `git diff --check HEAD` | — | pasa | Solo avisos de normalización LF/CRLF de Git |
+| Evidencia               |               Baseline | Resultado final | Lectura                                         |
+| ----------------------- | ---------------------: | --------------: | ----------------------------------------------- |
+| Pruebas que pasan       |                    858 |             889 | +31 pruebas en los nuevos puntos de sustitución |
+| Pruebas que fallan      |                      2 |               2 | Sin regresiones nuevas en la suite completa     |
+| Assertions              |                154.963 |         155.269 | +306 comprobaciones                             |
+| `bun run typecheck:all` |                   pasa |            pasa | Cliente, servidor y worker                      |
+| `bun run lint`          |                   pasa |            pasa | `oxlint .` sin errores                          |
+| `bun run build`         | no usado como baseline |            pasa | Vite 8.2.0, 187 módulos, 1,52 s                 |
+| `git diff --check HEAD` |                      — |            pasa | Solo avisos de normalización LF/CRLF de Git     |
 
 ## Hallazgos e implementación
 
@@ -164,16 +164,16 @@ Los diez tickets aprobados están cerrados. El siguiente trabajo no forma parte 
 
 ## Verificación final
 
-| Comando | Resultado |
-| --- | --- |
-| Pruebas enfocadas por ticket | pasa; 10/10 tickets con prueba cercana |
-| `bun test tests` | 889 pass, 2 fail, 155.269 assertions, 891 pruebas / 173 archivos, 10,90 s |
-| `bun run lint` | pasa |
-| `bun run build` | pasa; incluye `bun run typecheck:all` |
-| Tipos cliente / servidor / worker | pasa / pasa / pasa |
-| `git diff --check HEAD` | pasa; solo avisos LF→CRLF |
-| Revisión de responsabilidades antiguas con `rg` | pasa; sin coincidencias |
-| Navegador del producto | no ejecutado |
+| Comando                                         | Resultado                                                                 |
+| ----------------------------------------------- | ------------------------------------------------------------------------- |
+| Pruebas enfocadas por ticket                    | pasa; 10/10 tickets con prueba cercana                                    |
+| `bun test tests`                                | 889 pass, 2 fail, 155.269 assertions, 891 pruebas / 173 archivos, 10,90 s |
+| `bun run lint`                                  | pasa                                                                      |
+| `bun run build`                                 | pasa; incluye `bun run typecheck:all`                                     |
+| Tipos cliente / servidor / worker               | pasa / pasa / pasa                                                        |
+| `git diff --check HEAD`                         | pasa; solo avisos LF→CRLF                                                 |
+| Revisión de responsabilidades antiguas con `rg` | pasa; sin coincidencias                                                   |
+| Navegador del producto                          | no ejecutado                                                              |
 
 El build conserva un aviso no bloqueante: el chunk `BufferGeometryUtils` mide 592,60 kB y supera el umbral informativo de 500 kB.
 
