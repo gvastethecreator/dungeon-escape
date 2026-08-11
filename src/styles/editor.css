@@ -1,10 +1,5 @@
-/*
- * Editor and Creation stylesheet.
- * `src/main.ts` loads this immediately after `src/styles.css`; preserve that order.
- * The blocks retain their relative source order for visual parity.
- */
+/* Creation and Debug own one workspace. Play options remain in styles.css. */
 
-/* Public builds: Debug is local-only. Creation + Play remain for Custom Run. */
 .app-shell[data-local-dev-tools="false"] .mode-switcher [data-engine-mode="debug"] {
   display: none !important;
 }
@@ -13,31 +8,33 @@
 .forge-play-btn__label {
   font-family: var(--font-gothic);
   font-weight: 400;
-  letter-spacing: 0.04em;
   font-synthesis: none;
-  text-transform: none;
 }
 
 .editor-fieldset {
   margin: 0;
   border: var(--edge);
-  background: rgb(7 8 9 / 40%);
+  background: rgb(7 8 9 / 46%);
+  transition: border-left-color 150ms ease-out;
 }
 
-/* Legend acts as the disclosure summary: clickable header row. */
+.editor-fieldset:focus-within {
+  border-left-color: rgb(196 90 50 / 78%);
+}
+
 .editor-fieldset__legend {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 4px 8px;
-  min-height: 26px;
+  gap: 7px;
+  min-height: 34px;
+  padding: 5px 9px;
   list-style: none;
   cursor: pointer;
   color: var(--ash);
   font-family: var(--font-pixel);
   font-size: 10px;
   font-weight: 600;
-  letter-spacing: 0.12em;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
   user-select: none;
 }
@@ -47,12 +44,11 @@
 }
 
 .editor-fieldset__legend::before {
-  content: "";
-  width: 6px;
-  height: 6px;
-  margin-right: 2px;
+  width: 7px;
+  height: 7px;
   background: var(--iron);
-  transition: background 0.12s steps(2);
+  content: "";
+  transition: background-color 120ms steps(2);
 }
 
 .editor-fieldset[open] > .editor-fieldset__legend {
@@ -65,318 +61,44 @@
 
 .editor-fieldset__body {
   display: grid;
-  gap: 4px;
-  padding: 4px 8px 8px;
+  gap: 7px;
+  padding: 7px 9px 10px;
   border-top: var(--edge);
 }
 
-/* Dual-column slider layout for dense sections (LAYOUT, ATMOSPHERE, CAMERA). */
 .editor-fieldset__body.is-dual {
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
-/* Stacked controls (seed input, profile select) span both columns. */
 .editor-fieldset__body.is-dual > .is-stacked,
 .editor-fieldset__body.is-dual > .is-dual-span {
   grid-column: 1 / -1;
 }
 
 .preset-row {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   flex-wrap: wrap;
-  grid-template-columns: repeat(3, 1fr);
 }
 
 .preset-row button {
-  min-height: 28px;
-  padding: 0 4px;
+  min-height: 32px;
+  padding: 0 5px;
   font-size: 9px;
-  letter-spacing: 0.06em;
-}
-
-/* Editor workspace */
-.editor-workspace {
-  position: absolute;
-  z-index: 6;
-  top: max(12px, env(safe-area-inset-top));
-  right: min(340px, 36vw);
-  bottom: 12px;
-  left: 12px;
-  overflow: hidden;
-  border: var(--edge);
-  background: #050606;
-  box-shadow: 7px 7px 0 rgb(0 0 0 / 55%);
-}
-
-.editor-workspace[hidden] {
-  display: none;
-}
-
-.editor-toolbar {
-  position: absolute;
-  z-index: 3;
-  top: 0;
-  right: 0;
-  left: 0;
-  display: flex;
-  align-items: center;
-  min-height: 44px;
-  gap: 8px;
-  padding: 4px 8px;
-  border-bottom: var(--rule);
-  background: rgb(5 6 6 / 94%);
-}
-
-.editor-tabs {
-  display: flex;
-  gap: 4px;
-}
-
-.editor-tabs button {
-  min-height: 34px;
-  padding: 0 10px;
-  font-family: var(--font-pixel);
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.06em;
-}
-
-.editor-tabs button.is-active {
-  border-color: var(--edge-color);
-  background: var(--bone);
-  color: var(--ink);
-}
-
-#forge-status {
-  min-width: 0;
-  flex: 1;
-  overflow: hidden;
-  color: var(--ash);
-  font-family: var(--font-pixel);
-  font-size: 11px;
-  letter-spacing: 0.06em;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-#forge-status.is-ready {
-  color: #9eb7aa;
-}
-
-/* Large PLAY CTA — bottom-right over the editor workspace */
-.forge-play-btn,
-#forge-apply.forge-play-btn {
-  position: absolute;
-  z-index: 8;
-  right: 20px;
-  bottom: 20px;
-  top: auto;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 188px;
-  min-height: 92px;
-  padding: 16px 32px 18px;
-  border: var(--edge-strong);
-  background: linear-gradient(180deg, rgb(196 90 50 / 92%) 0%, rgb(120 40 24 / 96%) 100%);
-  color: #f2ebe0;
-  box-shadow:
-    0 0 0 2px rgb(0 0 0 / 70%),
-    6px 6px 0 rgb(0 0 0 / 55%),
-    0 0 28px rgb(196 90 50 / 35%);
-  font-family: var(--font-pixel);
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.14em;
-  text-shadow: 1px 1px 0 #000;
-  cursor: pointer;
-  pointer-events: auto;
-}
-
-.forge-play-btn__label {
-  display: block;
-  font-size: 48px;
-  letter-spacing: 0.08em;
-  line-height: 1;
-}
-
-#forge-apply.forge-play-btn:hover:not(:disabled) {
-  background: linear-gradient(180deg, rgb(220 110 60 / 96%) 0%, rgb(150 50 28 / 98%) 100%);
-  color: #fffaf2;
-  border-color: var(--edge-color);
-  box-shadow:
-    0 0 0 2px rgb(0 0 0 / 70%),
-    6px 6px 0 rgb(0 0 0 / 55%),
-    0 0 36px rgb(196 90 50 / 50%);
-  transform: none;
-}
-
-#forge-apply.forge-play-btn:active:not(:disabled) {
-  transform: translate(2px, 2px);
-  box-shadow:
-    0 0 0 2px rgb(0 0 0 / 70%),
-    3px 3px 0 rgb(0 0 0 / 55%),
-    0 0 20px rgb(196 90 50 / 30%);
-}
-
-#forge-apply.forge-play-btn:disabled {
-  cursor: wait;
-  opacity: 0.45;
-  background: rgb(28 24 22 / 92%);
-  color: var(--ash);
-  box-shadow:
-    0 0 0 2px rgb(0 0 0 / 50%),
-    4px 4px 0 rgb(0 0 0 / 40%);
-}
-
-#forge-apply.forge-play-btn:focus-visible {
-  outline: 3px solid rgb(242 235 224 / 70%);
-  outline-offset: 3px;
-}
-
-.editor-surface {
-  position: absolute;
-  top: 44px;
-  right: 0;
-  bottom: 0;
-  left: 0;
-}
-
-.editor-surface[hidden] {
-  display: none;
-}
-
-#editor-map {
-  display: block;
-  width: 100%;
-  height: 100%;
-  image-rendering: pixelated;
-  touch-action: none;
-  cursor: crosshair;
-}
-
-#dungeon-forge {
-  display: block;
-  width: 100%;
-  height: 100%;
-  border: 0;
-  background: #07080d;
-}
-
-.editor-readout {
-  position: absolute;
-  top: 10px;
-  left: 10px;
-  display: grid;
-  gap: 4px;
-  max-width: calc(100% - 20px);
-  padding: 8px 10px;
-  border: var(--edge);
-  background: rgb(7 8 9 / 86%);
-  pointer-events: none;
-}
-
-.editor-readout strong {
-  font-size: 18px;
-  line-height: 1.1;
-}
-.editor-readout span {
-  color: #9aa79f;
-  font-family: var(--font-pixel);
-  font-size: 12px;
-}
-.editor-readout small {
-  overflow: hidden;
-  color: var(--ash);
-  font-family: var(--font-pixel);
-  font-size: 10px;
   letter-spacing: 0.05em;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
-/* Debug */
-.debug-panel {
-  position: absolute;
-  z-index: 15;
-  right: auto;
-  bottom: max(18px, var(--safe-b));
-  left: max(18px, var(--safe-l));
-  display: grid;
-  grid-template-columns: 112px minmax(0, 1fr);
-  align-items: stretch;
-  width: min(840px, calc(100vw - 438px));
-  min-width: 560px;
-  padding: 6px;
-  border: var(--edge);
-  background: rgb(7 8 9 / 95%);
-  box-shadow:
-    0 0 0 1px rgb(0 0 0 / 74%),
-    5px 5px 0 rgb(0 0 0 / 44%);
+/* Shared editor shell */
+.app-shell[data-engine-mode="editor"],
+.app-shell[data-engine-mode="debug"] {
+  --editor-deck-height: 64px;
+  --editor-deck-gap: 10px;
 }
 
-.debug-panel[hidden] {
-  display: none;
+.app-shell[data-engine-mode="editor"] #scene,
+.app-shell[data-engine-mode="debug"] #scene {
+  visibility: hidden;
 }
 
-.debug-panel header {
-  display: grid;
-  align-content: center;
-  gap: 5px;
-  padding: 0 10px 0 6px;
-  border-right: var(--rule);
-  color: var(--bone);
-  font-family: var(--font-pixel);
-  font-size: 12px;
-  font-weight: 600;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-}
-
-.debug-panel header span {
-  color: #9aa79f;
-  font-size: 9px;
-  letter-spacing: 0.08em;
-}
-
-.debug-panel[data-frame-state="warn"] header span {
-  color: #d6b878;
-}
-
-.debug-panel[data-frame-state="hot"] header span {
-  color: #dd8069;
-}
-
-.debug-panel dl {
-  display: grid;
-  grid-template-columns: repeat(10, minmax(48px, 1fr));
-  gap: 3px;
-  margin: 0;
-}
-
-.debug-panel dl div {
-  min-width: 0;
-  padding: 5px 6px;
-  border-left: var(--rule);
-}
-
-.debug-panel dt {
-  color: var(--ash);
-  font-family: var(--font-pixel);
-  font-size: 10px;
-  letter-spacing: 0.08em;
-}
-.debug-panel dd {
-  margin: 2px 0 0;
-  color: var(--bone);
-  font-family: var(--font-pixel);
-  overflow: hidden;
-  font-size: 12px;
-  font-variant-numeric: tabular-nums;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-/* Mode shells */
 .app-shell[data-engine-mode="editor"] .play-hud,
 .app-shell[data-engine-mode="editor"] .reticle,
 .app-shell[data-engine-mode="editor"] .touch-controls,
@@ -384,27 +106,20 @@
 .app-shell[data-engine-mode="debug"] .reticle,
 .app-shell[data-engine-mode="debug"] .touch-controls,
 .app-shell[data-engine-mode="debug"] #forge-apply {
-  display: none;
-}
-
-.app-shell[data-engine-mode="editor"] #scene,
-.app-shell[data-engine-mode="debug"] #scene {
-  filter: brightness(0.2) saturate(0.4);
+  display: none !important;
 }
 
 .app-shell[data-engine-mode="editor"] .options-menu,
 .app-shell[data-engine-mode="debug"] .options-menu {
+  position: absolute;
+  z-index: 20;
+  inset: max(10px, env(safe-area-inset-top)) max(10px, env(safe-area-inset-right)) auto
+    max(10px, env(safe-area-inset-left));
   display: block !important;
-  place-items: unset;
-  inset: auto;
-  top: max(10px, env(safe-area-inset-top));
-  right: max(10px, env(safe-area-inset-right));
-  bottom: max(10px, env(safe-area-inset-bottom));
-  left: auto;
-  width: min(312px, calc(100vw - 20px));
+  width: auto;
+  height: var(--editor-deck-height);
   padding: 0;
   pointer-events: none;
-  z-index: 16;
 }
 
 .app-shell[data-engine-mode="editor"] .options-backdrop,
@@ -412,230 +127,88 @@
 .app-shell[data-engine-mode="editor"] #options-resume,
 .app-shell[data-engine-mode="debug"] #options-resume,
 .app-shell[data-engine-mode="editor"] .options-session,
-.app-shell[data-engine-mode="debug"] .options-session {
+.app-shell[data-engine-mode="debug"] .options-session,
+.app-shell[data-engine-mode="editor"] .options-fx,
+.app-shell[data-engine-mode="debug"] .options-fx {
   display: none !important;
 }
 
 .app-shell[data-engine-mode="editor"] .options-card,
 .app-shell[data-engine-mode="debug"] .options-card {
-  width: 100%;
-  max-height: 100%;
-  pointer-events: auto;
-  border: var(--edge);
-  box-shadow: 5px 5px 0 rgb(0 0 0 / 55%);
-}
-
-@media (max-width: 760px), (pointer: coarse) {
-  .editor-workspace {
-    top: 12px;
-    right: 8px;
-    bottom: 8px;
-    left: 8px;
-  }
-
-  #forge-apply.forge-play-btn {
-    right: 12px;
-    bottom: 12px;
-    top: auto;
-    min-width: 148px;
-    min-height: 76px;
-    padding: 12px 22px 14px;
-  }
-
-  #forge-apply.forge-play-btn .forge-play-btn__label {
-    font-size: 36px;
-  }
-
-  .app-shell[data-engine-mode="editor"] .options-menu,
-  .app-shell[data-engine-mode="debug"] .options-menu {
-    top: auto;
-    right: 8px;
-    bottom: 8px;
-    left: 8px;
-    width: auto;
-    max-height: 42vh;
-  }
-
-  .debug-panel {
-    right: 8px;
-    bottom: 8px;
-    left: 8px;
-    width: auto;
-  }
-}
-
-/* —— Integrated editor workspace ——
-   The persistent shell becomes one command deck above the active artifact.
-   Runtime controls open as an adjacent drawer; Forge keeps its own local tools. */
-.app-shell[data-engine-mode="editor"],
-.app-shell[data-engine-mode="debug"] {
-  --editor-deck-height: 68px;
-  --editor-deck-gap: 10px;
-}
-
-.app-shell[data-engine-mode="editor"] .options-menu,
-.app-shell[data-engine-mode="debug"] .options-menu {
-  inset: 12px 12px auto;
-  width: auto;
-  height: var(--editor-deck-height);
-  padding: 0;
-  pointer-events: none;
-}
-
-.app-shell[data-engine-mode="editor"] .options-card,
-.app-shell[data-engine-mode="debug"] .options-card {
-  position: relative;
   display: grid;
-  grid-template-columns: 172px minmax(300px, 390px) 258px 146px minmax(160px, 1fr);
+  grid-template-areas: "title modes maps status";
+  grid-template-columns: 150px minmax(280px, 390px) 142px minmax(150px, 1fr);
   align-items: center;
   gap: 8px;
   width: 100%;
   height: 100%;
   max-height: none;
   overflow: visible;
-  padding: 8px;
+  padding: 7px;
   border: var(--edge);
-  background: linear-gradient(90deg, rgb(201 197 184 / 3%), transparent 28%), rgb(7 8 9 / 97%);
+  background: linear-gradient(90deg, rgb(201 197 184 / 4%), transparent 30%), rgb(7 8 9 / 98%);
   box-shadow:
     0 0 0 1px rgb(0 0 0 / 72%),
-    0 6px 0 rgb(0 0 0 / 48%);
+    0 5px 0 rgb(0 0 0 / 48%);
+  backdrop-filter: none;
+  pointer-events: auto;
 }
 
 .app-shell[data-engine-mode="editor"] .options-header,
 .app-shell[data-engine-mode="debug"] .options-header {
+  grid-area: title;
   min-width: 0;
   padding: 0 10px 0 4px;
   border: 0;
-  border-right: var(--rule);
+  border-inline-end: var(--rule);
 }
 
 .app-shell[data-engine-mode="editor"] .options-header strong,
 .app-shell[data-engine-mode="debug"] .options-header strong {
-  margin-top: 2px;
   font-size: 25px;
+  line-height: 1;
 }
 
 .app-shell[data-engine-mode="editor"] .mode-switcher,
 .app-shell[data-engine-mode="debug"] .mode-switcher {
+  grid-area: modes;
   height: 44px;
-  background: rgb(14 16 18 / 86%);
+  min-width: 0;
+  background: rgb(14 16 18 / 88%);
 }
 
 .app-shell[data-engine-mode="editor"] .mode-switcher button,
 .app-shell[data-engine-mode="debug"] .mode-switcher button {
-  min-height: 38px;
-  transition:
-    background-color 150ms ease-out,
-    color 150ms ease-out;
-}
-
-.app-shell[data-engine-mode="editor"] .options-fx,
-.app-shell[data-engine-mode="debug"] .options-fx {
-  position: relative;
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 3px;
-  height: 44px;
-  padding: 2px;
-  border: var(--edge);
-}
-
-.app-shell[data-engine-mode="editor"] .options-fx legend,
-.app-shell[data-engine-mode="debug"] .options-fx legend {
-  position: absolute;
-  top: -9px;
-  left: 6px;
-  padding: 0 4px;
-  background: var(--ink);
-  font-size: 9px;
-}
-
-.app-shell[data-engine-mode="editor"] .options-fx button,
-.app-shell[data-engine-mode="debug"] .options-fx button {
-  display: grid;
-  grid-template-columns: 1fr;
-  justify-items: center;
-  gap: 1px;
-  min-height: 32px;
-  padding: 3px 2px 2px;
-  border: 0;
-  border-right: var(--rule);
-  font-size: 9px;
-  transition:
-    background-color 150ms ease-out,
-    color 150ms ease-out;
-}
-
-.app-shell[data-engine-mode="editor"] .options-fx button:last-child,
-.app-shell[data-engine-mode="debug"] .options-fx button:last-child {
-  border-right: 0;
-}
-
-.app-shell[data-engine-mode="editor"] .options-toggle__label,
-.app-shell[data-engine-mode="debug"] .options-toggle__label {
-  font-size: 8px;
-  letter-spacing: 0.08em;
-}
-
-.app-shell[data-engine-mode="editor"] .options-toggle__value,
-.app-shell[data-engine-mode="debug"] .options-toggle__value {
   min-width: 0;
-  padding: 1px 5px;
-  border: 0;
-  font-size: 9px;
+  min-height: 40px;
+  transition:
+    background-color 150ms ease-out,
+    color 150ms ease-out,
+    border-color 150ms ease-out;
 }
 
 .app-shell[data-engine-mode="editor"] .record-panel,
 .app-shell[data-engine-mode="debug"] .record-panel {
-  position: relative;
+  grid-area: maps;
   min-width: 0;
+  margin: 0;
 }
 
 .app-shell[data-engine-mode="editor"] .record-panel > summary,
 .app-shell[data-engine-mode="debug"] .record-panel > summary {
-  min-height: 44px;
+  display: flex;
+  align-items: center;
   justify-content: center;
+  min-height: 44px;
+  padding: 0 9px;
   border: var(--edge);
-  background: rgb(14 16 18 / 86%);
+  background: rgb(14 16 18 / 88%);
   white-space: nowrap;
-}
-
-.app-shell[data-engine-mode="editor"] .record-panel[open],
-.app-shell[data-engine-mode="debug"] .record-panel[open] {
-  position: absolute;
-  top: calc(100% + var(--editor-deck-gap));
-  right: 0;
-  width: 400px;
-  max-height: calc(100dvh - var(--editor-deck-height) - 34px);
-  overflow: auto;
-  padding: 8px;
-  border: var(--edge);
-  background: linear-gradient(180deg, rgb(201 197 184 / 3%), transparent 84px), rgb(7 8 9 / 98%);
-  box-shadow:
-    0 0 0 1px rgb(0 0 0 / 72%),
-    7px 7px 0 rgb(0 0 0 / 50%);
-  scrollbar-gutter: stable;
-  scrollbar-width: thin;
-  z-index: 5;
-}
-
-.app-shell[data-engine-mode="editor"] .record-panel[open] .editor-fieldset__body.is-dual,
-.app-shell[data-engine-mode="debug"] .record-panel[open] .editor-fieldset__body.is-dual {
-  grid-template-columns: 1fr;
-}
-
-.app-shell[data-engine-mode="editor"] .record-panel[open] > summary,
-.app-shell[data-engine-mode="debug"] .record-panel[open] > summary {
-  position: sticky;
-  top: 0;
-  z-index: 2;
-  justify-content: flex-start;
-  margin: 0 0 8px;
-  background: var(--soot);
 }
 
 .app-shell[data-engine-mode="editor"] .options-status,
 .app-shell[data-engine-mode="debug"] .options-status {
+  grid-area: status;
   min-width: 0;
   margin: 0;
   padding: 0 8px;
@@ -647,14 +220,62 @@
   white-space: nowrap;
 }
 
-.app-shell[data-engine-mode="editor"] .editor-fieldset,
-.app-shell[data-engine-mode="debug"] .editor-fieldset {
-  transition: border-left-color 150ms ease-out;
+.app-shell[data-engine-mode="editor"] .options-menu:has(.record-panel[open]) .options-card,
+.app-shell[data-engine-mode="debug"] .options-menu:has(.record-panel[open]) .options-card {
+  width: 100%;
+  max-height: none;
+  margin-right: 0;
+  overflow: visible;
+  justify-self: stretch;
 }
 
-.app-shell[data-engine-mode="editor"] .editor-fieldset:focus-within,
-.app-shell[data-engine-mode="debug"] .editor-fieldset:focus-within {
-  border-left-color: rgb(196 90 50 / 78%);
+/* Explicit tool drawers. They never open as a side effect of changing modes. */
+.app-shell[data-engine-mode="editor"] .record-panel[open],
+.app-shell[data-engine-mode="debug"] .record-panel[open] {
+  position: static;
+  z-index: auto;
+  width: auto;
+  max-height: none;
+  margin: 0;
+  overflow: visible;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.app-shell[data-engine-mode="editor"] .record-panel[open] > summary,
+.app-shell[data-engine-mode="debug"] .record-panel[open] > summary {
+  position: static;
+  z-index: auto;
+  top: auto;
+  justify-content: center;
+  margin: 0;
+  background: rgb(14 16 18 / 88%);
+}
+
+.app-shell[data-engine-mode="editor"] .record-panel[open] > .generation-form,
+.app-shell[data-engine-mode="debug"] .record-panel[open] > .generation-form {
+  position: fixed;
+  z-index: 32;
+  top: calc(max(10px, env(safe-area-inset-top)) + var(--editor-deck-height) + 10px);
+  right: max(10px, env(safe-area-inset-right));
+  bottom: max(10px, env(safe-area-inset-bottom));
+  width: min(400px, calc(100vw - 20px));
+  overflow: auto;
+  padding: 10px;
+  border: var(--edge);
+  background: linear-gradient(180deg, rgb(201 197 184 / 4%), transparent 90px), rgb(7 8 9 / 99%);
+  box-shadow:
+    0 0 0 1px rgb(0 0 0 / 74%),
+    7px 7px 0 rgb(0 0 0 / 50%);
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+}
+
+.app-shell[data-engine-mode="editor"] .record-panel[open] .editor-fieldset__body.is-dual,
+.app-shell[data-engine-mode="debug"] .record-panel[open] .editor-fieldset__body.is-dual {
+  grid-template-columns: 1fr;
 }
 
 .app-shell[data-engine-mode="editor"] .generation-form label,
@@ -669,94 +290,56 @@
   color: #e6e2d4;
 }
 
+/* Artifact workspace */
 .editor-workspace {
-  top: calc(12px + var(--editor-deck-height) + var(--editor-deck-gap));
-  right: 12px;
-  bottom: 12px;
-  left: 12px;
+  position: absolute;
+  z-index: 8;
+  top: calc(
+    max(10px, env(safe-area-inset-top)) + var(--editor-deck-height) + var(--editor-deck-gap)
+  );
+  right: max(10px, env(safe-area-inset-right));
+  bottom: max(10px, env(safe-area-inset-bottom));
+  left: max(10px, env(safe-area-inset-left));
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: 52px minmax(0, 1fr);
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
   border: var(--edge);
   background: radial-gradient(circle at 48% 40%, rgb(65 86 104 / 8%), transparent 38%), #050606;
   box-shadow:
     0 0 0 1px rgb(0 0 0 / 68%),
     7px 7px 0 rgb(0 0 0 / 48%);
-  transition: right 220ms ease-out;
 }
 
-/* New-game map theater: full viewport Forge, no Creation chrome. */
-.app-shell[data-run-intro="true"] .editor-workspace {
-  position: fixed;
-  top: 0;
-  right: 0;
-  bottom: 0;
-  left: 0;
-  /* Below scene-fade (55) while building; raised when data-intro-reveal is set. */
-  z-index: 40;
-  border: 0;
-  box-shadow: none;
-  background: #000;
-  visibility: visible !important;
-  pointer-events: auto !important;
-}
-
-/* Isometric map is ready: keep Forge above the global black fade so a mid
-   transition or residual opaque veil cannot hide the theater forever. */
-.app-shell[data-run-intro="true"][data-intro-reveal="true"] .editor-workspace {
-  z-index: 70;
-}
-
-.app-shell[data-run-intro="true"] .editor-toolbar,
-.app-shell[data-run-intro="true"] .forge-play-btn,
-.app-shell[data-run-intro="true"] .editor-readout,
-.app-shell[data-run-intro="true"] #forge-status,
-.app-shell[data-run-intro="true"] .editor-tabs {
+.editor-workspace[hidden] {
   display: none !important;
 }
 
-.app-shell[data-run-intro="true"] .editor-surface {
-  top: 0;
-  visibility: visible !important;
-  pointer-events: auto !important;
-}
-
-/* Intro: isometric Forge theater of the real play topology. */
-.app-shell[data-run-intro="true"] #editor-runtime-surface {
-  display: none !important;
-}
-
-.app-shell[data-run-intro="true"] #editor-forge-surface {
-  display: block !important;
-  visibility: visible !important;
-}
-
-.app-shell[data-run-intro="true"] #dungeon-forge {
-  display: block;
-  width: 100%;
-  height: 100%;
-  margin: 0;
-  border: 0;
-  background: #000;
-  visibility: visible !important;
-  pointer-events: none;
-}
-
-@media (min-width: 1181px) {
-  .app-shell[data-engine-mode="editor"]:has(.record-panel[open]) .editor-workspace,
-  .app-shell[data-engine-mode="debug"]:has(.record-panel[open]) .editor-workspace {
-    right: 422px;
-  }
+.app-shell[data-engine-mode="debug"] .editor-workspace {
+  grid-template-rows: 52px minmax(0, 1fr) auto;
 }
 
 .editor-toolbar {
+  position: relative;
+  z-index: 3;
+  grid-column: 1;
+  grid-row: 1;
+  display: flex;
+  align-items: center;
+  min-width: 0;
   min-height: 52px;
   gap: 10px;
   padding: 6px 8px;
-  background: linear-gradient(90deg, rgb(201 197 184 / 3%), transparent 42%), rgb(5 6 6 / 96%);
+  border-bottom: var(--rule);
+  background: linear-gradient(90deg, rgb(201 197 184 / 4%), transparent 42%), rgb(5 6 6 / 97%);
 }
 
 .editor-toolbar__label {
   flex: none;
   padding: 0 8px 0 2px;
-  border-right: var(--rule);
+  border-inline-end: var(--rule);
   color: var(--ash);
   font-family: var(--font-pixel);
   font-size: 9px;
@@ -765,6 +348,7 @@
 }
 
 .editor-tabs {
+  display: flex;
   flex: none;
   min-width: 0;
   gap: 3px;
@@ -772,25 +356,45 @@
 
 .editor-tabs button {
   min-height: 38px;
+  padding: 0 10px;
+  font-family: var(--font-pixel);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
   transition:
     background-color 150ms ease-out,
     color 150ms ease-out,
     border-color 150ms ease-out;
 }
 
+.editor-tabs button.is-active {
+  border-color: var(--edge-color);
+  background: var(--bone);
+  color: var(--ink);
+}
+
 #forge-status {
   display: flex;
   align-items: center;
+  min-width: 0;
+  flex: 1;
   gap: 7px;
+  overflow: hidden;
+  color: var(--ash);
+  font-family: var(--font-pixel);
+  font-size: 10px;
+  letter-spacing: 0.05em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 #forge-status::before {
-  content: "";
-  flex: none;
   width: 7px;
   height: 7px;
+  flex: none;
   border: 1px solid var(--ash);
   background: transparent;
+  content: "";
 }
 
 #forge-status[data-state="ready"]::before {
@@ -815,22 +419,91 @@
 }
 
 .editor-surface {
-  top: 52px;
+  position: relative;
+  grid-column: 1;
+  grid-row: 2;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.editor-surface[hidden] {
+  display: none;
+}
+
+#editor-map,
+#dungeon-forge {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: 0;
+}
+
+#editor-map {
+  image-rendering: pixelated;
+  touch-action: none;
+  cursor: crosshair;
+}
+
+#dungeon-forge {
+  background: #07080d;
+}
+
+.editor-readout {
+  position: absolute;
+  z-index: 2;
+  top: 10px;
+  left: 10px;
+  display: grid;
+  max-width: calc(100% - 20px);
+  gap: 4px;
+  padding: 8px 10px;
+  border: var(--edge);
+  background: rgb(7 8 9 / 88%);
+  pointer-events: none;
+}
+
+.editor-readout strong {
+  font-size: 18px;
+  line-height: 1.1;
+}
+
+.editor-readout span {
+  color: #9aa79f;
+  font-family: var(--font-pixel);
+  font-size: 11px;
+}
+
+.editor-readout small {
+  overflow: hidden;
+  color: var(--ash);
+  font-family: var(--font-pixel);
+  font-size: 9px;
+  letter-spacing: 0.04em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .forge-play-btn,
 #forge-apply.forge-play-btn {
+  position: absolute;
+  z-index: 8;
   right: 18px;
   bottom: 18px;
-  top: auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   min-width: 148px;
   min-height: 62px;
   padding: 10px 24px 12px;
   border: var(--edge-strong);
+  background: linear-gradient(180deg, rgb(196 90 50 / 94%), rgb(120 40 24 / 98%));
+  color: #f2ebe0;
   box-shadow:
     0 0 0 2px rgb(0 0 0 / 70%),
     6px 6px 0 rgb(0 0 0 / 55%),
     0 0 28px rgb(196 90 50 / 35%);
+  cursor: pointer;
   transition:
     background-color 150ms ease-out,
     color 150ms ease-out,
@@ -840,22 +513,354 @@
 
 .forge-play-btn__label {
   font-size: 34px;
+  letter-spacing: 0.06em;
+  line-height: 1;
 }
 
 #forge-apply.forge-play-btn:hover:not(:disabled) {
-  box-shadow:
-    0 0 0 2px rgb(0 0 0 / 70%),
-    6px 6px 0 rgb(0 0 0 / 55%),
-    0 0 36px rgb(196 90 50 / 50%);
+  border-color: var(--edge-color);
+  color: #fffaf2;
   transform: translateY(-1px);
 }
 
 #forge-apply.forge-play-btn:active:not(:disabled) {
-  transform: translate(2px, 2px);
-  box-shadow:
-    0 0 0 2px rgb(0 0 0 / 70%),
-    3px 3px 0 rgb(0 0 0 / 55%),
-    0 0 20px rgb(196 90 50 / 30%);
+  transform: scale(0.96);
+}
+
+#forge-apply.forge-play-btn:disabled {
+  cursor: wait;
+  opacity: 0.46;
+}
+
+#forge-apply.forge-play-btn:focus-visible {
+  outline: 3px solid rgb(242 235 224 / 70%);
+  outline-offset: 3px;
+}
+
+/* Debug telemetry is a real workspace row, never an overlay. */
+.debug-panel {
+  position: relative;
+  z-index: 2;
+  grid-column: 1;
+  grid-row: 3;
+  display: grid;
+  grid-template-columns: 126px minmax(0, 1fr);
+  min-width: 0;
+  padding: 6px;
+  border-top: var(--edge);
+  background: rgb(7 8 9 / 98%);
+}
+
+.debug-panel[hidden] {
+  display: none;
+}
+
+.debug-panel header {
+  display: grid;
+  align-content: center;
+  gap: 5px;
+  padding: 0 12px 0 6px;
+  border-inline-end: var(--rule);
+  color: var(--bone);
+  font-family: var(--font-pixel);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+}
+
+.debug-panel header span {
+  color: #8ea397;
+  font-size: 9px;
+}
+
+.debug-panel[data-frame-state="warn"] header span {
+  color: #d6b878;
+}
+
+.debug-panel[data-frame-state="hot"] header span {
+  color: #dd8069;
+}
+
+.debug-panel dl {
+  display: grid;
+  grid-template-columns: repeat(10, minmax(50px, 1fr));
+  gap: 3px;
+  margin: 0;
+}
+
+.debug-panel dl div {
+  min-width: 0;
+  padding: 5px 6px;
+  border-inline-start: var(--rule);
+}
+
+.debug-panel dt {
+  color: var(--ash);
+  font-family: var(--font-pixel);
+  font-size: 9px;
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+}
+
+.debug-panel dd {
+  margin: 3px 0 0;
+  overflow: hidden;
+  color: var(--bone);
+  font-family: var(--font-pixel);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (min-width: 1181px) {
+  .app-shell[data-engine-mode="editor"]:has(.record-panel[open]) .editor-workspace,
+  .app-shell[data-engine-mode="debug"]:has(.record-panel[open]) .editor-workspace {
+    right: 422px;
+  }
+}
+
+@media (max-width: 1180px) {
+  .app-shell[data-engine-mode="editor"],
+  .app-shell[data-engine-mode="debug"] {
+    --editor-deck-height: 96px;
+  }
+
+  .app-shell[data-engine-mode="editor"] .options-card,
+  .app-shell[data-engine-mode="debug"] .options-card {
+    grid-template-areas:
+      "title modes maps"
+      "status status status";
+    grid-template-columns: 150px minmax(260px, 1fr) 140px;
+    grid-template-rows: 46px 44px;
+  }
+
+  .debug-panel dl {
+    grid-template-columns: repeat(5, minmax(52px, 1fr));
+  }
+}
+
+@media (max-width: 760px), (pointer: coarse) {
+  .app-shell[data-engine-mode="editor"],
+  .app-shell[data-engine-mode="debug"] {
+    --editor-deck-height: 136px;
+    --editor-deck-gap: 8px;
+  }
+
+  .app-shell[data-engine-mode="editor"] .options-menu,
+  .app-shell[data-engine-mode="debug"] .options-menu {
+    inset: max(8px, env(safe-area-inset-top)) max(8px, env(safe-area-inset-right)) auto
+      max(8px, env(safe-area-inset-left));
+  }
+
+  .app-shell[data-engine-mode="editor"] .options-card,
+  .app-shell[data-engine-mode="debug"] .options-card {
+    grid-template-areas:
+      "title maps"
+      "modes modes"
+      "status status";
+    grid-template-columns: minmax(0, 1fr) 104px;
+    grid-template-rows: 38px 42px 32px;
+    gap: 5px;
+    padding: 7px;
+  }
+
+  .app-shell[data-engine-mode="editor"] .options-header,
+  .app-shell[data-engine-mode="debug"] .options-header {
+    padding-inline-end: 4px;
+    border-inline-end: 0;
+  }
+
+  .app-shell[data-engine-mode="editor"] .options-header strong,
+  .app-shell[data-engine-mode="debug"] .options-header strong {
+    font-size: 22px;
+  }
+
+  .app-shell[data-engine-mode="editor"] .record-panel > summary,
+  .app-shell[data-engine-mode="debug"] .record-panel > summary {
+    min-height: 36px;
+    padding: 0 6px;
+    font-size: 9px;
+  }
+
+  .app-shell[data-engine-mode="editor"] .mode-switcher,
+  .app-shell[data-engine-mode="debug"] .mode-switcher {
+    height: 42px;
+  }
+
+  .app-shell[data-engine-mode="editor"] .mode-switcher button,
+  .app-shell[data-engine-mode="debug"] .mode-switcher button {
+    min-height: 38px;
+    font-size: 9px;
+  }
+
+  .app-shell[data-engine-mode="editor"] .options-status,
+  .app-shell[data-engine-mode="debug"] .options-status {
+    display: -webkit-box;
+    padding: 0 3px;
+    overflow: hidden;
+    font-size: 9px;
+    line-height: 1.25;
+    text-overflow: clip;
+    white-space: normal;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+  }
+
+  .app-shell[data-engine-mode="editor"] .record-panel[open] > .generation-form,
+  .app-shell[data-engine-mode="debug"] .record-panel[open] > .generation-form {
+    inset: max(8px, env(safe-area-inset-top)) max(8px, env(safe-area-inset-right))
+      max(8px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left));
+    width: auto;
+  }
+
+  .app-shell[data-engine-mode="editor"] .generation-form input[type="range"],
+  .app-shell[data-engine-mode="debug"] .generation-form input[type="range"] {
+    min-height: 34px;
+  }
+
+  .editor-workspace {
+    top: calc(
+      max(8px, env(safe-area-inset-top)) + var(--editor-deck-height) + var(--editor-deck-gap)
+    );
+    right: max(8px, env(safe-area-inset-right));
+    bottom: max(8px, env(safe-area-inset-bottom));
+    left: max(8px, env(safe-area-inset-left));
+    grid-template-rows: 72px minmax(0, 1fr);
+  }
+
+  .app-shell[data-engine-mode="debug"] .editor-workspace {
+    grid-template-rows: 72px minmax(0, 1fr) auto;
+  }
+
+  .editor-toolbar {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: 38px 22px;
+    min-height: 72px;
+    gap: 4px;
+    padding: 5px 6px;
+  }
+
+  .editor-toolbar__label {
+    display: none;
+  }
+
+  .editor-tabs {
+    grid-row: 1;
+    overflow: hidden;
+  }
+
+  .editor-tabs button {
+    min-width: 0;
+    min-height: 36px;
+    padding: 0 7px;
+    font-size: 9px;
+    white-space: nowrap;
+  }
+
+  #forge-status {
+    grid-row: 2;
+    padding: 0 3px;
+    font-size: 9px;
+  }
+
+  #forge-apply.forge-play-btn {
+    right: 10px;
+    bottom: 10px;
+    min-width: 132px;
+    min-height: 58px;
+    padding: 9px 18px 11px;
+  }
+
+  #forge-apply.forge-play-btn .forge-play-btn__label {
+    font-size: 30px;
+  }
+
+  .debug-panel {
+    grid-template-columns: 1fr;
+    max-height: 126px;
+    overflow: auto;
+    padding: 5px;
+  }
+
+  .debug-panel header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    min-height: 28px;
+    padding: 0 5px 4px;
+    border-inline-end: 0;
+    border-bottom: var(--rule);
+  }
+
+  .debug-panel dl {
+    grid-template-columns: repeat(5, minmax(54px, 1fr));
+  }
+}
+
+@media (max-width: 430px) {
+  .app-shell[data-engine-mode="editor"] .options-card,
+  .app-shell[data-engine-mode="debug"] .options-card {
+    grid-template-columns: minmax(0, 1fr) 96px 96px;
+  }
+
+  .app-shell[data-engine-mode="editor"] .options-header strong,
+  .app-shell[data-engine-mode="debug"] .options-header strong {
+    font-size: 20px;
+  }
+}
+
+/* New-game theater keeps only the authored Forge presentation. */
+.app-shell[data-run-intro="true"]
+  > *:not(#editor-workspace):not(#scene-fade):not(#run-intro-status) {
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+
+.app-shell[data-run-intro="true"] .editor-workspace {
+  position: fixed;
+  z-index: 40;
+  inset: 0;
+  grid-template-rows: minmax(0, 1fr);
+  border: 0;
+  background: #000;
+  box-shadow: none;
+  visibility: visible !important;
+  pointer-events: auto !important;
+}
+
+.app-shell[data-run-intro="true"][data-intro-reveal="true"] .editor-workspace {
+  z-index: 70;
+}
+
+.app-shell[data-run-intro="true"] .editor-toolbar,
+.app-shell[data-run-intro="true"] .forge-play-btn,
+.app-shell[data-run-intro="true"] .editor-readout,
+.app-shell[data-run-intro="true"] #forge-status,
+.app-shell[data-run-intro="true"] .editor-tabs,
+.app-shell[data-run-intro="true"] .debug-panel {
+  display: none !important;
+}
+
+.app-shell[data-run-intro="true"] .editor-surface {
+  grid-row: 1;
+  visibility: visible !important;
+  pointer-events: auto !important;
+}
+
+.app-shell[data-run-intro="true"] #editor-runtime-surface {
+  display: none !important;
+}
+
+.app-shell[data-run-intro="true"] #editor-forge-surface {
+  display: block !important;
+}
+
+.app-shell[data-run-intro="true"] #dungeon-forge {
+  margin: 0;
+  background: #000;
+  visibility: visible !important;
+  pointer-events: none;
 }
 
 @keyframes editor-status-pulse {
@@ -869,245 +874,25 @@
   }
 }
 
-@media (max-width: 1180px) {
-  .app-shell[data-engine-mode="editor"],
-  .app-shell[data-engine-mode="debug"] {
-    --editor-deck-height: 116px;
-  }
-
-  .app-shell[data-engine-mode="editor"] .options-card,
-  .app-shell[data-engine-mode="debug"] .options-card {
-    grid-template-columns: minmax(150px, auto) minmax(270px, 1fr) minmax(150px, auto);
-    grid-template-rows: 48px 44px;
-  }
-
-  .app-shell[data-engine-mode="editor"] .options-header,
-  .app-shell[data-engine-mode="debug"] .options-header {
-    grid-column: 1;
-    grid-row: 1;
-  }
-
-  .app-shell[data-engine-mode="editor"] .mode-switcher,
-  .app-shell[data-engine-mode="debug"] .mode-switcher {
-    grid-column: 2;
-    grid-row: 1;
-  }
-
-  .app-shell[data-engine-mode="editor"] .record-panel,
-  .app-shell[data-engine-mode="debug"] .record-panel {
-    grid-column: 3;
-    grid-row: 1;
-  }
-
-  .app-shell[data-engine-mode="editor"] .options-fx,
-  .app-shell[data-engine-mode="debug"] .options-fx {
-    grid-column: 1;
-    grid-row: 2;
-  }
-
-  .app-shell[data-engine-mode="editor"] .options-status,
-  .app-shell[data-engine-mode="debug"] .options-status {
-    grid-column: 2 / 4;
-    grid-row: 2;
-  }
-}
-
-@media (max-width: 760px), (pointer: coarse) {
-  .app-shell[data-engine-mode="editor"],
-  .app-shell[data-engine-mode="debug"] {
-    --editor-deck-height: 174px;
-    --editor-deck-gap: 8px;
-  }
-
-  .app-shell[data-engine-mode="editor"] .options-menu,
-  .app-shell[data-engine-mode="debug"] .options-menu {
-    inset: 8px 8px auto;
-    width: auto;
-    height: var(--editor-deck-height);
-    max-height: none;
-  }
-
-  .app-shell[data-engine-mode="editor"] .options-card,
-  .app-shell[data-engine-mode="debug"] .options-card {
-    grid-template-columns: minmax(0, 1fr) auto;
-    grid-template-rows: 42px 44px 50px 24px;
-    gap: 6px;
-    padding: 7px;
-  }
-
-  .app-shell[data-engine-mode="editor"] .options-header,
-  .app-shell[data-engine-mode="debug"] .options-header {
-    grid-column: 1 / 3;
-    grid-row: 1;
-    padding-right: 0;
-    border-right: 0;
-  }
-
-  .app-shell[data-engine-mode="editor"] .options-header strong,
-  .app-shell[data-engine-mode="debug"] .options-header strong {
-    font-size: 23px;
-  }
-
-  .app-shell[data-engine-mode="editor"] .mode-switcher,
-  .app-shell[data-engine-mode="debug"] .mode-switcher {
-    grid-column: 1 / 3;
-    grid-row: 2;
-  }
-
-  .app-shell[data-engine-mode="editor"] .options-fx,
-  .app-shell[data-engine-mode="debug"] .options-fx {
-    grid-column: 1;
-    grid-row: 3;
-    min-width: 0;
-    height: 50px;
-  }
-
-  .app-shell[data-engine-mode="editor"] .record-panel,
-  .app-shell[data-engine-mode="debug"] .record-panel {
-    grid-column: 2;
-    grid-row: 3;
-    min-width: 136px;
-  }
-
-  .app-shell[data-engine-mode="editor"] .record-panel[open],
-  .app-shell[data-engine-mode="debug"] .record-panel[open] {
-    position: fixed;
-    inset: 8px;
-    width: auto;
-    max-height: calc(100dvh - 16px);
-    z-index: 20;
-  }
-
-  .app-shell[data-engine-mode="editor"] .generation-form input[type="range"],
-  .app-shell[data-engine-mode="debug"] .generation-form input[type="range"] {
-    min-height: 34px;
-  }
-
-  .app-shell[data-engine-mode="editor"] .record-actions button,
-  .app-shell[data-engine-mode="debug"] .record-actions button,
-  .app-shell[data-engine-mode="editor"] .editor-fieldset__legend,
-  .app-shell[data-engine-mode="debug"] .editor-fieldset__legend {
-    min-height: 38px;
-  }
-
-  .app-shell[data-engine-mode="editor"] .options-status,
-  .app-shell[data-engine-mode="debug"] .options-status {
-    grid-column: 1 / 3;
-    grid-row: 4;
-    padding: 0 4px;
-    font-size: 10px;
-  }
-
-  .editor-workspace {
-    top: calc(8px + var(--editor-deck-height) + var(--editor-deck-gap));
-    right: 8px;
-    bottom: 8px;
-    left: 8px;
-  }
-
-  .debug-panel {
-    right: 8px;
-    bottom: 8px;
-    left: 8px;
-    grid-template-columns: 88px minmax(0, 1fr);
-    width: auto;
-    min-width: 0;
-  }
-
-  .debug-panel dl {
-    grid-template-columns: repeat(5, minmax(42px, 1fr));
-  }
-
-  .debug-panel dl div {
-    padding: 4px;
-  }
-
-  .editor-toolbar {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) 104px;
-    grid-template-rows: 40px 28px;
-    min-height: 76px;
-    gap: 4px 6px;
-    padding: 5px 6px;
-  }
-
-  .editor-toolbar__label {
-    display: none;
-  }
-
-  .editor-tabs {
-    grid-column: 1;
-    grid-row: 1;
-    overflow: hidden;
-  }
-
-  .editor-tabs button {
-    min-width: 0;
-    min-height: 38px;
-    padding: 0 7px;
-    font-size: 9px;
-    white-space: nowrap;
-  }
-
-  #forge-status {
-    grid-column: 1 / 3;
-    grid-row: 2;
-    padding: 0 3px;
-    font-size: 9px;
-  }
-
-  #forge-apply.forge-play-btn {
-    right: 10px;
-    bottom: 10px;
-    top: auto;
-    min-width: 132px;
-    min-height: 68px;
-    padding: 10px 18px 12px;
-  }
-
-  #forge-apply.forge-play-btn .forge-play-btn__label {
-    font-size: 32px;
-  }
-
-  .editor-surface {
-    top: 76px;
-  }
-}
-
-@media (max-width: 430px) {
-  .app-shell[data-engine-mode="editor"] .options-fx,
-  .app-shell[data-engine-mode="debug"] .options-fx {
-    grid-template-columns: 1fr 1fr;
-  }
-
-  .app-shell[data-engine-mode="editor"] .options-fx button,
-  .app-shell[data-engine-mode="debug"] .options-fx button {
-    padding: 0 3px;
-    font-size: 9px;
-  }
-}
-
 @media (prefers-contrast: more) {
+  .editor-workspace,
   .app-shell[data-engine-mode="editor"] .options-card,
   .app-shell[data-engine-mode="debug"] .options-card,
-  .editor-workspace,
-  .app-shell[data-engine-mode="editor"] .record-panel[open],
-  .app-shell[data-engine-mode="debug"] .record-panel[open] {
-    border-color: rgb(201 197 184 / 48%);
+  .debug-panel {
+    border-color: var(--bone);
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .editor-workspace,
-  .editor-fieldset,
   .editor-tabs button,
   #forge-apply.forge-play-btn,
+  .editor-fieldset,
+  .editor-fieldset__legend::before,
   .app-shell[data-engine-mode="editor"] .generation-form label,
   .app-shell[data-engine-mode="debug"] .generation-form label,
   .app-shell[data-engine-mode="editor"] .mode-switcher button,
-  .app-shell[data-engine-mode="debug"] .mode-switcher button,
-  .app-shell[data-engine-mode="editor"] .options-fx button,
-  .app-shell[data-engine-mode="debug"] .options-fx button {
+  .app-shell[data-engine-mode="debug"] .mode-switcher button {
     transition: none !important;
   }
 

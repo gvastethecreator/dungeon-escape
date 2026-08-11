@@ -809,11 +809,11 @@
           </fieldset>
 
           <details id="display-post-fx-lab" class="display-post-fx-lab" data-local-dev-only="true">
-            <summary>
-              <span>DISPLAY LAB</span>
+            <summary id="display-post-fx-summary" aria-controls="display-post-fx-body">
+              <span><kbd>L</kbd> · DISPLAY LAB</span>
               <small>LOCAL</small>
             </summary>
-            <div class="display-post-fx-lab__body">
+            <div id="display-post-fx-body" class="display-post-fx-lab__body">
               <label class="options-volume options-palette" for="display-post-fx-preset">
                 <span>Preset</span>
                 <select id="display-post-fx-preset">
@@ -1287,6 +1287,13 @@
         </div>
       </section>
 
+      <!-- Runtime portal target: Display Lab is a Play overlay, never part of the editor/debug deck. -->
+      <div
+        id="display-post-fx-layer"
+        class="display-post-fx-layer"
+        aria-label="Live display effects"
+      ></div>
+
       <section
         id="editor-workspace"
         class="editor-workspace"
@@ -1357,53 +1364,52 @@
             data-src="/forge.html"
           ></iframe>
         </div>
+        <aside id="debug-panel" class="debug-panel" hidden aria-label="Debug telemetry">
+          <header><strong>MAP TELEMETRY</strong><span id="debug-mode">DEMAND</span></header>
+          <dl>
+            <div>
+              <dt>3D LOOP</dt>
+              <dd id="debug-loop">PAUSED</dd>
+            </div>
+            <div>
+              <dt>MAP DRAW</dt>
+              <dd id="debug-draw">—</dd>
+            </div>
+            <div>
+              <dt>CELLS</dt>
+              <dd id="debug-cells">—</dd>
+            </div>
+            <div>
+              <dt>PAINTS</dt>
+              <dd id="debug-paints">—</dd>
+            </div>
+            <div>
+              <dt>BUFFER</dt>
+              <dd id="debug-buffer">—</dd>
+            </div>
+            <div>
+              <dt>DPR</dt>
+              <dd id="debug-dpr">—</dd>
+            </div>
+            <div>
+              <dt>FLOOR</dt>
+              <dd id="debug-floor">—</dd>
+            </div>
+            <div>
+              <dt>ROOMS</dt>
+              <dd id="debug-rooms">—</dd>
+            </div>
+            <div>
+              <dt>DOORS</dt>
+              <dd id="debug-doors">—</dd>
+            </div>
+            <div>
+              <dt>THREATS</dt>
+              <dd id="debug-enemies">—</dd>
+            </div>
+          </dl>
+        </aside>
       </section>
-
-      <aside id="debug-panel" class="debug-panel" hidden aria-label="Debug telemetry">
-        <header><strong>TELEMETRY</strong><span id="debug-mode">DEBUG</span></header>
-        <dl>
-          <div>
-            <dt>FPS</dt>
-            <dd id="debug-fps">—</dd>
-          </div>
-          <div>
-            <dt>FRAME</dt>
-            <dd id="debug-frame">—</dd>
-          </div>
-          <div>
-            <dt>CALLS</dt>
-            <dd id="debug-calls">—</dd>
-          </div>
-          <div>
-            <dt>TRIS</dt>
-            <dd id="debug-tris">—</dd>
-          </div>
-          <div>
-            <dt>TEX</dt>
-            <dd id="debug-textures">—</dd>
-          </div>
-          <div>
-            <dt>LIGHTS</dt>
-            <dd id="debug-lights">—</dd>
-          </div>
-          <div>
-            <dt>FLOOR</dt>
-            <dd id="debug-floor">—</dd>
-          </div>
-          <div>
-            <dt>ROOMS</dt>
-            <dd id="debug-rooms">—</dd>
-          </div>
-          <div>
-            <dt>DOORS</dt>
-            <dd id="debug-doors">—</dd>
-          </div>
-          <div>
-            <dt>THREATS</dt>
-            <dd id="debug-enemies">—</dd>
-          </div>
-        </dl>
-      </aside>
 
       <nav class="touch-controls" aria-label="Touch controls">
         <div class="touch-move">
