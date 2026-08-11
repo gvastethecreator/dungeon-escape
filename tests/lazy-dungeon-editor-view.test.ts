@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 
 import type { DungeonData, GridCell } from "../src/dungeon/types";
+import { EMPTY_EDITOR_CANVAS_DIAGNOSTICS } from "../src/editor/EditorRuntimePolicy";
 import {
   LazyDungeonEditorView,
   type DungeonEditorViewConstructor,
@@ -27,6 +28,9 @@ describe("LazyDungeonEditorView", () => {
       redraw(): void {
         calls.push("redraw");
       }
+      getDiagnostics() {
+        return EMPTY_EDITOR_CANVAS_DIAGNOSTICS;
+      }
       dispose(): void {
         calls.push("dispose");
       }
@@ -48,6 +52,7 @@ describe("LazyDungeonEditorView", () => {
     view.setSpawn({ x: 4, y: 5 });
     view.setDebug(true);
     view.redraw();
+    expect(view.getDiagnostics()).toEqual(EMPTY_EDITOR_CANVAS_DIAGNOSTICS);
     expect(loads).toBe(0);
     expect(calls).toEqual([]);
 

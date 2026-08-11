@@ -39,6 +39,8 @@ describe("editor stylesheet ownership", () => {
       "#forge-apply.forge-play-btn:focus-visible",
       '.app-shell[data-engine-mode="editor"] .generation-form label',
       '.app-shell[data-engine-mode="debug"] .generation-form label',
+      ".record-panel[open] > .generation-form",
+      "backdrop-filter: none",
     ]) {
       expect(editorStyles).toContain(selector);
     }
@@ -46,6 +48,8 @@ describe("editor stylesheet ownership", () => {
     for (const sharedSelector of [".record-panel", ".generation-form", ".record-actions"]) {
       expect(rootStyles).toContain(sharedSelector);
     }
+    expect(rootStyles).toContain(".display-post-fx-layer");
+    expect(editorStyles).not.toContain(".display-post-fx-lab");
 
     for (const selector of [
       /\.editor-(?:fieldset|workspace|toolbar|tabs|surface|readout)(?:\b|__)/,

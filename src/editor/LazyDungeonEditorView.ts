@@ -1,5 +1,9 @@
 import type { DungeonData, GridCell } from "../dungeon/types";
 import type { DungeonMood } from "../systems/DungeonMood";
+import {
+  EMPTY_EDITOR_CANVAS_DIAGNOSTICS,
+  type EditorCanvasDiagnostics,
+} from "./EditorRuntimePolicy";
 
 export interface LazyDungeonEditorViewOptions {
   onSelectSpawn(cell: GridCell): void;
@@ -10,6 +14,7 @@ export interface DungeonEditorViewPort {
   setSpawn(cell: GridCell): void;
   setDebug(debug: boolean): void;
   redraw(): void;
+  getDiagnostics(): EditorCanvasDiagnostics;
   dispose(): void;
 }
 
@@ -78,6 +83,10 @@ export class LazyDungeonEditorView {
 
   redraw(): void {
     this.view?.redraw();
+  }
+
+  getDiagnostics(): EditorCanvasDiagnostics {
+    return this.view?.getDiagnostics() ?? EMPTY_EDITOR_CANVAS_DIAGNOSTICS;
   }
 
   dispose(): void {

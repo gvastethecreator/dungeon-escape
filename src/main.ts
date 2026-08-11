@@ -24,6 +24,8 @@ import { setDungeonSpawn } from "./dungeon/generateDungeon";
 import { parseForgeDungeonMessage, type ForgeDungeonIntakeValue } from "./dungeon/forgeIntake";
 import type { DungeonData } from "./dungeon/types";
 import { LazyDungeonEditorView } from "./editor/LazyDungeonEditorView";
+import { EditorDebugTelemetry } from "./editor/EditorDebugTelemetry";
+import { shouldRunGameRenderLoop } from "./editor/EditorRuntimePolicy";
 import { type EngineMode, isEngineMode } from "./game/EngineMode";
 import { MOBILITY_BOOST_FOOTSTEP_GAIN } from "./game/MobilityBoost";
 import { GLOOM_CURSE_FOG_MULTIPLIER, GLOOM_CURSE_LANTERN_MULTIPLIER } from "./game/GloomCurse";
@@ -347,7 +349,9 @@ const elements = {
   paletteEffectSelect: requireElement<HTMLSelectElement>("#palette-effect"),
   paletteDither: requireElement<HTMLInputElement>("#palette-dither"),
   paletteDitherValue: requireElement<HTMLOutputElement>("#palette-dither-value"),
+  displayPostFxLayer: requireElement<HTMLElement>("#display-post-fx-layer"),
   displayPostFxLab: requireElement<HTMLDetailsElement>("#display-post-fx-lab"),
+  displayPostFxSummary: requireElement<HTMLElement>("#display-post-fx-summary"),
   displayPostFxPreset: requireElement<HTMLSelectElement>("#display-post-fx-preset"),
   displayPaletteStage: requireElement<HTMLSelectElement>("#display-palette-stage"),
   displayTuningInputs: [...document.querySelectorAll<HTMLInputElement>("[data-display-tuning]")],
@@ -382,12 +386,12 @@ const elements = {
   editorCell: requireElement<HTMLElement>("#editor-cell"),
   debugPanel: requireElement<HTMLElement>("#debug-panel"),
   debugMode: requireElement<HTMLElement>("#debug-mode"),
-  debugFps: requireElement<HTMLElement>("#debug-fps"),
-  debugFrame: requireElement<HTMLElement>("#debug-frame"),
-  debugCalls: requireElement<HTMLElement>("#debug-calls"),
-  debugTris: requireElement<HTMLElement>("#debug-tris"),
-  debugTextures: requireElement<HTMLElement>("#debug-textures"),
-  debugLights: requireElement<HTMLElement>("#debug-lights"),
+  debugLoop: requireElement<HTMLElement>("#debug-loop"),
+  debugDraw: requireElement<HTMLElement>("#debug-draw"),
+  debugCells: requireElement<HTMLElement>("#debug-cells"),
+  debugPaints: requireElement<HTMLElement>("#debug-paints"),
+  debugBuffer: requireElement<HTMLElement>("#debug-buffer"),
+  debugDpr: requireElement<HTMLElement>("#debug-dpr"),
   debugFloor: requireElement<HTMLElement>("#debug-floor"),
   debugRooms: requireElement<HTMLElement>("#debug-rooms"),
   debugDoors: requireElement<HTMLElement>("#debug-doors"),
@@ -426,8 +430,13 @@ const floorExploration = new FloorExploration();
 let campaignFloorSet: DungeonFloorCampaign | null = null;
 let generationParams: DungeonParams = { ...DEFAULT_DUNGEON_PARAMS };
 
+// The controls are authored beside the other display settings, then portalled
+// into their own Play-only layer. Debug and Creation never own this surface.
+elements.displayPostFxLayer.append(elements.displayPostFxLab);
+
 function applyLocalDevToolsChrome(): void {
   elements.shell.dataset.localDevTools = localDevTools ? "true" : "false";
+  elements.shell.dataset.displayLabOpen = "false";
   elements.recordPanel.hidden = !localDevTools;
   elements.recordPanel.setAttribute("aria-hidden", localDevTools ? "false" : "true");
   elements.displayPostFxLab.hidden = !localDevTools;
@@ -439,6 +448,12 @@ function applyLocalDevToolsChrome(): void {
 /** Open Map Tools only when local developer chrome is enabled. */
 function setMapToolsOpen(open: boolean): void {
   elements.recordPanel.open = localDevTools && open;
+}
+
+function closeEditorToolDrawers(): boolean {
+  const hadOpenDrawer = elements.recordPanel.open;
+  elements.recordPanel.open = false;
+  return hadOpenDrawer;
 }
 
 applyLocalDevToolsChrome();
@@ -646,7 +661,6 @@ let renderWarmupSequence = 0;
 let rendererWarmupTrace: DungeonLoadTrace | undefined;
 const runIntroLoadTraces = new WeakMap<RunIntroRequest, DungeonLoadTrace>();
 let activeRunIntroTrace: DungeonLoadTrace | undefined;
-let lastDebugDraw = 0;
 let lastDisplayLabDraw = 0;
 let regenerateTimer = 0;
 let currentThreatDistance: number | null = null;
@@ -695,7 +709,9 @@ const controller = new FirstPersonController(camera, elements.scene, {
   gravity: 17,
   onLockChange(locked, message) {
     const hasActivePlayInput = locked || touchSessionActive;
-    audio.setPaused(!hasActivePlayInput || engineMode !== "play" || optionsOpen);
+    audio.setPaused(
+      !hasActivePlayInput || engineMode !== "play" || optionsOpen || elements.displayPostFxLab.open,
+    );
     // ESC releases pointer lock → open options in play.
     // Pointer lock can fail on touch browsers. Keep an armed touch session in
     // play instead of reopening the pause panel over its controls.
@@ -709,7 +725,11 @@ const controller = new FirstPersonController(camera, elements.scene, {
       !suppressPauseOnPointerUnlock
     ) {
       setOptionsOpen(true, "pointer-unlock");
-    } else if (suppressPauseOnPointerUnlock && engineMode === "play") {
+    } else if (
+      suppressPauseOnPointerUnlock &&
+      engineMode === "play" &&
+      !elements.displayPostFxLab.open
+    ) {
       // Intentional resume failed to re-lock (common after Escape). Stay unpaused
       // in the options sense; click the scene to capture the pointer again.
       setStatus(COPY.status.pointerFailed);
@@ -723,6 +743,30 @@ const controller = new FirstPersonController(camera, elements.scene, {
 const editorView = new LazyDungeonEditorView(elements.editorMap, {
   onSelectSpawn: selectEditorSpawn,
 });
+const debugTelemetry = new EditorDebugTelemetry(
+  {
+    panel: elements.debugPanel,
+    mode: elements.debugMode,
+    loop: elements.debugLoop,
+    draw: elements.debugDraw,
+    cells: elements.debugCells,
+    paints: elements.debugPaints,
+    buffer: elements.debugBuffer,
+    dpr: elements.debugDpr,
+    floor: elements.debugFloor,
+    rooms: elements.debugRooms,
+    doors: elements.debugDoors,
+    threats: elements.debugEnemies,
+  },
+  () => ({
+    canvas: editorView.getDiagnostics(),
+    loopRunning: getThreeLoopDiagnostics().running,
+    floor: dungeon?.floor ? `${dungeon.floor.number}/${dungeon.floor.count}` : "1/1",
+    rooms: dungeon?.stats.roomCount ?? 0,
+    doors: Math.floor((dungeon?.topology?.doorways.length ?? 0) / 2),
+    threats: `${world.stats.enemies}/${world.stats.enemies + world.stats.reserveEnemies}`,
+  }),
+);
 
 let objectiveBannerTimer: ReturnType<typeof setTimeout> | null = null;
 let objectiveFadeTimer: ReturnType<typeof setTimeout> | null = null;
@@ -1706,6 +1750,8 @@ function canEnablePlayController(): boolean {
     !welcomeOpen &&
     renderWarmupReady &&
     engineMode === "play" &&
+    !optionsOpen &&
+    !elements.displayPostFxLab.open &&
     playRuntime.state().runMode === "playing"
   );
 }
@@ -1953,6 +1999,7 @@ function setOptionsOpen(
     return;
   }
   optionsOpen = open;
+  if (open) setDisplayPostFxLabOpen(false, false);
   if (open) suppressPauseOnPointerUnlock = false;
   if (open && source === "pointer-unlock") {
     optionsOpenByPointerUnlock = true;
@@ -1971,7 +2018,36 @@ function setOptionsOpen(
     audio.setPaused(true);
     elements.optionsResume.focus();
   } else {
-    audio.setPaused(!controller.getState().locked && !touchSessionActive);
+    audio.setPaused(
+      elements.displayPostFxLab.open || (!controller.getState().locked && !touchSessionActive),
+    );
+  }
+}
+
+function setDisplayPostFxLabOpen(open: boolean, restoreFocus = true): void {
+  const nextOpen = localDevTools && engineMode === "play" && open;
+  const focusWasInside = elements.displayPostFxLab.contains(document.activeElement);
+  elements.displayPostFxLab.open = nextOpen;
+  elements.shell.dataset.displayLabOpen = String(nextOpen);
+
+  if (nextOpen) {
+    if (optionsOpen) setOptionsOpen(false);
+    suppressPauseOnPointerUnlock = true;
+    clearTouchSession();
+    controller.setEnabled(false);
+    controller.releasePointerLock();
+    audio.setPaused(true);
+    syncDisplayPostFxLabUi();
+    window.requestAnimationFrame(() => elements.displayPostFxPreset.focus());
+    setStatus("Display Lab live · gameplay paused while tuning.");
+    return;
+  }
+
+  controller.setEnabled(canEnablePlayController());
+  audio.setPaused(!controller.getState().locked && !touchSessionActive);
+  if (restoreFocus && focusWasInside) elements.displayPostFxSummary.focus();
+  if (restoreFocus && engineMode === "play") {
+    setStatus("Display Lab closed. Click the scene to continue.");
   }
 }
 
@@ -3202,7 +3278,6 @@ function setEditorSurface(
   }
   const visible = nextSurface === "forge" && (engineMode === "editor" || isRunIntroActive());
   forgeFrameClient.setVisible(visible);
-  if (engineMode === "editor") setMapToolsOpen(nextSurface === "runtime");
   if (
     nextSurface === "runtime" &&
     engineMode !== "play" &&
@@ -3321,11 +3396,13 @@ function setEngineMode(
     return;
   }
   engineMode = nextMode;
+  setDisplayPostFxLabOpen(false, false);
   // Apply the play DPR cap immediately; waiting for browser resize caused the
   // game to keep the editor-resolution render target.
   resize();
   const external = nextMode !== "play";
   elements.shell.dataset.engineMode = nextMode;
+  syncThreeRenderLoop();
   // Keep the URL state aligned with editor, debug, and play modes.
   launchHistory.replace({ mode: nextMode });
   if (options.persist !== false) domainBridge.setEngineMode(nextMode);
@@ -3371,9 +3448,11 @@ function setEngineMode(
   elements.editorWorkspace.hidden = !external;
   elements.debugPanel.hidden = nextMode !== "debug";
   // Creation/Debug: Map Tools only when local developer chrome is on.
-  setMapToolsOpen(external);
+  if (external) closeEditorToolDrawers();
+  else setMapToolsOpen(false);
   elements.editorTitle.textContent = nextMode === "debug" ? "Graph and cells" : "Generated map";
   elements.debugMode.textContent = nextMode.toUpperCase();
+  debugTelemetry.setActive(nextMode === "debug");
   if (nextMode !== "play") {
     applyEditorParamsToForm(generationParams);
     const editorDungeon = forgePreviewDungeon ?? dungeon;
@@ -4434,6 +4513,10 @@ elements.paletteDither.addEventListener("input", () => {
   markDisplayPostFxCustom();
 });
 elements.paletteDither.addEventListener("change", () => playCue("uiTick"));
+elements.displayPostFxSummary.addEventListener("click", (event) => {
+  event.preventDefault();
+  setDisplayPostFxLabOpen(!elements.displayPostFxLab.open);
+});
 elements.displayPostFxPreset.addEventListener("change", () => {
   applyDisplayPostFxPreset(elements.displayPostFxPreset.value);
 });
@@ -4503,8 +4586,16 @@ document.addEventListener("keydown", (event) => {
   if (event.repeat) return;
   // Escape always owns pause, including while a range input has focus.
   const isEscape = event.key === "Escape" || event.code === "Escape";
+  if (!welcomeOpen && isEscape && engineMode !== "play" && closeEditorToolDrawers()) {
+    event.preventDefault();
+    return;
+  }
   if (!welcomeOpen && isEscape && engineMode === "play") {
     event.preventDefault();
+    if (elements.displayPostFxLab.open) {
+      setDisplayPostFxLabOpen(false);
+      return;
+    }
     if (mapExpanded) {
       toggleMap(false);
       return;
@@ -4535,6 +4626,11 @@ document.addEventListener("keydown", (event) => {
   if (event.target instanceof HTMLElement && event.target.closest("input, textarea, select"))
     return;
   if (welcomeOpen) return;
+  if (event.code === "KeyL" && engineMode === "play" && localDevTools && !optionsOpen) {
+    event.preventDefault();
+    setDisplayPostFxLabOpen(!elements.displayPostFxLab.open);
+    return;
+  }
   if (event.code === "KeyM") {
     event.preventDefault();
     toggleMap();
@@ -4640,7 +4736,12 @@ let threeFrameCount = 0;
 let threeRenderCount = 0;
 
 function shouldRunThreeRenderLoop(): boolean {
-  return !appDisposed && !welcomeOpen && document.visibilityState === "visible";
+  return shouldRunGameRenderLoop({
+    appDisposed,
+    engineMode,
+    visibilityState: document.visibilityState,
+    welcomeOpen,
+  });
 }
 
 function syncThreeRenderLoop(): void {
@@ -4730,7 +4831,10 @@ function frame(now: number): void {
   }
 
   const simulationActive =
-    engineMode === "play" && !optionsOpen && (player.locked || touchSessionActive);
+    engineMode === "play" &&
+    !optionsOpen &&
+    !elements.displayPostFxLab.open &&
+    (player.locked || touchSessionActive);
   if (simulationActive !== profileSimulationActive) {
     profileSimulationActive = simulationActive;
     frameGapProfiler.reset();
@@ -5009,30 +5113,6 @@ function frame(now: number): void {
     drawMap();
     lastMapDraw = now;
   }
-  // Debug HUD only needs cheap counters — never walk the scene graph here.
-  if (engineMode === "debug" && now - lastDebugDraw > 240) {
-    const frameMs = Number(smoothedFrameMs.toFixed(1));
-    const triangles = lastRenderSnapshot.triangles;
-    elements.debugFps.textContent = String(Math.round(1000 / Math.max(smoothedFrameMs, 0.001)));
-    elements.debugFrame.textContent = `${frameMs}ms`;
-    elements.debugCalls.textContent = String(lastRenderSnapshot.calls);
-    elements.debugTris.textContent =
-      triangles > 9999 ? `${Math.round(triangles / 1000)}k` : String(triangles);
-    elements.debugTextures.textContent = String(renderer.info.memory.textures);
-    elements.debugLights.textContent = String(world.stats.lights);
-    elements.debugFloor.textContent = dungeon?.floor
-      ? `${dungeon.floor.number}/${dungeon.floor.count}`
-      : "1/1";
-    elements.debugRooms.textContent = String(dungeon?.stats.roomCount ?? 0);
-    elements.debugDoors.textContent = String(
-      Math.floor((dungeon?.topology?.doorways.length ?? 0) / 2),
-    );
-    elements.debugEnemies.textContent = `${world.stats.enemies}/${world.stats.enemies + world.stats.reserveEnemies}`;
-    elements.debugMode.textContent =
-      frameMs <= 18 ? "FRAME OK" : frameMs <= 28 ? "FRAME WARN" : "FRAME HOT";
-    elements.debugPanel.dataset.frameState = frameMs <= 18 ? "ok" : frameMs <= 28 ? "warn" : "hot";
-    lastDebugDraw = now;
-  }
   if (localDevTools && elements.displayPostFxLab.open && now - lastDisplayLabDraw > 240) {
     elements.displayDebugFrame.value = `${smoothedFrameMs.toFixed(1)}ms`;
     elements.displayDebugCalls.value = String(lastRenderSnapshot.calls);
@@ -5066,6 +5146,7 @@ window.addEventListener("beforeunload", () => {
   localRunSave.dispose();
   runIntroDirector.dispose();
   forgeFrameClient.dispose();
+  debugTelemetry.dispose();
   longTaskObserver?.disconnect();
   minimapResizeObserver.disconnect();
   minimapLayout.dispose();
