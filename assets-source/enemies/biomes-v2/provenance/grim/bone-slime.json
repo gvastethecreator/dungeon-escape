@@ -1,0 +1,37 @@
+{
+  "version": 1,
+  "sourceType": "imagegen",
+  "artEngine": "imagegen",
+  "verificationStatus": "approved-user",
+  "acceptedSource": "sources/grim/bone-slime.png",
+  "sha256": "78c4a5f28678dd48e4ee37cd316b2d5dd20fc6c0107631f6dba0e1d22a039060",
+  "sizeBytes": 1329135,
+  "prompt": "prompts/grim/bone-slime.txt",
+  "promptSha256": "33c0cf257e63cdab4a8f34093ef8b358287d8d49836d15a54939955a89daf252",
+  "baseReference": "reference/base/bone-slime.png",
+  "baseReferenceSha256": "62d0174c09c0769c9cac166f2104c8fff91f0e3e73dfc4eb78d5377137819dda",
+  "moodReference": "reference/mood/grim.png",
+  "moodReferenceSha256": "121ea9379a94d96432574be71df86fdb17545d912c9fe0ddfb93172f785a8952",
+  "materialReferences": [
+    "../../public/assets/textures/biomes/grim/wall.webp",
+    "../../public/assets/textures/biomes/grim/floor.webp",
+    "../../public/assets/textures/biomes/grim/ceiling.webp"
+  ],
+  "materialReferenceSha256": {
+    "../../public/assets/textures/biomes/grim/wall.webp": "8c28a9220859a18ad733af07a74c1dc2a638d0fbada61a8f33eb7106b3574a84",
+    "../../public/assets/textures/biomes/grim/floor.webp": "f77e0f28436b86859767fff4b88b6753bcf39ef8ad3aa9d4e9dd9f8816d1d8ee",
+    "../../public/assets/textures/biomes/grim/ceiling.webp": "6585284f91101a9110bffc0ae02c90426b9bb80153dee3247993876dc03202c7"
+  },
+  "approval": {
+    "status": "approved-user",
+    "date": "2026-08-04",
+    "review_record": ".scratch/biome-enemy-base-sprites/reviews.json",
+    "notes": "V2: slime deformado por costillas internas, cráneo-brow y una boca que domina la masa frontal."
+  },
+  "consolidation": {
+    "package": "assets-source/enemies/biomes-v2",
+    "original_source": ".scratch/biome-enemy-base-sprites/new/grim/bone-slime.png",
+    "original_prompt": ".scratch/biome-enemy-base-sprites/prompts/grim/bone-slime.txt",
+    "original_provenance": ".scratch/biome-enemy-base-sprites/provenance/grim/bone-slime.json"
+  }
+}

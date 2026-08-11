@@ -38,8 +38,7 @@ function hasCanonicalRoomFloor(database: SqliteDatabase): boolean {
     .prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = ?")
     .get("leaderboard_entries") as { sql?: unknown } | null;
   return (
-    typeof row?.sql === "string" &&
-    /room_count\s+INTEGER[^,]*BETWEEN\s+8\s+AND\s+80/i.test(row.sql)
+    typeof row?.sql === "string" && /room_count\s+INTEGER[^,]*BETWEEN\s+8\s+AND\s+80/i.test(row.sql)
   );
 }
 
@@ -110,10 +109,7 @@ export class SqliteLeaderboardRepository implements LeaderboardRepository {
         // Column already exists.
       }
       if (options.migrationPath === undefined && !hasCanonicalRoomFloor(database)) {
-        applyCanonicalMigration(
-          database,
-          readFileSync(resolve(CANONICAL_MIGRATION_PATH), "utf8"),
-        );
+        applyCanonicalMigration(database, readFileSync(resolve(CANONICAL_MIGRATION_PATH), "utf8"));
       }
       return new SqliteLeaderboardRepository(database, options.storageSource ?? "local");
     } catch (error) {

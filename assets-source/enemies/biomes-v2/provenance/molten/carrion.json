@@ -1,0 +1,37 @@
+{
+  "version": 1,
+  "sourceType": "imagegen",
+  "artEngine": "imagegen",
+  "verificationStatus": "approved-user",
+  "acceptedSource": "sources/molten/carrion.png",
+  "sha256": "1f350fbd035e4ee304380d1ba00c1432a0739ac597032bcd58945da837322ecc",
+  "sizeBytes": 1258502,
+  "prompt": "prompts/molten/carrion.txt",
+  "promptSha256": "f7341bcd68b8495b5944b512b929a8631f3c8a9f471efffd3f984d084064bc3e",
+  "baseReference": "reference/base/carrion.png",
+  "baseReferenceSha256": "0bea6e7d1ab9fd03f37da791a9ce4669d41364ae30dbc4896128b08c63ac1e51",
+  "moodReference": "../biome-particles/play-molten-final.png",
+  "moodReferenceSha256": "8033f4e6b5f6f867ee41a04ffe9b8d4df376d0f64a547dd96e9a46ac685278f8",
+  "materialReferences": [
+    "../../public/assets/textures/biomes/molten/wall.webp",
+    "../../public/assets/textures/biomes/molten/floor.webp",
+    "../../public/assets/textures/biomes/molten/ceiling.webp"
+  ],
+  "materialReferenceSha256": {
+    "../../public/assets/textures/biomes/molten/wall.webp": "15e37d889e2e536ae1270f5971c2148369656f133289833df6a4edf2926566b7",
+    "../../public/assets/textures/biomes/molten/floor.webp": "79a524adb4ee9c763a1a760931a8d649a362a0d416650ceddae9c0b11d6d05ff",
+    "../../public/assets/textures/biomes/molten/ceiling.webp": "56f20209795cd1819bc5157048cc0d919457420071956848653c387a0e71b943"
+  },
+  "approval": {
+    "status": "approved-user",
+    "date": "2026-08-04",
+    "review_record": ".scratch/biome-enemy-base-sprites/reviews.json",
+    "notes": "Carroñero orgánico oscuro con antebrazos sobredimensionados, escudos minerales enfriados y un único órgano térmico dentro de la boca."
+  },
+  "consolidation": {
+    "package": "assets-source/enemies/biomes-v2",
+    "original_source": ".scratch/biome-enemy-base-sprites/new/molten/carrion.png",
+    "original_prompt": ".scratch/biome-enemy-base-sprites/prompts/molten/carrion.txt",
+    "original_provenance": ".scratch/biome-enemy-base-sprites/provenance/molten/carrion.json"
+  }
+}

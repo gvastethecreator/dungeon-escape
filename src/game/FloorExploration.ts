@@ -94,11 +94,7 @@ function parseCellKey(value: string): GridCell | null {
 function isCellKeyInBounds(dungeon: DungeonData, value: string): boolean {
   const cell = parseCellKey(value);
   return (
-    cell !== null &&
-    cell.x >= 0 &&
-    cell.y >= 0 &&
-    cell.x < dungeon.width &&
-    cell.y < dungeon.height
+    cell !== null && cell.x >= 0 && cell.y >= 0 && cell.x < dungeon.width && cell.y < dungeon.height
   );
 }
 
@@ -231,7 +227,10 @@ export class FloorExploration {
     }
 
     const legacyCells = restore.visitedCells ?? [];
-    if (!Array.isArray(legacyCells) || !legacyCells.every((cell) => isCellKeyInBounds(dungeon, cell))) {
+    if (
+      !Array.isArray(legacyCells) ||
+      !legacyCells.every((cell) => isCellKeyInBounds(dungeon, cell))
+    ) {
       return { ok: false, reason: "invalid-cell" };
     }
     const activeCells = nextFloors.get(floor.index) ?? new Set(legacyCells);

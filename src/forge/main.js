@@ -27,6 +27,7 @@ import { generateForgeDungeon } from "./generateForgeDungeon";
 import { selectForgeMagicStonePlacements } from "./layoutTuning";
 import {
   ENEMY_ARCHETYPES,
+  getEnemyVisualBodySize,
   getEnemySpriteRenderMetrics,
   isLowProfileEnemy,
 } from "../world/EnemyArchetypes";
@@ -2004,6 +2005,7 @@ function buildScene(d) {
       Z = wz(sp.y);
     const kind = selectedEnemyKinds[index] || "goblin";
     const archetype = ENEMY_ARCHETYPES[kind];
+    const bodySize = getEnemyVisualBodySize(kind, d.params.themeKey);
     const spriteMetrics = getEnemySpriteRenderMetrics(kind, d.params.themeKey);
     const planeW = spriteMetrics.planeWidth * enemyScaleMul;
     const planeH = spriteMetrics.planeHeight * enemyScaleMul;
@@ -2029,7 +2031,7 @@ function buildScene(d) {
         planeH * (1 - spriteMetrics.topPaddingRatio - spriteMetrics.bottomPaddingRatio)
       : sprite.position.y;
     const shadowLayout = resolveEnemyContactShadowLayout({
-      bodyWidth: archetype.width * enemyScaleMul,
+      bodyWidth: bodySize.width * enemyScaleMul,
       lowProfile: isLowProfileEnemy(kind),
       feetY,
       visibility: 1,

@@ -4,6 +4,7 @@ import { refreshDungeonConnectivity } from "./generateDungeon";
 import {
   applyStairShaftCarves,
   planStairShafts,
+  stairFlightFootprintCells,
   type StairShaftPlan,
 } from "./StairShaftPlan";
 import type {
@@ -190,7 +191,7 @@ function withStackFloorMetadata(
 
   for (const link of plan.links) {
     if (link.lowerFloor === index || link.upperFloor === index) {
-      for (const cell of link.footprint) {
+      for (const cell of stairFlightFootprintCells(link.footprint)) {
         const key = `${cell.x},${cell.y}`;
         if (openSeen.has(key)) continue;
         openSeen.add(key);
@@ -237,10 +238,7 @@ function withStackFloorMetadata(
   };
 
   const shaftSig = plan.links
-    .map(
-      (link) =>
-        `${link.shaftId}@${link.anchor.x},${link.anchor.y}:${link.yaw.toFixed(3)}`,
-    )
+    .map((link) => `${link.shaftId}@${link.anchor.x},${link.anchor.y}:${link.yaw.toFixed(3)}`)
     .join("|");
 
   return {

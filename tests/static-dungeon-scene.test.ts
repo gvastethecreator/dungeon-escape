@@ -7,6 +7,7 @@ import { importDungeonForge } from "../src/dungeon/importDungeonForge";
 import type { DungeonData, DungeonFloorMetadata } from "../src/dungeon/types";
 import { generateForgeDungeon } from "../src/forge/generateForgeDungeon";
 import { getDungeonMood, listDungeonMoodIds } from "../src/systems/DungeonMood";
+import { MAX_DYNAMIC_FIRE_LIGHTS } from "../src/systems/LightTuning";
 import type { AssetLibrary } from "../src/world/AssetLibrary";
 import { createDungeonProp } from "../src/world/DungeonPropKit";
 import { createDungeonMaterials } from "../src/world/MaterialLibrary";
@@ -494,14 +495,23 @@ describe("StaticDungeonScene", () => {
     }
   });
 
-  test("builds every physical flight of a four-floor stack in the initial scene", () => {
+  test("builds every physical flight of a four-floor stack in the initial scene", async () => {
     const restoreDocument = installCanvasDocument();
     try {
       const group = new THREE.Group();
       const staticScene = createScene(group);
       const stack = generateDungeonFloorSet("resident-four-floor-scene", { roomTarget: 8 }, 4);
-      const handles = staticScene.buildStack(stack.floors, getDungeonMood("ash"), 0.35);
+      let floorYields = 0;
+      const handles = await staticScene.buildStackWithYield(
+        stack.floors,
+        getDungeonMood("ash"),
+        0.35,
+        async () => {
+          floorYields += 1;
+        },
+      );
 
+      expect(floorYields).toBe(4);
       expect(staticScene.residentPlan?.floorCount).toBe(4);
       expect(staticScene.residentPlan?.shafts).toHaveLength(3);
       expect(staticScene.residentRenderReceipt?.planHash).toBe(staticScene.residentPlan?.hash);
@@ -527,6 +537,30 @@ describe("StaticDungeonScene", () => {
       });
       expect(handles.chests.length).toBeGreaterThan(0);
       expect(handles.chests.every((chest) => chest.runtimeBatch !== null)).toBe(true);
+      stack.floors.forEach((floor, floorIndex) => {
+        const expectedDoorways = new Set(
+          floor.topology?.doorways.map((doorway) => `${doorway.edgeIndex}:${doorway.roomId}`),
+        );
+        const actualDoors = new Set(
+          handles.residentFloors[floorIndex]!.doors.map(
+            (door) => `${String(door.root.userData.edgeIndex)}:${String(door.root.userData.roomId)}`,
+          ),
+        );
+        expect(actualDoors).toEqual(expectedDoorways);
+      });
+      const wallCores: THREE.InstancedMesh[] = [];
+      group.traverse((object) => {
+        if (object instanceof THREE.InstancedMesh && object.name === "Wall core fill") {
+          wallCores.push(object);
+        }
+      });
+      expect(wallCores).toHaveLength(4);
+      wallCores.forEach((core) => {
+        core.geometry.computeBoundingBox();
+        const size = core.geometry.boundingBox!.getSize(new THREE.Vector3());
+        expect(size.x).toBeGreaterThanOrEqual(2.4);
+        expect(size.z).toBeGreaterThanOrEqual(2.4);
+      });
       const resolveRewards = handles.pickups.filter((pickup) => pickup.kind === "resolve");
       expect(resolveRewards.length).toBeGreaterThan(1);
       const chestRewards = new Set(handles.chests.map((chest) => chest.reward));
@@ -563,11 +597,18 @@ describe("StaticDungeonScene", () => {
         expect(stair.root.userData.walkable).toBe(true);
         expect(
           stair.root.children.filter((child) => child.name.includes("stair tread")),
-        ).toHaveLength(STORY_STEP_COUNT);
+        ).toHaveLength(1);
+        expect(
+          (
+            stair.root.children.find((child) => child.name.includes("stair tread")) as
+              | THREE.InstancedMesh
+              | undefined
+          )?.count,
+        ).toBe(STORY_STEP_COUNT);
       });
       const firstTreadGeometry = handles.staircases[0]!.root.children.find((child) =>
         child.name.includes("stair tread"),
-      ) as THREE.Mesh;
+      ) as THREE.InstancedMesh;
       expect(
         handles.staircases
           .slice(1)
@@ -576,7 +617,7 @@ describe("StaticDungeonScene", () => {
               (
                 stair.root.children.find((child) =>
                   child.name.includes("stair tread"),
-                ) as THREE.Mesh
+                ) as THREE.InstancedMesh
               ).geometry,
           ),
       ).toEqual([firstTreadGeometry.geometry, firstTreadGeometry.geometry]);
@@ -627,20 +668,19 @@ describe("StaticDungeonScene", () => {
       const runtimes = handles.residentFloors;
       const runtimeOwners = runtimes as unknown as readonly ResidentFloorRuntimeOwner[];
       const internals = staticScene as unknown as { floorRenderGroups: THREE.Group[] };
-
       expect(runtimes.map((runtime) => runtime.floorIndex)).toEqual([0, 1, 2, 3]);
       expect(new Set(runtimes).size).toBe(4);
       runtimes.forEach((runtime) => {
         expect(runtime.root.position.y).toBeCloseTo(floorSlabY(runtime.floorIndex), 5);
       });
-      expect(runtimes.map((runtime) => runtime.root.children.length)).toEqual([221, 211, 198, 211]);
+      expect(runtimes.map((runtime) => runtime.root.children.length)).toEqual([225, 223, 210, 231]);
       expect(runtimes.map((runtime) => runtime.occupancy.diagnostics().occupiedCells)).toEqual([
-        235, 248, 230, 251,
+        248, 259, 237, 266,
       ]);
       expect(runtimes.map((runtime) => runtime.occupancy.memoryBytes)).toEqual([
         5329, 5329, 5329, 5329,
       ]);
-      expect(runtimes.map((runtime) => runtime.colliders.length)).toEqual([47, 176, 154, 216]);
+      expect(runtimes.map((runtime) => runtime.colliders.length)).toEqual([47, 178, 154, 216]);
       expect({
         doors: handles.doors.length,
         pickups: handles.pickups.length,
@@ -653,18 +693,18 @@ describe("StaticDungeonScene", () => {
         stoneBeams: handles.stoneBeams.length,
         ambientBeams: handles.ambientBeams.length,
       }).toEqual({
-        doors: 28,
+        doors: 74,
         pickups: 96,
         chests: 56,
         staircases: 3,
         fireEffects: 35,
         floorBiomeSprites: 120,
         ceilingBiomeSprites: 128,
-        solidColliders: 593,
+        solidColliders: 595,
         stoneBeams: 4,
         ambientBeams: 8,
       });
-      expect(runtimes.map((runtime) => runtime.doors.length)).toEqual([7, 7, 7, 7]);
+      expect(runtimes.map((runtime) => runtime.doors.length)).toEqual([20, 18, 14, 22]);
       expect(runtimes.map((runtime) => runtime.chests.length)).toEqual([13, 15, 14, 14]);
       expect(runtimes.map((runtime) => runtime.pickups.length)).toEqual([23, 25, 24, 24]);
       expect(runtimes.map((runtime) => runtime.staircases.length)).toEqual([1, 1, 1, 0]);
@@ -688,7 +728,9 @@ describe("StaticDungeonScene", () => {
       expect(runtimes.map((runtime) => runtime.ambientBeams.length)).toEqual([2, 2, 2, 2]);
       expect(runtimes.map((runtime) => runtime.hazardCells.size)).toEqual([4, 4, 4, 4]);
       expect(runtimes.every((runtime) => runtime.hazardTileSystem !== null)).toBe(true);
-      expect(runtimes.flatMap((runtime) => runtime.dynamicFireLights)).toHaveLength(10);
+      expect(runtimes.flatMap((runtime) => runtime.dynamicFireLights)).toHaveLength(
+        MAX_DYNAMIC_FIRE_LIGHTS,
+      );
       expect(handles.hazardTiles).not.toBeNull();
       expect(handles.liquidKit).toBeNull();
 
@@ -821,20 +863,20 @@ describe("StaticDungeonScene", () => {
           ),
         ),
       ).toBe("a10d8d4a");
-      expect(colliderFingerprint(handles.solidColliders)).toBe("2948ff03");
+      expect(colliderFingerprint(handles.solidColliders)).toBe("6ce51b43");
       expect(
         runtimes.map((runtime) => instancedWorldFingerprint(runtime.doorBatchRoots[0]!)),
-      ).toEqual(["7dd81b0d", "abcef45f", "c970d7e1", "29edaf3a"]);
+      ).toEqual(["a52de80e", "70235d79", "14193e10", "3d075624"]);
       expect(
         runtimes.map((runtime) => instancedWorldFingerprint(runtime.chestBatchRoots[0]!)),
       ).toEqual(["e90ecee7", "16060f91", "f46929cc", "cfeeb5a1"]);
       expect(
         runtimes.map((runtime) => runtime.doorBatchRoots[0]!.userData.runtimeBatching),
       ).toEqual([
-        { doors: 7, sourceMeshes: 7, batches: 1 },
-        { doors: 7, sourceMeshes: 7, batches: 1 },
-        { doors: 7, sourceMeshes: 7, batches: 1 },
-        { doors: 7, sourceMeshes: 7, batches: 1 },
+        { doors: 20, sourceMeshes: 100, batches: 5 },
+        { doors: 18, sourceMeshes: 90, batches: 5 },
+        { doors: 14, sourceMeshes: 70, batches: 5 },
+        { doors: 22, sourceMeshes: 110, batches: 5 },
       ]);
       expect(
         runtimes.map((runtime) => runtime.chestBatchRoots[0]!.userData.runtimeBatching),
@@ -861,9 +903,9 @@ describe("StaticDungeonScene", () => {
           });
         });
       });
-      // Four floor-local batches add 18 draws over the former 1-door + 5-chest global set.
-      expect(residentInteractiveDrawCalls).toBe(24);
-      expect(residentInteractiveDrawCalls).toBeLessThanOrEqual(24);
+      // Each floor owns five dynamic/static door batches and five chest batches.
+      expect(residentInteractiveDrawCalls).toBe(40);
+      expect(residentInteractiveDrawCalls).toBeLessThanOrEqual(40);
       const upperChestLidBatch = upperFloor.chestBatchRoots[0]!.getObjectByName(
         "Runtime chest lid batch 1",
       ) as THREE.InstancedMesh;
@@ -1098,7 +1140,7 @@ describe("StaticDungeonScene", () => {
         pickups: 26,
         beams: 7,
         lights: 12,
-        props: 309,
+        props: 320,
       });
       expect(classic.ambientBeams).toHaveLength(2);
       expect(group.getObjectByName("Ambient godray 1")).toBeDefined();
@@ -1160,8 +1202,8 @@ describe("StaticDungeonScene", () => {
         hazardTiles: 4,
         pickups: 14,
         beams: 7,
-        lights: 13,
-        props: 260,
+        lights: 12,
+        props: 259,
       });
       expect(backrooms.solidCells.size).toBe(43);
       expect(backrooms.solidColliders).toHaveLength(43);
@@ -1264,8 +1306,8 @@ describe("StaticDungeonScene", () => {
         hazardTiles: 4,
         pickups: 26,
         beams: 7,
-        lights: 14,
-        props: 309,
+        lights: 12,
+        props: 320,
         reserveEnemies: 20,
       });
       expect(world.getSolidCells()).toHaveLength(27);

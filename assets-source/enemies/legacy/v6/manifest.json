@@ -25,11 +25,7 @@
   "chroma_key": {
     "name": "neutral-gray",
     "hex": "#77787A",
-    "rgb": [
-      119,
-      120,
-      122
-    ],
+    "rgb": [119, 120, 122],
     "selection": "unused-with-rembg"
   },
   "animation": {
@@ -42,132 +38,77 @@
         "frames": 4,
         "fps": 8,
         "loop": true,
-        "durations_ms": [
-          125,
-          125,
-          125,
-          125
-        ]
+        "durations_ms": [125, 125, 125, 125]
       },
       "goblin": {
         "row": 1,
         "frames": 4,
         "fps": 8,
         "loop": true,
-        "durations_ms": [
-          125,
-          125,
-          125,
-          125
-        ]
+        "durations_ms": [125, 125, 125, 125]
       },
       "ghost": {
         "row": 2,
         "frames": 4,
         "fps": 8,
         "loop": true,
-        "durations_ms": [
-          125,
-          125,
-          125,
-          125
-        ]
+        "durations_ms": [125, 125, 125, 125]
       },
       "ratling": {
         "row": 3,
         "frames": 4,
         "fps": 8,
         "loop": true,
-        "durations_ms": [
-          125,
-          125,
-          125,
-          125
-        ]
+        "durations_ms": [125, 125, 125, 125]
       },
       "husk": {
         "row": 4,
         "frames": 4,
         "fps": 8,
         "loop": true,
-        "durations_ms": [
-          125,
-          125,
-          125,
-          125
-        ]
+        "durations_ms": [125, 125, 125, 125]
       },
       "imp": {
         "row": 5,
         "frames": 4,
         "fps": 8,
         "loop": true,
-        "durations_ms": [
-          125,
-          125,
-          125,
-          125
-        ]
+        "durations_ms": [125, 125, 125, 125]
       },
       "zombie-orc": {
         "row": 6,
         "frames": 4,
         "fps": 8,
         "loop": true,
-        "durations_ms": [
-          125,
-          125,
-          125,
-          125
-        ]
+        "durations_ms": [125, 125, 125, 125]
       },
       "spider": {
         "row": 7,
         "frames": 4,
         "fps": 8,
         "loop": true,
-        "durations_ms": [
-          125,
-          125,
-          125,
-          125
-        ]
+        "durations_ms": [125, 125, 125, 125]
       },
       "bone-slime": {
         "row": 8,
         "frames": 4,
         "fps": 8,
         "loop": true,
-        "durations_ms": [
-          125,
-          125,
-          125,
-          125
-        ]
+        "durations_ms": [125, 125, 125, 125]
       },
       "white-eyed-shadow": {
         "row": 9,
         "frames": 4,
         "fps": 8,
         "loop": true,
-        "durations_ms": [
-          125,
-          125,
-          125,
-          125
-        ]
+        "durations_ms": [125, 125, 125, 125]
       },
       "carrion-stalker": {
         "row": 10,
         "frames": 4,
         "fps": 8,
         "loop": true,
-        "durations_ms": [
-          125,
-          125,
-          125,
-          125
-        ]
+        "durations_ms": [125, 125, 125, 125]
       }
     }
   },
@@ -467,9 +408,7 @@
   },
   "output": {
     "use": "custom-atlas",
-    "formats": [
-      "png"
-    ],
+    "formats": ["png"],
     "frame_semantics": "animation",
     "atlas_gutter": 0,
     "atlas_extrusion": 0

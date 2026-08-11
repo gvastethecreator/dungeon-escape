@@ -1,0 +1,2943 @@
+{
+  "capturedAt": "2026-08-11T15:18:15.939Z",
+  "seed": "escape-smoke",
+  "biome": null,
+  "mood": null,
+  "crt": "off",
+  "photoSimulation": "off",
+  "escapeSmoke": {
+    "before": {
+      "open": false,
+      "hidden": true,
+      "activeId": "scene"
+    },
+    "opened": {
+      "open": true,
+      "hidden": false,
+      "activeId": "options-resume"
+    },
+    "closed": {
+      "open": false,
+      "hidden": true,
+      "activeId": ""
+    }
+  },
+  "shots": [
+    {
+      "label": "options-open",
+      "image": "options-open.png"
+    },
+    {
+      "label": "options-closed",
+      "image": "options-closed.png"
+    },
+    {
+      "label": "spawn",
+      "image": "spawn.png"
+    }
+  ],
+  "browserErrors": [],
+  "networkErrors": [],
+  "diagnostics": {
+    "renderer": {
+      "calls": 224,
+      "triangles": 183028,
+      "points": 1204,
+      "lines": 3,
+      "geometries": 178,
+      "textures": 69,
+      "materials": 235,
+      "programs": 49,
+      "frameMs": 10.24,
+      "fps": 97.6,
+      "dpr": 0.7,
+      "shadowMap": false,
+      "shadowType": 1,
+      "frameGaps": {
+        "samples": 0,
+        "p50": 0,
+        "p95": 0,
+        "p99": 0,
+        "max": 0,
+        "over25": 0,
+        "over33": 0,
+        "over50": 0,
+        "longTasks": 0,
+        "longestTask": 0
+      },
+      "programProfiles": [
+        {
+          "id": 48,
+          "name": "Ancient v2 ceiling-hanging biome props",
+          "type": "MeshStandardMaterial",
+          "usedTimes": 1,
+          "objects": 32,
+          "materials": 1,
+          "materialTypes": ["MeshStandardMaterial"],
+          "features": ["alphaTest", "emissiveMap", "map", "transparent"],
+          "samples": [
+            "Ancient Twin stone counterweights ceiling hanging :: Ancient v2 ceiling-hanging biome props",
+            "Ancient Suspended balance beam ceiling hanging :: Ancient v2 ceiling-hanging biome props",
+            "Ancient Rolled rope ladder ceiling hanging :: Ancient v2 ceiling-hanging biome props",
+            "Ancient Knotted bell rope ceiling hanging :: Ancient v2 ceiling-hanging biome props",
+            "Ancient Mason plumb lines ceiling hanging :: Ancient v2 ceiling-hanging biome props"
+          ]
+        },
+        {
+          "id": 7,
+          "name": "",
+          "type": "MeshStandardMaterial",
+          "usedTimes": 19,
+          "objects": 31,
+          "materials": 19,
+          "materialTypes": ["MeshStandardMaterial"],
+          "features": ["emissiveMap", "instanced", "map", "normalMap", "roughnessMap"],
+          "samples": [
+            "Low-poly cave debris :: MeshStandardMaterial",
+            "Scattered floor pebbles :: MeshStandardMaterial",
+            "Floor campfire ash-and-coal material batch :: MeshStandardMaterial",
+            "Floor campfire faceted-stone material batch :: MeshStandardMaterial",
+            "Classic reliquary:0 batch 1 :: Reliquary locally lifted warm oak"
+          ]
+        },
+        {
+          "id": 9,
+          "name": "",
+          "type": "MeshStandardMaterial",
+          "usedTimes": 21,
+          "objects": 22,
+          "materials": 21,
+          "materialTypes": ["MeshStandardMaterial"],
+          "features": ["instanced", "map", "normalMap", "roughnessMap"],
+          "samples": [
+            "Runtime door frame batch 1 :: MeshStandardMaterial",
+            "corridor room floor :: MeshStandardMaterial",
+            "corridor room ceiling :: MeshStandardMaterial",
+            "entrance room floor :: MeshStandardMaterial",
+            "entrance room ceiling :: MeshStandardMaterial"
+          ]
+        },
+        {
+          "id": 23,
+          "name": "",
+          "type": "MeshBasicMaterial",
+          "usedTimes": 15,
+          "objects": 21,
+          "materials": 15,
+          "materialTypes": ["MeshBasicMaterial"],
+          "features": ["instanced", "transparent"],
+          "samples": [
+            "Portal sealed energy veil :: ancient portal flat magic material",
+            "Portal veil :: ancient portal flat magic material",
+            "Portal rune arch :: ancient portal flat magic material",
+            "Portal arch runes :: ancient portal flat magic material",
+            "ember distant beacon crown :: MeshBasicMaterial"
+          ]
+        },
+        {
+          "id": 8,
+          "name": "",
+          "type": "MeshStandardMaterial",
+          "usedTimes": 4,
+          "objects": 20,
+          "materials": 4,
+          "materialTypes": ["MeshStandardMaterial"],
+          "features": ["instanced", "map", "normalMap", "roughnessMap"],
+          "samples": [
+            "Classic lectern:1 batch 2 :: MeshStandardMaterial",
+            "Classic lectern:1 batch 3 :: MeshStandardMaterial",
+            "Classic crates:1 batch 2 :: MeshStandardMaterial",
+            "Classic crates:1 batch 3 :: MeshStandardMaterial",
+            "Classic barrels:2 batch 2 :: MeshStandardMaterial"
+          ]
+        },
+        {
+          "id": 21,
+          "name": "",
+          "type": "MeshStandardMaterial",
+          "usedTimes": 6,
+          "objects": 16,
+          "materials": 6,
+          "materialTypes": ["MeshStandardMaterial"],
+          "features": ["map", "normalMap", "roughnessMap", "transparent"],
+          "samples": [
+            "ember iron cage ring :: Magic stone cage iron",
+            "ash iron cage ring :: Magic stone cage iron",
+            "crypt iron cage ring :: Magic stone cage iron",
+            "verdant iron cage ring :: Magic stone cage iron",
+            "Resolve pickup runtime material batch 3 :: MeshStandardMaterial"
+          ]
+        },
+        {
+          "id": 24,
+          "name": "",
+          "type": "MeshStandardMaterial",
+          "usedTimes": 8,
+          "objects": 12,
+          "materials": 8,
+          "materialTypes": ["MeshStandardMaterial"],
+          "features": ["map", "normalMap", "roughnessMap", "transparent"],
+          "samples": [
+            "ember crystal core :: MeshStandardMaterial",
+            "ember crystal shard cluster :: MeshStandardMaterial",
+            "ember rim rune ring :: MeshStandardMaterial",
+            "ash crystal core :: MeshStandardMaterial",
+            "ash crystal shard cluster :: MeshStandardMaterial"
+          ]
+        },
+        {
+          "id": 50,
+          "name": "Ancient v2 biome wall props",
+          "type": "MeshStandardMaterial",
+          "usedTimes": 1,
+          "objects": 10,
+          "materials": 1,
+          "materialTypes": ["MeshStandardMaterial"],
+          "features": ["alphaTest", "emissiveMap", "instanced", "map", "transparent"],
+          "samples": [
+            "Ancient Water catch gutter wall-mounted batch :: Ancient v2 biome wall props",
+            "Ancient Pulley bracket wall-mounted batch :: Ancient v2 biome wall props",
+            "Ancient Warden key rack wall-mounted batch :: Ancient v2 biome wall props",
+            "Ancient Rope ladder pegs wall-mounted batch :: Ancient v2 biome wall props",
+            "Ancient Hourglass frame wall-mounted batch :: Ancient v2 biome wall props"
+          ]
+        },
+        {
+          "id": 34,
+          "name": "",
+          "type": "SpriteMaterial",
+          "usedTimes": 9,
+          "objects": 9,
+          "materials": 9,
+          "materialTypes": ["SpriteMaterial"],
+          "features": ["map", "transparent"],
+          "samples": ["Sprite :: SpriteMaterial"]
+        },
+        {
+          "id": 38,
+          "name": "Lit enemy billboard material",
+          "type": "MeshStandardMaterial",
+          "usedTimes": 9,
+          "objects": 9,
+          "materials": 9,
+          "materialTypes": ["MeshStandardMaterial"],
+          "features": ["alphaTest", "instanced", "map", "transparent"],
+          "samples": [
+            "Enemy billboard batch carrion floor 1 :: Lit enemy billboard material",
+            "Enemy billboard batch ratling floor 1 :: Lit enemy billboard material",
+            "Enemy billboard batch husk floor 1 :: Lit enemy billboard material",
+            "Enemy billboard batch imp floor 1 :: Lit enemy billboard material",
+            "Enemy billboard batch zombie-orc floor 1 :: Lit enemy billboard material"
+          ]
+        },
+        {
+          "id": 20,
+          "name": "",
+          "type": "MeshStandardMaterial",
+          "usedTimes": 5,
+          "objects": 5,
+          "materials": 5,
+          "materialTypes": ["MeshStandardMaterial"],
+          "features": ["emissiveMap", "map", "normalMap", "roughnessMap", "transparent"],
+          "samples": [
+            "ember stone pedestal :: ember stone pedestal material",
+            "ash stone pedestal :: ash stone pedestal material",
+            "crypt stone pedestal :: crypt stone pedestal material",
+            "verdant stone pedestal :: verdant stone pedestal material",
+            "Phoenix egg pedestal :: MeshStandardMaterial"
+          ]
+        },
+        {
+          "id": 29,
+          "name": "Objective strata volumetric beam material",
+          "type": "ShaderMaterial",
+          "usedTimes": 4,
+          "objects": 4,
+          "materials": 4,
+          "materialTypes": ["ShaderMaterial"],
+          "features": ["transparent"],
+          "samples": [
+            "ember magic stone beacon :: Objective strata volumetric beam material",
+            "ash magic stone beacon :: Objective strata volumetric beam material",
+            "crypt magic stone beacon :: Objective strata volumetric beam material",
+            "verdant magic stone beacon :: Objective strata volumetric beam material"
+          ]
+        },
+        {
+          "id": 10,
+          "name": "ancient inset blackened forged plate material",
+          "type": "MeshStandardMaterial",
+          "usedTimes": 2,
+          "objects": 4,
+          "materials": 2,
+          "materialTypes": ["MeshStandardMaterial"],
+          "features": ["emissiveMap", "instanced", "map", "normalMap", "roughnessMap"],
+          "samples": [
+            "Image-sculpted layered spike plate base batch :: ancient inset blackened forged plate material",
+            "Separate raised forged spike plate frame batch :: ancient raised blackened forged frame material",
+            "Forged spike socket collar batch :: ancient raised blackened forged frame material",
+            "Four forged corner rivet batch :: ancient raised blackened forged frame material"
+          ]
+        },
+        {
+          "id": 18,
+          "name": "ancient portal accent material",
+          "type": "MeshStandardMaterial",
+          "usedTimes": 2,
+          "objects": 4,
+          "materials": 2,
+          "materialTypes": ["MeshStandardMaterial"],
+          "features": ["map", "normalMap", "roughnessMap"],
+          "samples": [
+            "ancient portal frame material batch 3 :: ancient portal seal material",
+            "ancient portal frame material batch 4 :: ancient portal accent material",
+            "ancient portal seal material batch 1 :: ancient portal seal material",
+            "Portal aperture trim :: ancient portal accent material"
+          ]
+        },
+        {
+          "id": 26,
+          "name": "",
+          "type": "MeshPhysicalMaterial",
+          "usedTimes": 1,
+          "objects": 4,
+          "materials": 1,
+          "materialTypes": ["MeshPhysicalMaterial"],
+          "features": ["transparent"],
+          "samples": ["Resolve pickup runtime material batch 1 :: MeshPhysicalMaterial"]
+        },
+        {
+          "id": 27,
+          "name": "",
+          "type": "MeshStandardMaterial",
+          "usedTimes": 1,
+          "objects": 4,
+          "materials": 1,
+          "materialTypes": ["MeshStandardMaterial"],
+          "features": ["transparent"],
+          "samples": ["Resolve pickup runtime material batch 2 :: MeshStandardMaterial"]
+        },
+        {
+          "id": 28,
+          "name": "",
+          "type": "MeshStandardMaterial",
+          "usedTimes": 1,
+          "objects": 4,
+          "materials": 1,
+          "materialTypes": ["MeshStandardMaterial"],
+          "features": ["emissiveMap", "map", "normalMap", "roughnessMap", "transparent"],
+          "samples": ["Resolve pickup runtime material batch 5 :: MeshStandardMaterial"]
+        },
+        {
+          "id": 36,
+          "name": "",
+          "type": "ShaderMaterial",
+          "usedTimes": 3,
+          "objects": 3,
+          "materials": 3,
+          "materialTypes": ["ShaderMaterial"],
+          "features": ["transparent"],
+          "samples": [
+            "Biome particles: Ancient limestone dust :: ShaderMaterial",
+            "Biome particles: Ancient orbiting rune motes :: ShaderMaterial",
+            "Biome particles: Ancient ceiling grit :: ShaderMaterial"
+          ]
+        },
+        {
+          "id": 17,
+          "name": "ancient portal frame material",
+          "type": "MeshStandardMaterial",
+          "usedTimes": 2,
+          "objects": 2,
+          "materials": 2,
+          "materialTypes": ["MeshStandardMaterial"],
+          "features": ["emissiveMap", "map", "normalMap", "roughnessMap"],
+          "samples": [
+            "ancient portal frame material batch 1 :: ancient portal locally lifted stone relief",
+            "ancient portal frame material batch 2 :: ancient portal frame material"
+          ]
+        },
+        {
+          "id": 33,
+          "name": "Retro ambient strata volumetric beam material",
+          "type": "ShaderMaterial",
+          "usedTimes": 2,
+          "objects": 2,
+          "materials": 2,
+          "materialTypes": ["ShaderMaterial"],
+          "features": ["transparent"],
+          "samples": [
+            "Ambient godray 1 :: Retro ambient strata volumetric beam material",
+            "Ambient godray 2 :: Retro ambient strata volumetric beam material"
+          ]
+        },
+        {
+          "id": 35,
+          "name": "Enemy contact shadow material",
+          "type": "MeshBasicMaterial",
+          "usedTimes": 2,
+          "objects": 2,
+          "materials": 2,
+          "materialTypes": ["MeshBasicMaterial"],
+          "features": ["instanced", "map", "transparent"],
+          "samples": [
+            "Static prop contact shadows :: Static prop contact shadow material",
+            "Enemy shared contact shadow batch floor 1 :: Enemy contact shadow material"
+          ]
+        },
+        {
+          "id": 42,
+          "name": "",
+          "type": "PointsMaterial",
+          "usedTimes": 2,
+          "objects": 2,
+          "materials": 2,
+          "materialTypes": ["PointsMaterial"],
+          "features": ["alphaTest", "map", "transparent"],
+          "samples": [
+            "Time freeze body motes :: PointsMaterial",
+            "Luminous ward floating motes :: PointsMaterial"
+          ]
+        },
+        {
+          "id": 14,
+          "name": "",
+          "type": "MeshStandardMaterial",
+          "usedTimes": 1,
+          "objects": 2,
+          "materials": 1,
+          "materialTypes": ["MeshStandardMaterial"],
+          "features": ["instanced", "map", "metalnessMap", "normalMap", "roughnessMap"],
+          "samples": [
+            "Runtime left door leaf batch 2 :: MeshStandardMaterial",
+            "Runtime right door leaf batch 4 :: MeshStandardMaterial"
+          ]
+        },
+        {
+          "id": 11,
+          "name": "ancient readable raised forged spike material",
+          "type": "MeshStandardMaterial",
+          "usedTimes": 1,
+          "objects": 1,
+          "materials": 1,
+          "materialTypes": ["MeshStandardMaterial"],
+          "features": [
+            "emissiveMap",
+            "instanced",
+            "map",
+            "normalMap",
+            "roughnessMap",
+            "vertexColors"
+          ],
+          "samples": [
+            "Image-sculpted forged spike batch :: ancient readable raised forged spike material"
+          ]
+        },
+        {
+          "id": 12,
+          "name": "ancient spikes hazard material",
+          "type": "MeshStandardMaterial",
+          "usedTimes": 1,
+          "objects": 1,
+          "materials": 1,
+          "materialTypes": ["MeshStandardMaterial"],
+          "features": ["instanced", "map"],
+          "samples": ["spikes hazard tile batch :: ancient spikes hazard material"]
+        },
+        {
+          "id": 13,
+          "name": "ancient toxin hazard material",
+          "type": "MeshStandardMaterial",
+          "usedTimes": 1,
+          "objects": 1,
+          "materials": 1,
+          "materialTypes": ["MeshStandardMaterial"],
+          "features": ["emissiveMap", "instanced", "map"],
+          "samples": ["toxin hazard tile batch :: ancient toxin hazard material"]
+        },
+        {
+          "id": 15,
+          "name": "Crate shared contrast-tinted aged wood",
+          "type": "MeshStandardMaterial",
+          "usedTimes": 1,
+          "objects": 1,
+          "materials": 1,
+          "materialTypes": ["MeshStandardMaterial"],
+          "features": [
+            "emissiveMap",
+            "instanced",
+            "map",
+            "normalMap",
+            "roughnessMap",
+            "vertexColors"
+          ],
+          "samples": ["Classic crates:1 batch 1 :: Crate shared contrast-tinted aged wood"]
+        },
+        {
+          "id": 16,
+          "name": "Bookshelf muted codex cloth PBR material",
+          "type": "MeshStandardMaterial",
+          "usedTimes": 1,
+          "objects": 1,
+          "materials": 1,
+          "materialTypes": ["MeshStandardMaterial"],
+          "features": ["instanced", "map", "normalMap", "roughnessMap", "vertexColors"],
+          "samples": ["Classic bookshelf:1 batch 4 :: Bookshelf muted codex cloth PBR material"]
+        },
+        {
+          "id": 19,
+          "name": "",
+          "type": "LineBasicMaterial",
+          "usedTimes": 1,
+          "objects": 1,
+          "materials": 1,
+          "materialTypes": ["LineBasicMaterial"],
+          "features": [],
+          "samples": ["Dungeon map marked route :: LineBasicMaterial"]
+        },
+        {
+          "id": 31,
+          "name": "",
+          "type": "MeshStandardMaterial",
+          "usedTimes": 1,
+          "objects": 1,
+          "materials": 1,
+          "materialTypes": ["MeshStandardMaterial"],
+          "features": ["alphaTest", "instanced", "map", "normalMap", "roughnessMap", "transparent"],
+          "samples": ["Room wall artwork 1 :: MeshStandardMaterial"]
+        },
+        {
+          "id": 32,
+          "name": "",
+          "type": "ShaderMaterial",
+          "usedTimes": 1,
+          "objects": 1,
+          "materials": 1,
+          "materialTypes": ["ShaderMaterial"],
+          "features": ["transparent", "vertexColors"],
+          "samples": ["Biome annihilation enemy particles :: ShaderMaterial"]
+        },
+        {
+          "id": 40,
+          "name": "",
+          "type": "MeshBasicMaterial",
+          "usedTimes": 1,
+          "objects": 1,
+          "materials": 1,
+          "materialTypes": ["MeshBasicMaterial"],
+          "features": ["map", "transparent"],
+          "samples": ["Luminous ward ground aura :: MeshBasicMaterial"]
+        },
+        {
+          "id": 41,
+          "name": "",
+          "type": "ShaderMaterial",
+          "usedTimes": 1,
+          "objects": 1,
+          "materials": 1,
+          "materialTypes": ["ShaderMaterial"],
+          "features": ["transparent"],
+          "samples": ["Luminous ward protective shell :: ShaderMaterial"]
+        },
+        {
+          "id": 43,
+          "name": "",
+          "type": "ShaderMaterial",
+          "usedTimes": 1,
+          "objects": 1,
+          "materials": 1,
+          "materialTypes": ["ShaderMaterial"],
+          "features": ["transparent"],
+          "samples": ["Luminous ward motion trails :: ShaderMaterial"]
+        },
+        {
+          "id": 44,
+          "name": "",
+          "type": "ShaderMaterial",
+          "usedTimes": 1,
+          "objects": 1,
+          "materials": 1,
+          "materialTypes": ["ShaderMaterial"],
+          "features": ["instanced", "transparent"],
+          "samples": ["Corner cobwebs :: ShaderMaterial"]
+        },
+        {
+          "id": 45,
+          "name": "",
+          "type": "ShaderMaterial",
+          "usedTimes": 1,
+          "objects": 1,
+          "materials": 1,
+          "materialTypes": ["ShaderMaterial"],
+          "features": ["transparent"],
+          "samples": ["Soft volumetric ground fog :: ShaderMaterial"]
+        },
+        {
+          "id": 46,
+          "name": "",
+          "type": "PointsMaterial",
+          "usedTimes": 1,
+          "objects": 1,
+          "materials": 1,
+          "materialTypes": ["PointsMaterial"],
+          "features": ["map", "transparent"],
+          "samples": ["Mobility draught motes :: PointsMaterial"]
+        },
+        {
+          "id": 51,
+          "name": "Uncanny wall atlas material",
+          "type": "ShaderMaterial",
+          "usedTimes": 1,
+          "objects": 1,
+          "materials": 1,
+          "materialTypes": ["ShaderMaterial"],
+          "features": ["instanced", "transparent"],
+          "samples": ["Uncanny wall animation batch :: Uncanny wall atlas material"]
+        },
+        {
+          "id": 37,
+          "name": "Lit enemy billboard material",
+          "type": "MeshStandardMaterial",
+          "usedTimes": 9,
+          "objects": 0,
+          "materials": 0,
+          "materialTypes": [],
+          "features": [],
+          "samples": []
+        },
+        {
+          "id": 4,
+          "name": "",
+          "type": "MeshLambertMaterial",
+          "usedTimes": 6,
+          "objects": 0,
+          "materials": 0,
+          "materialTypes": [],
+          "features": [],
+          "samples": []
+        },
+        {
+          "id": 22,
+          "name": "",
+          "type": "MeshBasicMaterial",
+          "usedTimes": 5,
+          "objects": 0,
+          "materials": 0,
+          "materialTypes": [],
+          "features": [],
+          "samples": []
+        },
+        {
+          "id": 2,
+          "name": "",
+          "type": "MeshStandardMaterial",
+          "usedTimes": 1,
+          "objects": 0,
+          "materials": 0,
+          "materialTypes": [],
+          "features": [],
+          "samples": []
+        },
+        {
+          "id": 3,
+          "name": "",
+          "type": "MeshStandardMaterial",
+          "usedTimes": 1,
+          "objects": 0,
+          "materials": 0,
+          "materialTypes": [],
+          "features": [],
+          "samples": []
+        },
+        {
+          "id": 25,
+          "name": "",
+          "type": "MeshPhysicalMaterial",
+          "usedTimes": 1,
+          "objects": 0,
+          "materials": 0,
+          "materialTypes": [],
+          "features": [],
+          "samples": []
+        },
+        {
+          "id": 30,
+          "name": "",
+          "type": "MeshStandardMaterial",
+          "usedTimes": 1,
+          "objects": 0,
+          "materials": 0,
+          "materialTypes": [],
+          "features": [],
+          "samples": []
+        },
+        {
+          "id": 39,
+          "name": "",
+          "type": "MeshBasicMaterial",
+          "usedTimes": 1,
+          "objects": 0,
+          "materials": 0,
+          "materialTypes": [],
+          "features": [],
+          "samples": []
+        },
+        {
+          "id": 47,
+          "name": "Ancient v2 ceiling-hanging biome props",
+          "type": "MeshStandardMaterial",
+          "usedTimes": 1,
+          "objects": 0,
+          "materials": 0,
+          "materialTypes": [],
+          "features": [],
+          "samples": []
+        },
+        {
+          "id": 49,
+          "name": "Ancient v2 biome wall props",
+          "type": "MeshStandardMaterial",
+          "usedTimes": 1,
+          "objects": 0,
+          "materials": 0,
+          "materialTypes": [],
+          "features": [],
+          "samples": []
+        },
+        {
+          "id": 52,
+          "name": "",
+          "type": "ShaderMaterial",
+          "usedTimes": 1,
+          "objects": 0,
+          "materials": 0,
+          "materialTypes": [],
+          "features": [],
+          "samples": []
+        }
+      ],
+      "renderList": {
+        "opaque": 88,
+        "transmissive": 0,
+        "transparent": 104,
+        "items": 192,
+        "profiles": [
+          {
+            "objectName": "Sprite",
+            "objectType": "Sprite",
+            "materialType": "SpriteMaterial",
+            "programId": 34,
+            "items": 9,
+            "instances": 9
+          },
+          {
+            "objectName": "Atmosphere Hanging chain batch 1",
+            "objectType": "Mesh",
+            "materialType": "MeshStandardMaterial",
+            "programId": 7,
+            "items": 2,
+            "instances": 27
+          },
+          {
+            "objectName": "Resolve pickup runtime material batch 4",
+            "objectType": "Mesh",
+            "materialType": "MeshStandardMaterial",
+            "programId": 21,
+            "items": 2,
+            "instances": 2
+          },
+          {
+            "objectName": "Resolve pickup runtime material batch 3",
+            "objectType": "Mesh",
+            "materialType": "MeshStandardMaterial",
+            "programId": 21,
+            "items": 2,
+            "instances": 2
+          },
+          {
+            "objectName": "Resolve pickup runtime material batch 1",
+            "objectType": "Mesh",
+            "materialType": "MeshPhysicalMaterial",
+            "programId": 26,
+            "items": 2,
+            "instances": 2
+          },
+          {
+            "objectName": "Resolve pickup runtime material batch 2",
+            "objectType": "Mesh",
+            "materialType": "MeshStandardMaterial",
+            "programId": 27,
+            "items": 2,
+            "instances": 2
+          },
+          {
+            "objectName": "Resolve pickup runtime material batch 5",
+            "objectType": "Mesh",
+            "materialType": "MeshStandardMaterial",
+            "programId": 28,
+            "items": 2,
+            "instances": 2
+          },
+          {
+            "objectName": "Resolve pickup runtime material batch 6",
+            "objectType": "Mesh",
+            "materialType": "MeshBasicMaterial",
+            "programId": 23,
+            "items": 2,
+            "instances": 2
+          },
+          {
+            "objectName": "Wall core fill",
+            "objectType": "Mesh",
+            "materialType": "MeshStandardMaterial",
+            "programId": 7,
+            "items": 1,
+            "instances": 374
+          },
+          {
+            "objectName": "corridor room masonry faces",
+            "objectType": "Mesh",
+            "materialType": "MeshStandardMaterial",
+            "programId": 9,
+            "items": 1,
+            "instances": 348
+          },
+          {
+            "objectName": "corridor room floor",
+            "objectType": "Mesh",
+            "materialType": "MeshStandardMaterial",
+            "programId": 9,
+            "items": 1,
+            "instances": 238
+          },
+          {
+            "objectName": "corridor room ceiling",
+            "objectType": "Mesh",
+            "materialType": "MeshStandardMaterial",
+            "programId": 9,
+            "items": 1,
+            "instances": 238
+          },
+          {
+            "objectName": "treasure room floor",
+            "objectType": "Mesh",
+            "materialType": "MeshStandardMaterial",
+            "programId": 9,
+            "items": 1,
+            "instances": 84
+          },
+          {
+            "objectName": "treasure room ceiling",
+            "objectType": "Mesh",
+            "materialType": "MeshStandardMaterial",
+            "programId": 9,
+            "items": 1,
+            "instances": 84
+          },
+          {
+            "objectName": "shrine room floor",
+            "objectType": "Mesh",
+            "materialType": "MeshStandardMaterial",
+            "programId": 9,
+            "items": 1,
+            "instances": 49
+          },
+          {
+            "objectName": "shrine room ceiling",
+            "objectType": "Mesh",
+            "materialType": "MeshStandardMaterial",
+            "programId": 9,
+            "items": 1,
+            "instances": 49
+          },
+          {
+            "objectName": "treasure room masonry faces",
+            "objectType": "Mesh",
+            "materialType": "MeshStandardMaterial",
+            "programId": 9,
+            "items": 1,
+            "instances": 47
+          },
+          {
+            "objectName": "Scattered floor pebbles",
+            "objectType": "Mesh",
+            "materialType": "MeshStandardMaterial",
+            "programId": 7,
+            "items": 1,
+            "instances": 26
+          },
+          {
+            "objectName": "shrine room masonry faces",
+            "objectType": "Mesh",
+            "materialType": "MeshStandardMaterial",
+            "programId": 9,
+            "items": 1,
+            "instances": 25
+          },
+          {
+            "objectName": "entrance room floor",
+            "objectType": "Mesh",
+            "materialType": "MeshStandardMaterial",
+            "programId": 9,
+            "items": 1,
+            "instances": 24
+          },
+          {
+            "objectName": "entrance room ceiling",
+            "objectType": "Mesh",
+            "materialType": "MeshStandardMaterial",
+            "programId": 9,
+            "items": 1,
+            "instances": 24
+          },
+          {
+            "objectName": "combat room floor",
+            "objectType": "Mesh",
+            "materialType": "MeshStandardMaterial",
+            "programId": 9,
+            "items": 1,
+            "instances": 20
+          },
+          {
+            "objectName": "combat room ceiling",
+            "objectType": "Mesh",
+            "materialType": "MeshStandardMaterial",
+            "programId": 9,
+            "items": 1,
+            "instances": 20
+          },
+          {
+            "objectName": "boss room floor",
+            "objectType": "Mesh",
+            "materialType": "MeshStandardMaterial",
+            "programId": 9,
+            "items": 1,
+            "instances": 20
+          },
+          {
+            "objectName": "boss room ceiling",
+            "objectType": "Mesh",
+            "materialType": "MeshStandardMaterial",
+            "programId": 9,
+            "items": 1,
+            "instances": 20
+          },
+          {
+            "objectName": "grave room floor",
+            "objectType": "Mesh",
+            "materialType": "MeshStandardMaterial",
+            "programId": 9,
+            "items": 1,
+            "instances": 20
+          },
+          {
+            "objectName": "grave room ceiling",
+            "objectType": "Mesh",
+            "materialType": "MeshStandardMaterial",
+            "programId": 9,
+            "items": 1,
+            "instances": 20
+          },
+          {
+            "objectName": "Enemy shared contact shadow batch floor 1",
+            "objectType": "Mesh",
+            "materialType": "MeshBasicMaterial",
+            "programId": 35,
+            "items": 1,
+            "instances": 19
+          },
+          {
+            "objectName": "entrance room masonry faces",
+            "objectType": "Mesh",
+            "materialType": "MeshStandardMaterial",
+            "programId": 9,
+            "items": 1,
+            "instances": 18
+          },
+          {
+            "objectName": "combat room masonry faces",
+            "objectType": "Mesh",
+            "materialType": "MeshStandardMaterial",
+            "programId": 9,
+            "items": 1,
+            "instances": 17
+          },
+          {
+            "objectName": "boss room masonry faces",
+            "objectType": "Mesh",
+            "materialType": "MeshStandardMaterial",
+            "programId": 9,
+            "items": 1,
+            "instances": 17
+          },
+          {
+            "objectName": "grave room masonry faces",
+            "objectType": "Mesh",
+            "materialType": "MeshStandardMaterial",
+            "programId": 9,
+            "items": 1,
+            "instances": 16
+          },
+          {
+            "objectName": "Corner cobwebs",
+            "objectType": "Mesh",
+            "materialType": "ShaderMaterial",
+            "programId": 44,
+            "items": 1,
+            "instances": 12
+          },
+          {
+            "objectName": "Runtime chest body batch 1",
+            "objectType": "Mesh",
+            "materialType": "MeshStandardMaterial",
+            "programId": 7,
+            "items": 1,
+            "instances": 10
+          },
+          {
+            "objectName": "Runtime chest lid batch 1",
+            "objectType": "Mesh",
+            "materialType": "MeshStandardMaterial",
+            "programId": 7,
+            "items": 1,
+            "instances": 10
+          },
+          {
+            "objectName": "Runtime chest body batch 2",
+            "objectType": "Mesh",
+            "materialType": "MeshStandardMaterial",
+            "programId": 8,
+            "items": 1,
+            "instances": 10
+          },
+          {
+            "objectName": "Runtime chest lid batch 2",
+            "objectType": "Mesh",
+            "materialType": "MeshStandardMaterial",
+            "programId": 8,
+            "items": 1,
+            "instances": 10
+          },
+          {
+            "objectName": "Runtime chest body batch 3",
+            "objectType": "Mesh",
+            "materialType": "MeshStandardMaterial",
+            "programId": 8,
+            "items": 1,
+            "instances": 10
+          },
+          {
+            "objectName": "Forged spike socket collar batch",
+            "objectType": "Mesh",
+            "materialType": "MeshStandardMaterial",
+            "programId": 10,
+            "items": 1,
+            "instances": 10
+          },
+          {
+            "objectName": "Image-sculpted forged spike batch",
+            "objectType": "Mesh",
+            "materialType": "MeshStandardMaterial",
+            "programId": 11,
+            "items": 1,
+            "instances": 10
+          },
+          {
+            "objectName": "Static prop contact shadows",
+            "objectType": "Mesh",
+            "materialType": "MeshBasicMaterial",
+            "programId": 35,
+            "items": 1,
+            "instances": 10
+          },
+          {
+            "objectName": "Runtime door frame batch 1",
+            "objectType": "Mesh",
+            "materialType": "MeshStandardMaterial",
+            "programId": 9,
+            "items": 1,
+            "instances": 9
+          },
+          {
+            "objectName": "Runtime left door leaf batch 2",
+            "objectType": "Mesh",
+            "materialType": "MeshStandardMaterial",
+            "programId": 14,
+            "items": 1,
+            "instances": 9
+          },
+          {
+            "objectName": "Runtime right door leaf batch 4",
+            "objectType": "Mesh",
+            "materialType": "MeshStandardMaterial",
+            "programId": 14,
+            "items": 1,
+            "instances": 9
+          },
+          {
+            "objectName": "Runtime left door leaf batch 3",
+            "objectType": "Mesh",
+            "materialType": "MeshStandardMaterial",
+            "programId": 8,
+            "items": 1,
+            "instances": 9
+          },
+          {
+            "objectName": "Runtime right door leaf batch 5",
+            "objectType": "Mesh",
+            "materialType": "MeshStandardMaterial",
+            "programId": 8,
+            "items": 1,
+            "instances": 9
+          },
+          {
+            "objectName": "Atmosphere Image-sculpted rubble pile batch 1",
+            "objectType": "Mesh",
+            "materialType": "MeshStandardMaterial",
+            "programId": 7,
+            "items": 1,
+            "instances": 8
+          },
+          {
+            "objectName": "Four forged corner rivet batch",
+            "objectType": "Mesh",
+            "materialType": "MeshStandardMaterial",
+            "programId": 10,
+            "items": 1,
+            "instances": 8
+          },
+          {
+            "objectName": "Low-poly cave debris",
+            "objectType": "Mesh",
+            "materialType": "MeshStandardMaterial",
+            "programId": 7,
+            "items": 1,
+            "instances": 7
+          },
+          {
+            "objectName": "Atmosphere Image-sculpted bone pile batch 2",
+            "objectType": "Mesh",
+            "materialType": "MeshStandardMaterial",
+            "programId": 7,
+            "items": 1,
+            "instances": 5
+          },
+          {
+            "objectName": "Atmosphere Image-sculpted hanging iron cage batch 1",
+            "objectType": "Mesh",
+            "materialType": "MeshStandardMaterial",
+            "programId": 8,
+            "items": 1,
+            "instances": 5
+          },
+          {
+            "objectName": "Atmosphere Image-sculpted bone pile batch 1",
+            "objectType": "Mesh",
+            "materialType": "MeshStandardMaterial",
+            "programId": 7,
+            "items": 1,
+            "instances": 5
+          },
+          {
+            "objectName": "Runtime wall-fire torch global batch 1",
+            "objectType": "Mesh",
+            "materialType": "MeshStandardMaterial",
+            "programId": 7,
+            "items": 1,
+            "instances": 5
+          },
+          {
+            "objectName": "Runtime wall-fire torch global batch 2",
+            "objectType": "Mesh",
+            "materialType": "MeshStandardMaterial",
+            "programId": 7,
+            "items": 1,
+            "instances": 5
+          },
+          {
+            "objectName": "Runtime wall-fire torch global batch 3",
+            "objectType": "Mesh",
+            "materialType": "MeshStandardMaterial",
+            "programId": 7,
+            "items": 1,
+            "instances": 5
+          },
+          {
+            "objectName": "Ancient Water catch gutter wall-mounted batch",
+            "objectType": "Mesh",
+            "materialType": "MeshStandardMaterial",
+            "programId": 50,
+            "items": 1,
+            "instances": 5
+          },
+          {
+            "objectName": "Ancient Pulley bracket wall-mounted batch",
+            "objectType": "Mesh",
+            "materialType": "MeshStandardMaterial",
+            "programId": 50,
+            "items": 1,
+            "instances": 5
+          },
+          {
+            "objectName": "Ancient Courier slot wall-mounted batch",
+            "objectType": "Mesh",
+            "materialType": "MeshStandardMaterial",
+            "programId": 50,
+            "items": 1,
+            "instances": 5
+          },
+          {
+            "objectName": "Ancient Ration shelf wall-mounted batch",
+            "objectType": "Mesh",
+            "materialType": "MeshStandardMaterial",
+            "programId": 50,
+            "items": 1,
+            "instances": 5
+          },
+          {
+            "objectName": "Ancient Bell pull lever wall-mounted batch",
+            "objectType": "Mesh",
+            "materialType": "MeshStandardMaterial",
+            "programId": 50,
+            "items": 1,
+            "instances": 5
+          },
+          {
+            "objectName": "Ancient Rope ladder pegs wall-mounted batch",
+            "objectType": "Mesh",
+            "materialType": "MeshStandardMaterial",
+            "programId": 50,
+            "items": 1,
+            "instances": 5
+          },
+          {
+            "objectName": "Ancient Hourglass frame wall-mounted batch",
+            "objectType": "Mesh",
+            "materialType": "MeshStandardMaterial",
+            "programId": 50,
+            "items": 1,
+            "instances": 5
+          },
+          {
+            "objectName": "Ancient Mason measure board wall-mounted batch",
+            "objectType": "Mesh",
+            "materialType": "MeshStandardMaterial",
+            "programId": 50,
+            "items": 1,
+            "instances": 5
+          },
+          {
+            "objectName": "Ancient Warden key rack wall-mounted batch",
+            "objectType": "Mesh",
+            "materialType": "MeshStandardMaterial",
+            "programId": 50,
+            "items": 1,
+            "instances": 5
+          },
+          {
+            "objectName": "Ancient Mason tool rail wall-mounted batch",
+            "objectType": "Mesh",
+            "materialType": "MeshStandardMaterial",
+            "programId": 50,
+            "items": 1,
+            "instances": 5
+          },
+          {
+            "objectName": "Uncanny wall animation batch",
+            "objectType": "Mesh",
+            "materialType": "ShaderMaterial",
+            "programId": 51,
+            "items": 1,
+            "instances": 4
+          },
+          {
+            "objectName": "Enemy billboard batch carrion-stalker floor 1",
+            "objectType": "Mesh",
+            "materialType": "MeshStandardMaterial",
+            "programId": 38,
+            "items": 1,
+            "instances": 3
+          },
+          {
+            "objectName": "Enemy billboard batch ratling floor 1",
+            "objectType": "Mesh",
+            "materialType": "MeshStandardMaterial",
+            "programId": 38,
+            "items": 1,
+            "instances": 3
+          },
+          {
+            "objectName": "Enemy billboard batch carrion floor 1",
+            "objectType": "Mesh",
+            "materialType": "MeshStandardMaterial",
+            "programId": 38,
+            "items": 1,
+            "instances": 3
+          },
+          {
+            "objectName": "Classic barrels:2 batch 1",
+            "objectType": "Mesh",
+            "materialType": "MeshStandardMaterial",
+            "programId": 7,
+            "items": 1,
+            "instances": 2
+          },
+          {
+            "objectName": "Classic crates:1 batch 2",
+            "objectType": "Mesh",
+            "materialType": "MeshStandardMaterial",
+            "programId": 8,
+            "items": 1,
+            "instances": 2
+          },
+          {
+            "objectName": "Classic barrels:2 batch 2",
+            "objectType": "Mesh",
+            "materialType": "MeshStandardMaterial",
+            "programId": 8,
+            "items": 1,
+            "instances": 2
+          },
+          {
+            "objectName": "Classic crates:1 batch 3",
+            "objectType": "Mesh",
+            "materialType": "MeshStandardMaterial",
+            "programId": 8,
+            "items": 1,
+            "instances": 2
+          },
+          {
+            "objectName": "Classic barrels:2 batch 3",
+            "objectType": "Mesh",
+            "materialType": "MeshStandardMaterial",
+            "programId": 8,
+            "items": 1,
+            "instances": 2
+          },
+          {
+            "objectName": "Image-sculpted layered spike plate base batch",
+            "objectType": "Mesh",
+            "materialType": "MeshStandardMaterial",
+            "programId": 10,
+            "items": 1,
+            "instances": 2
+          },
+          {
+            "objectName": "Separate raised forged spike plate frame batch",
+            "objectType": "Mesh",
+            "materialType": "MeshStandardMaterial",
+            "programId": 10,
+            "items": 1,
+            "instances": 2
+          },
+          {
+            "objectName": "spikes hazard tile batch",
+            "objectType": "Mesh",
+            "materialType": "MeshStandardMaterial",
+            "programId": 12,
+            "items": 1,
+            "instances": 2
+          },
+          {
+            "objectName": "toxin hazard tile batch",
+            "objectType": "Mesh",
+            "materialType": "MeshStandardMaterial",
+            "programId": 13,
+            "items": 1,
+            "instances": 2
+          },
+          {
+            "objectName": "Classic crates:1 batch 1",
+            "objectType": "Mesh",
+            "materialType": "MeshStandardMaterial",
+            "programId": 15,
+            "items": 1,
+            "instances": 2
+          },
+          {
+            "objectName": "Enemy billboard batch spider floor 1",
+            "objectType": "Mesh",
+            "materialType": "MeshStandardMaterial",
+            "programId": 38,
+            "items": 1,
+            "instances": 2
+          }
+        ]
+      }
+    },
+    "audio": {
+      "contextState": "suspended",
+      "ready": false,
+      "currentAmbienceAsset": null,
+      "catalogAssets": 248,
+      "requestedAssets": 0,
+      "decodedAssets": 0,
+      "decodedMilliseconds": 0,
+      "downloadedBytes": 0,
+      "residentBuffers": 0,
+      "inflightAssets": 0,
+      "queuedAssets": 0,
+      "backgroundPrefetchActive": false
+    },
+    "runtime": {
+      "id": "black-flag-dungeon-engine",
+      "ready": true,
+      "seed": "escape-smoke",
+      "topologySignature": "6>8:0@34,10,7,7|1@23,27,7,5|2@43,7,4,7|3@7,17,5,7|4@30,35,5,4|5@14,29,4,5|6@4,6,6,4|7@19,6,7,7|8@37,29,4,5|9@15,22,6,5:5-9-tree|0-2-tree|4-8-tree|1-9-tree|3-9-tree|1-4-tree|3-6-tree|6-7-tree|0-7-tree|0-1-loop:0:5@17,30,1,0|0:9@19,26,0,1|1:0@40,15,1,0|1:2@43,8,-1,0|2:4@34,36,1,0|2:8@37,32,-1,0|3:1@23,28,-1,0|3:9@20,25,1,0|4:3@11,22,1,0|4:9@15,23,-1,0|5:1@28,31,0,1|5:4@31,35,0,-1|6:3@8,17,0,-1|6:6@8,9,0,1|7:6@9,8,1,0|7:7@19,8,-1,0|8:0@34,11,-1,0|8:7@25,11,1,0|9:0@35,16,0,1|9:1@28,27,0,-1",
+      "spawn": {
+        "x": 7,
+        "y": 8
+      },
+      "exit": {
+        "x": 39,
+        "y": 31
+      },
+      "stats": {
+        "roomCount": 10,
+        "floorCount": 455,
+        "reachableFloorCount": 455,
+        "edgeCount": 10,
+        "loopCount": 1,
+        "exitDistance": 89,
+        "floorTiles": 455,
+        "wallTiles": 374,
+        "ceilingTiles": 455,
+        "enemies": 7,
+        "reserveEnemies": 12,
+        "difficultyLevel": 1,
+        "hazardTiles": 4,
+        "pickups": 17,
+        "beams": 7,
+        "lights": 2,
+        "props": 248
+      },
+      "player": {
+        "locked": false,
+        "position": {
+          "x": -43.199999999999996,
+          "y": 1.54,
+          "z": -40.8
+        },
+        "cell": {
+          "x": 7,
+          "y": 8
+        },
+        "distanceTravelled": 0,
+        "speed": 0,
+        "moving": false,
+        "sprinting": false,
+        "stamina": 1,
+        "staminaExhausted": false,
+        "stridePhase": 0,
+        "cameraMotion": 0.72,
+        "lookYaw": -2.1939956567289625,
+        "lookPitch": 0,
+        "grounded": true,
+        "jumping": false,
+        "verticalSpeed": 0,
+        "jumpHeight": -0.08000000000000007,
+        "intents": []
+      },
+      "exitReached": false,
+      "hasRelic": false,
+      "stonesFound": 0,
+      "timeFreezeRemaining": 0,
+      "luminousWardRemaining": 0,
+      "annihilationPulseRemaining": 0,
+      "cullBrandRemaining": 0,
+      "mirrorCurseRemaining": 0,
+      "spinCurseRemaining": 0,
+      "resolve": 100,
+      "mode": "playing",
+      "engineMode": "play",
+      "audioMuted": false,
+      "crtEnabled": false,
+      "difficulty": {
+        "value": 0.26,
+        "label": "CAUTIOUS",
+        "initialOccupiedRooms": 7,
+        "initialEnemies": 10,
+        "maxEnemies": 19,
+        "enemiesPerWave": 8,
+        "waveSeconds": 25,
+        "dangerUnlockScale": 1,
+        "safeSpawnDistance": 13.22,
+        "revealSeconds": 1.346,
+        "elapsedSeconds": 0,
+        "activeEnemies": 7,
+        "reserveEnemies": 12,
+        "targetEnemies": 10,
+        "pressureLevel": 1,
+        "unlockedKinds": 3,
+        "unlockedMaxTier": 0,
+        "progressWaves": 0,
+        "nextEscalationSeconds": 25
+      },
+      "renderer": {
+        "calls": 224,
+        "triangles": 183028,
+        "points": 1204,
+        "lines": 3,
+        "geometries": 178,
+        "textures": 69,
+        "materials": 235,
+        "programs": 49,
+        "frameMs": 10.24,
+        "fps": 97.6,
+        "dpr": 0.7,
+        "shadowMap": false,
+        "shadowType": 1,
+        "frameGaps": {
+          "samples": 0,
+          "p50": 0,
+          "p95": 0,
+          "p99": 0,
+          "max": 0,
+          "over25": 0,
+          "over33": 0,
+          "over50": 0,
+          "longTasks": 0,
+          "longestTask": 0
+        },
+        "programProfiles": [
+          {
+            "id": 48,
+            "name": "Ancient v2 ceiling-hanging biome props",
+            "type": "MeshStandardMaterial",
+            "usedTimes": 1,
+            "objects": 32,
+            "materials": 1,
+            "materialTypes": ["MeshStandardMaterial"],
+            "features": ["alphaTest", "emissiveMap", "map", "transparent"],
+            "samples": [
+              "Ancient Twin stone counterweights ceiling hanging :: Ancient v2 ceiling-hanging biome props",
+              "Ancient Suspended balance beam ceiling hanging :: Ancient v2 ceiling-hanging biome props",
+              "Ancient Rolled rope ladder ceiling hanging :: Ancient v2 ceiling-hanging biome props",
+              "Ancient Knotted bell rope ceiling hanging :: Ancient v2 ceiling-hanging biome props",
+              "Ancient Mason plumb lines ceiling hanging :: Ancient v2 ceiling-hanging biome props"
+            ]
+          },
+          {
+            "id": 7,
+            "name": "",
+            "type": "MeshStandardMaterial",
+            "usedTimes": 19,
+            "objects": 31,
+            "materials": 19,
+            "materialTypes": ["MeshStandardMaterial"],
+            "features": ["emissiveMap", "instanced", "map", "normalMap", "roughnessMap"],
+            "samples": [
+              "Low-poly cave debris :: MeshStandardMaterial",
+              "Scattered floor pebbles :: MeshStandardMaterial",
+              "Floor campfire ash-and-coal material batch :: MeshStandardMaterial",
+              "Floor campfire faceted-stone material batch :: MeshStandardMaterial",
+              "Classic reliquary:0 batch 1 :: Reliquary locally lifted warm oak"
+            ]
+          },
+          {
+            "id": 9,
+            "name": "",
+            "type": "MeshStandardMaterial",
+            "usedTimes": 21,
+            "objects": 22,
+            "materials": 21,
+            "materialTypes": ["MeshStandardMaterial"],
+            "features": ["instanced", "map", "normalMap", "roughnessMap"],
+            "samples": [
+              "Runtime door frame batch 1 :: MeshStandardMaterial",
+              "corridor room floor :: MeshStandardMaterial",
+              "corridor room ceiling :: MeshStandardMaterial",
+              "entrance room floor :: MeshStandardMaterial",
+              "entrance room ceiling :: MeshStandardMaterial"
+            ]
+          },
+          {
+            "id": 23,
+            "name": "",
+            "type": "MeshBasicMaterial",
+            "usedTimes": 15,
+            "objects": 21,
+            "materials": 15,
+            "materialTypes": ["MeshBasicMaterial"],
+            "features": ["instanced", "transparent"],
+            "samples": [
+              "Portal sealed energy veil :: ancient portal flat magic material",
+              "Portal veil :: ancient portal flat magic material",
+              "Portal rune arch :: ancient portal flat magic material",
+              "Portal arch runes :: ancient portal flat magic material",
+              "ember distant beacon crown :: MeshBasicMaterial"
+            ]
+          },
+          {
+            "id": 8,
+            "name": "",
+            "type": "MeshStandardMaterial",
+            "usedTimes": 4,
+            "objects": 20,
+            "materials": 4,
+            "materialTypes": ["MeshStandardMaterial"],
+            "features": ["instanced", "map", "normalMap", "roughnessMap"],
+            "samples": [
+              "Classic lectern:1 batch 2 :: MeshStandardMaterial",
+              "Classic lectern:1 batch 3 :: MeshStandardMaterial",
+              "Classic crates:1 batch 2 :: MeshStandardMaterial",
+              "Classic crates:1 batch 3 :: MeshStandardMaterial",
+              "Classic barrels:2 batch 2 :: MeshStandardMaterial"
+            ]
+          },
+          {
+            "id": 21,
+            "name": "",
+            "type": "MeshStandardMaterial",
+            "usedTimes": 6,
+            "objects": 16,
+            "materials": 6,
+            "materialTypes": ["MeshStandardMaterial"],
+            "features": ["map", "normalMap", "roughnessMap", "transparent"],
+            "samples": [
+              "ember iron cage ring :: Magic stone cage iron",
+              "ash iron cage ring :: Magic stone cage iron",
+              "crypt iron cage ring :: Magic stone cage iron",
+              "verdant iron cage ring :: Magic stone cage iron",
+              "Resolve pickup runtime material batch 3 :: MeshStandardMaterial"
+            ]
+          },
+          {
+            "id": 24,
+            "name": "",
+            "type": "MeshStandardMaterial",
+            "usedTimes": 8,
+            "objects": 12,
+            "materials": 8,
+            "materialTypes": ["MeshStandardMaterial"],
+            "features": ["map", "normalMap", "roughnessMap", "transparent"],
+            "samples": [
+              "ember crystal core :: MeshStandardMaterial",
+              "ember crystal shard cluster :: MeshStandardMaterial",
+              "ember rim rune ring :: MeshStandardMaterial",
+              "ash crystal core :: MeshStandardMaterial",
+              "ash crystal shard cluster :: MeshStandardMaterial"
+            ]
+          },
+          {
+            "id": 50,
+            "name": "Ancient v2 biome wall props",
+            "type": "MeshStandardMaterial",
+            "usedTimes": 1,
+            "objects": 10,
+            "materials": 1,
+            "materialTypes": ["MeshStandardMaterial"],
+            "features": ["alphaTest", "emissiveMap", "instanced", "map", "transparent"],
+            "samples": [
+              "Ancient Water catch gutter wall-mounted batch :: Ancient v2 biome wall props",
+              "Ancient Pulley bracket wall-mounted batch :: Ancient v2 biome wall props",
+              "Ancient Warden key rack wall-mounted batch :: Ancient v2 biome wall props",
+              "Ancient Rope ladder pegs wall-mounted batch :: Ancient v2 biome wall props",
+              "Ancient Hourglass frame wall-mounted batch :: Ancient v2 biome wall props"
+            ]
+          },
+          {
+            "id": 34,
+            "name": "",
+            "type": "SpriteMaterial",
+            "usedTimes": 9,
+            "objects": 9,
+            "materials": 9,
+            "materialTypes": ["SpriteMaterial"],
+            "features": ["map", "transparent"],
+            "samples": ["Sprite :: SpriteMaterial"]
+          },
+          {
+            "id": 38,
+            "name": "Lit enemy billboard material",
+            "type": "MeshStandardMaterial",
+            "usedTimes": 9,
+            "objects": 9,
+            "materials": 9,
+            "materialTypes": ["MeshStandardMaterial"],
+            "features": ["alphaTest", "instanced", "map", "transparent"],
+            "samples": [
+              "Enemy billboard batch carrion floor 1 :: Lit enemy billboard material",
+              "Enemy billboard batch ratling floor 1 :: Lit enemy billboard material",
+              "Enemy billboard batch husk floor 1 :: Lit enemy billboard material",
+              "Enemy billboard batch imp floor 1 :: Lit enemy billboard material",
+              "Enemy billboard batch zombie-orc floor 1 :: Lit enemy billboard material"
+            ]
+          },
+          {
+            "id": 20,
+            "name": "",
+            "type": "MeshStandardMaterial",
+            "usedTimes": 5,
+            "objects": 5,
+            "materials": 5,
+            "materialTypes": ["MeshStandardMaterial"],
+            "features": ["emissiveMap", "map", "normalMap", "roughnessMap", "transparent"],
+            "samples": [
+              "ember stone pedestal :: ember stone pedestal material",
+              "ash stone pedestal :: ash stone pedestal material",
+              "crypt stone pedestal :: crypt stone pedestal material",
+              "verdant stone pedestal :: verdant stone pedestal material",
+              "Phoenix egg pedestal :: MeshStandardMaterial"
+            ]
+          },
+          {
+            "id": 29,
+            "name": "Objective strata volumetric beam material",
+            "type": "ShaderMaterial",
+            "usedTimes": 4,
+            "objects": 4,
+            "materials": 4,
+            "materialTypes": ["ShaderMaterial"],
+            "features": ["transparent"],
+            "samples": [
+              "ember magic stone beacon :: Objective strata volumetric beam material",
+              "ash magic stone beacon :: Objective strata volumetric beam material",
+              "crypt magic stone beacon :: Objective strata volumetric beam material",
+              "verdant magic stone beacon :: Objective strata volumetric beam material"
+            ]
+          },
+          {
+            "id": 10,
+            "name": "ancient inset blackened forged plate material",
+            "type": "MeshStandardMaterial",
+            "usedTimes": 2,
+            "objects": 4,
+            "materials": 2,
+            "materialTypes": ["MeshStandardMaterial"],
+            "features": ["emissiveMap", "instanced", "map", "normalMap", "roughnessMap"],
+            "samples": [
+              "Image-sculpted layered spike plate base batch :: ancient inset blackened forged plate material",
+              "Separate raised forged spike plate frame batch :: ancient raised blackened forged frame material",
+              "Forged spike socket collar batch :: ancient raised blackened forged frame material",
+              "Four forged corner rivet batch :: ancient raised blackened forged frame material"
+            ]
+          },
+          {
+            "id": 18,
+            "name": "ancient portal accent material",
+            "type": "MeshStandardMaterial",
+            "usedTimes": 2,
+            "objects": 4,
+            "materials": 2,
+            "materialTypes": ["MeshStandardMaterial"],
+            "features": ["map", "normalMap", "roughnessMap"],
+            "samples": [
+              "ancient portal frame material batch 3 :: ancient portal seal material",
+              "ancient portal frame material batch 4 :: ancient portal accent material",
+              "ancient portal seal material batch 1 :: ancient portal seal material",
+              "Portal aperture trim :: ancient portal accent material"
+            ]
+          },
+          {
+            "id": 26,
+            "name": "",
+            "type": "MeshPhysicalMaterial",
+            "usedTimes": 1,
+            "objects": 4,
+            "materials": 1,
+            "materialTypes": ["MeshPhysicalMaterial"],
+            "features": ["transparent"],
+            "samples": ["Resolve pickup runtime material batch 1 :: MeshPhysicalMaterial"]
+          },
+          {
+            "id": 27,
+            "name": "",
+            "type": "MeshStandardMaterial",
+            "usedTimes": 1,
+            "objects": 4,
+            "materials": 1,
+            "materialTypes": ["MeshStandardMaterial"],
+            "features": ["transparent"],
+            "samples": ["Resolve pickup runtime material batch 2 :: MeshStandardMaterial"]
+          },
+          {
+            "id": 28,
+            "name": "",
+            "type": "MeshStandardMaterial",
+            "usedTimes": 1,
+            "objects": 4,
+            "materials": 1,
+            "materialTypes": ["MeshStandardMaterial"],
+            "features": ["emissiveMap", "map", "normalMap", "roughnessMap", "transparent"],
+            "samples": ["Resolve pickup runtime material batch 5 :: MeshStandardMaterial"]
+          },
+          {
+            "id": 36,
+            "name": "",
+            "type": "ShaderMaterial",
+            "usedTimes": 3,
+            "objects": 3,
+            "materials": 3,
+            "materialTypes": ["ShaderMaterial"],
+            "features": ["transparent"],
+            "samples": [
+              "Biome particles: Ancient limestone dust :: ShaderMaterial",
+              "Biome particles: Ancient orbiting rune motes :: ShaderMaterial",
+              "Biome particles: Ancient ceiling grit :: ShaderMaterial"
+            ]
+          },
+          {
+            "id": 17,
+            "name": "ancient portal frame material",
+            "type": "MeshStandardMaterial",
+            "usedTimes": 2,
+            "objects": 2,
+            "materials": 2,
+            "materialTypes": ["MeshStandardMaterial"],
+            "features": ["emissiveMap", "map", "normalMap", "roughnessMap"],
+            "samples": [
+              "ancient portal frame material batch 1 :: ancient portal locally lifted stone relief",
+              "ancient portal frame material batch 2 :: ancient portal frame material"
+            ]
+          },
+          {
+            "id": 33,
+            "name": "Retro ambient strata volumetric beam material",
+            "type": "ShaderMaterial",
+            "usedTimes": 2,
+            "objects": 2,
+            "materials": 2,
+            "materialTypes": ["ShaderMaterial"],
+            "features": ["transparent"],
+            "samples": [
+              "Ambient godray 1 :: Retro ambient strata volumetric beam material",
+              "Ambient godray 2 :: Retro ambient strata volumetric beam material"
+            ]
+          },
+          {
+            "id": 35,
+            "name": "Enemy contact shadow material",
+            "type": "MeshBasicMaterial",
+            "usedTimes": 2,
+            "objects": 2,
+            "materials": 2,
+            "materialTypes": ["MeshBasicMaterial"],
+            "features": ["instanced", "map", "transparent"],
+            "samples": [
+              "Static prop contact shadows :: Static prop contact shadow material",
+              "Enemy shared contact shadow batch floor 1 :: Enemy contact shadow material"
+            ]
+          },
+          {
+            "id": 42,
+            "name": "",
+            "type": "PointsMaterial",
+            "usedTimes": 2,
+            "objects": 2,
+            "materials": 2,
+            "materialTypes": ["PointsMaterial"],
+            "features": ["alphaTest", "map", "transparent"],
+            "samples": [
+              "Time freeze body motes :: PointsMaterial",
+              "Luminous ward floating motes :: PointsMaterial"
+            ]
+          },
+          {
+            "id": 14,
+            "name": "",
+            "type": "MeshStandardMaterial",
+            "usedTimes": 1,
+            "objects": 2,
+            "materials": 1,
+            "materialTypes": ["MeshStandardMaterial"],
+            "features": ["instanced", "map", "metalnessMap", "normalMap", "roughnessMap"],
+            "samples": [
+              "Runtime left door leaf batch 2 :: MeshStandardMaterial",
+              "Runtime right door leaf batch 4 :: MeshStandardMaterial"
+            ]
+          },
+          {
+            "id": 11,
+            "name": "ancient readable raised forged spike material",
+            "type": "MeshStandardMaterial",
+            "usedTimes": 1,
+            "objects": 1,
+            "materials": 1,
+            "materialTypes": ["MeshStandardMaterial"],
+            "features": [
+              "emissiveMap",
+              "instanced",
+              "map",
+              "normalMap",
+              "roughnessMap",
+              "vertexColors"
+            ],
+            "samples": [
+              "Image-sculpted forged spike batch :: ancient readable raised forged spike material"
+            ]
+          },
+          {
+            "id": 12,
+            "name": "ancient spikes hazard material",
+            "type": "MeshStandardMaterial",
+            "usedTimes": 1,
+            "objects": 1,
+            "materials": 1,
+            "materialTypes": ["MeshStandardMaterial"],
+            "features": ["instanced", "map"],
+            "samples": ["spikes hazard tile batch :: ancient spikes hazard material"]
+          },
+          {
+            "id": 13,
+            "name": "ancient toxin hazard material",
+            "type": "MeshStandardMaterial",
+            "usedTimes": 1,
+            "objects": 1,
+            "materials": 1,
+            "materialTypes": ["MeshStandardMaterial"],
+            "features": ["emissiveMap", "instanced", "map"],
+            "samples": ["toxin hazard tile batch :: ancient toxin hazard material"]
+          },
+          {
+            "id": 15,
+            "name": "Crate shared contrast-tinted aged wood",
+            "type": "MeshStandardMaterial",
+            "usedTimes": 1,
+            "objects": 1,
+            "materials": 1,
+            "materialTypes": ["MeshStandardMaterial"],
+            "features": [
+              "emissiveMap",
+              "instanced",
+              "map",
+              "normalMap",
+              "roughnessMap",
+              "vertexColors"
+            ],
+            "samples": ["Classic crates:1 batch 1 :: Crate shared contrast-tinted aged wood"]
+          },
+          {
+            "id": 16,
+            "name": "Bookshelf muted codex cloth PBR material",
+            "type": "MeshStandardMaterial",
+            "usedTimes": 1,
+            "objects": 1,
+            "materials": 1,
+            "materialTypes": ["MeshStandardMaterial"],
+            "features": ["instanced", "map", "normalMap", "roughnessMap", "vertexColors"],
+            "samples": ["Classic bookshelf:1 batch 4 :: Bookshelf muted codex cloth PBR material"]
+          },
+          {
+            "id": 19,
+            "name": "",
+            "type": "LineBasicMaterial",
+            "usedTimes": 1,
+            "objects": 1,
+            "materials": 1,
+            "materialTypes": ["LineBasicMaterial"],
+            "features": [],
+            "samples": ["Dungeon map marked route :: LineBasicMaterial"]
+          },
+          {
+            "id": 31,
+            "name": "",
+            "type": "MeshStandardMaterial",
+            "usedTimes": 1,
+            "objects": 1,
+            "materials": 1,
+            "materialTypes": ["MeshStandardMaterial"],
+            "features": [
+              "alphaTest",
+              "instanced",
+              "map",
+              "normalMap",
+              "roughnessMap",
+              "transparent"
+            ],
+            "samples": ["Room wall artwork 1 :: MeshStandardMaterial"]
+          },
+          {
+            "id": 32,
+            "name": "",
+            "type": "ShaderMaterial",
+            "usedTimes": 1,
+            "objects": 1,
+            "materials": 1,
+            "materialTypes": ["ShaderMaterial"],
+            "features": ["transparent", "vertexColors"],
+            "samples": ["Biome annihilation enemy particles :: ShaderMaterial"]
+          },
+          {
+            "id": 40,
+            "name": "",
+            "type": "MeshBasicMaterial",
+            "usedTimes": 1,
+            "objects": 1,
+            "materials": 1,
+            "materialTypes": ["MeshBasicMaterial"],
+            "features": ["map", "transparent"],
+            "samples": ["Luminous ward ground aura :: MeshBasicMaterial"]
+          },
+          {
+            "id": 41,
+            "name": "",
+            "type": "ShaderMaterial",
+            "usedTimes": 1,
+            "objects": 1,
+            "materials": 1,
+            "materialTypes": ["ShaderMaterial"],
+            "features": ["transparent"],
+            "samples": ["Luminous ward protective shell :: ShaderMaterial"]
+          },
+          {
+            "id": 43,
+            "name": "",
+            "type": "ShaderMaterial",
+            "usedTimes": 1,
+            "objects": 1,
+            "materials": 1,
+            "materialTypes": ["ShaderMaterial"],
+            "features": ["transparent"],
+            "samples": ["Luminous ward motion trails :: ShaderMaterial"]
+          },
+          {
+            "id": 44,
+            "name": "",
+            "type": "ShaderMaterial",
+            "usedTimes": 1,
+            "objects": 1,
+            "materials": 1,
+            "materialTypes": ["ShaderMaterial"],
+            "features": ["instanced", "transparent"],
+            "samples": ["Corner cobwebs :: ShaderMaterial"]
+          },
+          {
+            "id": 45,
+            "name": "",
+            "type": "ShaderMaterial",
+            "usedTimes": 1,
+            "objects": 1,
+            "materials": 1,
+            "materialTypes": ["ShaderMaterial"],
+            "features": ["transparent"],
+            "samples": ["Soft volumetric ground fog :: ShaderMaterial"]
+          },
+          {
+            "id": 46,
+            "name": "",
+            "type": "PointsMaterial",
+            "usedTimes": 1,
+            "objects": 1,
+            "materials": 1,
+            "materialTypes": ["PointsMaterial"],
+            "features": ["map", "transparent"],
+            "samples": ["Mobility draught motes :: PointsMaterial"]
+          },
+          {
+            "id": 51,
+            "name": "Uncanny wall atlas material",
+            "type": "ShaderMaterial",
+            "usedTimes": 1,
+            "objects": 1,
+            "materials": 1,
+            "materialTypes": ["ShaderMaterial"],
+            "features": ["instanced", "transparent"],
+            "samples": ["Uncanny wall animation batch :: Uncanny wall atlas material"]
+          },
+          {
+            "id": 37,
+            "name": "Lit enemy billboard material",
+            "type": "MeshStandardMaterial",
+            "usedTimes": 9,
+            "objects": 0,
+            "materials": 0,
+            "materialTypes": [],
+            "features": [],
+            "samples": []
+          },
+          {
+            "id": 4,
+            "name": "",
+            "type": "MeshLambertMaterial",
+            "usedTimes": 6,
+            "objects": 0,
+            "materials": 0,
+            "materialTypes": [],
+            "features": [],
+            "samples": []
+          },
+          {
+            "id": 22,
+            "name": "",
+            "type": "MeshBasicMaterial",
+            "usedTimes": 5,
+            "objects": 0,
+            "materials": 0,
+            "materialTypes": [],
+            "features": [],
+            "samples": []
+          },
+          {
+            "id": 2,
+            "name": "",
+            "type": "MeshStandardMaterial",
+            "usedTimes": 1,
+            "objects": 0,
+            "materials": 0,
+            "materialTypes": [],
+            "features": [],
+            "samples": []
+          },
+          {
+            "id": 3,
+            "name": "",
+            "type": "MeshStandardMaterial",
+            "usedTimes": 1,
+            "objects": 0,
+            "materials": 0,
+            "materialTypes": [],
+            "features": [],
+            "samples": []
+          },
+          {
+            "id": 25,
+            "name": "",
+            "type": "MeshPhysicalMaterial",
+            "usedTimes": 1,
+            "objects": 0,
+            "materials": 0,
+            "materialTypes": [],
+            "features": [],
+            "samples": []
+          },
+          {
+            "id": 30,
+            "name": "",
+            "type": "MeshStandardMaterial",
+            "usedTimes": 1,
+            "objects": 0,
+            "materials": 0,
+            "materialTypes": [],
+            "features": [],
+            "samples": []
+          },
+          {
+            "id": 39,
+            "name": "",
+            "type": "MeshBasicMaterial",
+            "usedTimes": 1,
+            "objects": 0,
+            "materials": 0,
+            "materialTypes": [],
+            "features": [],
+            "samples": []
+          },
+          {
+            "id": 47,
+            "name": "Ancient v2 ceiling-hanging biome props",
+            "type": "MeshStandardMaterial",
+            "usedTimes": 1,
+            "objects": 0,
+            "materials": 0,
+            "materialTypes": [],
+            "features": [],
+            "samples": []
+          },
+          {
+            "id": 49,
+            "name": "Ancient v2 biome wall props",
+            "type": "MeshStandardMaterial",
+            "usedTimes": 1,
+            "objects": 0,
+            "materials": 0,
+            "materialTypes": [],
+            "features": [],
+            "samples": []
+          },
+          {
+            "id": 52,
+            "name": "",
+            "type": "ShaderMaterial",
+            "usedTimes": 1,
+            "objects": 0,
+            "materials": 0,
+            "materialTypes": [],
+            "features": [],
+            "samples": []
+          }
+        ],
+        "renderList": {
+          "opaque": 88,
+          "transmissive": 0,
+          "transparent": 104,
+          "items": 192,
+          "profiles": [
+            {
+              "objectName": "Sprite",
+              "objectType": "Sprite",
+              "materialType": "SpriteMaterial",
+              "programId": 34,
+              "items": 9,
+              "instances": 9
+            },
+            {
+              "objectName": "Atmosphere Hanging chain batch 1",
+              "objectType": "Mesh",
+              "materialType": "MeshStandardMaterial",
+              "programId": 7,
+              "items": 2,
+              "instances": 27
+            },
+            {
+              "objectName": "Resolve pickup runtime material batch 4",
+              "objectType": "Mesh",
+              "materialType": "MeshStandardMaterial",
+              "programId": 21,
+              "items": 2,
+              "instances": 2
+            },
+            {
+              "objectName": "Resolve pickup runtime material batch 3",
+              "objectType": "Mesh",
+              "materialType": "MeshStandardMaterial",
+              "programId": 21,
+              "items": 2,
+              "instances": 2
+            },
+            {
+              "objectName": "Resolve pickup runtime material batch 1",
+              "objectType": "Mesh",
+              "materialType": "MeshPhysicalMaterial",
+              "programId": 26,
+              "items": 2,
+              "instances": 2
+            },
+            {
+              "objectName": "Resolve pickup runtime material batch 2",
+              "objectType": "Mesh",
+              "materialType": "MeshStandardMaterial",
+              "programId": 27,
+              "items": 2,
+              "instances": 2
+            },
+            {
+              "objectName": "Resolve pickup runtime material batch 5",
+              "objectType": "Mesh",
+              "materialType": "MeshStandardMaterial",
+              "programId": 28,
+              "items": 2,
+              "instances": 2
+            },
+            {
+              "objectName": "Resolve pickup runtime material batch 6",
+              "objectType": "Mesh",
+              "materialType": "MeshBasicMaterial",
+              "programId": 23,
+              "items": 2,
+              "instances": 2
+            },
+            {
+              "objectName": "Wall core fill",
+              "objectType": "Mesh",
+              "materialType": "MeshStandardMaterial",
+              "programId": 7,
+              "items": 1,
+              "instances": 374
+            },
+            {
+              "objectName": "corridor room masonry faces",
+              "objectType": "Mesh",
+              "materialType": "MeshStandardMaterial",
+              "programId": 9,
+              "items": 1,
+              "instances": 348
+            },
+            {
+              "objectName": "corridor room floor",
+              "objectType": "Mesh",
+              "materialType": "MeshStandardMaterial",
+              "programId": 9,
+              "items": 1,
+              "instances": 238
+            },
+            {
+              "objectName": "corridor room ceiling",
+              "objectType": "Mesh",
+              "materialType": "MeshStandardMaterial",
+              "programId": 9,
+              "items": 1,
+              "instances": 238
+            },
+            {
+              "objectName": "treasure room floor",
+              "objectType": "Mesh",
+              "materialType": "MeshStandardMaterial",
+              "programId": 9,
+              "items": 1,
+              "instances": 84
+            },
+            {
+              "objectName": "treasure room ceiling",
+              "objectType": "Mesh",
+              "materialType": "MeshStandardMaterial",
+              "programId": 9,
+              "items": 1,
+              "instances": 84
+            },
+            {
+              "objectName": "shrine room floor",
+              "objectType": "Mesh",
+              "materialType": "MeshStandardMaterial",
+              "programId": 9,
+              "items": 1,
+              "instances": 49
+            },
+            {
+              "objectName": "shrine room ceiling",
+              "objectType": "Mesh",
+              "materialType": "MeshStandardMaterial",
+              "programId": 9,
+              "items": 1,
+              "instances": 49
+            },
+            {
+              "objectName": "treasure room masonry faces",
+              "objectType": "Mesh",
+              "materialType": "MeshStandardMaterial",
+              "programId": 9,
+              "items": 1,
+              "instances": 47
+            },
+            {
+              "objectName": "Scattered floor pebbles",
+              "objectType": "Mesh",
+              "materialType": "MeshStandardMaterial",
+              "programId": 7,
+              "items": 1,
+              "instances": 26
+            },
+            {
+              "objectName": "shrine room masonry faces",
+              "objectType": "Mesh",
+              "materialType": "MeshStandardMaterial",
+              "programId": 9,
+              "items": 1,
+              "instances": 25
+            },
+            {
+              "objectName": "entrance room floor",
+              "objectType": "Mesh",
+              "materialType": "MeshStandardMaterial",
+              "programId": 9,
+              "items": 1,
+              "instances": 24
+            },
+            {
+              "objectName": "entrance room ceiling",
+              "objectType": "Mesh",
+              "materialType": "MeshStandardMaterial",
+              "programId": 9,
+              "items": 1,
+              "instances": 24
+            },
+            {
+              "objectName": "combat room floor",
+              "objectType": "Mesh",
+              "materialType": "MeshStandardMaterial",
+              "programId": 9,
+              "items": 1,
+              "instances": 20
+            },
+            {
+              "objectName": "combat room ceiling",
+              "objectType": "Mesh",
+              "materialType": "MeshStandardMaterial",
+              "programId": 9,
+              "items": 1,
+              "instances": 20
+            },
+            {
+              "objectName": "boss room floor",
+              "objectType": "Mesh",
+              "materialType": "MeshStandardMaterial",
+              "programId": 9,
+              "items": 1,
+              "instances": 20
+            },
+            {
+              "objectName": "boss room ceiling",
+              "objectType": "Mesh",
+              "materialType": "MeshStandardMaterial",
+              "programId": 9,
+              "items": 1,
+              "instances": 20
+            },
+            {
+              "objectName": "grave room floor",
+              "objectType": "Mesh",
+              "materialType": "MeshStandardMaterial",
+              "programId": 9,
+              "items": 1,
+              "instances": 20
+            },
+            {
+              "objectName": "grave room ceiling",
+              "objectType": "Mesh",
+              "materialType": "MeshStandardMaterial",
+              "programId": 9,
+              "items": 1,
+              "instances": 20
+            },
+            {
+              "objectName": "Enemy shared contact shadow batch floor 1",
+              "objectType": "Mesh",
+              "materialType": "MeshBasicMaterial",
+              "programId": 35,
+              "items": 1,
+              "instances": 19
+            },
+            {
+              "objectName": "entrance room masonry faces",
+              "objectType": "Mesh",
+              "materialType": "MeshStandardMaterial",
+              "programId": 9,
+              "items": 1,
+              "instances": 18
+            },
+            {
+              "objectName": "combat room masonry faces",
+              "objectType": "Mesh",
+              "materialType": "MeshStandardMaterial",
+              "programId": 9,
+              "items": 1,
+              "instances": 17
+            },
+            {
+              "objectName": "boss room masonry faces",
+              "objectType": "Mesh",
+              "materialType": "MeshStandardMaterial",
+              "programId": 9,
+              "items": 1,
+              "instances": 17
+            },
+            {
+              "objectName": "grave room masonry faces",
+              "objectType": "Mesh",
+              "materialType": "MeshStandardMaterial",
+              "programId": 9,
+              "items": 1,
+              "instances": 16
+            },
+            {
+              "objectName": "Corner cobwebs",
+              "objectType": "Mesh",
+              "materialType": "ShaderMaterial",
+              "programId": 44,
+              "items": 1,
+              "instances": 12
+            },
+            {
+              "objectName": "Runtime chest body batch 1",
+              "objectType": "Mesh",
+              "materialType": "MeshStandardMaterial",
+              "programId": 7,
+              "items": 1,
+              "instances": 10
+            },
+            {
+              "objectName": "Runtime chest lid batch 1",
+              "objectType": "Mesh",
+              "materialType": "MeshStandardMaterial",
+              "programId": 7,
+              "items": 1,
+              "instances": 10
+            },
+            {
+              "objectName": "Runtime chest body batch 2",
+              "objectType": "Mesh",
+              "materialType": "MeshStandardMaterial",
+              "programId": 8,
+              "items": 1,
+              "instances": 10
+            },
+            {
+              "objectName": "Runtime chest lid batch 2",
+              "objectType": "Mesh",
+              "materialType": "MeshStandardMaterial",
+              "programId": 8,
+              "items": 1,
+              "instances": 10
+            },
+            {
+              "objectName": "Runtime chest body batch 3",
+              "objectType": "Mesh",
+              "materialType": "MeshStandardMaterial",
+              "programId": 8,
+              "items": 1,
+              "instances": 10
+            },
+            {
+              "objectName": "Forged spike socket collar batch",
+              "objectType": "Mesh",
+              "materialType": "MeshStandardMaterial",
+              "programId": 10,
+              "items": 1,
+              "instances": 10
+            },
+            {
+              "objectName": "Image-sculpted forged spike batch",
+              "objectType": "Mesh",
+              "materialType": "MeshStandardMaterial",
+              "programId": 11,
+              "items": 1,
+              "instances": 10
+            },
+            {
+              "objectName": "Static prop contact shadows",
+              "objectType": "Mesh",
+              "materialType": "MeshBasicMaterial",
+              "programId": 35,
+              "items": 1,
+              "instances": 10
+            },
+            {
+              "objectName": "Runtime door frame batch 1",
+              "objectType": "Mesh",
+              "materialType": "MeshStandardMaterial",
+              "programId": 9,
+              "items": 1,
+              "instances": 9
+            },
+            {
+              "objectName": "Runtime left door leaf batch 2",
+              "objectType": "Mesh",
+              "materialType": "MeshStandardMaterial",
+              "programId": 14,
+              "items": 1,
+              "instances": 9
+            },
+            {
+              "objectName": "Runtime right door leaf batch 4",
+              "objectType": "Mesh",
+              "materialType": "MeshStandardMaterial",
+              "programId": 14,
+              "items": 1,
+              "instances": 9
+            },
+            {
+              "objectName": "Runtime left door leaf batch 3",
+              "objectType": "Mesh",
+              "materialType": "MeshStandardMaterial",
+              "programId": 8,
+              "items": 1,
+              "instances": 9
+            },
+            {
+              "objectName": "Runtime right door leaf batch 5",
+              "objectType": "Mesh",
+              "materialType": "MeshStandardMaterial",
+              "programId": 8,
+              "items": 1,
+              "instances": 9
+            },
+            {
+              "objectName": "Atmosphere Image-sculpted rubble pile batch 1",
+              "objectType": "Mesh",
+              "materialType": "MeshStandardMaterial",
+              "programId": 7,
+              "items": 1,
+              "instances": 8
+            },
+            {
+              "objectName": "Four forged corner rivet batch",
+              "objectType": "Mesh",
+              "materialType": "MeshStandardMaterial",
+              "programId": 10,
+              "items": 1,
+              "instances": 8
+            },
+            {
+              "objectName": "Low-poly cave debris",
+              "objectType": "Mesh",
+              "materialType": "MeshStandardMaterial",
+              "programId": 7,
+              "items": 1,
+              "instances": 7
+            },
+            {
+              "objectName": "Atmosphere Image-sculpted bone pile batch 2",
+              "objectType": "Mesh",
+              "materialType": "MeshStandardMaterial",
+              "programId": 7,
+              "items": 1,
+              "instances": 5
+            },
+            {
+              "objectName": "Atmosphere Image-sculpted hanging iron cage batch 1",
+              "objectType": "Mesh",
+              "materialType": "MeshStandardMaterial",
+              "programId": 8,
+              "items": 1,
+              "instances": 5
+            },
+            {
+              "objectName": "Atmosphere Image-sculpted bone pile batch 1",
+              "objectType": "Mesh",
+              "materialType": "MeshStandardMaterial",
+              "programId": 7,
+              "items": 1,
+              "instances": 5
+            },
+            {
+              "objectName": "Runtime wall-fire torch global batch 1",
+              "objectType": "Mesh",
+              "materialType": "MeshStandardMaterial",
+              "programId": 7,
+              "items": 1,
+              "instances": 5
+            },
+            {
+              "objectName": "Runtime wall-fire torch global batch 2",
+              "objectType": "Mesh",
+              "materialType": "MeshStandardMaterial",
+              "programId": 7,
+              "items": 1,
+              "instances": 5
+            },
+            {
+              "objectName": "Runtime wall-fire torch global batch 3",
+              "objectType": "Mesh",
+              "materialType": "MeshStandardMaterial",
+              "programId": 7,
+              "items": 1,
+              "instances": 5
+            },
+            {
+              "objectName": "Ancient Water catch gutter wall-mounted batch",
+              "objectType": "Mesh",
+              "materialType": "MeshStandardMaterial",
+              "programId": 50,
+              "items": 1,
+              "instances": 5
+            },
+            {
+              "objectName": "Ancient Pulley bracket wall-mounted batch",
+              "objectType": "Mesh",
+              "materialType": "MeshStandardMaterial",
+              "programId": 50,
+              "items": 1,
+              "instances": 5
+            },
+            {
+              "objectName": "Ancient Courier slot wall-mounted batch",
+              "objectType": "Mesh",
+              "materialType": "MeshStandardMaterial",
+              "programId": 50,
+              "items": 1,
+              "instances": 5
+            },
+            {
+              "objectName": "Ancient Ration shelf wall-mounted batch",
+              "objectType": "Mesh",
+              "materialType": "MeshStandardMaterial",
+              "programId": 50,
+              "items": 1,
+              "instances": 5
+            },
+            {
+              "objectName": "Ancient Bell pull lever wall-mounted batch",
+              "objectType": "Mesh",
+              "materialType": "MeshStandardMaterial",
+              "programId": 50,
+              "items": 1,
+              "instances": 5
+            },
+            {
+              "objectName": "Ancient Rope ladder pegs wall-mounted batch",
+              "objectType": "Mesh",
+              "materialType": "MeshStandardMaterial",
+              "programId": 50,
+              "items": 1,
+              "instances": 5
+            },
+            {
+              "objectName": "Ancient Hourglass frame wall-mounted batch",
+              "objectType": "Mesh",
+              "materialType": "MeshStandardMaterial",
+              "programId": 50,
+              "items": 1,
+              "instances": 5
+            },
+            {
+              "objectName": "Ancient Mason measure board wall-mounted batch",
+              "objectType": "Mesh",
+              "materialType": "MeshStandardMaterial",
+              "programId": 50,
+              "items": 1,
+              "instances": 5
+            },
+            {
+              "objectName": "Ancient Warden key rack wall-mounted batch",
+              "objectType": "Mesh",
+              "materialType": "MeshStandardMaterial",
+              "programId": 50,
+              "items": 1,
+              "instances": 5
+            },
+            {
+              "objectName": "Ancient Mason tool rail wall-mounted batch",
+              "objectType": "Mesh",
+              "materialType": "MeshStandardMaterial",
+              "programId": 50,
+              "items": 1,
+              "instances": 5
+            },
+            {
+              "objectName": "Uncanny wall animation batch",
+              "objectType": "Mesh",
+              "materialType": "ShaderMaterial",
+              "programId": 51,
+              "items": 1,
+              "instances": 4
+            },
+            {
+              "objectName": "Enemy billboard batch carrion-stalker floor 1",
+              "objectType": "Mesh",
+              "materialType": "MeshStandardMaterial",
+              "programId": 38,
+              "items": 1,
+              "instances": 3
+            },
+            {
+              "objectName": "Enemy billboard batch ratling floor 1",
+              "objectType": "Mesh",
+              "materialType": "MeshStandardMaterial",
+              "programId": 38,
+              "items": 1,
+              "instances": 3
+            },
+            {
+              "objectName": "Enemy billboard batch carrion floor 1",
+              "objectType": "Mesh",
+              "materialType": "MeshStandardMaterial",
+              "programId": 38,
+              "items": 1,
+              "instances": 3
+            },
+            {
+              "objectName": "Classic barrels:2 batch 1",
+              "objectType": "Mesh",
+              "materialType": "MeshStandardMaterial",
+              "programId": 7,
+              "items": 1,
+              "instances": 2
+            },
+            {
+              "objectName": "Classic crates:1 batch 2",
+              "objectType": "Mesh",
+              "materialType": "MeshStandardMaterial",
+              "programId": 8,
+              "items": 1,
+              "instances": 2
+            },
+            {
+              "objectName": "Classic barrels:2 batch 2",
+              "objectType": "Mesh",
+              "materialType": "MeshStandardMaterial",
+              "programId": 8,
+              "items": 1,
+              "instances": 2
+            },
+            {
+              "objectName": "Classic crates:1 batch 3",
+              "objectType": "Mesh",
+              "materialType": "MeshStandardMaterial",
+              "programId": 8,
+              "items": 1,
+              "instances": 2
+            },
+            {
+              "objectName": "Classic barrels:2 batch 3",
+              "objectType": "Mesh",
+              "materialType": "MeshStandardMaterial",
+              "programId": 8,
+              "items": 1,
+              "instances": 2
+            },
+            {
+              "objectName": "Image-sculpted layered spike plate base batch",
+              "objectType": "Mesh",
+              "materialType": "MeshStandardMaterial",
+              "programId": 10,
+              "items": 1,
+              "instances": 2
+            },
+            {
+              "objectName": "Separate raised forged spike plate frame batch",
+              "objectType": "Mesh",
+              "materialType": "MeshStandardMaterial",
+              "programId": 10,
+              "items": 1,
+              "instances": 2
+            },
+            {
+              "objectName": "spikes hazard tile batch",
+              "objectType": "Mesh",
+              "materialType": "MeshStandardMaterial",
+              "programId": 12,
+              "items": 1,
+              "instances": 2
+            },
+            {
+              "objectName": "toxin hazard tile batch",
+              "objectType": "Mesh",
+              "materialType": "MeshStandardMaterial",
+              "programId": 13,
+              "items": 1,
+              "instances": 2
+            },
+            {
+              "objectName": "Classic crates:1 batch 1",
+              "objectType": "Mesh",
+              "materialType": "MeshStandardMaterial",
+              "programId": 15,
+              "items": 1,
+              "instances": 2
+            },
+            {
+              "objectName": "Enemy billboard batch spider floor 1",
+              "objectType": "Mesh",
+              "materialType": "MeshStandardMaterial",
+              "programId": 38,
+              "items": 1,
+              "instances": 2
+            }
+          ]
+        }
+      },
+      "domain": {
+        "floor": 1,
+        "room": "entrance",
+        "mapped": 21,
+        "threat": 1,
+        "seed": "escape-smoke",
+        "roomTarget": 10,
+        "loopRate": 10,
+        "decorDensity": 45,
+        "mapWidth": 51,
+        "mapHeight": 51,
+        "minRoomSize": 4,
+        "maxRoomSize": 7,
+        "corridorRadius": 0,
+        "roomPadding": 2,
+        "enemyDensity": 26,
+        "lightLevel": 78,
+        "profile": "biome-ancient",
+        "exploredCells": 21,
+        "hasRelic": false,
+        "exitReached": false,
+        "resolve": 100,
+        "foundStoneIds": [],
+        "portalOpen": false,
+        "runMode": "playing",
+        "engineMode": "play",
+        "topologySignature": "6>8:0@34,10,7,7|1@23,27,7,5|2@43,7,4,7|3@7,17,5,7|4@30,35,5,4|5@14,29,4,5|6@4,6,6,4|7@19,6,7,7|8@37,29,4,5|9@15,22,6,5:5-9-tree|0-2-tree|4-8-tree|1-9-tree|3-9-tree|1-4-tree|3-6-tree|6-7-tree|0-7-tree|0-1-loop:0:5@17,30,1,0|0:9@19,26,0,1|1:0@40,15,1,0|1:2@43,8,-1,0|2:4@34,36,1,0|2:8@37,32,-1,0|3:1@23,28,-1,0|3:9@20,25,1,0|4:3@11,22,1,0|4:9@15,23,-1,0|5:1@28,31,0,1|5:4@31,35,0,-1|6:3@8,17,0,-1|6:6@8,9,0,1|7:6@9,8,1,0|7:7@19,8,-1,0|8:0@34,11,-1,0|8:7@25,11,1,0|9:0@35,16,0,1|9:1@28,27,0,-1"
+      },
+      "domainProjection": {
+        "surfaceId": "dungeon",
+        "runId": "run-dungeon",
+        "seed": "escape-smoke",
+        "worldTicks": 0,
+        "schemaVersion": 1,
+        "contentVersion": "v0-foundation",
+        "notes": [],
+        "pendingDecisions": [],
+        "headline": "Dungeon | Floor 1 · entrance · seed escape-smoke · biome-ancient",
+        "domainId": "dungeons",
+        "domain": {
+          "domainId": "dungeons",
+          "title": "Dungeon",
+          "summary": "Floor 1 · entrance · seed escape-smoke · biome-ancient",
+          "metrics": {
+            "floor": 1,
+            "room": "entrance",
+            "mapped": 21,
+            "threat": 1,
+            "seed": "escape-smoke",
+            "roomTarget": 10,
+            "loopRate": 10,
+            "decorDensity": 45,
+            "mapWidth": 51,
+            "mapHeight": 51,
+            "minRoomSize": 4,
+            "maxRoomSize": 7,
+            "corridorRadius": 0,
+            "roomPadding": 2,
+            "enemyDensity": 26,
+            "lightLevel": 78,
+            "profile": "biome-ancient",
+            "exploredCells": 21,
+            "hasRelic": false,
+            "exitReached": false,
+            "resolve": 100,
+            "foundStoneIds": "",
+            "portalOpen": false,
+            "runMode": "playing",
+            "engineMode": "play"
+          },
+          "lines": [
+            "Seed: escape-smoke · profile biome-ancient",
+            "Floor 1 · room entrance",
+            "Map 51×51 · rooms 10 · loops 10%",
+            "Room 4–7 · corridor r0 · pad 2",
+            "Decor 45% · enemies 26% · light 78%",
+            "Explored 21 · threat 1 · play",
+            "Health 100 · stones 0/4 · playing",
+            "Magic stones pending"
+          ]
+        },
+        "allDomainSummaries": [
+          {
+            "id": "dungeons",
+            "title": "Dungeon",
+            "summary": "Floor 1 · entrance · seed escape-smoke · biome-ancient"
+          }
+        ]
+      }
+    },
+    "canvas": {
+      "width": 1120,
+      "height": 630,
+      "clientWidth": 1600,
+      "clientHeight": 900
+    },
+    "dataset": {
+      "engine": "three.js r185",
+      "perfSamples": "0",
+      "perfP50": "0.00",
+      "perfP95": "0.00",
+      "perfP99": "0.00",
+      "perfMax": "0.00",
+      "perfOver25": "0",
+      "perfOver33": "0",
+      "perfOver50": "0",
+      "perfLongTasks": "0",
+      "perfLongestTask": "0.00",
+      "renderCalls": "224",
+      "renderTriangles": "183028",
+      "renderPoints": "1204",
+      "renderLines": "3",
+      "renderGeometries": "178",
+      "renderTextures": "69",
+      "renderPrograms": "49",
+      "renderDpr": "0.70",
+      "worldLights": "2",
+      "renderInventory": "{\"totalCalls\":192,\"buckets\":{\"magic-stones\":14,\"enemies\":11,\"unnamed\":9,\"architecture-wall\":8,\"wall-fire\":7,\"markers\":7,\"architecture-floor\":7,\"architecture-ceiling\":7,\"classic:reliquary:0\":6,\"atmosphere-dressing\":6,\"doors-arches\":5,\"classic:bookshelf:1\":4,\"classic:lectern:1\":3,\"classic:crates:1\":3,\"classic:barrels:2\":3,\"classic:lectern:0\":3,\"classic:table:1\":3,\"classic:chair:0\":2,\"resolve pickup runtime material batch 1\":2,\"resolve pickup runtime material batch 2\":2,\"resolve pickup runtime material batch 3\":2,\"resolve pickup runtime material batch 4\":2,\"resolve pickup runtime material batch 5\":2,\"resolve pickup runtime material batch 6\":2,\"spikes hazard tile batch\":1,\"toxin hazard tile batch\":1,\"image-sculpted layered spike plate base batch\":1,\"separate raised forged spike plate frame batch\":1,\"forged spike socket collar batch\":1,\"four forged corner rivet batch\":1,\"image-sculpted forged spike batch\":1,\"low-poly cave debris\":1,\"scattered floor pebbles\":1,\"room wall artwork 1\":1,\"static prop contact shadows\":1,\"ambient godray 1\":1,\"ambient godray 2\":1,\"ember iron cage ring\":1,\"ember crystal core\":1,\"ember crystal shard cluster\":1,\"ember ritual ground light\":1,\"ember rim rune ring\":1,\"ash iron cage ring\":1,\"ash crystal core\":1,\"ash crystal shard cluster\":1,\"ash ritual ground light\":1,\"ash rim rune ring\":1,\"crypt iron cage ring\":1,\"crypt crystal core\":1,\"crypt crystal shard cluster\":1,\"crypt ritual ground light\":1,\"crypt rim rune ring\":1,\"verdant iron cage ring\":1,\"verdant crystal core\":1,\"verdant crystal shard cluster\":1,\"verdant ritual ground light\":1,\"verdant rim rune ring\":1,\"dungeon map marked route\":1,\"phoenix egg pedestal\":1,\"phoenix egg iron ring\":1,\"phoenix egg shell\":1,\"phoenix egg seam\":1,\"phoenix egg core\":1,\"phoenix egg halo\":1,\"cobwebs\":1,\"liquids\":1,\"ancient pulley bracket wall-mounted batch\":1,\"ancient warden key rack wall-mounted batch\":1,\"ancient rope ladder pegs wall-mounted batch\":1,\"ancient hourglass frame wall-mounted batch\":1,\"ancient mason tool rail wall-mounted batch\":1,\"ancient bell pull lever wall-mounted batch\":1,\"ancient courier slot wall-mounted batch\":1,\"ancient ration shelf wall-mounted batch\":1,\"ancient mason measure board wall-mounted batch\":1,\"ancient pulley with empty sling ceiling hanging\":1,\"ancient hoist spreader bar ceiling hanging\":1,\"uncanny wall animation batch\":1,\"runtime chest body batch 1\":1,\"runtime chest body batch 2\":1,\"runtime chest body batch 3\":1,\"runtime chest lid batch 1\":1,\"runtime chest lid batch 2\":1,\"time freeze body motes\":1,\"luminous ward ground aura\":1,\"luminous ward ground radius\":1,\"luminous ward outer ring\":1,\"luminous ward protective shell\":1,\"luminous ward motion trails\":1,\"luminous ward floating motes\":1,\"mobility draught motes\":1,\"annihilation repel radius\":1,\"annihilation pulse inner field\":1,\"soft volumetric ground fog\":1,\"biome particles: ancient orbiting rune motes\":1,\"biome particles: ancient ceiling grit\":1},\"mappedLitCalls\":141,\"mappedWithoutUvCalls\":0,\"mappedWithoutUvBuckets\":{},\"degenerateUvCalls\":0,\"degenerateUvBuckets\":{},\"unreadyMappedCalls\":0,\"unreadyMappedBuckets\":{},\"untexturedLitCalls\":4,\"untexturedLitBuckets\":{\"resolve pickup runtime material batch 1\":2,\"resolve pickup runtime material batch 2\":2}}",
+      "dungeonLoadId": "dungeon-load-msot1jud-1",
+      "dungeonLoadState": "complete",
+      "mapLoadMs": "568",
+      "mapLoadWorldMs": "517",
+      "mapLoadAtmosphereMs": "7",
+      "mapLoadRooms": "10",
+      "mapLoadFloorCells": "455",
+      "mapLoadProps": "248",
+      "mapLoadGeometries": "1",
+      "mapLoadTextures": "2",
+      "mapLoadPrograms": "3",
+      "dungeonLoadTerminal": "complete",
+      "dungeonLoadTrace": "{\"schemaVersion\":1,\"loadId\":\"dungeon-load-msot1jud-1\",\"terminal\":\"complete\",\"terminalDetail\":null,\"totalMs\":9096.09999999404,\"generation\":{\"startedAtMs\":268.20000000298023,\"endedAtMs\":281.59999999403954,\"durationMs\":13.399999991059303},\"plan\":{\"startedAtMs\":285.29999999701977,\"endedAtMs\":293.70000000298023,\"durationMs\":8.400000005960464},\"sceneCommit\":{\"startedAtMs\":293.79999999701977,\"endedAtMs\":773.5999999940395,\"durationMs\":479.79999999701977},\"actors\":{\"startedAtMs\":773.7000000029802,\"endedAtMs\":796.7999999970198,\"durationMs\":23.099999994039536},\"colliderIndex\":null,\"texturePolicy\":{\"startedAtMs\":801,\"endedAtMs\":801.4000000059605,\"durationMs\":0.4000000059604645},\"atmosphere\":{\"startedAtMs\":801.7000000029802,\"endedAtMs\":808.5,\"durationMs\":6.799999997019768},\"editorProjection\":null,\"warmup\":{\"startedAtMs\":852.2999999970198,\"endedAtMs\":8770.5,\"durationMs\":7918.20000000298},\"firstUsableFrame\":{\"atMs\":8770.09999999404},\"inputReady\":{\"atMs\":9095.90000000596}}"
+    },
+    "url": "http://127.0.0.1:4174/?mode=play&seed=escape-smoke&skipRunIntro=1&perfAudit=1"
+  }
+}

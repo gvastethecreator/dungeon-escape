@@ -90,12 +90,7 @@ function candidateSeats(
   // and the widened corridor. Otherwise a radius-1 square creates three
   // openings along the room wall even though its center is outside the room.
   const anchorDistance = radius + 2;
-  const add = (
-    x: number,
-    y: number,
-    outDx: -1 | 0 | 1,
-    outDy: -1 | 0 | 1,
-  ): void => {
+  const add = (x: number, y: number, outDx: -1 | 0 | 1, outDy: -1 | 0 | 1): void => {
     if (reserved.has(`${room.id}:${x},${y}`)) return;
     const outside = { x: x + outDx, y: y + outDy };
     const routeAnchor = {
@@ -119,8 +114,7 @@ function candidateSeats(
     const alignment = outDx * deltaX + outDy * deltaY;
     const distance =
       Math.abs(routeAnchor.x - target.center.x) + Math.abs(routeAnchor.y - target.center.y);
-    const centerOffset =
-      outDx === 0 ? Math.abs(x - room.center.x) : Math.abs(y - room.center.y);
+    const centerOffset = outDx === 0 ? Math.abs(x - room.center.x) : Math.abs(y - room.center.y);
     candidates.push({
       cell: { x, y },
       outside,
@@ -149,11 +143,7 @@ function candidateSeats(
   return candidates.sort((left, right) => left.score - right.score || left.tie - right.tie);
 }
 
-function createRouteMask(
-  width: number,
-  height: number,
-  roomIds: Int16Array,
-): Uint8Array {
+function createRouteMask(width: number, height: number, roomIds: Int16Array): Uint8Array {
   const mask = new Uint8Array(width * height);
   for (let y = 0; y < height; y += 1) {
     for (let x = 0; x < width; x += 1) {
@@ -165,11 +155,7 @@ function createRouteMask(
   return mask;
 }
 
-function labelRouteComponents(
-  width: number,
-  height: number,
-  routeMask: Uint8Array,
-): Int32Array {
+function labelRouteComponents(width: number, height: number, routeMask: Uint8Array): Int32Array {
   const labels = new Int32Array(width * height).fill(-1);
   const queue = new Int32Array(width * height);
   let component = 0;
@@ -241,8 +227,7 @@ function findRoute(
   // once instead of allocating and sorting four objects for every visited cell.
   const directions = [...CARDINALS].sort((left, right) => {
     const leftDistance = Math.abs(from.x + left.x - to.x) + Math.abs(from.y + left.y - to.y);
-    const rightDistance =
-      Math.abs(from.x + right.x - to.x) + Math.abs(from.y + right.y - to.y);
+    const rightDistance = Math.abs(from.x + right.x - to.x) + Math.abs(from.y + right.y - to.y);
     const leftAxis = left.x === 0 ? axisBias : 1 - axisBias;
     const rightAxis = right.x === 0 ? axisBias : 1 - axisBias;
     return (
@@ -430,9 +415,7 @@ export function carveDungeonTopology(
       reserved,
     );
 
-    let selected:
-      | { left: DoorwayCandidate; right: DoorwayCandidate; path: GridCell[] }
-      | undefined;
+    let selected: { left: DoorwayCandidate; right: DoorwayCandidate; path: GridCell[] } | undefined;
     for (const left of leftCandidates) {
       const leftComponent = routeComponents[indexOf(width, left.routeAnchor.x, left.routeAnchor.y)];
       if (leftComponent === undefined || leftComponent < 0) continue;

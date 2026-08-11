@@ -101,11 +101,39 @@ describe("Play HUD structure (Ash Binding)", () => {
 
   test("death offers the same layout and a new dungeon as separate actions", async () => {
     const host = await Bun.file(new URL("../index.html", import.meta.url)).text();
+    const css = await Bun.file(new URL("../src/styles.css", import.meta.url)).text();
+    const source = await Bun.file(new URL("../src/main.ts", import.meta.url)).text();
     expect(host).toContain('id="retry"');
     expect(host).toContain('id="new-dungeon"');
     expect(host).toContain('id="end-next-biome"');
     expect(host).toContain('role="dialog"');
     expect(host).toContain('aria-modal="true"');
+    expect(source).toMatch(/audio\.play\("lose"\);[\s\S]*hideEndNextBiome\(\)/);
+    expect(css).toMatch(/\.end-overlay\[data-end="dead"\]\s*\{[\s\S]*background:\s*#000;/);
+    expect(css).toMatch(/\.end-overlay\[data-end="dead"\]\s+\.end-card h1/);
+    expect(css).toContain("color: #e63838");
+    expect(css).toContain("font-size: clamp(76px, 16vw, 196px)");
+  });
+
+  test("uses local Mek typefaces for project chrome and titles", async () => {
+    const [html, css, editor, mekSans, mekzantine] = await Promise.all([
+      Bun.file(new URL("../index.html", import.meta.url)).text(),
+      Bun.file(new URL("../src/styles.css", import.meta.url)).text(),
+      Bun.file(new URL("../src/editor/DungeonEditorView.ts", import.meta.url)).text(),
+      Bun.file(new URL("../public/assets/fonts/mek-sans-regular.woff2", import.meta.url)),
+      Bun.file(new URL("../public/assets/fonts/mekzantine-regular.woff2", import.meta.url)),
+    ]);
+    expect(html).not.toContain("fonts.googleapis.com");
+    expect(css).toContain('font-family: "Mek Sans"');
+    expect(css).toContain('font-family: "Mekzantine"');
+    expect(css).toContain("/assets/fonts/mek-sans-regular.woff2");
+    expect(css).toContain("/assets/fonts/mekzantine-regular.woff2");
+    expect(editor).not.toContain("Pixelify Sans");
+    expect(editor).toContain('"Mek Sans"');
+    expect(await mekSans.exists()).toBe(true);
+    expect(await mekzantine.exists()).toBe(true);
+    expect(mekSans.size).toBeGreaterThan(10_000);
+    expect(mekzantine.size).toBeGreaterThan(10_000);
   });
 
   test("victory has generated art and real run result fields", async () => {
@@ -132,7 +160,9 @@ describe("Play HUD structure (Ash Binding)", () => {
       /\.end-overlay\[data-end="won"\]\s*\{[\s\S]*grid-template-columns:\s*minmax\(0,\s*1fr\)/,
     );
     expect(css).toMatch(/\.end-overlay\[data-end="won"\]\s+\.end-stage\s*\{[\s\S]*display:\s*flex/);
-    expect(css).not.toMatch(/\.end-overlay\[data-end="won"\]\s+\.end-art\s*\{[\s\S]*object-fit:\s*cover/);
+    expect(css).not.toMatch(
+      /\.end-overlay\[data-end="won"\]\s+\.end-art\s*\{[\s\S]*object-fit:\s*cover/,
+    );
   });
 
   test("styles define layered health orb, socket fill, objective fade, faint reticle", async () => {
@@ -185,9 +215,7 @@ describe("Play HUD structure (Ash Binding)", () => {
 
   test("won end-card never enables a content scrollbar", async () => {
     const css = await Bun.file(new URL("../src/styles.css", import.meta.url)).text();
-    const wonCard = css.match(
-      /\.end-overlay\[data-end="won"\]\s+\.end-card\s*\{[^}]+\}/g,
-    );
+    const wonCard = css.match(/\.end-overlay\[data-end="won"\]\s+\.end-card\s*\{[^}]+\}/g);
     expect(wonCard?.length).toBeGreaterThan(0);
     for (const block of wonCard ?? []) {
       expect(block).not.toMatch(/overflow\s*:\s*auto/);

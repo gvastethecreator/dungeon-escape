@@ -10,12 +10,6 @@
     />
     <meta name="description" content="First-person procedural grimdark dungeon exploration." />
     <title>Dungeon Escape</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Jacquard+12&family=Jacquard+24&family=Pixelify+Sans:wght@400;500;600;700&display=swap"
-      rel="stylesheet"
-    />
   </head>
   <body class="is-booting">
     <div
@@ -40,12 +34,7 @@
       <div class="view-falloff" aria-hidden="true"></div>
       <div id="scene-fade" class="scene-fade" hidden aria-hidden="true">
         <div id="scene-loader" class="scene-loader" hidden aria-hidden="true">
-          <div
-            id="scene-loader-enemy"
-            class="scene-loader__enemy"
-            hidden
-            aria-hidden="true"
-          >
+          <div id="scene-loader-enemy" class="scene-loader__enemy" hidden aria-hidden="true">
             <div id="scene-loader-enemy-sprite" class="scene-loader__enemy-sprite"></div>
           </div>
           <div class="scene-loader__track" aria-hidden="true">
@@ -69,8 +58,8 @@
           src="/assets/ui/biome-screens/ancient-main.webp"
           data-biome-id="ancient"
           alt=""
-          width="1672"
-          height="941"
+          width="836"
+          height="470"
           decoding="async"
           fetchpriority="high"
         />
@@ -105,12 +94,7 @@
                   </span>
                   <span class="welcome-player__edit">EDIT PROFILE</span>
                 </button>
-                <section
-                  id="welcome-save"
-                  class="welcome-save"
-                  aria-label="Saved descent"
-                  hidden
-                >
+                <section id="welcome-save" class="welcome-save" aria-label="Saved descent" hidden>
                   <div class="welcome-save__heading">
                     <span class="welcome-save__status">LOCAL SAVE</span>
                   </div>
@@ -158,78 +142,82 @@
                   Checking saved run…
                 </p>
               </div>
-            <div
-              id="welcome-profile"
-              class="welcome-profile"
-              hidden
-              aria-labelledby="welcome-profile-title"
-            >
-              <header class="welcome-profile__header">
-                <button id="welcome-profile-back" type="button" class="welcome-biome-picker__back">
-                  BACK
-                </button>
-                <div>
-                  <small>PLAYER PROFILE</small>
-                  <h2 id="welcome-profile-title">Choose your name</h2>
-                </div>
-              </header>
-              <form id="welcome-profile-form" class="welcome-profile__form" novalidate>
-                <button
-                  id="welcome-profile-avatar"
-                  type="button"
-                  class="welcome-profile__avatar"
-                  aria-label="Change avatar"
-                  title="Change avatar"
-                >
-                  <img
-                    id="welcome-profile-avatar-image"
-                    src="/assets/ui/portraits/candlebat.webp"
-                    alt=""
-                    width="96"
-                    height="96"
-                  />
-                  <span>CHANGE AVATAR</span>
-                </button>
-                <label class="welcome-profile__name">
-                  <span>NAME</span>
-                  <input
-                    id="welcome-profile-name"
-                    name="player-name"
-                    type="text"
-                    autocomplete="nickname"
-                    minlength="1"
-                    maxlength="20"
-                    placeholder="Wanderer"
-                    required
-                  />
-                </label>
-                <p id="welcome-profile-status" class="welcome-profile__status" role="status"></p>
-                <button
-                  id="welcome-profile-submit"
-                  type="submit"
-                  class="welcome-menu__item welcome-menu__item--primary"
-                >
-                  START NEW GAME
-                </button>
-              </form>
-            </div>
-            <div
-              id="welcome-biome-picker"
-              class="welcome-biome-picker"
-              hidden
-              aria-labelledby="biome-picker-title"
-            >
-              <header class="welcome-biome-picker__header">
-                <button id="biome-picker-back" type="button" class="welcome-biome-picker__back">
-                  BACK
-                </button>
-                <h2 id="biome-picker-title">Choose biome</h2>
-                <p class="welcome-biome-picker__hint">
-                  Clear a biome to earn a star when you save your score.
-                </p>
-              </header>
-              <div id="biome-picker-grid" class="biome-picker-grid" role="list"></div>
-            </div>
+              <div
+                id="welcome-profile"
+                class="welcome-profile"
+                hidden
+                aria-labelledby="welcome-profile-title"
+              >
+                <header class="welcome-profile__header">
+                  <button
+                    id="welcome-profile-back"
+                    type="button"
+                    class="welcome-biome-picker__back"
+                  >
+                    BACK
+                  </button>
+                  <div>
+                    <small>PLAYER PROFILE</small>
+                    <h2 id="welcome-profile-title">Choose your name</h2>
+                  </div>
+                </header>
+                <form id="welcome-profile-form" class="welcome-profile__form" novalidate>
+                  <button
+                    id="welcome-profile-avatar"
+                    type="button"
+                    class="welcome-profile__avatar"
+                    aria-label="Change avatar"
+                    title="Change avatar"
+                  >
+                    <img
+                      id="welcome-profile-avatar-image"
+                      src="/assets/ui/portraits/candlebat.webp"
+                      alt=""
+                      width="96"
+                      height="96"
+                    />
+                    <span>CHANGE AVATAR</span>
+                  </button>
+                  <label class="welcome-profile__name">
+                    <span>NAME</span>
+                    <input
+                      id="welcome-profile-name"
+                      name="player-name"
+                      type="text"
+                      autocomplete="nickname"
+                      minlength="1"
+                      maxlength="20"
+                      placeholder="Wanderer"
+                      required
+                    />
+                  </label>
+                  <p id="welcome-profile-status" class="welcome-profile__status" role="status"></p>
+                  <button
+                    id="welcome-profile-submit"
+                    type="submit"
+                    class="welcome-menu__item welcome-menu__item--primary"
+                  >
+                    START NEW GAME
+                  </button>
+                </form>
+              </div>
+              <div
+                id="welcome-biome-picker"
+                class="welcome-biome-picker"
+                hidden
+                aria-labelledby="biome-picker-title"
+              >
+                <header class="welcome-biome-picker__header">
+                  <button id="biome-picker-back" type="button" class="welcome-biome-picker__back">
+                    BACK
+                  </button>
+                  <h2 id="biome-picker-title">Choose biome</h2>
+                  <p class="welcome-biome-picker__hint">
+                    Clear a biome to earn a star when you save your score.
+                  </p>
+                </header>
+                <div id="biome-picker-grid" class="biome-picker-grid" role="list"></div>
+              </div>
               <button
                 id="welcome-music-toggle"
                 type="button"
@@ -385,10 +373,7 @@
             />
             <span class="status-chip__copy">
               <span class="status-chip__label annihilation-pulse-status__label">PULSE ACTIVE</span>
-              <time
-                id="annihilation-pulse-value"
-                class="status-chip__value"
-                datetime="PT0S"
+              <time id="annihilation-pulse-value" class="status-chip__value" datetime="PT0S"
                 >26.0s</time
               >
             </span>
@@ -1231,8 +1216,8 @@
             src="/assets/ui/biome-screens/ancient-ending.webp"
             data-biome-id="ancient"
             alt=""
-            width="1672"
-            height="941"
+            width="836"
+            height="470"
             decoding="async"
             loading="lazy"
           />

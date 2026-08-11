@@ -1,8 +1,17 @@
 # Enemy atlases v8
 
-The source pack uses one RGBA atlas for each biome with 11 rows and four 320 px
-frames per row. Runtime publishes a half-size lossless WebP with 160 px cells.
-`manifest.json` fixes the row order and both layouts.
+Every runtime package uses two interleaved rows per enemy: four movement frames
+followed by four attack frames. Each of the 11 biome atlases is a lossless WebP
+at its authored 640 × 3520 size with 160 px cells. `manifest.json` records the
+published hashes and links each biome to its durable animation package.
+
+Build the ten non-Ancient atlases from reviewed candidates with:
+
+```powershell
+foreach ($biome in 'molten','frost','grim','verdant','ash','iron','obsidian','sunken','fungal','backrooms') {
+  python scripts/build-biome-enemy-animation-atlas.py --biome $biome
+}
+```
 
 ## Sources
 
@@ -36,6 +45,6 @@ The audit only needs Python and Pillow.
 bun run audit:enemy-atlases
 ```
 
-It checks all 121 rows and 484 frames, verifies dimensions and cell edges,
+It checks all 242 animation rows and 968 frames, verifies dimensions and cell edges,
 records hashes, and writes dark, light, and alpha review sheets under
 `.scratch/enemies-v8/qa/published/`.

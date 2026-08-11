@@ -1,0 +1,104 @@
+{
+  "current_commit": "989ccf79c8ed75ef3093862f9c8eeaae8532ecee",
+  "working_tree_dirty": true,
+  "generated_at": "2026-08-11T17:04:22Z",
+  "scanned_scope": [
+    "."
+  ],
+  "excluded_directories": [
+    ".cache",
+    ".git",
+    ".hg",
+    ".next",
+    ".nuxt",
+    ".svn",
+    ".turbo",
+    ".venv",
+    "__pycache__",
+    "build",
+    "coverage",
+    "dist",
+    "docs/codemap",
+    "generated",
+    "node_modules",
+    "out",
+    "target",
+    "vendor",
+    "venv"
+  ],
+  "fingerprint_algorithm": "sha256-path-content-v1",
+  "modules": [
+    {
+      "id": ".",
+      "path": ".",
+      "file_count": 17,
+      "fingerprint": "c889dc7d068e421383a4aa85de9c9c69c9834a06e60808b01a4da294526ab837"
+    },
+    {
+      "id": ".github",
+      "path": ".github",
+      "file_count": 1,
+      "fingerprint": "bdee7e8ddbca67d3866d04e0596df05ee6aa47e736be82b7f6e9ee3f1796caa9"
+    },
+    {
+      "id": ".vscode",
+      "path": ".vscode",
+      "file_count": 2,
+      "fingerprint": "a0e58bd1940c1890253701796fc31f1f62ac5fea986c299809075df75db1fdbb"
+    },
+    {
+      "id": "assets-source",
+      "path": "assets-source",
+      "file_count": 1621,
+      "fingerprint": "fbc573182c92392445fc4f41e593bc8db064e4faa07119840353df65cb87183e"
+    },
+    {
+      "id": "docs",
+      "path": "docs",
+      "file_count": 41,
+      "fingerprint": "c111ee29bdac0958ff34d3cc8e4be6bfb36dd46dfa04f1e9dc39ebe1afa9fa2b"
+    },
+    {
+      "id": "migrations",
+      "path": "migrations",
+      "file_count": 4,
+      "fingerprint": "2eda6120916647d468ce099ec3063f804e3e5ff1e249a748592cd03f0cea752c"
+    },
+    {
+      "id": "public",
+      "path": "public",
+      "file_count": 718,
+      "fingerprint": "9eac6b1a09e86049a559618ce23a809a22e82c345838772f4cf08b0a65c8ca00"
+    },
+    {
+      "id": "scripts",
+      "path": "scripts",
+      "file_count": 55,
+      "fingerprint": "64b63f7ffee56cea61de80f6ed77744ccdfc838bf2fd5737507b216be289b540"
+    },
+    {
+      "id": "server",
+      "path": "server",
+      "file_count": 2,
+      "fingerprint": "58522ccaa46bfa4e8cb6b1cc850551e72544af1d475c50b1d06ea6aed7ea61d1"
+    },
+    {
+      "id": "src",
+      "path": "src",
+      "file_count": 227,
+      "fingerprint": "7ae32904324103968d746123a2a3c4d3d968668fb653ab083fb706e902bcc04e"
+    },
+    {
+      "id": "tests",
+      "path": "tests",
+      "file_count": 204,
+      "fingerprint": "ab51452b9e856d5dc1276ab0cfd1c08424b879d7c0c05b1418ea81d095dc7ff8"
+    },
+    {
+      "id": "worker",
+      "path": "worker",
+      "file_count": 3,
+      "fingerprint": "87b3481b79e890ba085cf69c9f318425abb2285a340467ef290273aeaba22e77"
+    }
+  ]
+}

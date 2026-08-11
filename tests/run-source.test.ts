@@ -1,10 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
-import {
-  isLeaderboardEligible,
-  isRunSource,
-  runSourceForDungeon,
-} from "../src/game/RunSource";
+import { isLeaderboardEligible, isRunSource, runSourceForDungeon } from "../src/game/RunSource";
 import { runSourceFromLocalSave, type LocalRunSave } from "../src/game/LocalRunSave";
 import { parseLeaderboardSubmission } from "../src/leaderboard/contract";
 

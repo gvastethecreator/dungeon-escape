@@ -9,21 +9,37 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 
-const CHROME = process.env.CHROME_PATH ?? "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe";
+const CHROME =
+  process.env.CHROME_PATH ?? "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe";
 const PORT = 9300 + (process.pid % 500);
 const BASE = process.env.SMOKE_BASE_URL ?? "http://127.0.0.1:24211";
 const BIOME = (process.env.BIOME ?? "obsidian").trim().toLowerCase();
 const SEED = process.env.SEED ?? `MF-SMOKE-${BIOME.toUpperCase()}-A1`;
-const outDir = path.resolve(".scratch/proof/multi-floor-browser-smoke");
+const CRT = (process.env.SMOKE_CRT ?? "").trim();
+const CDP_TIMEOUT_MS = Number(process.env.CDP_COMMAND_TIMEOUT_MS ?? 80_000);
+const PERF_THRESHOLDS = Object.freeze({
+  minimumSamples: Number(process.env.SMOKE_PERF_MIN_SAMPLES ?? 120),
+  p95Ms: Number(process.env.SMOKE_PERF_P95_MS ?? 25),
+  p99Ms: Number(process.env.SMOKE_PERF_P99_MS ?? 34),
+  maxMs: Number(process.env.SMOKE_PERF_MAX_MS ?? 75),
+  longestTaskMs: Number(process.env.SMOKE_PERF_LONG_TASK_MS ?? 75),
+});
+const PERF_SAMPLE_SECONDS = Number(process.env.SMOKE_PERF_SECONDS ?? 8);
+const RUN_LIFECYCLE = process.env.SMOKE_LIFECYCLE === "1";
+const outDir = path.resolve(
+  process.env.SMOKE_OUTPUT_DIR ?? `.scratch/proof/multi-floor-browser-smoke/${BIOME}`,
+);
 await mkdir(outDir, { recursive: true });
 
 const PROFILE = `${process.env.TEMP ?? "."}\\dungeon-escape-mf-smoke-${process.pid}`;
 const findings = [];
 const browserErrors = [];
 const networkErrors = [];
+const networkResponses = [];
 const report = {
   biome: BIOME,
   seed: SEED,
+  crt: CRT || null,
   base: BASE,
   startedAt: new Date().toISOString(),
   steps: [],
@@ -45,7 +61,13 @@ const pending = new Map();
 function send(ws, method, params = {}) {
   const id = ++messageId;
   ws.send(JSON.stringify({ id, method, params }));
-  return new Promise((resolve, reject) => pending.set(id, { resolve, reject }));
+  return new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      pending.delete(id);
+      reject(new Error(`CDP ${method} timed out after ${CDP_TIMEOUT_MS}ms`));
+    }, CDP_TIMEOUT_MS);
+    pending.set(id, { resolve, reject, timeout });
+  });
 }
 
 async function waitForDebugger() {
@@ -72,10 +94,7 @@ async function evaluate(ws, expression) {
   if (result?.exceptionDetails) {
     const d = result.exceptionDetails;
     const desc =
-      d.exception?.description ||
-      d.text ||
-      d.exception?.value ||
-      JSON.stringify(d).slice(0, 500);
+      d.exception?.description || d.text || d.exception?.value || JSON.stringify(d).slice(0, 500);
     throw new Error(`EVAL: ${desc}`);
   }
   return result?.result?.value;
@@ -182,6 +201,47 @@ const INSPECT = `(() => {
     });
     const runStats = document.getElementById('run-stats')?.textContent ?? '';
     const prompt = document.getElementById('interaction-prompt');
+    const shell = document.querySelector('.app-shell');
+    const canvas = document.getElementById('scene');
+    const materialProfiles = new Map();
+    let visibleRenderables = 0;
+    let hiddenRenderables = 0;
+    scene.traverse((object) => {
+      if (!(object?.isMesh || object?.isLine || object?.isPoints || object?.isSprite)) return;
+      if (object.visible && object.layers?.test?.(diag.getCamera().layers)) visibleRenderables += 1;
+      else hiddenRenderables += 1;
+      const materials = Array.isArray(object.material) ? object.material : [object.material];
+      for (const material of materials) {
+        if (!material) continue;
+        const maps = ['map', 'normalMap', 'roughnessMap', 'metalnessMap', 'emissiveMap', 'alphaMap']
+          .filter((key) => Boolean(material[key]))
+          .join('+') || 'none';
+        const profile = [
+          object.isInstancedMesh ? 'instanced' : object.isSkinnedMesh ? 'skinned' : object.type,
+          material.type,
+          maps,
+          material.transparent ? 'transparent' : 'opaque',
+          Number(material.alphaTest || 0) > 0 ? 'alpha-test' : 'no-alpha-test',
+          material.vertexColors ? 'vertex-colors' : 'flat-colors',
+          'side=' + String(material.side),
+        ].join('|');
+        materialProfiles.set(profile, (materialProfiles.get(profile) || 0) + 1);
+      }
+    });
+    let gpu = null;
+    try {
+      const gl = canvas?.getContext('webgl2') || canvas?.getContext('webgl');
+      const debug = gl?.getExtension('WEBGL_debug_renderer_info');
+      gpu = gl ? {
+        vendor: debug ? gl.getParameter(debug.UNMASKED_VENDOR_WEBGL) : gl.getParameter(gl.VENDOR),
+        renderer: debug ? gl.getParameter(debug.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER),
+        version: gl.getParameter(gl.VERSION),
+      } : null;
+    } catch (_) {}
+    let dungeonLoadTrace = null;
+    try {
+      dungeonLoadTrace = JSON.parse(canvas?.dataset.dungeonLoadTrace ?? 'null');
+    } catch (_) {}
     const m = /floor\\s+(\\d+)\\s*\\/\\s*(\\d+)/i.exec(runStats);
     return {
       ok: true,
@@ -197,6 +257,23 @@ const INSPECT = `(() => {
       floorCount: m ? Number(m[2]) : null,
       promptHidden: prompt?.hidden ?? null,
       promptText: (prompt?.innerText || '').trim(),
+      rendererReady: shell?.dataset.rendererReady ?? null,
+      mapLoad: canvas ? {
+        totalMs: Number(canvas.dataset.mapLoadMs || 0),
+        worldMs: Number(canvas.dataset.mapLoadWorldMs || 0),
+        atmosphereMs: Number(canvas.dataset.mapLoadAtmosphereMs || 0),
+      } : null,
+      dungeonLoadTrace,
+      renderer: typeof diag.getRenderer === 'function' ? diag.getRenderer() : null,
+      gpu,
+      sceneProfile: {
+        visibleRenderables,
+        hiddenRenderables,
+        materialProfiles: [...materialProfiles.entries()]
+          .map(([profile, count]) => ({ profile, count }))
+          .sort((a, b) => b.count - a.count)
+          .slice(0, 30),
+      },
       stairs: unique,
     };
   } catch (err) {
@@ -227,6 +304,7 @@ try {
     if (msg.id && pending.has(msg.id)) {
       const entry = pending.get(msg.id);
       pending.delete(msg.id);
+      clearTimeout(entry.timeout);
       if (msg.error) entry.reject(new Error(JSON.stringify(msg.error)));
       else entry.resolve(msg.result);
       return;
@@ -239,6 +317,7 @@ try {
     }
     if (msg.method === "Network.responseReceived") {
       const response = msg.params?.response;
+      if (response?.url) networkResponses.push(response.url);
       if (response?.status >= 400) networkErrors.push(`${response.status} ${response.url}`);
     }
   };
@@ -266,7 +345,7 @@ try {
           name: 'unlock',
           avatarIndex: 0,
           hasCompletedRun: true,
-          highestUnlockedRank: 20,
+          highestUnlockedRank: 10,
           clears: { ancient: 1 },
           updatedAt: Date.now(),
         }));
@@ -274,7 +353,8 @@ try {
     })()`,
   });
 
-  const url = `${BASE}/?mode=play&seed=${encodeURIComponent(SEED)}&mood=${encodeURIComponent(BIOME)}&skipRunIntro=1&perfAudit=1&_smoke=${Date.now()}`;
+  const crtQuery = CRT === "0" || CRT === "1" ? `&crt=${CRT}` : "";
+  const url = `${BASE}/?mode=play&seed=${encodeURIComponent(SEED)}&mood=${encodeURIComponent(BIOME)}&skipRunIntro=1&perfAudit=1${crtQuery}&_smoke=${Date.now()}`;
   console.log(`[smoke] navigate ${url}`);
   await send(ws, "Page.navigate", { url });
   await sleep(1500);
@@ -370,6 +450,16 @@ try {
   await sleep(2500);
 
   await waitForGameReady(ws);
+
+  const editorRuntimeLoads = [...new Set(networkResponses)].filter((url) =>
+    /(?:\/DungeonEditorView\.ts|EditorLightingProfiles)/i.test(url),
+  );
+  report.editorBoundary = { editorRuntimeLoads };
+  if (editorRuntimeLoads.length === 0) {
+    record("pass", "Play loaded no editor renderer chunks");
+  } else {
+    record("fail", `Play loaded editor chunks: ${editorRuntimeLoads.join(", ")}`);
+  }
   record("pass", "Play renderer ready");
 
   // Enable simulation (touch-style enable path used by cdp-photo)
@@ -454,73 +544,108 @@ try {
       if (!pick) return { ok: false, reason: 'no-stair-root', candidates: candidates.length };
       const target = pick.o;
       const origin = { x: pick.x, y: pick.y, z: pick.z };
-      const yaw = target.rotation.y;
       const stepCount = Number(target.userData.stepCount) || 20;
       const stepRise = Number(target.userData.stepRise) || 0.22;
-      const stepRun = Number(target.userData.stepRun) || 0.36;
-      const eye = 1.62;
-      const beforePose = ctrl.getState().position;
-      const before = { x: beforePose.x, y: beforePose.y, z: beforePose.z };
+      const eye = Number(ctrl.eyeHeight) || 1.62;
+      const standingEye = eye - 0.08;
+      const before = { x: origin.x, y: origin.y + standingEye, z: origin.z };
       const beforeStats = document.getElementById('run-stats')?.textContent ?? '';
+      const stepRun = Number(target.userData.stepRun) || 0.36;
+      const firstTread = new ctrl.position.constructor().set(0, stepRise, stepRun * 0.5);
+      const lastTread = new ctrl.position.constructor().set(
+        0,
+        stepCount * stepRise,
+        (stepCount - 0.5) * stepRun,
+      );
+      target.localToWorld(firstTread);
+      target.localToWorld(lastTread);
+      const directionX = lastTread.x - firstTread.x;
+      const directionZ = lastTread.z - firstTread.z;
+      const directionLength = Math.hypot(directionX, directionZ);
+      if (directionLength < 0.1) return { ok: false, reason: 'degenerate-stair-direction' };
+      const climbX = directionX / directionLength;
+      const climbZ = directionZ / directionLength;
       ctrl.setEnabled(false);
-      let restoreOk = 0;
-      let restoreFail = 0;
-      let forced = 0;
-      const savedColliders = ctrl.solidColliders;
-      // Temporarily clear prop colliders so stair seats are always restorable for smoke.
-      if (Array.isArray(ctrl.solidColliders)) ctrl.solidColliders = [];
-      if (ctrl.solidColliderIndex) ctrl.solidColliderIndex = null;
-      for (let i = 0; i <= stepCount; i += 1) {
-        const localZ = i * stepRun;
-        const sin = Math.sin(yaw);
-        const cos = Math.cos(yaw);
-        const wx = origin.x + (-localZ * sin);
-        const wz = origin.z + (localZ * cos);
-        const supportY = origin.y + i * stepRise;
-        const eyeY = supportY + eye;
-        let ok = ctrl.restorePose({
-          x: wx,
-          y: eyeY,
-          z: wz,
-          yaw,
-          pitch: -0.12,
-          distanceTravelled: i,
-        });
-        if (!ok) {
-          restoreFail += 1;
-          // Force seat for multi-slab QA when occupancy still rejects the tread.
-          ctrl.position?.set?.(wx, eyeY, wz);
-          if (ctrl.verticalState) {
-            ctrl.verticalState.y = eyeY;
-            ctrl.verticalState.grounded = true;
-            ctrl.verticalState.velocity = 0;
-          }
-          if (typeof ctrl.lookYaw === 'number') {
-            ctrl.lookYaw = yaw;
-            ctrl.targetYaw = yaw;
-          }
-          forced += 1;
-          ok = true;
-        } else restoreOk += 1;
-        await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+      // Start on the full lower landing cell, clear of the first tread AABB.
+      const restoreOk = ctrl.restorePose({
+        x: origin.x - climbX * 0.8,
+        y: origin.y + standingEye,
+        z: origin.z - climbZ * 0.8,
+        yaw: Math.atan2(-climbX, -climbZ),
+        pitch: -0.08,
+        distanceTravelled: 0,
+      });
+      if (!restoreOk) {
+        ctrl.setEnabled(true);
+        const attempted = { x: origin.x - climbX * 0.8, z: origin.z - climbZ * 0.8 };
+        const dungeon = ctrl.dungeon;
+        const tileSize = Number(ctrl.tileSize) || 2.4;
+        const cell = dungeon ? {
+          x: Math.floor(attempted.x / tileSize + dungeon.width / 2),
+          y: Math.floor(attempted.z / tileSize + dungeon.height / 2),
+        } : null;
+        const nearby = (ctrl.solidColliders || []).filter((collider) => {
+          const nearestX = Math.max(collider.minX, Math.min(attempted.x, collider.maxX));
+          const nearestZ = Math.max(collider.minZ, Math.min(attempted.z, collider.maxZ));
+          return Math.hypot(attempted.x - nearestX, attempted.z - nearestZ) <= (Number(ctrl.radius) || 0.32);
+        }).map((collider) => ({ ...collider })).slice(0, 12);
+        return {
+          ok: false,
+          reason: 'real-collision-approach-rejected',
+          origin,
+          attempted,
+          cell,
+          gridValue: cell && dungeon ? dungeon.grid[cell.y]?.[cell.x] ?? null : null,
+          blockedCell: cell ? ctrl.blockedCells?.has(cell.x + ',' + cell.y) ?? null : null,
+          standingEye,
+          climbX,
+          climbZ,
+          nearby,
+        };
       }
-      if (Array.isArray(savedColliders)) ctrl.solidColliders = savedColliders;
       ctrl.setEnabled(true);
-      for (let f = 0; f < 30; f += 1) {
-        await new Promise((r) => requestAnimationFrame(r));
+      ctrl.setVirtualAction('forward', true);
+      let peakY = ctrl.getState().position.y;
+      let frameCount = 0;
+      let maxFrameGapMs = 0;
+      let previousFrameAt = performance.now();
+      const deadline = performance.now() + 10_000;
+      while (performance.now() < deadline && peakY < origin.y + stepCount * stepRise + standingEye - 0.12) {
+        const frameAt = await new Promise((r) => requestAnimationFrame(r));
+        maxFrameGapMs = Math.max(maxFrameGapMs, frameAt - previousFrameAt);
+        previousFrameAt = frameAt;
+        frameCount += 1;
+        peakY = Math.max(peakY, ctrl.getState().position.y);
       }
+      ctrl.setVirtualAction('forward', false);
+      for (let f = 0; f < 20; f += 1) await new Promise((r) => requestAnimationFrame(r));
       const after = ctrl.getState();
       const afterStats = document.getElementById('run-stats')?.textContent ?? '';
+      window.__MF_STAIR_TOP__ = {
+        x: after.position.x,
+        y: after.position.y,
+        z: after.position.z,
+        descendYaw: Math.atan2(climbX, climbZ),
+      };
       const bm = /floor\\s+(\\d+)\\s*\\/\\s*(\\d+)/i.exec(beforeStats);
       const am = /floor\\s+(\\d+)\\s*\\/\\s*(\\d+)/i.exec(afterStats);
+      const nearbyColliders = (ctrl.solidColliders || []).map((collider, index) => ({ collider, index }))
+        .filter(({ collider }) => {
+          const nearestX = Math.max(collider.minX, Math.min(after.position.x, collider.maxX));
+          const nearestZ = Math.max(collider.minZ, Math.min(after.position.z, collider.maxZ));
+          return Math.hypot(after.position.x - nearestX, after.position.z - nearestZ) <= 1.2;
+        })
+        .map(({ collider, index }) => ({ index, ...collider }))
+        .sort((a, b) => Math.abs((a.maxY ?? 0) - (after.position.y - standingEye)) - Math.abs((b.maxY ?? 0) - (after.position.y - standingEye)))
+        .slice(0, 24);
       return {
         ok: true,
         stairName: pick.name,
         stepCount,
+        stepRise,
         origin,
         restoreOk,
-        restoreFail,
-        forced,
+        peakY,
         before: { x: before.x, y: before.y, z: before.z, floor: bm ? Number(bm[1]) : null },
         after: {
           x: after.position.x,
@@ -532,9 +657,18 @@ try {
         },
         beforeStats,
         afterStats,
-        dy: after.position.y - before.y,
+        dy: peakY - before.y,
         distFromOrigin: Math.hypot(after.position.x - origin.x, after.position.z - origin.z),
         candidateCount: candidates.length,
+        frameCount,
+        maxFrameGapMs,
+        activeDungeon: ctrl.dungeon ? {
+          seed: ctrl.dungeon.seed,
+          floor: ctrl.dungeon.floor?.index ?? null,
+          width: ctrl.dungeon.width,
+          height: ctrl.dungeon.height,
+        } : null,
+        nearbyColliders,
       };
     })()`,
   );
@@ -544,13 +678,23 @@ try {
   if (!climb?.ok) {
     record("fail", `Climb failed: ${climb?.reason}`);
   } else {
-    record("info", `climb dy=${climb.dy.toFixed(2)} y=${climb.after.y.toFixed(2)} floor ${climb.before.floor}→${climb.after.floor}`);
-    if (climb.dy >= 3.5) record("pass", "Eye height rose by nearly a full story");
-    else record("fail", `Eye height rise too small: ${climb.dy.toFixed(2)}`);
+    record(
+      "info",
+      `climb dy=${climb.dy.toFixed(2)} y=${climb.after.y.toFixed(2)} floor ${climb.before.floor}→${climb.after.floor}`,
+    );
+    const requiredRise = climb.stepCount * climb.stepRise - 0.25;
+    if (climb.dy >= requiredRise) record("pass", "Eye height rose by nearly a full story");
+    else
+      record(
+        "fail",
+        `Eye height rise too small: ${climb.dy.toFixed(2)} < ${requiredRise.toFixed(2)}`,
+      );
 
     // Must not teleport to distant spawn (XZ near stair origin)
-    if (climb.distFromOrigin < 12) record("pass", "Player stayed near stair shaft (no spawn teleport)");
-    else record("fail", `Player far from stair after climb (dist=${climb.distFromOrigin.toFixed(1)})`);
+    if (climb.distFromOrigin < 12)
+      record("pass", "Player stayed near stair shaft (no spawn teleport)");
+    else
+      record("fail", `Player far from stair after climb (dist=${climb.distFromOrigin.toFixed(1)})`);
 
     if (
       climb.after.floor != null &&
@@ -561,10 +705,7 @@ try {
     } else if ((climb.after.floorCount ?? 0) < 2) {
       record("info", "Single floor — label cannot advance");
     } else {
-      record(
-        "fail",
-        `Floor label did not advance (${climb.beforeStats} → ${climb.afterStats})`,
-      );
+      record("fail", `Floor label did not advance (${climb.beforeStats} → ${climb.afterStats})`);
     }
   }
 
@@ -576,7 +717,9 @@ try {
       const ctrl = diag.getController();
       ctrl.setEnabled(true);
       if (typeof ctrl.setVirtualAction === 'function') ctrl.setVirtualAction('forward', true);
-      const start = { ...ctrl.getState().position };
+      const startState = ctrl.getState();
+      const start = { ...startState.position };
+      const startStats = document.getElementById('run-stats')?.textContent ?? '';
       const t0 = performance.now();
       await new Promise((resolve) => {
         function tick() {
@@ -589,18 +732,34 @@ try {
         }
         requestAnimationFrame(tick);
       });
-      const end = ctrl.getState().position;
+      const endState = ctrl.getState();
+      const end = endState.position;
+      const endStats = document.getElementById('run-stats')?.textContent ?? '';
+      const startFloorMatch = /floor\\s+(\\d+)/i.exec(startStats);
+      const endFloorMatch = /floor\\s+(\\d+)/i.exec(endStats);
       return {
         ok: true,
         start,
         end: { x: end.x, y: end.y, z: end.z },
         dy: end.y - start.y,
         dist: Math.hypot(end.x - start.x, end.z - start.z),
+        startFloor: startFloorMatch ? Number(startFloorMatch[1]) : null,
+        endFloor: endFloorMatch ? Number(endFloorMatch[1]) : null,
       };
     })()`,
   );
   report.steps.push({ name: "walk-upper", walk });
-  if (walk?.ok && walk.dist > 0.15) record("pass", `Walked on upper slab dist=${walk.dist.toFixed(2)}`);
+  if (
+    walk?.ok &&
+    walk.dist > 0.15 &&
+    walk.dy > -0.35 &&
+    (walk.startFloor == null || walk.endFloor === walk.startFloor)
+  )
+    record("pass", `Walked on upper slab dist=${walk.dist.toFixed(2)}`);
+  else if (walk?.ok && walk.dy <= -0.35)
+    record("fail", `Upper slab lost support: dy=${walk.dy.toFixed(2)}`);
+  else if (walk?.ok && walk.startFloor != null && walk.endFloor !== walk.startFloor)
+    record("fail", `Upper walk changed floor ${walk.startFloor} → ${walk.endFloor}`);
   else if (walk?.ok) record("info", `Little horizontal walk (dist=${walk?.dist}) — may be blocked`);
   else record("fail", "Upper walk failed");
   await capture(ws, "03-upper-walk");
@@ -626,45 +785,79 @@ try {
       if (!pick) return { ok: false, reason: 'no-stair' };
       const target = pick.o;
       const origin = { x: pick.x, y: pick.y, z: pick.z };
-      const yaw = target.rotation.y;
       const stepCount = Number(target.userData.stepCount) || 20;
       const stepRise = Number(target.userData.stepRise) || 0.22;
-      const stepRun = Number(target.userData.stepRun) || 0.36;
-      const eye = 1.62;
-      const before = ctrl.getState().position.y;
+      const eye = Number(ctrl.eyeHeight) || 1.54;
+      const standingEye = eye - 0.08;
+      const climbedTop = window.__MF_STAIR_TOP__;
       const beforeStats = document.getElementById('run-stats')?.textContent ?? '';
+      const stepRun = Number(target.userData.stepRun) || 0.36;
+      const firstTread = new ctrl.position.constructor().set(0, stepRise, stepRun * 0.5);
+      const lastTread = new ctrl.position.constructor().set(
+        0,
+        stepCount * stepRise,
+        (stepCount - 0.5) * stepRun,
+      );
+      target.localToWorld(firstTread);
+      target.localToWorld(lastTread);
+      const directionX = lastTread.x - firstTread.x;
+      const directionZ = lastTread.z - firstTread.z;
+      const directionLength = Math.hypot(directionX, directionZ);
+      if (directionLength < 0.1) return { ok: false, reason: 'degenerate-stair-direction' };
+      const climbX = directionX / directionLength;
+      const climbZ = directionZ / directionLength;
+      const restoreX = Number(climbedTop?.x ?? lastTread.x + climbX * 0.45);
+      const restoreY = Number(climbedTop?.y ?? origin.y + stepCount * stepRise + standingEye);
+      const restoreZ = Number(climbedTop?.z ?? lastTread.z + climbZ * 0.45);
+      const descendYaw = Number(climbedTop?.descendYaw ?? Math.atan2(climbX, climbZ));
       ctrl.setEnabled(false);
-      const savedColliders = ctrl.solidColliders;
-      if (Array.isArray(ctrl.solidColliders)) ctrl.solidColliders = [];
-      if (ctrl.solidColliderIndex) ctrl.solidColliderIndex = null;
-      for (let i = stepCount; i >= 0; i -= 1) {
-        const localZ = i * stepRun;
-        const sin = Math.sin(yaw);
-        const cos = Math.cos(yaw);
-        const wx = origin.x + (-localZ * sin);
-        const wz = origin.z + (localZ * cos);
-        const eyeY = origin.y + i * stepRise + eye;
-        const ok = ctrl.restorePose({
-          x: wx,
-          y: eyeY,
-          z: wz,
-          yaw: yaw + Math.PI,
-          pitch: 0.1,
-          distanceTravelled: stepCount - i,
-        });
-        if (!ok) {
-          ctrl.position?.set?.(wx, eyeY, wz);
-          if (ctrl.verticalState) {
-            ctrl.verticalState.y = eyeY;
-            ctrl.verticalState.grounded = true;
-            ctrl.verticalState.velocity = 0;
-          }
-        }
-        await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+      const restoreOk = ctrl.restorePose({
+        x: restoreX,
+        y: restoreY,
+        z: restoreZ,
+        yaw: descendYaw,
+        pitch: 0.08,
+        distanceTravelled: 0,
+      });
+      if (!restoreOk) {
+        ctrl.setEnabled(true);
+        return { ok: false, reason: 'real-collision-upper-landing-rejected' };
       }
-      if (Array.isArray(savedColliders)) ctrl.solidColliders = savedColliders;
+      const restoredStartY = ctrl.getState().position.y;
       ctrl.setEnabled(true);
-      for (let f = 0; f < 45; f += 1) await new Promise((r) => requestAnimationFrame(r));
+      ctrl.setVirtualAction('forward', true);
+      let lowY = ctrl.getState().position.y;
+      const deadline = performance.now() + 10_000;
+      while (performance.now() < deadline && lowY > origin.y + eye + 0.15) {
+        await new Promise((r) => requestAnimationFrame(r));
+        lowY = Math.min(lowY, ctrl.getState().position.y);
+      }
+      ctrl.setVirtualAction('forward', false);
+      let fallbackDirection = false;
+      if (lowY > restoredStartY - 0.25) {
+        fallbackDirection = true;
+        ctrl.setEnabled(false);
+        const fallbackOk = ctrl.restorePose({
+          x: restoreX,
+          y: restoreY,
+          z: restoreZ,
+          yaw: descendYaw + Math.PI,
+          pitch: 0.08,
+          distanceTravelled: 0,
+        });
+        ctrl.setEnabled(true);
+        if (fallbackOk) {
+          ctrl.setVirtualAction('forward', true);
+          lowY = ctrl.getState().position.y;
+          const fallbackDeadline = performance.now() + 10_000;
+          while (performance.now() < fallbackDeadline && lowY > origin.y + eye + 0.15) {
+            await new Promise((r) => requestAnimationFrame(r));
+            lowY = Math.min(lowY, ctrl.getState().position.y);
+          }
+          ctrl.setVirtualAction('forward', false);
+        }
+      }
+      for (let f = 0; f < 20; f += 1) await new Promise((r) => requestAnimationFrame(r));
       const after = ctrl.getState();
       const afterStats = document.getElementById('run-stats')?.textContent ?? '';
       const bm = /floor\\s+(\\d+)/i.exec(beforeStats);
@@ -672,7 +865,10 @@ try {
       return {
         ok: true,
         stairName: pick.name,
-        dy: after.position.y - before,
+        restoreOk,
+        fallbackDirection,
+        dy: lowY - restoredStartY,
+        restoredStartY,
         afterY: after.position.y,
         beforeFloor: bm ? Number(bm[1]) : null,
         afterFloor: am ? Number(am[1]) : null,
@@ -699,6 +895,399 @@ try {
     record("pass", `Floor label decreased ${descend.beforeFloor} → ${descend.afterFloor}`);
   }
 
+  // Keep the traversal snapshot as evidence, then reset through the public
+  // simulation state before a screenshot-free movement window. CDP PNG
+  // encoding can block the renderer for hundreds of milliseconds and must not
+  // be misreported as an in-game stutter.
+  const traversalPerformance = await evaluate(
+    ws,
+    `(() => window.__THREE_GAME_DIAGNOSTICS__?.getRenderer?.().frameGaps ?? null)()`,
+  );
+  const profilerPaused = await evaluate(
+    ws,
+    `(() => {
+      const ctrl = window.__THREE_GAME_DIAGNOSTICS__?.getController?.();
+      if (!ctrl) return false;
+      ctrl.setVirtualAction('forward', false);
+      ctrl.setVirtualAction('sprint', false);
+      ctrl.setVirtualAction('turnRight', false);
+      document.dispatchEvent(new KeyboardEvent('keydown', {
+        code: 'Escape',
+        key: 'Escape',
+        bubbles: true,
+      }));
+      return document.getElementById('options-menu')?.hidden === false;
+    })()`,
+  );
+  if (!profilerPaused) throw new Error("Could not pause through the public options menu");
+  await sleep(150);
+  await evaluate(
+    ws,
+    `(() => {
+      const ctrl = window.__THREE_GAME_DIAGNOSTICS__?.getController?.();
+      if (!ctrl) return false;
+      document.getElementById('options-resume')?.click();
+      ctrl.setVirtualAction('forward', true);
+      ctrl.setVirtualAction('sprint', true);
+      ctrl.setVirtualAction('turnRight', true);
+      return true;
+    })()`,
+  );
+  const rendererBeforeSample = await evaluate(
+    ws,
+    `(() => {
+      const renderer = window.__THREE_GAME_DIAGNOSTICS__?.getRenderer?.();
+      return renderer ? {
+        calls: renderer.calls,
+        triangles: renderer.triangles,
+        geometries: renderer.geometries,
+        textures: renderer.textures,
+        materials: renderer.materials,
+        programs: renderer.programs,
+      } : null;
+    })()`,
+  );
+  await sleep(2_200 + PERF_SAMPLE_SECONDS * 1_000);
+  const performance = await evaluate(
+    ws,
+    `(() => {
+      const diag = window.__THREE_GAME_DIAGNOSTICS__;
+      const ctrl = diag?.getController?.();
+      ctrl?.setVirtualAction('forward', false);
+      ctrl?.setVirtualAction('sprint', false);
+      ctrl?.setVirtualAction('turnRight', false);
+      return diag?.getRenderer?.().frameGaps ?? null;
+    })()`,
+  );
+  const rendererAfterSample = await evaluate(
+    ws,
+    `(() => {
+      const renderer = window.__THREE_GAME_DIAGNOSTICS__?.getRenderer?.();
+      return renderer ? {
+        calls: renderer.calls,
+        triangles: renderer.triangles,
+        geometries: renderer.geometries,
+        textures: renderer.textures,
+        materials: renderer.materials,
+        programs: renderer.programs,
+      } : null;
+    })()`,
+  );
+  report.performance = {
+    thresholds: PERF_THRESHOLDS,
+    sampleSeconds: PERF_SAMPLE_SECONDS,
+    traversalWithScreenshots: traversalPerformance,
+    observed: performance,
+    rendererBeforeSample,
+    rendererAfterSample,
+  };
+  if (!performance || performance.samples < PERF_THRESHOLDS.minimumSamples) {
+    record(
+      "fail",
+      `Performance sample too short: ${performance?.samples ?? 0}/${PERF_THRESHOLDS.minimumSamples}`,
+    );
+  } else {
+    const metricFailures = [
+      ["p95", performance.p95, PERF_THRESHOLDS.p95Ms],
+      ["p99", performance.p99, PERF_THRESHOLDS.p99Ms],
+      ["max", performance.max, PERF_THRESHOLDS.maxMs],
+      ["longestTask", performance.longestTask, PERF_THRESHOLDS.longestTaskMs],
+    ].filter(([, value, threshold]) => !Number.isFinite(value) || value > threshold);
+    if (metricFailures.length === 0) {
+      record(
+        "pass",
+        `Frame gaps p95=${performance.p95.toFixed(1)} p99=${performance.p99.toFixed(1)} max=${performance.max.toFixed(1)} ms; long tasks=${performance.longTasks}`,
+      );
+    } else {
+      record(
+        "fail",
+        `Frame-gap thresholds exceeded: ${metricFailures
+          .map(([label, value, threshold]) => `${label}=${Number(value).toFixed(1)}>${threshold}`)
+          .join(", ")}`,
+      );
+    }
+  }
+
+  if (RUN_LIFECYCLE) {
+    const lifecycle = await evaluate(
+      ws,
+      `(async () => {
+        const diag = window.__THREE_GAME_DIAGNOSTICS__;
+        const ctrl = diag?.getController?.();
+        const scene = diag?.getScene?.();
+        if (!ctrl || !scene) return { ok: false, reason: 'missing-runtime' };
+        const waitFrames = async (count) => {
+          for (let frame = 0; frame < count; frame += 1) {
+            await new Promise((resolve) => requestAnimationFrame(resolve));
+          }
+        };
+        const standingEye = (Number(ctrl.eyeHeight) || 1.62) - 0.08;
+        const Vector = ctrl.position.constructor;
+        const stones = [];
+        scene.traverse((object) => {
+          if (!object?.name?.startsWith('Magic stone ')) return;
+          object.updateWorldMatrix(true, false);
+          const position = new Vector();
+          object.getWorldPosition(position);
+          stones.push({
+            object,
+            name: object.name,
+            floorIndex: Number(object.userData?.floorIndex),
+            position,
+          });
+        });
+        stones.sort((left, right) =>
+          left.floorIndex - right.floorIndex || left.name.localeCompare(right.name),
+        );
+        const collection = [];
+        const collectStone = async (stone) => {
+          ctrl.setEnabled(false);
+          const restored = ctrl.restorePose({
+            x: stone.position.x,
+            y: stone.position.y + standingEye,
+            z: stone.position.z,
+            yaw: 0,
+            pitch: -0.08,
+            distanceTravelled: 0,
+          });
+          ctrl.setEnabled(true);
+          await waitFrames(18);
+          const state = diag.getState();
+          collection.push({
+            name: stone.name,
+            floorIndex: stone.floorIndex,
+            restored,
+            stonesFound: state.stonesFound,
+            portalOpen: state.hasRelic,
+            mode: state.mode,
+          });
+          return state.mode === 'playing';
+        };
+        for (const stone of stones.filter((entry) => entry.floorIndex === 0)) {
+          if (!(await collectStone(stone))) break;
+        }
+
+        const flights = [];
+        scene.traverse((object) => {
+          if (!object?.name?.includes('staircase')) return;
+          if (object.name.includes('tread') || object.name.includes('rail') || object.name.includes('sigil')) return;
+          if (!(object.userData && (object.userData.walkable || object.userData.stepCount))) return;
+          object.updateWorldMatrix(true, false);
+          const position = new Vector();
+          object.getWorldPosition(position);
+          flights.push({ object, name: object.name, position });
+        });
+        flights.sort((left, right) => left.position.y - right.position.y);
+        const climbs = [];
+        for (const [flightIndex, flight] of flights.entries()) {
+          if (diag.getState().mode !== 'playing') break;
+          const stepCount = Number(flight.object.userData.stepCount) || 20;
+          const stepRise = Number(flight.object.userData.stepRise) || 0.22;
+          const stepRun = Number(flight.object.userData.stepRun) || 0.36;
+          const firstTread = new Vector(0, stepRise, stepRun * 0.5);
+          const lastTread = new Vector(0, stepCount * stepRise, (stepCount - 0.5) * stepRun);
+          flight.object.localToWorld(firstTread);
+          flight.object.localToWorld(lastTread);
+          const directionX = lastTread.x - firstTread.x;
+          const directionZ = lastTread.z - firstTread.z;
+          const directionLength = Math.hypot(directionX, directionZ);
+          const climbX = directionX / directionLength;
+          const climbZ = directionZ / directionLength;
+          ctrl.setEnabled(false);
+          const restored = ctrl.restorePose({
+            x: flight.position.x - climbX * 0.8,
+            y: flight.position.y + standingEye,
+            z: flight.position.z - climbZ * 0.8,
+            yaw: Math.atan2(-climbX, -climbZ),
+            pitch: -0.08,
+            distanceTravelled: 0,
+          });
+          ctrl.setEnabled(true);
+          ctrl.setVirtualAction('forward', true);
+          const startY = ctrl.getState().position.y;
+          let peakY = startY;
+          const deadline = performance.now() + 10_000;
+          const targetY = flight.position.y + stepCount * stepRise + standingEye - 0.12;
+          while (performance.now() < deadline && peakY < targetY) {
+            await waitFrames(1);
+            peakY = Math.max(peakY, ctrl.getState().position.y);
+          }
+          ctrl.setVirtualAction('forward', false);
+          await waitFrames(18);
+          const state = diag.getState();
+          climbs.push({
+            name: flight.name,
+            originY: flight.position.y,
+            restored,
+            startY,
+            peakY,
+            rise: peakY - startY,
+            activeSeed: state.seed,
+            mode: state.mode,
+          });
+          if (state.mode !== 'playing') break;
+          for (const stone of stones.filter((entry) => entry.floorIndex === flightIndex + 1)) {
+            if (!(await collectStone(stone))) break;
+          }
+        }
+
+        const portal = scene.getObjectByName('Escape portal gate');
+        let portalEntry = null;
+        if (portal && diag.getState().mode === 'playing') {
+          portal.updateWorldMatrix(true, false);
+          const position = new Vector();
+          portal.getWorldPosition(position);
+          ctrl.setEnabled(false);
+          const restored = ctrl.restorePose({
+            x: position.x,
+            y: position.y + standingEye,
+            z: position.z,
+            yaw: portal.rotation.y,
+            pitch: 0,
+            distanceTravelled: 0,
+          });
+          ctrl.setEnabled(true);
+          await waitFrames(36);
+          portalEntry = { restored, x: position.x, y: position.y, z: position.z };
+        }
+        const finalState = diag.getState();
+        const overlay = document.getElementById('end-overlay');
+        return {
+          ok: true,
+          floorCount: diag.getResidentFloorCount?.() ?? null,
+          stoneCount: stones.length,
+          collection,
+          flights: flights.length,
+          climbs,
+          portalEntry,
+          finalState: {
+            mode: finalState.mode,
+            exitReached: finalState.exitReached,
+            stonesFound: finalState.stonesFound,
+            portalOpen: finalState.hasRelic,
+          },
+          overlay: {
+            hidden: overlay?.hidden ?? null,
+            end: overlay?.dataset.end ?? null,
+          },
+        };
+      })()`,
+    );
+    report.steps.push({ name: "objective-and-completion", lifecycle });
+    if (!lifecycle?.ok) {
+      record("fail", `Lifecycle failed: ${lifecycle?.reason ?? "unknown"}`);
+    } else {
+      const collectedAll =
+        lifecycle.stoneCount === 4 &&
+        lifecycle.collection?.length === 4 &&
+        lifecycle.collection.every((entry) => entry.restored) &&
+        lifecycle.collection.at(-1)?.stonesFound === 4 &&
+        lifecycle.collection.at(-1)?.portalOpen === true;
+      if (collectedAll) record("pass", "Collected all four real stone pickups and opened portal");
+      else record("fail", `Stone objective incomplete: ${JSON.stringify(lifecycle.collection)}`);
+
+      const expectedFlights = Math.max(0, Number(lifecycle.floorCount ?? 1) - 1);
+      const climbedAll =
+        lifecycle.flights === expectedFlights &&
+        lifecycle.climbs?.length === expectedFlights &&
+        lifecycle.climbs.every((entry) => entry.restored && entry.rise >= 4.05);
+      if (climbedAll)
+        record("pass", `Physically climbed all ${expectedFlights} campaign flight(s)`);
+      else record("fail", `Full-stack climb incomplete: ${JSON.stringify(lifecycle.climbs)}`);
+
+      if (
+        lifecycle.portalEntry?.restored &&
+        lifecycle.finalState?.mode === "won" &&
+        lifecycle.finalState?.exitReached === true &&
+        lifecycle.overlay?.hidden === false &&
+        lifecycle.overlay?.end === "won"
+      ) {
+        record("pass", "Crossed the final portal and reached the real victory overlay");
+      } else {
+        record("fail", `Portal completion failed: ${JSON.stringify(lifecycle)}`);
+      }
+    }
+    await capture(ws, "05-complete-run");
+
+    const deadUrl = `${BASE}/?mode=play&seed=${encodeURIComponent(SEED)}&mood=${encodeURIComponent(BIOME)}&perfAudit=1&qaState=dead${crtQuery}&_smoke=${Date.now()}`;
+    await send(ws, "Page.navigate", { url: deadUrl });
+    await sleep(1_500);
+    await waitForAppReady(ws);
+    await waitForGameReady(ws);
+    const deadState = await evaluate(
+      ws,
+      `(() => {
+        const state = window.__THREE_GAME_DIAGNOSTICS__?.getState?.();
+        const overlay = document.getElementById('end-overlay');
+        return {
+          mode: state?.mode ?? null,
+          resolve: state?.resolve ?? null,
+          overlayHidden: overlay?.hidden ?? null,
+          overlayEnd: overlay?.dataset.end ?? null,
+          retryVisible: document.getElementById('retry')?.hidden === false,
+        };
+      })()`,
+    );
+    report.steps.push({ name: "dead-state", deadState });
+    if (
+      deadState?.mode === "dead" &&
+      deadState?.resolve === 0 &&
+      deadState?.overlayHidden === false &&
+      deadState?.overlayEnd === "dead" &&
+      deadState?.retryVisible
+    ) {
+      record("pass", "Defeat exposes the real Try again action");
+    } else {
+      record("fail", `Defeat state invalid: ${JSON.stringify(deadState)}`);
+    }
+    await capture(ws, "06-dead");
+
+    await evaluate(ws, `(() => document.getElementById('retry')?.click())()`);
+    const retryDeadline = Date.now() + 40_000;
+    let retryState = null;
+    while (Date.now() < retryDeadline) {
+      retryState = await evaluate(
+        ws,
+        `(() => {
+          const state = window.__THREE_GAME_DIAGNOSTICS__?.getState?.();
+          const shell = document.querySelector('.app-shell');
+          return {
+            ready: state?.ready ?? false,
+            mode: state?.mode ?? null,
+            resolve: state?.resolve ?? null,
+            stonesFound: state?.stonesFound ?? null,
+            overlayHidden: document.getElementById('end-overlay')?.hidden ?? null,
+            rendererReady: shell?.dataset.rendererReady ?? null,
+          };
+        })()`,
+      );
+      if (
+        retryState?.ready === true &&
+        retryState?.mode === "playing" &&
+        retryState?.resolve === 100 &&
+        retryState?.stonesFound === 0 &&
+        retryState?.overlayHidden === true &&
+        retryState?.rendererReady === "true"
+      ) {
+        break;
+      }
+      await sleep(500);
+    }
+    report.steps.push({ name: "retry", retryState });
+    if (
+      retryState?.ready === true &&
+      retryState?.mode === "playing" &&
+      retryState?.resolve === 100 &&
+      retryState?.stonesFound === 0 &&
+      retryState?.overlayHidden === true
+    ) {
+      record("pass", "Try again rebuilt a fresh playable run");
+    } else {
+      record("fail", `Retry did not recover play: ${JSON.stringify(retryState)}`);
+    }
+    await capture(ws, "07-retry");
+  }
+
   const severe = browserErrors.filter(
     (e) => !/favicon|AudioContext|pointer lock|ResizeObserver|WebGL/i.test(e),
   );
@@ -721,7 +1310,7 @@ try {
       `- Biome: \`${BIOME}\` seed \`${SEED}\``,
       `- Base: ${BASE}`,
       `- Result: **${report.pass ? "PASS" : "FAIL"}**`,
-      `- Evidence: \`.scratch/proof/multi-floor-browser-smoke/\``,
+      `- Evidence: \`${path.relative(process.cwd(), outDir).replaceAll("\\\\", "/")}\``,
       ``,
       `## Findings`,
       ...findings.map((f) => `- **${f.level}**: ${f.message}`),

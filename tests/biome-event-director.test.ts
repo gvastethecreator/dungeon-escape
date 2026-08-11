@@ -1,9 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
-import {
-  BIOME_EVENT_PROFILES,
-  sampleBiomeEvent,
-} from "../src/systems/BiomeEventDirector";
+import { BIOME_EVENT_PROFILES, sampleBiomeEvent } from "../src/systems/BiomeEventDirector";
 import { listBiomeIds } from "../src/systems/BiomeIdentity";
 
 describe("biome event director", () => {

@@ -1,0 +1,179 @@
+{
+  "version": 1,
+  "kind": "biome-enemy-animation-atlas",
+  "biome": "molten",
+  "size": [640, 3520],
+  "cell": [160, 160],
+  "layout": "two interleaved rows per enemy: movement, attack",
+  "frames_per_state": 4,
+  "reviewed": [
+    "carrion",
+    "goblin",
+    "ghost",
+    "ratling",
+    "husk",
+    "imp",
+    "zombie-orc",
+    "spider",
+    "bone-slime",
+    "white-eyed-shadow",
+    "carrion-stalker"
+  ],
+  "enemies": {
+    "carrion": {
+      "status": "reviewed",
+      "candidate": ".scratch/biome-enemy-animation-spritesheets/candidates/molten/carrion",
+      "source_sha256": "a07dd58e6e0a2a112ce7cd70a90c0fe276d8f6358a9d795e80a35dd2c141e9d3",
+      "validation_fingerprint": "2c4e23f92cd3ebeb12a234f47b276495bb9b7e872f489e0774c410c50f94e410",
+      "movement_row": 0,
+      "attack_row": 1,
+      "movement_fps": 8,
+      "attack_fps": 10,
+      "pivot": {
+        "x": 80,
+        "bottom": 152
+      }
+    },
+    "goblin": {
+      "status": "reviewed",
+      "candidate": ".scratch/biome-enemy-animation-spritesheets/candidates/molten/goblin",
+      "source_sha256": "bc0eefcdac12a9625d783f3c4b60bf5f307cd78350c4082892e09f118e1eddb0",
+      "validation_fingerprint": "481fca0d13b5404d6bb844e55481f3edadf73c223ae72fae150489eb795e5e25",
+      "movement_row": 2,
+      "attack_row": 3,
+      "movement_fps": 8,
+      "attack_fps": 10,
+      "pivot": {
+        "x": 80,
+        "bottom": 152
+      }
+    },
+    "ghost": {
+      "status": "reviewed",
+      "candidate": ".scratch/biome-enemy-animation-spritesheets/candidates/molten/ghost",
+      "source_sha256": "119b3bd30150d1ef2a6d16b90811bf21d3d8653232dd838ca32d97df318b0141",
+      "validation_fingerprint": "17cf3b797c3c1ad4a2a3c1fc6c675e03e4fe0985d96787dd94f92663ed9d6ab5",
+      "movement_row": 4,
+      "attack_row": 5,
+      "movement_fps": 8,
+      "attack_fps": 10,
+      "pivot": {
+        "x": 80,
+        "bottom": 152
+      }
+    },
+    "ratling": {
+      "status": "reviewed",
+      "candidate": ".scratch/biome-enemy-animation-spritesheets/candidates/molten/ratling",
+      "source_sha256": "6ed8cae4bea8a9dfa3a866e549524ff7ada394bb6b1d9e9d80b8df8e42f3a22b",
+      "validation_fingerprint": "4a0132b2e45f06f7c3286eca184d06a9824246dd260e6603c330b3efc2def558",
+      "movement_row": 6,
+      "attack_row": 7,
+      "movement_fps": 8,
+      "attack_fps": 10,
+      "pivot": {
+        "x": 80,
+        "bottom": 152
+      }
+    },
+    "husk": {
+      "status": "reviewed",
+      "candidate": ".scratch/biome-enemy-animation-spritesheets/candidates/molten/husk",
+      "source_sha256": "9eb0b7058cf1c4026701df00f51ece74ec42235f73013e402e53650a6ec45d17",
+      "validation_fingerprint": "91ec88679bb270a771a5686eb6c1f6b013f08b8789fe129d0f8fc25c554e057a",
+      "movement_row": 8,
+      "attack_row": 9,
+      "movement_fps": 8,
+      "attack_fps": 10,
+      "pivot": {
+        "x": 80,
+        "bottom": 152
+      }
+    },
+    "imp": {
+      "status": "reviewed",
+      "candidate": ".scratch/biome-enemy-animation-spritesheets/candidates/molten/imp",
+      "source_sha256": "e3be2629d10c6c4eb316315dee099fbbd2af84272aa6053e6ba4ecbf14bec7ee",
+      "validation_fingerprint": "dc3bb3dad5bdb2830823604e3b99465ff5aa0a7ce5a1f3930e65a40fdcdd95d5",
+      "movement_row": 10,
+      "attack_row": 11,
+      "movement_fps": 8,
+      "attack_fps": 10,
+      "pivot": {
+        "x": 80,
+        "bottom": 152
+      }
+    },
+    "zombie-orc": {
+      "status": "reviewed",
+      "candidate": ".scratch/biome-enemy-animation-spritesheets/candidates/molten/zombie-orc",
+      "source_sha256": "4ea027dd1da5a7c6345a66b9a0bf0b05569f78f1fb4f1b898b008184b3b3d7c7",
+      "validation_fingerprint": "9d8b7e62d20345f75581dc552896c1228c40c9005639091d3bb6d342e76db9d1",
+      "movement_row": 12,
+      "attack_row": 13,
+      "movement_fps": 8,
+      "attack_fps": 10,
+      "pivot": {
+        "x": 80,
+        "bottom": 152
+      }
+    },
+    "spider": {
+      "status": "reviewed",
+      "candidate": ".scratch/biome-enemy-animation-spritesheets/candidates/molten/spider",
+      "source_sha256": "39adcec8ea50e5387a2192840f3789189b31adef367b2e4563f8485422ea4cb2",
+      "validation_fingerprint": "0054980c5ea8488365f47d6610411b26c9a69b1ddb343ebf3dc9a30e62396c29",
+      "movement_row": 14,
+      "attack_row": 15,
+      "movement_fps": 8,
+      "attack_fps": 10,
+      "pivot": {
+        "x": 80,
+        "bottom": 152
+      }
+    },
+    "bone-slime": {
+      "status": "reviewed",
+      "candidate": ".scratch/biome-enemy-animation-spritesheets/candidates/molten/bone-slime",
+      "source_sha256": "6754e32e0ee9f58b55033d3a77ae16cca01af5fdc46a9f8e34b7f1baf964027a",
+      "validation_fingerprint": "6e7ba0ded688d85393715a59c99a25f073704e28152cee103b5d3865ed062b90",
+      "movement_row": 16,
+      "attack_row": 17,
+      "movement_fps": 8,
+      "attack_fps": 10,
+      "pivot": {
+        "x": 80,
+        "bottom": 152
+      }
+    },
+    "white-eyed-shadow": {
+      "status": "reviewed",
+      "candidate": ".scratch/biome-enemy-animation-spritesheets/candidates/molten/white-eyed-shadow",
+      "source_sha256": "566c51ee12f36096055c8a6d5312cfc749872fced0117a2f92c92c889ac6936e",
+      "validation_fingerprint": "9678f611ac58d45e870bef5502fd07982db18574d2f01670b059eaaa6516c8d7",
+      "movement_row": 18,
+      "attack_row": 19,
+      "movement_fps": 8,
+      "attack_fps": 10,
+      "pivot": {
+        "x": 80,
+        "bottom": 152
+      }
+    },
+    "carrion-stalker": {
+      "status": "reviewed",
+      "candidate": ".scratch/biome-enemy-animation-spritesheets/candidates/molten/carrion-stalker",
+      "source_sha256": "7292443246b05b3e7a4c9bf2d11a277fc51eb8bca90241da864bc1dfc448d458",
+      "validation_fingerprint": "21457e60790a709d8033ba2b010fbda7b6cd2daad5878aa5aac6623aa37e19f6",
+      "movement_row": 20,
+      "attack_row": 21,
+      "movement_fps": 8,
+      "attack_fps": 10,
+      "pivot": {
+        "x": 80,
+        "bottom": 152
+      }
+    }
+  },
+  "output_sha256": "e78bbb6809c0d6e895a81e0dc39245a0af69dfb01f0a757be09ac32ed941ff53"
+}

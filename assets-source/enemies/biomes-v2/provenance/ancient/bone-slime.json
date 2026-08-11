@@ -1,0 +1,37 @@
+{
+  "version": 1,
+  "sourceType": "imagegen",
+  "artEngine": "imagegen",
+  "verificationStatus": "approved-user",
+  "acceptedSource": "sources/ancient/bone-slime.png",
+  "sha256": "1c349aa5eb2d31e3d9cc4b25545b24c1285092b603cf4a0ea662bc58a9510970",
+  "sizeBytes": 956051,
+  "prompt": "prompts/ancient/bone-slime.txt",
+  "promptSha256": "fc7ffe28c65bbaa5e39fd4a1d041ccdd62bf33366ba53ff9df3fa21e31b317b0",
+  "baseReference": "reference/base/bone-slime.png",
+  "baseReferenceSha256": "62d0174c09c0769c9cac166f2104c8fff91f0e3e73dfc4eb78d5377137819dda",
+  "moodReference": "../arch10-browser/normal-final-play.png",
+  "moodReferenceSha256": "1abfe5348c02bdd01cd7917c358b03c7b7fbf1565e0e329a8ca4cbac10c48d1c",
+  "materialReferences": [
+    "../../public/assets/textures/biomes/ancient/wall.webp",
+    "../../public/assets/textures/biomes/ancient/floor.webp",
+    "../../public/assets/textures/biomes/ancient/ceiling.webp"
+  ],
+  "materialReferenceSha256": {
+    "../../public/assets/textures/biomes/ancient/wall.webp": "7c437949256b4e0ba8a6574db001a93f3832b736943e6f3d4f5d459ae3b23949",
+    "../../public/assets/textures/biomes/ancient/floor.webp": "519fb1a1d31ff0bfec77420d08db80cbb4b092c14d0198b1cac18eec503f9163",
+    "../../public/assets/textures/biomes/ancient/ceiling.webp": "e37e8bdb9c48c4f8f4756aaba073ac6bdc707b188d19da241c2ea70936824723"
+  },
+  "approval": {
+    "status": "approved-user",
+    "date": "2026-08-04",
+    "review_record": ".scratch/biome-enemy-base-sprites/reviews.json",
+    "notes": "Reinicio clásico: slime con huesos, frontal y reconocible."
+  },
+  "consolidation": {
+    "package": "assets-source/enemies/biomes-v2",
+    "original_source": ".scratch/biome-enemy-base-sprites/new/ancient/bone-slime.png",
+    "original_prompt": ".scratch/biome-enemy-base-sprites/prompts/ancient/bone-slime.txt",
+    "original_provenance": ".scratch/biome-enemy-base-sprites/provenance/ancient/bone-slime.json"
+  }
+}

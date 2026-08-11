@@ -54,6 +54,8 @@ describe("GameAudio dungeon soundscape", () => {
     audio.playPickup({ kind: "luminous-ward", position: { x: 1, y: 1, z: 0 } });
     audio.playPickup({ kind: "annihilation-pulse", position: { x: 1, y: 1, z: 0 } });
     audio.playAnnihilationPulse({ x: 1, y: 1, z: 0 });
+    audio.playCullBrandKill({ x: 1, y: 1, z: 0 });
+    audio.playPhoenixRevive({ x: 1, y: 1, z: 0 });
     audio.playEnemyHit({ x: 1.2, y: 1, z: -2 });
     audio.setMusicTrack("menu");
     expect(audio.currentMusic).toBe("menu");
@@ -413,6 +415,10 @@ describe("GameAudio dungeon soundscape", () => {
     }
 
     let failedClickOnce = false;
+    let trackBackgroundConcurrency = false;
+    let activeBackgroundFetches = 0;
+    let maxBackgroundFetches = 0;
+    const backgroundFetchOrder: string[] = [];
     Object.defineProperty(globalThis, "AudioContext", {
       configurable: true,
       value: FakeAudioContext,
@@ -422,6 +428,16 @@ describe("GameAudio dungeon soundscape", () => {
       if (url.endsWith("/ui-click.opus") && !failedClickOnce) {
         failedClickOnce = true;
         return { ok: false, status: 503 } as Response;
+      }
+      const isPlayPathAsset =
+        trackBackgroundConcurrency &&
+        /\/(?:step-|chest-|door-|damage|pickup-|enemy-|torch-)[^/]+$/.test(url);
+      if (isPlayPathAsset) {
+        activeBackgroundFetches += 1;
+        maxBackgroundFetches = Math.max(maxBackgroundFetches, activeBackgroundFetches);
+        backgroundFetchOrder.push(url.split("/").at(-1) ?? url);
+        await Bun.sleep(3);
+        activeBackgroundFetches -= 1;
       }
       return {
         ok: true,
@@ -436,7 +452,7 @@ describe("GameAudio dungeon soundscape", () => {
       expect(await audio.unlock()).toBe(true);
       expect(audio.isReady).toBe(false);
       expect(audio.getLoadDiagnostics()).toMatchObject({
-        catalogAssets: 207,
+        catalogAssets: 248,
         requestedAssets: 9,
         decodedAssets: 8,
         residentBuffers: 8,
@@ -450,6 +466,38 @@ describe("GameAudio dungeon soundscape", () => {
         decodedAssets: 9,
         residentBuffers: 9,
         inflightAssets: 0,
+      });
+
+      trackBackgroundConcurrency = true;
+      audio.syncWorld({
+        fires: [],
+        magicStones: [],
+        enemies: [{ id: "near-goblin", voice: "goblin", x: 2, y: 1, z: 0 }],
+        portal: null,
+        moodId: "frost",
+      });
+      const deadline = Date.now() + 2_000;
+      while (Date.now() < deadline) {
+        const diagnostics = audio.getLoadDiagnostics();
+        if (
+          backgroundFetchOrder.length > 0 &&
+          diagnostics.queuedAssets === 0 &&
+          !diagnostics.backgroundPrefetchActive
+        ) {
+          break;
+        }
+        await Bun.sleep(10);
+      }
+      expect(maxBackgroundFetches).toBe(1);
+      expect(backgroundFetchOrder.slice(0, 4)).toEqual([
+        "step-stone-a.opus",
+        "step-stone-b.opus",
+        "chest-open.opus",
+        "chest-reward.opus",
+      ]);
+      expect(audio.getLoadDiagnostics()).toMatchObject({
+        queuedAssets: 0,
+        backgroundPrefetchActive: false,
       });
     } finally {
       audio.dispose();

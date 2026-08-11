@@ -2,102 +2,127 @@
   "version": "2.0.0",
   "tasks": [
     {
-      "label": "⚡ Dev",
+      "label": "📥 install",
       "type": "shell",
-      "command": "bun run dev",
-      "group": {
-        "kind": "build",
-        "isDefault": true
-      },
+      "command": "bun run install:check",
       "problemMatcher": []
     },
     {
-      "label": "📦 Build",
+      "label": "⚡ dev",
+      "type": "shell",
+      "command": "bun run dev",
+      "group": { "kind": "build", "isDefault": true },
+      "isBackground": true,
+      "problemMatcher": []
+    },
+    {
+      "label": "📦 build",
       "type": "shell",
       "command": "bun run build",
       "group": "build",
       "problemMatcher": []
     },
     {
-      "label": "💻 Build Code",
+      "label": "💻 code",
       "type": "shell",
       "command": "bun run build:code",
       "problemMatcher": []
     },
     {
-      "label": "👁️ Preview",
+      "label": "👁️ preview",
       "type": "shell",
       "command": "bun run preview",
       "problemMatcher": []
     },
     {
-      "label": "🧪 Test",
+      "label": "✅ check",
       "type": "shell",
-      "command": "bun run test",
-      "group": {
-        "kind": "test",
-        "isDefault": true
-      },
+      "command": "bun run check",
       "problemMatcher": []
     },
     {
-      "label": "🏷️ Typecheck",
+      "label": "🧪 test",
+      "type": "shell",
+      "command": "bun run test",
+      "group": { "kind": "test", "isDefault": true },
+      "problemMatcher": []
+    },
+    {
+      "label": "🏷️ types",
       "type": "shell",
       "command": "bun run typecheck:all",
       "problemMatcher": []
     },
     {
-      "label": "🧹 Lint",
+      "label": "🧹 lint",
       "type": "shell",
       "command": "bun run lint",
       "problemMatcher": []
     },
     {
-      "label": "🎨 Format",
+      "label": "🎨 format",
       "type": "shell",
       "command": "bun run fmt",
       "problemMatcher": []
     },
     {
-      "label": "🗄️ DB Local",
+      "label": "🗑️ clean",
+      "type": "shell",
+      "command": "bun run clean",
+      "problemMatcher": []
+    },
+    {
+      "label": "⬆️ outdated",
+      "type": "shell",
+      "command": "bun run deps:outdated",
+      "problemMatcher": []
+    },
+    {
+      "label": "🛡️ audit",
+      "type": "shell",
+      "command": "bun run deps:audit",
+      "problemMatcher": []
+    },
+    {
+      "label": "🖼️ assets",
+      "type": "shell",
+      "command": "bun run audit:runtime-assets",
+      "problemMatcher": []
+    },
+    {
+      "label": "🪜 smoke",
+      "type": "shell",
+      "command": "bun run smoke:multi-floor",
+      "problemMatcher": []
+    },
+    {
+      "label": "📱 mobile",
+      "type": "shell",
+      "command": "bun run smoke:mobile",
+      "problemMatcher": []
+    },
+    {
+      "label": "🗄️ db local",
       "type": "shell",
       "command": "bun run db:migrate:local",
       "problemMatcher": []
     },
     {
-      "label": "🌐 DB Remote",
-      "type": "shell",
-      "command": "bun run db:migrate:remote",
-      "problemMatcher": []
-    },
-    {
-      "label": "☁️ CF Dev",
+      "label": "☁️ cf dev",
       "type": "shell",
       "command": "bun run cloudflare:dev",
       "problemMatcher": []
     },
     {
-      "label": "🚀 Deploy",
+      "label": "⚠️ db remote",
+      "type": "shell",
+      "command": "bun run db:migrate:remote",
+      "problemMatcher": []
+    },
+    {
+      "label": "🚀 deploy",
       "type": "shell",
       "command": "bun run cloudflare:deploy",
-      "problemMatcher": []
-    },
-    {
-      "label": "👾 Audit Atlases",
-      "type": "shell",
-      "command": "bun run audit:enemy-atlases",
-      "problemMatcher": []
-    },
-    {
-      "label": "🖼️ Gen Textures",
-      "type": "shell",
-      "command": "bun run generate:biome-textures",
-      "problemMatcher": []
-    },
-    {
-      "label": "🥩 Bake PBR",
-      "type": "shell",
-      "command": "bun run bake:biome-pbr",
       "problemMatcher": []
     }
   ]

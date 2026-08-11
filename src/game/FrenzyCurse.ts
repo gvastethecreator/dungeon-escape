@@ -1,10 +1,6 @@
 /** Timed enemy frenzy: faster pursuit and quicker attack cadence. */
 
-import {
-  activateTimedSeconds,
-  isTimedSecondsActive,
-  tickTimedSeconds,
-} from "./TimedSeconds";
+import { activateTimedSeconds, isTimedSecondsActive, tickTimedSeconds } from "./TimedSeconds";
 
 export const FRENZY_CURSE_DURATION_SECONDS = 18;
 /** Multiplies enemy move speed while the curse is active. */

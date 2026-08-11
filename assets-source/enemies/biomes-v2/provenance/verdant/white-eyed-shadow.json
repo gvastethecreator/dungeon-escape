@@ -1,0 +1,37 @@
+{
+  "version": 1,
+  "sourceType": "imagegen",
+  "artEngine": "imagegen",
+  "verificationStatus": "approved-user",
+  "acceptedSource": "sources/verdant/white-eyed-shadow.png",
+  "sha256": "35525bc7ebb617f1931787c457f634e83aaf9eaae515ac5963bba612f31f58c8",
+  "sizeBytes": 767785,
+  "prompt": "prompts/verdant/white-eyed-shadow.txt",
+  "promptSha256": "c6ce0fd07b2853bccb92f3771ae6d5cc471171e2ea21238d1fa8ea059f9f48e1",
+  "baseReference": "reference/base/white-eyed-shadow.png",
+  "baseReferenceSha256": "a30dd7db535a2fcb947349737a663c6fb4c1c0cda989e8f5d79c2a468df450ac",
+  "moodReference": "reference/mood/verdant.png",
+  "moodReferenceSha256": "8666d392d410af1d96c7b1a8e3b3177709a7dccaf3c74016d115b72d302b7a9a",
+  "materialReferences": [
+    "../../public/assets/textures/biomes/verdant/wall.webp",
+    "../../public/assets/textures/biomes/verdant/floor.webp",
+    "../../public/assets/textures/biomes/verdant/ceiling.webp"
+  ],
+  "materialReferenceSha256": {
+    "../../public/assets/textures/biomes/verdant/wall.webp": "fdf355131f3ed206817cb33a56ac048d52bfd805640203316ff170c781c3047d",
+    "../../public/assets/textures/biomes/verdant/floor.webp": "772b3c463a46b2092b4b8fc7180f336b49021e247f7a16545017b718866a6cf0",
+    "../../public/assets/textures/biomes/verdant/ceiling.webp": "bf551698b4c6a1497a2d8c472b318340cf0f7c942d34f61939c2628aaecc5523"
+  },
+  "approval": {
+    "status": "approved-user",
+    "date": "2026-08-04",
+    "review_record": ".scratch/biome-enemy-base-sprites/reviews.json",
+    "notes": "V2: sombra bípeda con pelvis baja, hombros anchos y brazos de distinta trayectoria."
+  },
+  "consolidation": {
+    "package": "assets-source/enemies/biomes-v2",
+    "original_source": ".scratch/biome-enemy-base-sprites/new/verdant/white-eyed-shadow.png",
+    "original_prompt": ".scratch/biome-enemy-base-sprites/prompts/verdant/white-eyed-shadow.txt",
+    "original_provenance": ".scratch/biome-enemy-base-sprites/provenance/verdant/white-eyed-shadow.json"
+  }
+}

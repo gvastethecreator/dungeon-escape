@@ -49,8 +49,10 @@ export const ENEMY_ATLAS_SRC = "/assets/sprites/enemies-v8/iron-ash-enemies-v8.w
 export const ENEMY_ATLAS_SIZE = [640, 1760] as const;
 export const ENEMY_CELL_SIZE = 160;
 const ENEMY_ANIMATION_FPS = 8;
-const ANCIENT_ATLAS_SIZE = [640, 3520] as const;
-const ANCIENT_MOVEMENT_FPS: Record<EnemyRosterKind, number> = {
+/** Biomes with interleaved movement+attack rows (11 enemies × 2 rows × 160). */
+const ANIMATED_ATLAS_SIZE = [640, 3520] as const;
+const ANIMATED_BIOMES = new Set<DungeonMoodId>(listDungeonMoodIds());
+const ANIMATED_MOVEMENT_FPS: Record<EnemyRosterKind, number> = {
   carrion: 8,
   goblin: 8,
   ghost: 8,
@@ -63,7 +65,7 @@ const ANCIENT_MOVEMENT_FPS: Record<EnemyRosterKind, number> = {
   "white-eyed-shadow": 8,
   "carrion-stalker": 8,
 };
-const ANCIENT_ATTACK_FPS: Record<EnemyRosterKind, number> = {
+const ANIMATED_ATTACK_FPS: Record<EnemyRosterKind, number> = {
   carrion: 10,
   goblin: 10,
   ghost: 10,
@@ -76,6 +78,11 @@ const ANCIENT_ATTACK_FPS: Record<EnemyRosterKind, number> = {
   "white-eyed-shadow": 10,
   "carrion-stalker": 10,
 };
+
+export function enemyAtlasUsesAttackRows(moodId: DungeonMoodId | string): boolean {
+  const id = parseDungeonMoodId(moodId);
+  return id !== null && ANIMATED_BIOMES.has(id);
+}
 
 export function enemyAtlasSrcForMood(moodId: DungeonMoodId | string): string {
   const id = parseDungeonMoodId(moodId) ?? "ash";
@@ -143,7 +150,7 @@ function buildEnemyAnimationSets(
 ): Record<EnemyRosterKind, EnemyAnimationSet> {
   const id = parseDungeonMoodId(moodId) ?? "ash";
   const src = enemyAtlasSrcForMood(id);
-  if (id !== "ancient") {
+  if (!enemyAtlasUsesAttackRows(id)) {
     const movement = buildEnemyAnimations(src);
     return Object.fromEntries(
       ENEMY_ROSTER.map((kind) => [kind, { movement: movement[kind] }]),
@@ -156,15 +163,15 @@ function buildEnemyAnimationSets(
         movement: atlasRowAnimation(
           index * 2,
           src,
-          ANCIENT_ATLAS_SIZE,
-          ANCIENT_MOVEMENT_FPS[kind],
+          ANIMATED_ATLAS_SIZE,
+          ANIMATED_MOVEMENT_FPS[kind],
           true,
         ),
         attack: atlasRowAnimation(
           index * 2 + 1,
           src,
-          ANCIENT_ATLAS_SIZE,
-          ANCIENT_ATTACK_FPS[kind],
+          ANIMATED_ATLAS_SIZE,
+          ANIMATED_ATTACK_FPS[kind],
           false,
         ),
       },

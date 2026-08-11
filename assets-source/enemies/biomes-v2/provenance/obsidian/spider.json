@@ -1,0 +1,37 @@
+{
+  "version": 1,
+  "sourceType": "imagegen",
+  "artEngine": "imagegen",
+  "verificationStatus": "approved-user",
+  "acceptedSource": "sources/obsidian/spider.png",
+  "sha256": "2868c13f56c26cfcc78c15583f29a8e7c27d6693827bf02ef31db60b58bfea4e",
+  "sizeBytes": 780499,
+  "prompt": "prompts/obsidian/spider.txt",
+  "promptSha256": "25db5a96a0b3e0db898726229e21d7f1401a1d0f4360e8ef123582c937152b59",
+  "baseReference": "reference/base/spider.png",
+  "baseReferenceSha256": "a29cbd5c55e4566e74162450c4eb08f5a31083ce90723662698decfc86d1fbd9",
+  "moodReference": "reference/mood/obsidian.png",
+  "moodReferenceSha256": "84168b3d608c87d932b2509a1859eb9a3ee93e14fdbc3ceea75c87172468fa88",
+  "materialReferences": [
+    "../../public/assets/textures/biomes/obsidian/wall.webp",
+    "../../public/assets/textures/biomes/obsidian/floor.webp",
+    "../../public/assets/textures/biomes/obsidian/ceiling.webp"
+  ],
+  "materialReferenceSha256": {
+    "../../public/assets/textures/biomes/obsidian/wall.webp": "3f4ee300cde6e8bd189cf01303b2aa1e45ecb06864b514d6c84585c48455cb27",
+    "../../public/assets/textures/biomes/obsidian/floor.webp": "26eee3c051630dd64aa98a168d93b55ae8ef4d3cb5c572627870ad4bcca3ac5c",
+    "../../public/assets/textures/biomes/obsidian/ceiling.webp": "1275c45680ecafc1317aa511f77c5a21f87c05b5d96c93b352f06c21b21e5470"
+  },
+  "approval": {
+    "status": "approved-user",
+    "date": "2026-08-04",
+    "review_record": ".scratch/biome-enemy-base-sprites/reviews.json",
+    "notes": "Escarabajo ciervo regenerado con cámara frontal y aprobado por el usuario."
+  },
+  "consolidation": {
+    "package": "assets-source/enemies/biomes-v2",
+    "original_source": ".scratch/biome-enemy-base-sprites/new/obsidian/spider.png",
+    "original_prompt": ".scratch/biome-enemy-base-sprites/prompts/obsidian/spider.txt",
+    "original_provenance": ".scratch/biome-enemy-base-sprites/provenance/obsidian/spider.json"
+  }
+}

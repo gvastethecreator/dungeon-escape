@@ -23,19 +23,13 @@ describe("HazardTraversal", () => {
     const samples = [0, 0.4, 1.25, Math.PI / 2 / 2.3];
     for (const elapsed of samples) {
       for (const phase of [0, 0.7, 1.4]) {
-        const expected = THREE.MathUtils.smoothstep(
-          Math.sin(elapsed * 2.3 + phase),
-          -0.25,
-          0.72,
-        );
+        const expected = THREE.MathUtils.smoothstep(Math.sin(elapsed * 2.3 + phase), -0.25, 0.72);
         expect(spikeExposure(elapsed, phase)).toBeCloseTo(expected, 10);
       }
     }
   });
 
-
   test("applies fire damage once then cools down", () => {
-
     const first = tickHazardTraversal(createHazardClockState(), {
       delta: 0.016,
       contactKind: "fire",

@@ -31,9 +31,7 @@ describe("magic stone clearance", () => {
         expect(clearance.length).toBeGreaterThanOrEqual(4);
         for (const placement of placements) {
           expect(
-            clearance.some(
-              (cell) => cell.x === placement.cell.x && cell.y === placement.cell.y,
-            ),
+            clearance.some((cell) => cell.x === placement.cell.x && cell.y === placement.cell.y),
           ).toBe(true);
         }
       }

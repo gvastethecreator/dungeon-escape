@@ -227,11 +227,7 @@ describe("RunSession applyWorldUpdate", () => {
     const quest = new QuestState();
     quest.start(0);
 
-    const map = applyWorldUpdate(
-      session,
-      quest,
-      emptyUpdate({ collectedPickupKind: "map" }),
-    );
+    const map = applyWorldUpdate(session, quest, emptyUpdate({ collectedPickupKind: "map" }));
     expect(map).toMatchObject({
       status: COPY.status.map,
       pickup: { label: COPY.pickup.map, mapReveal: true },

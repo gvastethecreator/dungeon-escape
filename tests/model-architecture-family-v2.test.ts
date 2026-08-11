@@ -173,9 +173,7 @@ describe("image-sculpted architecture family v2", () => {
     expect(grave.userData.detailInventory).toContain(
       "damaged low-poly gothic slab with large contour chips",
     );
-    expect(grave.userData.detailInventory).toContain(
-      "one thick broken and chamfered stone base",
-    );
+    expect(grave.userData.detailInventory).toContain("one thick broken and chamfered stone base");
     expect(boundsSize(grave).y).toBeGreaterThan(1.8);
     expect(boundsSize(grave).z).toBeGreaterThanOrEqual(0.5);
   });

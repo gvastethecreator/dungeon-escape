@@ -24,6 +24,21 @@ export type AudioCue =
 
 export type AudioGroup = "sfx" | "ui" | "ambience" | "threat" | "music";
 
+export const BIOME_AUDIO_KEYS = [
+  "ancient",
+  "molten",
+  "frost",
+  "grim",
+  "verdant",
+  "ash",
+  "iron",
+  "obsidian",
+  "sunken",
+  "fungal",
+  "backrooms",
+] as const;
+export type BiomeAudioKey = (typeof BIOME_AUDIO_KEYS)[number];
+
 export type CreatureVoice =
   | "carrion"
   | "goblin"
@@ -154,8 +169,71 @@ function buildEnemyThreatAssets(): Record<AudioAssetId, AudioAssetDefinition> {
   return assets;
 }
 
+const BIOME_AMBIENCE_GAIN: Readonly<Record<BiomeAudioKey, number>> = {
+  ancient: 0.5,
+  molten: 0.46,
+  frost: 0.48,
+  grim: 0.45,
+  verdant: 0.42,
+  ash: 0.47,
+  iron: 0.4,
+  obsidian: 0.43,
+  sunken: 0.47,
+  fungal: 0.43,
+  backrooms: 0.38,
+};
+
+const BIOME_ACCENT_GAIN: Readonly<Record<BiomeAudioKey, number>> = {
+  ancient: 0.42,
+  molten: 0.46,
+  frost: 0.4,
+  grim: 0.38,
+  verdant: 0.34,
+  ash: 0.37,
+  iron: 0.36,
+  obsidian: 0.36,
+  sunken: 0.4,
+  fungal: 0.35,
+  backrooms: 0.3,
+};
+
+function biomeAmbienceAssetId(biome: BiomeAudioKey): AudioAssetId {
+  return `ambience-biome-${biome}`;
+}
+
+function biomeAccentAssetId(biome: BiomeAudioKey): AudioAssetId {
+  return `ambience-biome-${biome}-accent`;
+}
+
+function buildBiomeSoundscapeAssets(): Record<AudioAssetId, AudioAssetDefinition> {
+  const assets: Record<AudioAssetId, AudioAssetDefinition> = {};
+  for (const biome of BIOME_AUDIO_KEYS) {
+    assets[biomeAmbienceAssetId(biome)] = {
+      file: `ambience-${biome}.opus`,
+      group: "ambience",
+      gain: BIOME_AMBIENCE_GAIN[biome],
+    };
+    assets[biomeAccentAssetId(biome)] = {
+      file: `ambience-${biome}-accent.opus`,
+      group: "ambience",
+      gain: BIOME_ACCENT_GAIN[biome],
+    };
+  }
+  return assets;
+}
+
+function pickupAsset(file: string, gain: number): AudioAssetDefinition {
+  return {
+    file,
+    group: "sfx",
+    gain,
+    spatial: { refDistance: 1.55, maxDistance: 14, rolloff: 1.22 },
+  };
+}
+
 const AUDIO_ASSETS: Readonly<Record<AudioAssetId, AudioAssetDefinition>> = {
   "ambience-cave": { file: "ambience-cave.opus", group: "ambience", gain: 0.7 },
+  ...buildBiomeSoundscapeAssets(),
   "torch-crackle": {
     file: "torch-crackle.opus",
     group: "ambience",
@@ -198,6 +276,25 @@ const AUDIO_ASSETS: Readonly<Record<AudioAssetId, AudioAssetDefinition>> = {
     gain: 0.77,
     spatial: { refDistance: 1.6, maxDistance: 14, rolloff: 1.2 },
   },
+  "pickup-stone-v2": pickupAsset("pickup-stone-v2.opus", 0.76),
+  "pickup-resolve-v2": pickupAsset("pickup-resolve-v2.opus", 0.82),
+  "pickup-time-freeze-v2": pickupAsset("pickup-time-freeze-v2.opus", 0.8),
+  "pickup-luminous-ward-v2": pickupAsset("pickup-luminous-ward-v2.opus", 0.75),
+  "pickup-annihilation-pulse-v2": pickupAsset("pickup-annihilation-pulse-v2.opus", 0.8),
+  "pickup-cull-brand-v2": pickupAsset("pickup-cull-brand-v2.opus", 0.77),
+  "pickup-phoenix-egg-v2": pickupAsset("pickup-phoenix-egg-v2.opus", 0.8),
+  "pickup-map-v2": pickupAsset("pickup-map-v2.opus", 0.66),
+  "pickup-mobility-v2": pickupAsset("pickup-mobility-v2.opus", 0.72),
+  "pickup-clarity-v2": pickupAsset("pickup-clarity-v2.opus", 0.7),
+  "pickup-swarm-curse-v2": pickupAsset("pickup-swarm-curse-v2.opus", 0.7),
+  "pickup-slow-curse-v2": pickupAsset("pickup-slow-curse-v2.opus", 0.72),
+  "pickup-frenzy-curse-v2": pickupAsset("pickup-frenzy-curse-v2.opus", 0.75),
+  "pickup-gloom-curse-v2": pickupAsset("pickup-gloom-curse-v2.opus", 0.69),
+  "pickup-mirror-curse-v2": pickupAsset("pickup-mirror-curse-v2.opus", 0.68),
+  "pickup-spin-curse-v2": pickupAsset("pickup-spin-curse-v2.opus", 0.7),
+  "power-annihilation-pulse": pickupAsset("power-annihilation-pulse.opus", 0.9),
+  "power-cull-brand-kill": pickupAsset("power-cull-brand-kill.opus", 0.84),
+  "power-phoenix-revive": pickupAsset("power-phoenix-revive.opus", 0.88),
   "enemy-growl": {
     file: "enemy-growl.opus",
     group: "threat",
@@ -325,22 +422,22 @@ const CREATURE_VOICE_TONES = buildCreatureToneTable("voice");
 const CREATURE_ATTACK_TONES = buildCreatureToneTable("attack");
 
 const PICKUP_ASSETS: Readonly<Record<CollectedPickupKind, AudioAssetId>> = {
-  stone: "pickup-stone",
-  resolve: "pickup-resolve",
-  "time-freeze": "pickup-time-freeze",
-  "luminous-ward": "pickup-ward",
-  "annihilation-pulse": "pickup-ward",
-  "cull-brand": "pickup-ward",
-  "phoenix-egg": "pickup-ward",
-  map: "pickup-stone",
-  mobility: "pickup-resolve",
-  clarity: "pickup-time-freeze",
-  "swarm-curse": "pickup-ward",
-  "slow-curse": "pickup-ward",
-  "frenzy-curse": "pickup-ward",
-  "gloom-curse": "pickup-ward",
-  "mirror-curse": "pickup-ward",
-  "spin-curse": "pickup-ward",
+  stone: "pickup-stone-v2",
+  resolve: "pickup-resolve-v2",
+  "time-freeze": "pickup-time-freeze-v2",
+  "luminous-ward": "pickup-luminous-ward-v2",
+  "annihilation-pulse": "pickup-annihilation-pulse-v2",
+  "cull-brand": "pickup-cull-brand-v2",
+  "phoenix-egg": "pickup-phoenix-egg-v2",
+  map: "pickup-map-v2",
+  mobility: "pickup-mobility-v2",
+  clarity: "pickup-clarity-v2",
+  "swarm-curse": "pickup-swarm-curse-v2",
+  "slow-curse": "pickup-slow-curse-v2",
+  "frenzy-curse": "pickup-frenzy-curse-v2",
+  "gloom-curse": "pickup-gloom-curse-v2",
+  "mirror-curse": "pickup-mirror-curse-v2",
+  "spin-curse": "pickup-spin-curse-v2",
 };
 
 const CUE_ASSETS: Readonly<Record<Exclude<AudioCue, "step" | "pickup">, AudioAssetId>> = {
@@ -394,6 +491,21 @@ export function audioAssetForCue(cue: Exclude<AudioCue, "step" | "pickup">): Aud
 
 export function audioAssetForPickup(kind: CollectedPickupKind): AudioAssetId {
   return PICKUP_ASSETS[kind];
+}
+
+function resolveBiomeAudioKey(moodId: string | null | undefined): BiomeAudioKey {
+  const normalized = moodId?.trim().toLowerCase();
+  return BIOME_AUDIO_KEYS.includes(normalized as BiomeAudioKey)
+    ? (normalized as BiomeAudioKey)
+    : "ancient";
+}
+
+export function audioAssetForBiomeAmbience(moodId: string | null | undefined): AudioAssetId {
+  return biomeAmbienceAssetId(resolveBiomeAudioKey(moodId));
+}
+
+export function audioAssetForBiomeAccent(moodId: string | null | undefined): AudioAssetId {
+  return biomeAccentAssetId(resolveBiomeAudioKey(moodId));
 }
 
 export function audioAssetForMusic(track: MusicTrack): AudioAssetId {

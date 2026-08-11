@@ -104,7 +104,10 @@ describe("local dungeon continue save", () => {
     expect(canContinueLocalRun(readLocalRunSave(storage))).toBe(true);
 
     expect(writeLocalRunSave(state(), storage, 8, resume(), "custom", "forge")).toBe(true);
-    expect(readLocalRunSave(storage)).toMatchObject({ runSource: "custom", customMapKind: "forge" });
+    expect(readLocalRunSave(storage)).toMatchObject({
+      runSource: "custom",
+      customMapKind: "forge",
+    });
     expect(canContinueLocalRun(readLocalRunSave(storage))).toBe(false);
 
     storage.setItem(

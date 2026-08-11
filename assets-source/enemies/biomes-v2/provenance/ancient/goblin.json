@@ -1,0 +1,37 @@
+{
+  "version": 1,
+  "sourceType": "imagegen",
+  "artEngine": "imagegen",
+  "verificationStatus": "approved-user",
+  "acceptedSource": "sources/ancient/goblin.png",
+  "sha256": "1d358b817a75603e63577a18ee739d011a01040019641072ddf12bbf9731ce7e",
+  "sizeBytes": 994367,
+  "prompt": "prompts/ancient/goblin.txt",
+  "promptSha256": "8a40eb82de8074f8f89c1fdc9ee9f50164f368d1593d0f6971386a2827c98333",
+  "baseReference": "reference/base/goblin.png",
+  "baseReferenceSha256": "f6310f6b8465bb1d0bac4b31d460dd62eb385ad27ca346fe94afa5aa1aa3d514",
+  "moodReference": "../arch10-browser/normal-final-play.png",
+  "moodReferenceSha256": "1abfe5348c02bdd01cd7917c358b03c7b7fbf1565e0e329a8ca4cbac10c48d1c",
+  "materialReferences": [
+    "../../public/assets/textures/biomes/ancient/wall.webp",
+    "../../public/assets/textures/biomes/ancient/floor.webp",
+    "../../public/assets/textures/biomes/ancient/ceiling.webp"
+  ],
+  "materialReferenceSha256": {
+    "../../public/assets/textures/biomes/ancient/wall.webp": "7c437949256b4e0ba8a6574db001a93f3832b736943e6f3d4f5d459ae3b23949",
+    "../../public/assets/textures/biomes/ancient/floor.webp": "519fb1a1d31ff0bfec77420d08db80cbb4b092c14d0198b1cac18eec503f9163",
+    "../../public/assets/textures/biomes/ancient/ceiling.webp": "e37e8bdb9c48c4f8f4756aaba073ac6bdc707b188d19da241c2ea70936824723"
+  },
+  "approval": {
+    "status": "approved-user",
+    "date": "2026-08-04",
+    "review_record": ".scratch/biome-enemy-base-sprites/reviews.json",
+    "notes": "Reinicio clásico: goblin común de mazmorra, frontal y reconocible."
+  },
+  "consolidation": {
+    "package": "assets-source/enemies/biomes-v2",
+    "original_source": ".scratch/biome-enemy-base-sprites/new/ancient/goblin.png",
+    "original_prompt": ".scratch/biome-enemy-base-sprites/prompts/ancient/goblin.txt",
+    "original_provenance": ".scratch/biome-enemy-base-sprites/provenance/ancient/goblin.json"
+  }
+}

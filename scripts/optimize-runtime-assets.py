@@ -31,6 +31,27 @@ NEAREST_PREFIXES = (
     "assets/ui/portraits/",
 )
 NEAREST_FILES = {"assets/sprites/iron-ash-items.png"}
+AUTHORED_RUNTIME_PREFIXES = (
+    "assets/ui/pickup-icons/",
+    "assets/ui/stone-icons/",
+    "assets/ui/biome-screens/",
+)
+AUTHORED_RUNTIME_FILES = {
+    f"assets/sprites/enemies-v8/biomes/{biome}-enemies.webp"
+    for biome in (
+        "ancient",
+        "molten",
+        "frost",
+        "grim",
+        "verdant",
+        "ash",
+        "iron",
+        "obsidian",
+        "sunken",
+        "fungal",
+        "backrooms",
+    )
+}
 EXTERNAL_RUNTIME_SOURCES = (
     (
         ROOT / "assets-source" / "runtime-metadata" / "sprites" / "biome-props-v2",
@@ -57,6 +78,12 @@ def target_for(source: Path) -> Path:
 
 def uses_nearest(public_path: str) -> bool:
     return public_path in NEAREST_FILES or public_path.startswith(NEAREST_PREFIXES)
+
+
+def keeps_authored_runtime_size(public_path: str) -> bool:
+    return public_path in AUTHORED_RUNTIME_FILES or public_path.startswith(
+        AUTHORED_RUNTIME_PREFIXES
+    )
 
 
 def load_previous() -> dict[str, dict[str, Any]]:
@@ -130,15 +157,27 @@ def main() -> int:
         with Image.open(source) as loaded:
             loaded.load()
             source_dimensions = [loaded.width, loaded.height]
-            target_dimensions = [max(1, loaded.width // 2), max(1, loaded.height // 2)]
-            resample_name = "nearest" if uses_nearest(public_path) else "lanczos"
-            resample = Image.Resampling.NEAREST if resample_name == "nearest" else Image.Resampling.LANCZOS
-            optimized = loaded.resize(tuple(target_dimensions), resample=resample)
-            has_alpha = "A" in optimized.getbands()
-            lossless = source.suffix.lower() == ".png" or has_alpha
-            if optimized.mode not in {"RGB", "RGBA"}:
-                optimized = optimized.convert("RGBA" if has_alpha else "RGB")
-            save_webp(optimized, target, lossless=lossless)
+            keep_authored_size = source == target and keeps_authored_runtime_size(public_path)
+            target_dimensions = (
+                source_dimensions
+                if keep_authored_size
+                else [max(1, loaded.width // 2), max(1, loaded.height // 2)]
+            )
+            resample_name = (
+                "none" if keep_authored_size else "nearest" if uses_nearest(public_path) else "lanczos"
+            )
+            lossless = source.suffix.lower() == ".png" or "A" in loaded.getbands()
+            if not keep_authored_size:
+                resample = (
+                    Image.Resampling.NEAREST
+                    if resample_name == "nearest"
+                    else Image.Resampling.LANCZOS
+                )
+                optimized = loaded.resize(tuple(target_dimensions), resample=resample)
+                has_alpha = "A" in optimized.getbands()
+                if optimized.mode not in {"RGB", "RGBA"}:
+                    optimized = optimized.convert("RGBA" if has_alpha else "RGB")
+                save_webp(optimized, target, lossless=lossless)
 
         if source != target and source.is_relative_to(PUBLIC):
             source.unlink()

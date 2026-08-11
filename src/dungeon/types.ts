@@ -78,7 +78,7 @@ export interface DungeonStair {
   yaw: number;
   /** Shared id for the aligned vertical shaft linking two floors. */
   shaftId: string;
-  /** Grid cells opened for the flight + landings on this floor. */
+  /** Grid cells reserved for the flight and its two supported landings. */
   footprint: GridCell[];
 }
 
@@ -90,7 +90,7 @@ export interface DungeonFloorMetadata {
   count: number;
   rootSeed: string;
   stairs: DungeonStair[];
-  /** Cells with open ceiling (lower shaft mouth) or open deck hole (upper). */
+  /** Cells crossed by a flight, with an open ceiling or deck hole. */
   openVerticalCells?: GridCell[];
 }
 

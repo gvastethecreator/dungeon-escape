@@ -29,12 +29,16 @@ describe("pause options behavior", () => {
         main.indexOf('document.addEventListener("keydown"'),
       ),
     );
-    expect(handler.indexOf('event.code === "Escape"')).toBeGreaterThanOrEqual(0);
-    expect(handler.indexOf('event.code === "Escape"')).toBeLessThan(
+    expect(
+      handler.indexOf('event.key === "Escape" || event.code === "Escape"'),
+    ).toBeGreaterThanOrEqual(0);
+    expect(handler.indexOf('event.key === "Escape" || event.code === "Escape"')).toBeLessThan(
       handler.indexOf('event.target.closest("input, textarea, select")'),
     );
     expect(handler).toContain("if (optionsOpen) {");
     expect(handler).toContain("resumePlay();");
+    expect(handler).not.toContain("if (controller.getState().locked) return;");
+    expect(handler).toContain('setOptionsOpen(true, "escape");');
   });
 
   test("Escape resume does not reopen pause when pointer lock is refused", async () => {
@@ -43,10 +47,12 @@ describe("pause options behavior", () => {
     expect(main).toContain("suppressPauseOnPointerUnlock = true");
     expect(main).toContain("!suppressPauseOnPointerUnlock");
     expect(main).toContain("COPY.status.pointerFailed");
+    expect(main).toContain('setOptionsOpen(true, "pointer-unlock")');
+    expect(main).toContain("optionsOpenByPointerUnlock");
     // Intentional resume must not treat a failed re-lock as a fresh pause open.
     const onLock = main.slice(
       main.indexOf("onLockChange(locked, message)"),
-      main.indexOf("const editorView = new DungeonEditorView"),
+      main.indexOf("const editorView = new LazyDungeonEditorView"),
     );
     expect(onLock).toContain("!suppressPauseOnPointerUnlock");
     expect(onLock).toContain("setStatus(COPY.status.pointerFailed)");

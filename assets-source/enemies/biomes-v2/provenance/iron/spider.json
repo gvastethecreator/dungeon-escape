@@ -1,0 +1,37 @@
+{
+  "version": 1,
+  "sourceType": "imagegen",
+  "artEngine": "imagegen",
+  "verificationStatus": "approved-user",
+  "acceptedSource": "sources/iron/spider.png",
+  "sha256": "86ccec131e0f257ce1d5678f7fab6faf071f3cd9077508df0f8e8d2e66e962ef",
+  "sizeBytes": 978933,
+  "prompt": "prompts/iron/spider.txt",
+  "promptSha256": "37628821c1dbd294bc1d85a967351847e33c061740ee4475bc1db70dd31dd335",
+  "baseReference": "reference/base/spider.png",
+  "baseReferenceSha256": "a29cbd5c55e4566e74162450c4eb08f5a31083ce90723662698decfc86d1fbd9",
+  "moodReference": "reference/mood/iron.png",
+  "moodReferenceSha256": "10408c051511ea4e30049a2533def0b79cd1219bba2ca11b4f80947e2c6eb0ac",
+  "materialReferences": [
+    "../../public/assets/textures/biomes/iron/wall.webp",
+    "../../public/assets/textures/biomes/iron/floor.webp",
+    "../../public/assets/textures/biomes/iron/ceiling.webp"
+  ],
+  "materialReferenceSha256": {
+    "../../public/assets/textures/biomes/iron/wall.webp": "471a1890f9e0b2ebc895eb80d93abca5e88df5f148b123405b5269c51bae064a",
+    "../../public/assets/textures/biomes/iron/floor.webp": "4359bbc8291b166933e7349d46f23c7532b9cbf78dcd640d22d9fa0d1e916f97",
+    "../../public/assets/textures/biomes/iron/ceiling.webp": "27f04c878f59b8d4effcff31d7fded69860969b72db069eae574583ea7d1c08a"
+  },
+  "approval": {
+    "status": "approved-user",
+    "date": "2026-08-04",
+    "review_record": ".scratch/biome-enemy-base-sprites/reviews.json",
+    "notes": "Garrapata de forja de ocho patas aprobada por el usuario."
+  },
+  "consolidation": {
+    "package": "assets-source/enemies/biomes-v2",
+    "original_source": ".scratch/biome-enemy-base-sprites/new/iron/spider.png",
+    "original_prompt": ".scratch/biome-enemy-base-sprites/prompts/iron/spider.txt",
+    "original_provenance": ".scratch/biome-enemy-base-sprites/provenance/iron/spider.json"
+  }
+}

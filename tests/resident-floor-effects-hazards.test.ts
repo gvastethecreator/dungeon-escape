@@ -7,6 +7,7 @@ import { importDungeonForge } from "../src/dungeon/importDungeonForge";
 import type { DungeonData } from "../src/dungeon/types";
 import { generateForgeDungeon } from "../src/forge/generateForgeDungeon";
 import { getDungeonMood } from "../src/systems/DungeonMood";
+import { DYNAMIC_FIRE_LIGHTS_PER_FLOOR, MAX_DYNAMIC_FIRE_LIGHTS } from "../src/systems/LightTuning";
 import { SceneTextureRegistry, type SceneTextureSink } from "../src/systems/SceneTextureRegistry";
 import type { MinimapFeatures } from "../src/ui/minimapFeatures";
 import { DungeonWorld } from "../src/world/DungeonWorld";
@@ -430,7 +431,7 @@ const SUNKEN_ISOLATED_COUNTS: readonly object[] = [
       sectionCounts: { surfaces: 27, rootChildren: 28 },
     },
     hazards: { cells: 4, placements: 4, batches: 2 },
-    effects: { fires: 40, floorSprites: 30, ambientBeams: 2, stoneBeams: 1 },
+    effects: { fires: 40, floorSprites: 0, ambientBeams: 2, stoneBeams: 1 },
     minimap: { doors: 4, fires: 40, hazards: 4, stones: 1, pickups: 0 },
   },
   {
@@ -439,7 +440,7 @@ const SUNKEN_ISOLATED_COUNTS: readonly object[] = [
       sectionCounts: { surfaces: 30, rootChildren: 32 },
     },
     hazards: { cells: 4, placements: 4, batches: 2 },
-    effects: { fires: 45, floorSprites: 30, ambientBeams: 2, stoneBeams: 1 },
+    effects: { fires: 45, floorSprites: 0, ambientBeams: 2, stoneBeams: 1 },
     minimap: { doors: 4, fires: 45, hazards: 4, stones: 1, pickups: 0 },
   },
   {
@@ -448,7 +449,7 @@ const SUNKEN_ISOLATED_COUNTS: readonly object[] = [
       sectionCounts: { surfaces: 26, rootChildren: 28 },
     },
     hazards: { cells: 4, placements: 4, batches: 2 },
-    effects: { fires: 39, floorSprites: 30, ambientBeams: 2, stoneBeams: 1 },
+    effects: { fires: 39, floorSprites: 0, ambientBeams: 2, stoneBeams: 1 },
     minimap: { doors: 5, fires: 39, hazards: 4, stones: 1, pickups: 0 },
   },
   {
@@ -457,15 +458,15 @@ const SUNKEN_ISOLATED_COUNTS: readonly object[] = [
       sectionCounts: { surfaces: 25, rootChildren: 27 },
     },
     hazards: { cells: 4, placements: 4, batches: 2 },
-    effects: { fires: 41, floorSprites: 30, ambientBeams: 2, stoneBeams: 1 },
+    effects: { fires: 41, floorSprites: 0, ambientBeams: 2, stoneBeams: 1 },
     minimap: { doors: 4, fires: 41, hazards: 4, stones: 1, pickups: 0 },
   },
 ];
 const SUNKEN_ISOLATED_FINGERPRINTS: readonly string[] = [
-  "69ea13d2",
-  "cabb5674",
-  "8b97963b",
-  "9255b3bf",
+  "4eed0362",
+  "b07c6654",
+  "23a3ae5b",
+  "46da6a8c",
 ];
 
 describe("resident floor effects, hazards, and minimap projections", () => {
@@ -483,8 +484,9 @@ describe("resident floor effects, hazards, and minimap projections", () => {
       expect(new Set(runtimes).size).toBe(4);
       expect(runtimes.every((runtime) => runtime.hazardTileSystem !== null)).toBe(true);
       expect(runtimes.every((runtime) => runtime.minimapProjection !== null)).toBe(true);
+      expect(runtimes.every((runtime) => runtime.uncannyWallRuntime !== null)).toBe(true);
       expect(
-        runtimes.every((runtime) => runtime.hazardTileSystem?.root.parent === runtime.root),
+        runtimes.every((runtime) => runtime.hazardTileSystem?.root.parent === runtime.detailRoot),
       ).toBe(true);
 
       world.rebindActiveDungeon(floorSet.floors[0]!);
@@ -530,6 +532,14 @@ describe("resident floor effects, hazards, and minimap projections", () => {
         expect(
           runtimes.map((runtime) => runtime.fixedSceneEffects.diagnostics.updateCalls),
         ).toEqual([1, 0, 1, 0]);
+        expect(
+          runtimes.map((runtime) => runtime.fixedSceneEffects.diagnostics.lastUncannyWallInstances),
+        ).toEqual([
+          runtimes[0]!.uncannyWallRuntime!.mesh.count,
+          0,
+          runtimes[2]!.uncannyWallRuntime!.mesh.count,
+          0,
+        ]);
         expect(
           runtimes.reduce(
             (total, runtime) => total + runtime.fixedSceneEffects.diagnostics.portalBeamUpdates,
@@ -607,9 +617,9 @@ describe("resident floor effects, hazards, and minimap projections", () => {
       });
       expect(runtimes.every((runtime) => runtime.liquidKit !== null)).toBe(true);
       expect(runtimes.every((runtime) => runtime.hazardTileSystem !== null)).toBe(true);
-      expect(runtimes.every((runtime) => runtime.liquidKit!.root.parent === runtime.root)).toBe(
-        true,
-      );
+      expect(
+        runtimes.every((runtime) => runtime.liquidKit!.root.parent === runtime.detailRoot),
+      ).toBe(true);
       expect(runtimes.every((runtime) => runtime.liquidKit!.surfaces.length > 0)).toBe(true);
       const residentTextures = new Set(
         runtimes.flatMap((runtime) => [...residentRuntimeTextures(runtime)]),
@@ -723,7 +733,7 @@ describe("resident floor effects, hazards, and minimap projections", () => {
     }
   });
 
-  test("keeps the dynamic practical-light budget global across a Backrooms stack", () => {
+  test("keeps a fixed practical-light budget per floor and exposes only the active slab", () => {
     const restoreDocument = installCanvasDocument();
     const world = new DungeonWorld(new THREE.Scene());
     try {
@@ -740,12 +750,29 @@ describe("resident floor effects, hazards, and minimap projections", () => {
         world.rebindActiveDungeon(floor);
         return activeRuntime(world);
       });
-      expect(runtimes.flatMap((runtime) => runtime.dynamicFireLights)).toHaveLength(10);
+      expect(runtimes.map((runtime) => runtime.dynamicFireLights.length)).toEqual(
+        Array.from({ length: 4 }, () => DYNAMIC_FIRE_LIGHTS_PER_FLOOR),
+      );
+      expect(runtimes.flatMap((runtime) => runtime.dynamicFireLights)).toHaveLength(
+        MAX_DYNAMIC_FIRE_LIGHTS,
+      );
       expect(
         runtimes
           .flatMap((runtime) => runtime.dynamicFireLights)
-          .every((light) => runtimes.some((runtime) => light.parent === runtime.root)),
+          .every((light) => runtimes.some((runtime) => light.parent === runtime.detailRoot)),
       ).toBe(true);
+      expect(
+        runtimes.map(
+          (runtime) => runtime.dynamicFireLights.filter((light) => light.visible).length,
+        ),
+      ).toEqual([0, 0, 0, DYNAMIC_FIRE_LIGHTS_PER_FLOOR]);
+
+      world.rebindActiveDungeon(floorSet.floors[1]!);
+      expect(
+        runtimes.map(
+          (runtime) => runtime.dynamicFireLights.filter((light) => light.visible).length,
+        ),
+      ).toEqual([0, DYNAMIC_FIRE_LIGHTS_PER_FLOOR, 0, 0]);
     } finally {
       world.dispose();
       restoreDocument();

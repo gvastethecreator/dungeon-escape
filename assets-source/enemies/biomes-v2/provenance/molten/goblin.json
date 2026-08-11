@@ -1,0 +1,37 @@
+{
+  "version": 1,
+  "sourceType": "imagegen",
+  "artEngine": "imagegen",
+  "verificationStatus": "approved-user",
+  "acceptedSource": "sources/molten/goblin.png",
+  "sha256": "e4c9ed1cf0ac47feb47446dd475a2972a2212d2566c4ecd7b5afa2ad0d25b043",
+  "sizeBytes": 1010104,
+  "prompt": "prompts/molten/goblin.txt",
+  "promptSha256": "5b55b8715e8b0cfaf132a04363c02e9a6dddbb3bfd799b9c44359859c0bbac94",
+  "baseReference": "reference/base/goblin.png",
+  "baseReferenceSha256": "f6310f6b8465bb1d0bac4b31d460dd62eb385ad27ca346fe94afa5aa1aa3d514",
+  "moodReference": "../biome-particles/play-molten-final.png",
+  "moodReferenceSha256": "8033f4e6b5f6f867ee41a04ffe9b8d4df376d0f64a547dd96e9a46ac685278f8",
+  "materialReferences": [
+    "../../public/assets/textures/biomes/molten/wall.webp",
+    "../../public/assets/textures/biomes/molten/floor.webp",
+    "../../public/assets/textures/biomes/molten/ceiling.webp"
+  ],
+  "materialReferenceSha256": {
+    "../../public/assets/textures/biomes/molten/wall.webp": "15e37d889e2e536ae1270f5971c2148369656f133289833df6a4edf2926566b7",
+    "../../public/assets/textures/biomes/molten/floor.webp": "79a524adb4ee9c763a1a760931a8d649a362a0d416650ceddae9c0b11d6d05ff",
+    "../../public/assets/textures/biomes/molten/ceiling.webp": "56f20209795cd1819bc5157048cc0d919457420071956848653c387a0e71b943"
+  },
+  "approval": {
+    "status": "approved-user",
+    "date": "2026-08-04",
+    "review_record": ".scratch/biome-enemy-base-sprites/reviews.json",
+    "notes": "Obsidian-Ear scavenger: más oscuro, frontal y con silueta propia sin fuego."
+  },
+  "consolidation": {
+    "package": "assets-source/enemies/biomes-v2",
+    "original_source": ".scratch/biome-enemy-base-sprites/new/molten/goblin.png",
+    "original_prompt": ".scratch/biome-enemy-base-sprites/prompts/molten/goblin.txt",
+    "original_provenance": ".scratch/biome-enemy-base-sprites/provenance/molten/goblin.json"
+  }
+}

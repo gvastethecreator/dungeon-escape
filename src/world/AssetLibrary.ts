@@ -20,6 +20,7 @@ import {
 } from "./BiomeSpriteDecorKit";
 import { BIOME_SPRITE_DECOR_ATLAS_SIZE } from "./BiomeSpriteDecorContract";
 import { biomeSpriteDecorTextureUrl } from "./BiomeSpriteDecorCatalogs.generated";
+import { uncannyWallAtlasUrl } from "./UncannyWallCatalog.generated";
 
 export interface AtlasFrame {
   x: number;
@@ -355,6 +356,26 @@ export class AssetLibrary {
       w: BIOME_SPRITE_DECOR_ATLAS_SIZE[0],
       h: BIOME_SPRITE_DECOR_ATLAS_SIZE[1],
     });
+  }
+
+  /** One native 4x4 animation atlas shared by every resident floor of a biome. */
+  uncannyWallAtlas(mood: DungeonMoodId): THREE.Texture {
+    const source = uncannyWallAtlasUrl(mood);
+    const key = `${source}:native-animation-atlas`;
+    const cached = this.atlasCache.get(key);
+    if (cached) return cached;
+    const lifecycle = this.loadLifecycle;
+    const texture = loader.load(source, (loaded) => completeTextureLoad(lifecycle, loaded));
+    texture.name = `${source}#native-animation-atlas`;
+    texture.colorSpace = THREE.SRGBColorSpace;
+    texture.magFilter = THREE.NearestFilter;
+    texture.minFilter = THREE.NearestFilter;
+    texture.generateMipmaps = false;
+    texture.wrapS = THREE.ClampToEdgeWrapping;
+    texture.wrapT = THREE.ClampToEdgeWrapping;
+    this.ownTexture(texture);
+    this.atlasCache.set(key, texture);
+    return texture;
   }
 
   enemy(frame: SourcedAtlasFrame): THREE.Texture {

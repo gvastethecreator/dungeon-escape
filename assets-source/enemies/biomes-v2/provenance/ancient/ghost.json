@@ -1,0 +1,37 @@
+{
+  "version": 1,
+  "sourceType": "imagegen",
+  "artEngine": "imagegen",
+  "verificationStatus": "approved-user",
+  "acceptedSource": "sources/ancient/ghost.png",
+  "sha256": "ae0f7988d3048083d666e69fe3c11620d63a258a4e3e3e25f973352100600bdd",
+  "sizeBytes": 931519,
+  "prompt": "prompts/ancient/ghost.txt",
+  "promptSha256": "75a81d25ab34f3ace0a72661ebc720f4c288c327b9653f164406c765601d8d1c",
+  "baseReference": "reference/base/ghost.png",
+  "baseReferenceSha256": "ca9f6aa55460452bdc2ae718a47384e034978e963f7e8562f19f20bc98ca735e",
+  "moodReference": "../arch10-browser/normal-final-play.png",
+  "moodReferenceSha256": "1abfe5348c02bdd01cd7917c358b03c7b7fbf1565e0e329a8ca4cbac10c48d1c",
+  "materialReferences": [
+    "../../public/assets/textures/biomes/ancient/wall.webp",
+    "../../public/assets/textures/biomes/ancient/floor.webp",
+    "../../public/assets/textures/biomes/ancient/ceiling.webp"
+  ],
+  "materialReferenceSha256": {
+    "../../public/assets/textures/biomes/ancient/wall.webp": "7c437949256b4e0ba8a6574db001a93f3832b736943e6f3d4f5d459ae3b23949",
+    "../../public/assets/textures/biomes/ancient/floor.webp": "519fb1a1d31ff0bfec77420d08db80cbb4b092c14d0198b1cac18eec503f9163",
+    "../../public/assets/textures/biomes/ancient/ceiling.webp": "e37e8bdb9c48c4f8f4756aaba073ac6bdc707b188d19da241c2ea70936824723"
+  },
+  "approval": {
+    "status": "approved-user",
+    "date": "2026-08-04",
+    "review_record": ".scratch/biome-enemy-base-sprites/reviews.json",
+    "notes": "Reinicio clásico: fantasma común de mazmorra, frontal y reconocible."
+  },
+  "consolidation": {
+    "package": "assets-source/enemies/biomes-v2",
+    "original_source": ".scratch/biome-enemy-base-sprites/new/ancient/ghost.png",
+    "original_prompt": ".scratch/biome-enemy-base-sprites/prompts/ancient/ghost.txt",
+    "original_provenance": ".scratch/biome-enemy-base-sprites/provenance/ancient/ghost.json"
+  }
+}

@@ -1,12 +1,19 @@
 import { describe, expect, test } from "bun:test";
 
-describe("Dungeon gothic typography", () => {
-  test("loads both requested Jacquard Google Fonts on host and Creation", async () => {
+describe("Dungeon Mek typography", () => {
+  test("uses local Mek typefaces on host and Creation", async () => {
     for (const path of ["../index.html", "../forge.html"]) {
       const html = await Bun.file(new URL(path, import.meta.url)).text();
-      expect(html).toContain("family=Jacquard+12");
-      expect(html).toContain("family=Jacquard+24");
+      expect(html).not.toContain("fonts.googleapis.com");
+      expect(html).not.toContain("Pixelify Sans");
+      expect(html).not.toContain("Jacquard");
       expect(html).not.toContain("UnifrakturMaguntia");
+    }
+    const styles = await Bun.file(new URL("../src/styles.css", import.meta.url)).text();
+    const forgeStyles = await Bun.file(new URL("../src/forge/styles.css", import.meta.url)).text();
+    for (const css of [styles, forgeStyles]) {
+      expect(css).toContain("/assets/fonts/mek-sans-regular.woff2");
+      expect(css).toContain("/assets/fonts/mekzantine-regular.woff2");
     }
   });
 
@@ -20,8 +27,10 @@ describe("Dungeon gothic typography", () => {
     const main = await Bun.file(new URL("../src/main.ts", import.meta.url)).text();
     const shell = await Bun.file(new URL("../src/shell.ts", import.meta.url)).text();
 
-    expect(styles).toContain('--font-gothic: "Jacquard 24"');
-    expect(styles).toContain('--font-gothic-compact: "Jacquard 12"');
+    expect(styles).toContain('--font-gothic: "Mekzantine"');
+    expect(styles).toContain('--font-gothic-compact: "Mekzantine"');
+    expect(forgeStyles).toContain('--mono: "Mek Sans"');
+    expect(forgeStyles).toContain('--serif: "Mekzantine"');
     for (const css of [styles, editorStyles, forgeStyles]) {
       const gothicBlocks = css.match(
         /[^{}]+\{[^{}]*font-family:\s*var\(--(?:font-gothic(?:-compact)?|serif)\);[^{}]*\}/g,

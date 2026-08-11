@@ -22,6 +22,11 @@ describe("CDP live-scene photo tool", () => {
     expect(source).toContain('CRT !== "on" && CRT !== "off"');
     expect(source).toContain('process.env.PHOTO_SIMULATION ?? "on"');
     expect(source).toContain('PHOTO_SIMULATION === "on"');
+    expect(source).toContain('process.env.ESCAPE_SMOKE ?? "off"');
+    expect(source).toContain('capture("options-open")');
+    expect(source).toContain('capture("options-closed")');
+    expect(source).toContain('process.env.PHOTO_WIDTH ?? "1600"');
+    expect(source).toContain('process.env.PHOTO_HEIGHT ?? "900"');
     expect(source).toContain("Live photo simulation could not start");
     expect(source).toContain("toggle.getAttribute('aria-pressed')");
     expect(source).toContain("ctrl.setEnabled(false)");

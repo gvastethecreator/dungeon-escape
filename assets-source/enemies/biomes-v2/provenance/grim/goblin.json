@@ -1,0 +1,37 @@
+{
+  "version": 1,
+  "sourceType": "imagegen",
+  "artEngine": "imagegen",
+  "verificationStatus": "approved-user",
+  "acceptedSource": "sources/grim/goblin.png",
+  "sha256": "b4ddd26d8615cb88555131c80405bb60a673cc36b4dab57016dbc55015d973d2",
+  "sizeBytes": 1063053,
+  "prompt": "prompts/grim/goblin.txt",
+  "promptSha256": "270e0884153e0e83eb08bcf470cd58fe0101505f8841b631679b77ac0d0c87e0",
+  "baseReference": "reference/base/goblin.png",
+  "baseReferenceSha256": "f6310f6b8465bb1d0bac4b31d460dd62eb385ad27ca346fe94afa5aa1aa3d514",
+  "moodReference": "reference/mood/grim.png",
+  "moodReferenceSha256": "121ea9379a94d96432574be71df86fdb17545d912c9fe0ddfb93172f785a8952",
+  "materialReferences": [
+    "../../public/assets/textures/biomes/grim/wall.webp",
+    "../../public/assets/textures/biomes/grim/floor.webp",
+    "../../public/assets/textures/biomes/grim/ceiling.webp"
+  ],
+  "materialReferenceSha256": {
+    "../../public/assets/textures/biomes/grim/wall.webp": "8c28a9220859a18ad733af07a74c1dc2a638d0fbada61a8f33eb7106b3574a84",
+    "../../public/assets/textures/biomes/grim/floor.webp": "f77e0f28436b86859767fff4b88b6753bcf39ef8ad3aa9d4e9dd9f8816d1d8ee",
+    "../../public/assets/textures/biomes/grim/ceiling.webp": "6585284f91101a9110bffc0ae02c90426b9bb80153dee3247993876dc03202c7"
+  },
+  "approval": {
+    "status": "approved-user",
+    "date": "2026-08-04",
+    "review_record": ".scratch/biome-enemy-base-sprites/reviews.json",
+    "notes": "V2: goblin reconocible con cráneo dominante, mandíbula abierta, brazos desproporcionados y tendones visibles."
+  },
+  "consolidation": {
+    "package": "assets-source/enemies/biomes-v2",
+    "original_source": ".scratch/biome-enemy-base-sprites/new/grim/goblin.png",
+    "original_prompt": ".scratch/biome-enemy-base-sprites/prompts/grim/goblin.txt",
+    "original_provenance": ".scratch/biome-enemy-base-sprites/provenance/grim/goblin.json"
+  }
+}

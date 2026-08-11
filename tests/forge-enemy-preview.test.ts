@@ -11,6 +11,7 @@ describe("Creation enemy preview", () => {
     expect(source).not.toContain("aForgeEnemyFrame");
     expect(source).not.toContain("forge-instanced-enemy-atlas");
     expect(source).toContain("getEnemySpriteRenderMetrics(kind, d.params.themeKey)");
+    expect(source).toContain("getEnemyVisualBodySize(kind, d.params.themeKey)");
     expect(source).toContain("spriteMetrics.bottomPaddingRatio");
     expect(source).not.toContain("archetype.width * 0.74");
   });

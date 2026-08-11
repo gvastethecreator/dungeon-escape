@@ -486,8 +486,7 @@
 .app-shell[data-engine-mode="debug"] .options-card {
   position: relative;
   display: grid;
-  grid-template-columns:
-    172px minmax(300px, 390px) 258px 146px minmax(160px, 1fr);
+  grid-template-columns: 172px minmax(300px, 390px) 258px 146px minmax(160px, 1fr);
   align-items: center;
   gap: 8px;
   width: 100%;

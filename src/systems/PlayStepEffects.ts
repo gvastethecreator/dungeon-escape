@@ -3,10 +3,7 @@
  * main.ts executes DOM/audio; this owns wash-kind and hit-priority policy.
  */
 
-import {
-  resolveDamageWashKind,
-  type DamageWashKind,
-} from "./HazardFeel";
+import { resolveDamageWashKind, type DamageWashKind } from "./HazardFeel";
 import type { HazardSurfaceEffect } from "../world/HazardTileSystem";
 
 export interface PlayStepDamageInput {

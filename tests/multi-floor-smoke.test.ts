@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 
 import { isExitReachable, isFloorCell } from "../src/dungeon/generateDungeon";
+import { stairFlightFootprintCells } from "../src/dungeon/StairShaftPlan";
 import {
   createFloorDeckColliders,
   gridToWorld,
@@ -19,7 +20,11 @@ import {
   STORY_STEP_COUNT,
   STORY_STEP_RISE,
 } from "../src/world/StoryMetrics";
-import { buildStairFlight, worldTreadColliders } from "../src/world/StaircaseKit";
+import {
+  buildStairFlight,
+  stairFlightRootPosition,
+  worldTreadColliders,
+} from "../src/world/StaircaseKit";
 import { createDungeonMaterials } from "../src/world/MaterialLibrary";
 import { pickSupportTop, stepVerticalMotion, VERTICAL_EVENT } from "../src/player/VerticalMotion";
 import { biomeCampaignFloorCount } from "../src/systems/BiomeCampaign";
@@ -77,7 +82,8 @@ describe("multi-floor smoke", () => {
       const floorIndex = floor.floor?.index ?? 0;
       const incoming = floor.floor?.stairs.find((stair) => stair.targetFloor < floorIndex);
       if (!incoming) continue;
-      const incomingCells = new Set(incoming.footprint.map((cell) => `${cell.x},${cell.y}`));
+      const flightCells = stairFlightFootprintCells(incoming.footprint);
+      const incomingCells = new Set(flightCells.map((cell) => `${cell.x},${cell.y}`));
       for (let y = 0; y < floor.height; y += 1) {
         for (let x = 0; x < floor.width; x += 1) {
           if (!isFloorCell(floor, x, y) || incomingCells.has(`${x},${y}`)) continue;
@@ -87,13 +93,52 @@ describe("multi-floor smoke", () => {
           );
         }
       }
-      for (const cell of incoming.footprint) {
+      for (const cell of flightCells) {
         const point = gridToWorld(floor, cell, WORLD_TILE_SIZE);
         expect(colliders.some((collider) => overlapsWorldCollider(point, 0.01, collider))).toBe(
           false,
         );
       }
+      const landingCells = incoming.footprint.filter(
+        (cell) => !incomingCells.has(`${cell.x},${cell.y}`),
+      );
+      expect(landingCells).toHaveLength(2);
+      for (const cell of landingCells) {
+        const point = gridToWorld(floor, cell, WORLD_TILE_SIZE);
+        expect(colliders.some((collider) => overlapsWorldCollider(point, 0.01, collider))).toBe(
+          true,
+        );
+      }
     }
+  });
+
+  test("stair flight spans exactly between supported landing cells", () => {
+    const stack = generateDungeonFloorSet("SMOKE-STAIR-LANDINGS", { roomTarget: 16 }, 2);
+    const link = stack.shaftPlan.links[0]!;
+    const upper = stack.floors[1]!;
+    const anchor = gridToWorld(upper, link.anchor, WORLD_TILE_SIZE);
+    const root = stairFlightRootPosition(anchor, link.yaw, WORLD_TILE_SIZE);
+    const flight = buildStairFlight("up", createDungeonMaterials(), WORLD_TILE_SIZE);
+    const treads = worldTreadColliders(flight.treadColliders, root.x, 0, root.z, link.yaw);
+    const deck = createFloorDeckColliders(
+      upper,
+      WORLD_TILE_SIZE,
+      STORY_HEIGHT - 0.06,
+      STORY_HEIGHT + 0.02,
+    );
+    const upperLanding = link.footprint.at(-1)!;
+    const upperLandingWorld = gridToWorld(upper, upperLanding, WORLD_TILE_SIZE);
+
+    expect(deck.some((collider) => overlapsWorldCollider(upperLandingWorld, 0.01, collider))).toBe(
+      true,
+    );
+    const top = treads.at(-1)!;
+    const distanceToLanding = Math.hypot(
+      upperLandingWorld.x - (top.minX + top.maxX) * 0.5,
+      upperLandingWorld.z - (top.minZ + top.maxZ) * 0.5,
+    );
+    expect(distanceToLanding).toBeLessThan(WORLD_TILE_SIZE * 0.65);
+    expect(top.maxY).toBeCloseTo(STORY_HEIGHT, 5);
   });
 
   test("stair flight tops reach a full story and support step-up climb", () => {

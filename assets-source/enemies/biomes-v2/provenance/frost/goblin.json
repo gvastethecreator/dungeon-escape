@@ -1,0 +1,37 @@
+{
+  "version": 1,
+  "sourceType": "imagegen",
+  "artEngine": "imagegen",
+  "verificationStatus": "approved-user",
+  "acceptedSource": "sources/frost/goblin.png",
+  "sha256": "7e20dd7bba630b007b657e3dedb7c988b2703c6d9e4ebdc098bfb1c6b458ee3c",
+  "sizeBytes": 873295,
+  "prompt": "prompts/frost/goblin.txt",
+  "promptSha256": "f63d4239bc0ed9c78759fcc13b56470aa04f6537cbad3356947d391fbefea575",
+  "baseReference": "reference/base/goblin.png",
+  "baseReferenceSha256": "f6310f6b8465bb1d0bac4b31d460dd62eb385ad27ca346fe94afa5aa1aa3d514",
+  "moodReference": "../biome-particles/play-frost.png",
+  "moodReferenceSha256": "b72b98c857af88bae6bf9c326508e73df44ca347168a26515ef00e98d962de6d",
+  "materialReferences": [
+    "../../public/assets/textures/biomes/frost/wall.webp",
+    "../../public/assets/textures/biomes/frost/floor.webp",
+    "../../public/assets/textures/biomes/frost/ceiling.webp"
+  ],
+  "materialReferenceSha256": {
+    "../../public/assets/textures/biomes/frost/wall.webp": "f80e113b74af92a1a9e3547ea00865045eca1ada62c05d667946db30929224b2",
+    "../../public/assets/textures/biomes/frost/floor.webp": "ec3dd7c3ef99a5706b74bc849c817e2d6b8b1d20eb0fd73098c360ce7db04e1f",
+    "../../public/assets/textures/biomes/frost/ceiling.webp": "b97757c3bb4287a4b34a54eb48aed09a77a4603cef0761a3628108d5dae3c748"
+  },
+  "approval": {
+    "status": "approved-user",
+    "date": "2026-08-04",
+    "review_record": ".scratch/biome-enemy-base-sprites/reviews.json",
+    "notes": "Ninfa mantis de escarcha: pequeña, vertical y depredadora, con silueta completamente distinta al goblin base."
+  },
+  "consolidation": {
+    "package": "assets-source/enemies/biomes-v2",
+    "original_source": ".scratch/biome-enemy-base-sprites/new/frost/goblin.png",
+    "original_prompt": ".scratch/biome-enemy-base-sprites/prompts/frost/goblin.txt",
+    "original_provenance": ".scratch/biome-enemy-base-sprites/provenance/frost/goblin.json"
+  }
+}

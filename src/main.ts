@@ -16,16 +16,14 @@ import {
   type DomainBridge,
   type DungeonDomainState,
 } from "./domain/bridge";
-import { DUNGEON_PRESETS, type DungeonEditorParams, type DungeonPresetId } from "./editor/presets";
-import { generateCompletableDungeon } from "./dungeon/completeness";
-import {
-  createDungeonFloorCampaign,
-  type DungeonFloorCampaign,
-} from "./dungeon/generateDungeonFloors";
+import { DEFAULT_DUNGEON_PARAMS, type DungeonParams } from "./domain/core";
+import { generateDungeonBuild } from "./dungeon/DungeonGenerationEngine";
+import type { DungeonFloorCampaign } from "./dungeon/generateDungeonFloors";
+import { DUNGEON_PRESETS, type DungeonPresetId } from "./dungeon/presets";
 import { setDungeonSpawn } from "./dungeon/generateDungeon";
 import { parseForgeDungeonMessage, type ForgeDungeonIntakeValue } from "./dungeon/forgeIntake";
 import type { DungeonData } from "./dungeon/types";
-import { DungeonEditorView } from "./editor/DungeonEditorView";
+import { LazyDungeonEditorView } from "./editor/LazyDungeonEditorView";
 import { type EngineMode, isEngineMode } from "./game/EngineMode";
 import { MOBILITY_BOOST_FOOTSTEP_GAIN } from "./game/MobilityBoost";
 import { GLOOM_CURSE_FOG_MULTIPLIER, GLOOM_CURSE_LANTERN_MULTIPLIER } from "./game/GloomCurse";
@@ -398,6 +396,7 @@ const domainBridge: DomainBridge = createDomainBridge({
 });
 const floorExploration = new FloorExploration();
 let campaignFloorSet: DungeonFloorCampaign | null = null;
+let generationParams: DungeonParams = { ...DEFAULT_DUNGEON_PARAMS };
 
 function applyLocalDevToolsChrome(): void {
   elements.shell.dataset.localDevTools = localDevTools ? "true" : "false";
@@ -434,6 +433,10 @@ function createPlayRenderer(): THREE.WebGLRenderer {
   }
 }
 const renderer = createPlayRenderer();
+// Three.js recommends keeping shader diagnostics in development, but each
+// program info-log read can serialize Chrome's shader compiler. The production
+// runtime is covered by browser smokes, so avoid that cold-start stall there.
+if (import.meta.env.PROD) renderer.debug.checkShaderErrors = false;
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.18;
@@ -530,7 +533,14 @@ const lastRenderSnapshot = { calls: 0, triangles: 0, points: 0, lines: 0 };
 const longTaskObserver =
   typeof PerformanceObserver === "function"
     ? new PerformanceObserver((list) => {
-        for (const entry of list.getEntries()) frameGapProfiler.recordLongTask(entry.duration);
+        for (const entry of list.getEntries()) {
+          // PerformanceObserver delivery is asynchronous. Filter by the task's
+          // own timestamp so load, pause, screenshots, and the active-session
+          // warmup cannot leak into the in-game stutter sample.
+          if (profileSimulationActive && entry.startTime >= profileWarmupUntil) {
+            frameGapProfiler.recordLongTask(entry.duration);
+          }
+        }
       })
     : null;
 try {
@@ -558,6 +568,12 @@ let crtEnabled = renderCaps.enableCrtByDefault;
 let crtAutoDisabled = false;
 let crtManualOverride = false;
 let optionsOpen = false;
+/**
+ * Pointer-lock browsers can deliver `pointerlockchange` before the Escape
+ * keydown. Keep that same Escape from immediately closing the panel again.
+ */
+let optionsOpenByPointerUnlock = false;
+let optionsOpenGuardToken = 0;
 /**
  * After RESUME / Escape-close, browsers often reject requestPointerLock when the
  * activation key was Escape (same key that exits lock). Do not reopen the pause
@@ -656,7 +672,7 @@ const controller = new FirstPersonController(camera, elements.scene, {
       playRuntime.state().runMode === "playing" &&
       !suppressPauseOnPointerUnlock
     ) {
-      setOptionsOpen(true);
+      setOptionsOpen(true, "pointer-unlock");
     } else if (suppressPauseOnPointerUnlock && engineMode === "play") {
       // Intentional resume failed to re-lock (common after Escape). Stay unpaused
       // in the options sense; click the scene to capture the pointer again.
@@ -668,7 +684,9 @@ const controller = new FirstPersonController(camera, elements.scene, {
   },
 });
 
-const editorView = new DungeonEditorView(elements.editorMap, { onSelectSpawn: selectEditorSpawn });
+const editorView = new LazyDungeonEditorView(elements.editorMap, {
+  onSelectSpawn: selectEditorSpawn,
+});
 
 let objectiveBannerTimer: ReturnType<typeof setTimeout> | null = null;
 let objectiveFadeTimer: ReturnType<typeof setTimeout> | null = null;
@@ -1115,8 +1133,8 @@ function renderBiomePicker(): void {
 function startNewGameWithBiome(biomeId: BiomeId): void {
   if (!playerProfile || !isBiomeUnlocked(playerProfile, biomeId)) return;
   forcedPlayMoodId = biomeId;
-  // Apply the campaign ramp for this biome (Ancient soft → Backrooms brutal).
-  applyEditorParamsToForm(biomeCampaignParams(biomeId));
+  // Apply the campaign ramp without reading or painting editor controls.
+  setGenerationParams(biomeCampaignParams(biomeId));
   void startPlayWithSeed(launchConfig.visualQa.seed ?? makeSeed(), {
     refreshProcedural: true,
     runSource: "campaign",
@@ -1360,7 +1378,7 @@ const runIntroDirector = new RunIntroDirector({
   },
   enterTheater() {
     if (engineMode === "play") {
-      setEngineMode("editor", { hydrate: false, persist: false });
+      setEngineMode("editor", { hydrate: false, persist: false, loadEditor: false });
     }
     setIntroTheaterRevealed(false);
     setRunIntroActive(true, COPY.status.forgingMap);
@@ -1737,9 +1755,9 @@ function startRendererWarmup(
   const failsafe = window.setTimeout(() => {
     markRendererWarmupReady(sequence, "timeout", readyMessage, undefined, undefined, trace);
   }, 4_000);
-  // Split warmup across two frames: first forces dormant VFX into the graph,
-  // second compiles/draws. That keeps the longest main-thread task shorter than
-  // a single combined setVisible+render long task without dropping programs.
+  // Draw the live graph first. Forcing every dormant pickup effect into this
+  // frame made large resident stacks decode and upload unrelated paths before
+  // the player could move.
   window.requestAnimationFrame(() => {
     if (!isCurrentRendererWarmup(sequence, trace)) {
       window.clearTimeout(failsafe);
@@ -1747,51 +1765,36 @@ function startRendererWarmup(
       return;
     }
     const startedAt = performance.now();
+    let warmupError: unknown = null;
     try {
-      world.setPickupEffectsWarmupVisible(true);
+      // Draw only the live frame. Explicit scene precompile also registers
+      // offscreen variants whose program handles can outlive a replaced world.
+      povPost.render(renderer, scene, camera);
+      trace?.markFirstUsableFrame();
     } catch (error) {
+      warmupError = error;
+    }
+    try {
+      world.setPickupEffectsWarmupVisible(false);
+    } catch (error) {
+      if (warmupError === null) warmupError = error;
+    } finally {
       window.clearTimeout(failsafe);
-      const detail = error instanceof Error ? error.message : "unknown error";
+    }
+
+    if (warmupError !== null) {
+      const detail = warmupError instanceof Error ? warmupError.message : "unknown error";
       markRendererWarmupReady(sequence, "error", readyMessage, detail, undefined, trace);
       return;
     }
-    window.requestAnimationFrame(() => {
-      if (!isCurrentRendererWarmup(sequence, trace)) {
-        window.clearTimeout(failsafe);
-        finishDungeonLoadTrace(trace, "superseded");
-        return;
-      }
-      let warmupError: unknown = null;
-      try {
-        // Draw only the live frame. Explicit scene precompile also registers
-        // offscreen variants whose program handles can outlive a replaced world.
-        povPost.render(renderer, scene, camera);
-        trace?.markFirstUsableFrame();
-      } catch (error) {
-        warmupError = error;
-      }
-      try {
-        world.setPickupEffectsWarmupVisible(false);
-      } catch (error) {
-        if (warmupError === null) warmupError = error;
-      } finally {
-        window.clearTimeout(failsafe);
-      }
-
-      if (warmupError !== null) {
-        const detail = warmupError instanceof Error ? warmupError.message : "unknown error";
-        markRendererWarmupReady(sequence, "error", readyMessage, detail, undefined, trace);
-        return;
-      }
-      markRendererWarmupReady(
-        sequence,
-        "true",
-        readyMessage,
-        undefined,
-        Math.round(performance.now() - startedAt),
-        trace,
-      );
-    });
+    markRendererWarmupReady(
+      sequence,
+      "true",
+      readyMessage,
+      undefined,
+      Math.round(performance.now() - startedAt),
+      trace,
+    );
   });
 }
 
@@ -1896,7 +1899,12 @@ function applyPersistedRunSession(plan: RunResumeActivationPlan): void {
   else showEndOverlay(state.runMode);
 }
 
-function setOptionsOpen(open: boolean): void {
+function setOptionsOpen(
+  open: boolean,
+  source: "manual" | "pointer-unlock" | "escape" = "manual",
+): void {
+  optionsOpenGuardToken += 1;
+  optionsOpenByPointerUnlock = false;
   if (engineMode !== "play") {
     // Creation/Debug always show the docked tools shell.
     optionsOpen = false;
@@ -1910,6 +1918,13 @@ function setOptionsOpen(open: boolean): void {
   }
   optionsOpen = open;
   if (open) suppressPauseOnPointerUnlock = false;
+  if (open && source === "pointer-unlock") {
+    optionsOpenByPointerUnlock = true;
+    const guardToken = optionsOpenGuardToken;
+    window.requestAnimationFrame(() => {
+      if (optionsOpenGuardToken === guardToken) optionsOpenByPointerUnlock = false;
+    });
+  }
   elements.shell.classList.toggle("options-open", open);
   elements.optionsMenu.hidden = !open;
   elements.optionsCard.setAttribute("role", "dialog");
@@ -2043,13 +2058,13 @@ function clearTouchSessionWhenHidden(): void {
 }
 
 function getDecorDensity(): number {
-  return Number(elements.decorDensity.value) / 100;
+  return generationParams.decorDensity / 100;
 }
 function getEnemyDensity(): number {
-  return Number(elements.enemyDensity.value) / 100;
+  return generationParams.enemyDensity / 100;
 }
 function syncDifficultyLabel(): void {
-  const label = difficultyLabel(getEnemyDensity());
+  const label = difficultyLabel(Number(elements.enemyDensity.value) / 100);
   elements.enemyDensityLabel.value = label;
   elements.enemyDensity.setAttribute("aria-valuetext", label.toLowerCase());
 }
@@ -2136,13 +2151,13 @@ function syncHazardStatus(effect: HazardSurfaceEffect): void {
   elements.hazardOverlay.dataset.hazard = hazardKey;
 }
 function getLightLevel(): number {
-  return Number(elements.lightLevel.value) / 100;
+  return generationParams.lightLevel / 100;
 }
 function formatCell(cell: { x: number; y: number }): string {
   return `${cell.x + 1}.${cell.y + 1}`;
 }
 
-function readEditorParams(): DungeonEditorParams {
+function readEditorParams(): DungeonParams {
   return {
     roomTarget: Number(elements.roomCount.value),
     loopRate: Number(elements.loopRate.value),
@@ -2159,7 +2174,7 @@ function readEditorParams(): DungeonEditorParams {
   };
 }
 
-function applyEditorParamsToForm(params: DungeonEditorParams): void {
+function applyEditorParamsToForm(params: Readonly<DungeonParams>): void {
   elements.roomCount.value = String(params.roomTarget);
   elements.roomCountLabel.value = String(params.roomTarget);
   elements.loopRate.value = String(params.loopRate);
@@ -2189,12 +2204,21 @@ function applyEditorParamsToForm(params: DungeonEditorParams): void {
     : "custom";
 }
 
+function setGenerationParams(params: Readonly<DungeonParams>): DungeonParams {
+  generationParams = { ...params };
+  return generationParams;
+}
+
+function captureEditorParams(): DungeonParams {
+  return setGenerationParams(readEditorParams());
+}
+
 /** Resolve active mood: forced NEW GAME biome, URL, forge/profile, or seed. */
 function resolveActiveMood(nextDungeon: DungeonData) {
   if (forcedPlayMoodId) return getDungeonMood(forcedPlayMoodId);
   const forced = parseDungeonMoodId(launchConfig.mood);
   if (forced) return getDungeonMood(forced);
-  return resolveDungeonMood(nextDungeon, readEditorParams().profile);
+  return resolveDungeonMood(nextDungeon, generationParams.profile);
 }
 
 function applyAtmosphereFromParams(): void {
@@ -2216,7 +2240,7 @@ function applyDungeonMood(nextDungeon: DungeonData): ReturnType<typeof resolveDu
 }
 
 function pushParamsToDomain(
-  params: DungeonEditorParams = readEditorParams(),
+  params: DungeonParams = generationParams,
   source = "Dungeon parameters rejected",
 ): boolean {
   const result = domainBridge.setParams(params);
@@ -2225,8 +2249,8 @@ function pushParamsToDomain(
   return false;
 }
 
-function applyDungeonDomainToForm(state: DungeonDomainState): void {
-  applyEditorParamsToForm({
+function applyDungeonDomainParams(state: DungeonDomainState): void {
+  setGenerationParams({
     roomTarget: state.roomTarget,
     loopRate: state.loopRate,
     decorDensity: state.decorDensity,
@@ -2288,6 +2312,7 @@ function unlockAudioFromGesture(): void {
 
 document.addEventListener("pointerdown", unlockAudioFromGesture, { capture: true });
 document.addEventListener("keydown", unlockAudioFromGesture, { capture: true });
+document.addEventListener("touchstart", unlockAudioFromGesture, { capture: true, passive: true });
 
 let lastUiHoverAt = 0;
 let lastUiHoverTarget: UiSoundTarget | null = null;
@@ -2714,7 +2739,7 @@ function showEndOverlay(mode: "dead" | "won"): void {
     elements.endLeaderboardForm.hidden = true;
     elements.endLeaderboardNote.hidden = true;
     elements.endLeaderboardNote.textContent = "";
-    setEndNextBiomeDisabled();
+    hideEndNextBiome();
     pendingLeaderboardSubmission = null;
     elements.retry.textContent = COPY.end.retry;
     elements.retry.hidden = false;
@@ -2882,7 +2907,7 @@ function supersedeActiveDungeonLoadTrace(detail: string): void {
 async function activateDungeon(
   nextDungeon: DungeonData,
   message: string,
-  params: DungeonEditorParams,
+  params: DungeonParams,
   options: {
     persistBuild?: boolean;
     restore?: RunResumeActivationPlan;
@@ -2985,12 +3010,6 @@ async function activateDungeon(
   }
   if (options.restore?.playerPose) syncDomainExplore();
   controller.setEnabled(canEnablePlayController());
-  trace?.begin("editorProjection");
-  try {
-    editorView.setDungeon(dungeon, mood);
-  } finally {
-    trace?.end("editorProjection");
-  }
   setEditorSurfaceStatus(
     "runtime",
     `PLAY MAP · FLOOR ${nextDungeon.floor?.number ?? 1}/${nextDungeon.floor?.count ?? 1} · ${nextDungeon.stats.roomCount} ROOMS · ${nextDungeon.stats.loopCount} LOOPS`,
@@ -3061,6 +3080,7 @@ async function buildDungeon(
   options: {
     persistBuild?: boolean;
     restore?: RunResumeActivationPlan;
+    params?: Readonly<DungeonParams>;
   } = {},
   trace?: DungeonLoadTrace,
 ): Promise<DungeonRuntimeState> {
@@ -3070,17 +3090,7 @@ async function buildDungeon(
   povPost.resetCrtHistory();
   const normalizedSeed = seed.trim() || COPY.hud.seedDefault;
   try {
-    const params = readEditorParams();
-    const generationOptions = {
-      roomTarget: params.roomTarget,
-      extraConnectionRate: params.loopRate / 100,
-      width: params.mapWidth,
-      height: params.mapHeight,
-      minRoomSize: params.minRoomSize,
-      maxRoomSize: params.maxRoomSize,
-      corridorRadius: params.corridorRadius,
-      roomPadding: params.roomPadding,
-    };
+    const params = setGenerationParams(options.params ?? generationParams);
     const requestedCampaignMood =
       runSource === "campaign"
         ? (parseDungeonMoodId(options.restore?.generation.campaignBiomeId) ??
@@ -3090,35 +3100,33 @@ async function buildDungeon(
     let generated: DungeonData;
     loadTrace.begin("generation");
     try {
+      const rootSeed = options.restore?.generation.seed ?? normalizedSeed;
+      const activeFloor = Math.max(0, options.restore?.generation.activeFloor ?? 0);
       if (runSource === "campaign" && requestedCampaignMood) {
-        const rootSeed = options.restore?.generation.seed ?? normalizedSeed;
         const floorCount = biomeCampaignFloorCount(requestedCampaignMood);
-        campaignFloorSet = createDungeonFloorCampaign(rootSeed, generationOptions, floorCount);
-        const activeFloorIndex = Math.min(
-          floorCount - 1,
-          Math.max(0, options.restore?.generation.activeFloor ?? 0),
-        );
-        generated = campaignFloorSet.floor(activeFloorIndex)!;
+        const result = generateDungeonBuild({
+          seed: rootSeed,
+          params,
+          floorCount,
+          activeFloor,
+        });
+        campaignFloorSet = result.floorSet;
+        generated = result.dungeon;
       } else {
-        generated = generateCompletableDungeon(normalizedSeed, generationOptions);
+        const first = generateDungeonBuild({ seed: rootSeed, params });
+        generated = first.dungeon;
         if (runSource === "campaign" && !generated.forge) {
-          const rootSeed = options.restore?.generation.seed ?? normalizedSeed;
-          if (rootSeed !== normalizedSeed) {
-            generated = generateCompletableDungeon(rootSeed, generationOptions);
-          }
           const moodId = resolveActiveMood(generated).id;
           const floorCount = biomeCampaignFloorCount(moodId);
-          campaignFloorSet = createDungeonFloorCampaign(
-            rootSeed,
-            generationOptions,
+          const result = generateDungeonBuild({
+            seed: rootSeed,
+            params,
             floorCount,
-            generated,
-          );
-          const activeFloorIndex = Math.min(
-            floorCount - 1,
-            Math.max(0, options.restore?.generation.activeFloor ?? 0),
-          );
-          generated = campaignFloorSet.floor(activeFloorIndex)!;
+            activeFloor,
+            initialFloor: generated,
+          });
+          campaignFloorSet = result.floorSet;
+          generated = result.dungeon;
         } else {
           campaignFloorSet = null;
         }
@@ -3140,7 +3148,10 @@ async function buildDungeon(
   }
 }
 
-function setEditorSurface(nextSurface: "runtime" | "forge"): void {
+function setEditorSurface(
+  nextSurface: "runtime" | "forge",
+  options: { loadEditor?: boolean } = {},
+): void {
   editorSurface = nextSurface;
   renderEditorSurfaceStatus();
   elements.editorRuntimeSurface.hidden = nextSurface !== "runtime";
@@ -3156,7 +3167,17 @@ function setEditorSurface(nextSurface: "runtime" | "forge"): void {
   const visible = nextSurface === "forge" && (engineMode === "editor" || isRunIntroActive());
   forgeFrameClient.setVisible(visible);
   if (engineMode === "editor") setMapToolsOpen(nextSurface === "runtime");
-  if (nextSurface === "runtime") window.requestAnimationFrame(() => editorView.redraw());
+  if (
+    nextSurface === "runtime" &&
+    engineMode !== "play" &&
+    options.loadEditor !== false &&
+    Boolean(elements.shell.dataset.engineMode)
+  ) {
+    const editorDungeon = forgePreviewDungeon ?? dungeon;
+    if (editorDungeon) editorView.setDungeon(editorDungeon, resolveActiveMood(editorDungeon));
+    editorView.setDebug(engineMode === "debug");
+    void editorView.ensureLoaded().then(() => editorView.redraw());
+  }
 }
 
 function applyForgeDungeon(): void {
@@ -3167,6 +3188,7 @@ function applyForgeDungeon(): void {
     try {
       const imported = forgePreviewDungeon ?? forgeIntake.dungeon;
       const { params } = forgeIntake;
+      setGenerationParams(params);
       applyEditorParamsToForm(params);
       const mood = resolveActiveMood(imported);
       setRunSource("custom", true);
@@ -3247,10 +3269,21 @@ function selectEditorSpawn(cell: { x: number; y: number }): void {
 
 function setEngineMode(
   nextMode: EngineMode,
-  options: { hydrate?: boolean; persist?: boolean; deferController?: boolean } = {},
+  options: {
+    hydrate?: boolean;
+    persist?: boolean;
+    deferController?: boolean;
+    loadEditor?: boolean;
+  } = {},
 ): void {
   const initialized = Boolean(elements.shell.dataset.engineMode);
-  if (engineMode === nextMode && initialized) return;
+  if (engineMode === nextMode && initialized) {
+    if (nextMode !== "play" && options.loadEditor !== false) {
+      applyEditorParamsToForm(generationParams);
+      setEditorSurface(editorSurface);
+    }
+    return;
+  }
   engineMode = nextMode;
   // Apply the play DPR cap immediately; waiting for browser resize caused the
   // game to keep the editor-resolution render target.
@@ -3268,7 +3301,7 @@ function setEngineMode(
       }
       const localSeed = elements.seed.value.trim();
       if (shouldAdoptHydratedSeed(Boolean(dungeon), hydrated.seed, localSeed)) {
-        applyDungeonDomainToForm(hydrated.state);
+        applyDungeonDomainParams(hydrated.state);
         elements.seed.value = hydrated.seed;
         const restore = planRunResumeRestore(hydrated.state);
         await buildDungeon(hydrated.seed, {
@@ -3305,13 +3338,14 @@ function setEngineMode(
   setMapToolsOpen(external);
   elements.editorTitle.textContent = nextMode === "debug" ? "Graph and cells" : "Generated map";
   elements.debugMode.textContent = nextMode.toUpperCase();
-  // Apply map first, then debug overlays. setDungeon no-ops rebuild when the
-  // same dungeon reference is already loaded (mode toggles stay cheap).
-  const editorDungeon = forgePreviewDungeon ?? dungeon;
-  if (editorDungeon) editorView.setDungeon(editorDungeon, resolveActiveMood(editorDungeon));
-  editorView.setDebug(nextMode === "debug");
-  if (nextMode === "debug") setEditorSurface("runtime");
-  else setEditorSurface(editorSurface);
+  if (nextMode !== "play") {
+    applyEditorParamsToForm(generationParams);
+    const editorDungeon = forgePreviewDungeon ?? dungeon;
+    if (editorDungeon) editorView.setDungeon(editorDungeon, resolveActiveMood(editorDungeon));
+    editorView.setDebug(nextMode === "debug");
+  }
+  if (nextMode === "debug") setEditorSurface("runtime", { loadEditor: options.loadEditor });
+  else setEditorSurface(editorSurface, { loadEditor: options.loadEditor });
   // Play starts with options closed (minimal HUD). Creation/Debug keep tools docked.
   if (nextMode === "play") setOptionsOpen(false);
   else setOptionsOpen(false); // forces docked tools visible via engine mode CSS
@@ -3342,8 +3376,9 @@ function setEngineMode(
   if (initialized) playCue("mode");
   flash();
   scheduleMinimapLayout();
-  // One paint after layout (surface unhide / deck height) — editorView coalesces.
-  window.requestAnimationFrame(() => editorView.redraw());
+  if (nextMode !== "play" && options.loadEditor !== false && editorSurface === "runtime") {
+    void editorView.ensureLoaded().then(() => editorView.redraw());
+  }
 }
 
 function toggleMap(forceExpanded = !mapExpanded): void {
@@ -3417,6 +3452,37 @@ export interface RendererDiagnostics {
   shadowMap: boolean;
   shadowType: number;
   frameGaps: FrameGapSnapshot;
+  programProfiles?: readonly RendererProgramProfile[];
+  renderList?: RendererRenderListProfile;
+}
+
+export interface RendererProgramProfile {
+  id: number;
+  name: string;
+  type: string;
+  usedTimes: number;
+  objects: number;
+  materials: number;
+  materialTypes: readonly string[];
+  features: readonly string[];
+  samples: readonly string[];
+}
+
+export interface RendererRenderItemProfile {
+  objectName: string;
+  objectType: string;
+  materialType: string;
+  programId: number | null;
+  items: number;
+  instances: number;
+}
+
+export interface RendererRenderListProfile {
+  opaque: number;
+  transmissive: number;
+  transparent: number;
+  items: number;
+  profiles: readonly RendererRenderItemProfile[];
 }
 
 export interface DungeonRuntimeState {
@@ -3466,6 +3532,126 @@ function countSceneMaterials(now = performance.now()): number {
   return cachedMaterialCount;
 }
 
+/** Aggregate live material-to-program ownership for opt-in performance audits. */
+function collectRendererProgramProfiles(): readonly RendererProgramProfile[] {
+  type Program = {
+    id: number;
+    name?: string;
+    type?: string;
+    usedTimes?: number;
+  };
+  type MutableProfile = {
+    program: Program;
+    objects: Set<THREE.Object3D>;
+    materials: Set<THREE.Material>;
+    materialTypes: Set<string>;
+    features: Set<string>;
+    samples: Set<string>;
+  };
+  const profiles = new Map<number, MutableProfile>();
+  const ensure = (program: Program): MutableProfile => {
+    let profile = profiles.get(program.id);
+    if (!profile) {
+      profile = {
+        program,
+        objects: new Set(),
+        materials: new Set(),
+        materialTypes: new Set(),
+        features: new Set(),
+        samples: new Set(),
+      };
+      profiles.set(program.id, profile);
+    }
+    return profile;
+  };
+  for (const program of renderer.info.programs ?? []) ensure(program as Program);
+  scene.traverse((object) => {
+    const candidate = object as THREE.Object3D & { material?: THREE.Material | THREE.Material[] };
+    const materials = Array.isArray(candidate.material)
+      ? candidate.material
+      : candidate.material
+        ? [candidate.material]
+        : [];
+    for (const material of materials) {
+      const program = (renderer.properties.get(material) as { currentProgram?: Program })
+        .currentProgram;
+      if (!program) continue;
+      const profile = ensure(program);
+      profile.objects.add(object);
+      profile.materials.add(material);
+      profile.materialTypes.add(material.type);
+      const textured = material as THREE.Material & Record<string, unknown>;
+      for (const key of [
+        "map",
+        "normalMap",
+        "roughnessMap",
+        "metalnessMap",
+        "emissiveMap",
+        "alphaMap",
+      ]) {
+        if (textured[key]) profile.features.add(key);
+      }
+      if (material.transparent) profile.features.add("transparent");
+      if (material.alphaTest > 0) profile.features.add("alphaTest");
+      if ((material as THREE.MeshStandardMaterial).vertexColors)
+        profile.features.add("vertexColors");
+      if (object instanceof THREE.InstancedMesh) profile.features.add("instanced");
+      if (profile.samples.size < 5) {
+        profile.samples.add(`${object.name || object.type} :: ${material.name || material.type}`);
+      }
+    }
+  });
+  return [...profiles.values()]
+    .map(({ program, objects, materials, materialTypes, features, samples }) => ({
+      id: program.id,
+      name: program.name ?? "",
+      type: program.type ?? "",
+      usedTimes: program.usedTimes ?? 0,
+      objects: objects.size,
+      materials: materials.size,
+      materialTypes: [...materialTypes].sort(),
+      features: [...features].sort(),
+      samples: [...samples],
+    }))
+    .sort((a, b) => b.objects - a.objects || b.usedTimes - a.usedTimes || a.id - b.id);
+}
+
+/** Read the completed main-scene render list without traversing hidden slabs. */
+function collectRendererRenderList(): RendererRenderListProfile {
+  const renderList = renderer.renderLists.get(scene, 0);
+  const items = [...renderList.opaque, ...renderList.transmissive, ...renderList.transparent];
+  const profiles = new Map<string, RendererRenderItemProfile>();
+  for (const item of items) {
+    const program = (renderer.properties.get(item.material) as { currentProgram?: { id: number } })
+      .currentProgram;
+    const objectName = item.object.name || item.object.type;
+    const key = `${objectName}|${item.object.type}|${item.material.type}|${program?.id ?? "none"}`;
+    let profile = profiles.get(key);
+    if (!profile) {
+      profile = {
+        objectName,
+        objectType: item.object.type,
+        materialType: item.material.type,
+        programId: program?.id ?? null,
+        items: 0,
+        instances: 0,
+      };
+      profiles.set(key, profile);
+    }
+    profile.items += 1;
+    profile.instances += item.object instanceof THREE.InstancedMesh ? item.object.count : 1;
+  }
+  return {
+    opaque: renderList.opaque.length,
+    transmissive: renderList.transmissive.length,
+    transparent: renderList.transparent.length,
+    items: items.length,
+    profiles: [...profiles.values()]
+      .sort((a, b) => b.items - a.items || b.instances - a.instances)
+      .slice(0, 80),
+  };
+}
+
 function getRendererDiagnostics(): RendererDiagnostics {
   return {
     calls: lastRenderSnapshot.calls,
@@ -3482,6 +3668,8 @@ function getRendererDiagnostics(): RendererDiagnostics {
     shadowMap: renderer.shadowMap.enabled,
     shadowType: renderer.shadowMap.type,
     frameGaps: frameGapProfiler.snapshot(),
+    programProfiles: launchConfig.performanceAudit ? collectRendererProgramProfiles() : undefined,
+    renderList: launchConfig.performanceAudit ? collectRendererRenderList() : undefined,
   };
 }
 
@@ -3563,8 +3751,9 @@ elements.generationForm.addEventListener("submit", (event) => {
     return;
   }
   setRunSource("custom", false);
+  const params = captureEditorParams();
   void rebuildDungeonCovered(async () => {
-    await buildDungeon();
+    await buildDungeon(elements.seed.value, { params });
     playCue("forge");
   });
 });
@@ -3648,11 +3837,12 @@ function scheduleEditorRegeneration(): void {
   if (!localDevTools || engineMode === "play") return;
   void audio.unlock();
   window.clearTimeout(regenerateTimer);
+  const params = setGenerationParams({ ...generationParams, profile: "custom" });
   setEditorSurfaceStatus("runtime", "PLAY MAP · UPDATING", "updating");
   regenerateTimer = window.setTimeout(() => {
     elements.profileSelect.value = "custom";
     setRunSource("custom", false);
-    void buildDungeon().then(() => {
+    void buildDungeon(elements.seed.value, { params }).then(() => {
       audio.play("forge");
     });
   }, 280);
@@ -3665,6 +3855,7 @@ function bindRange(
 ): void {
   input.addEventListener("input", () => {
     label.value = suffix ? `${input.value}${suffix}` : input.value;
+    captureEditorParams();
     onInput?.();
     scheduleEditorRegeneration();
   });
@@ -3679,6 +3870,7 @@ bindRange(elements.corridorRadius, elements.corridorLabel);
 bindRange(elements.roomPadding, elements.paddingLabel);
 bindRange(elements.decorDensity, elements.decorDensityLabel, "%", applyAtmosphereFromParams);
 elements.enemyDensity.addEventListener("input", () => {
+  captureEditorParams();
   syncDifficultyLabel();
   applyAtmosphereFromParams();
   scheduleEditorRegeneration();
@@ -3687,10 +3879,11 @@ bindRange(elements.lightLevel, elements.lightLevelLabel, "%", applyAtmosphereFro
 elements.profileSelect.addEventListener("change", () => {
   const id = elements.profileSelect.value as DungeonPresetId;
   if (id in DUNGEON_PRESETS) {
-    applyEditorParamsToForm(DUNGEON_PRESETS[id]);
+    const params = setGenerationParams(DUNGEON_PRESETS[id]);
+    applyEditorParamsToForm(params);
     scheduleEditorRegeneration();
   } else {
-    pushParamsToDomain();
+    pushParamsToDomain(captureEditorParams());
   }
 });
 elements.presetButtons.forEach((button) => {
@@ -3699,10 +3892,11 @@ elements.presetButtons.forEach((button) => {
     const id = button.dataset.dungeonPreset as DungeonPresetId;
     const preset = DUNGEON_PRESETS[id];
     if (!preset) return;
-    applyEditorParamsToForm(preset);
+    const params = setGenerationParams(preset);
+    applyEditorParamsToForm(params);
     setRunSource("custom", false);
     void rebuildDungeonCovered(async () => {
-      await buildDungeon();
+      await buildDungeon(elements.seed.value, { params });
       playCue("forge");
       setStatus(`Preset ${id} applied and regenerated.`);
     });
@@ -3715,7 +3909,7 @@ elements.reroll.addEventListener("click", () => {
   elements.seed.value = makeSeed();
   setRunSource("custom", false);
   void rebuildDungeonCovered(async () => {
-    await buildDungeon();
+    await buildDungeon(elements.seed.value, { params: generationParams });
     playCue("forge");
   });
 });
@@ -3724,7 +3918,7 @@ elements.pushServer.addEventListener("click", () => {
     setStatus("Map tools are only available in local development.");
     return;
   }
-  if (!pushParamsToDomain()) return;
+  if (!pushParamsToDomain(captureEditorParams())) return;
   const seeded = domainBridge.setSeed(elements.seed.value.trim() || "CAMPAIGN-17");
   if (!seeded.ok) {
     setStatus(`Server push rejected: ${seeded.error.message}`);
@@ -3786,7 +3980,7 @@ elements.runSelect.addEventListener("change", () => {
       const hydrated = await domainBridge.hydrateFromAuthority();
       if (hydrated) {
         const d = hydrated.state;
-        applyDungeonDomainToForm(d);
+        applyDungeonDomainParams(d);
         elements.seed.value = hydrated.seed;
         await buildDungeon(hydrated.seed, {
           persistBuild: false,
@@ -3870,7 +4064,7 @@ elements.welcomeContinue.addEventListener("click", () => {
     await waitAnimationFrames(2);
     try {
       setRunSource(recovery?.runSource ?? runSourceFromLocalSave(validSave), false);
-      applyDungeonDomainToForm(state);
+      applyDungeonDomainParams(state);
       const restore = planRunResumeRestore(state, recovery?.resume ?? validSave?.resume);
       forcedPlayMoodId = parseDungeonMoodId(restore.generation.campaignBiomeId);
       elements.seed.value = restore.generation.seed;
@@ -3907,7 +4101,7 @@ elements.welcomeCustom.addEventListener("click", () => {
       await buildDungeon(freshSeed);
       setWelcomeTransitionBusy(false);
       setWelcomeOpen(false);
-      setEngineMode("editor", { hydrate: false });
+      setEngineMode("editor", { hydrate: false, loadEditor: false });
       setEditorSurface("forge");
       setStatus("Custom run · practice only. Create a dungeon, then select PLAY.");
     } catch (error) {
@@ -4101,16 +4295,20 @@ elements.interactionPrompt.addEventListener("pointerdown", (event) => {
 document.addEventListener("keydown", (event) => {
   if (event.repeat) return;
   // Escape always owns pause, including while a range input has focus.
-  if (!welcomeOpen && event.code === "Escape" && engineMode === "play") {
+  const isEscape = event.key === "Escape" || event.code === "Escape";
+  if (!welcomeOpen && isEscape && engineMode === "play") {
     event.preventDefault();
     if (mapExpanded) {
       toggleMap(false);
       return;
     }
-    // While pointer-locked, the browser unlocks first; onLockChange opens options.
-    // Do not also toggle here or the same Escape would open then immediately close.
-    if (controller.getState().locked) return;
     if (optionsOpen) {
+      // Some browsers emit pointerlockchange before keydown for the same Escape.
+      // The callback already opened the panel, so keep it open for this event.
+      if (optionsOpenByPointerUnlock) {
+        optionsOpenByPointerUnlock = false;
+        return;
+      }
       resumePlay();
       // Escape often cannot re-lock; leave a clear click-to-continue cue.
       if (!controller.getState().locked && !touchSessionActive) {
@@ -4119,9 +4317,11 @@ document.addEventListener("keydown", (event) => {
     } else if (suppressPauseOnPointerUnlock) {
       // Mid resume-pending (options closed, not locked): Escape re-opens pause.
       suppressPauseOnPointerUnlock = false;
-      setOptionsOpen(true);
+      setOptionsOpen(true, "escape");
     } else {
-      setOptionsOpen(true);
+      // Open immediately. Pointer-lock release is a follow-up concern and must
+      // not decide whether the options panel is visible.
+      setOptionsOpen(true, "escape");
     }
     return;
   }
@@ -4309,7 +4509,7 @@ function frame(now: number): void {
         const captured = domainBridge.captureBuild({
           seed: nextDungeon.seed,
           topologySignature: nextDungeon.topologySignature,
-          ...readEditorParams(),
+          ...generationParams,
         });
         if (!captured.ok) {
           // Keep play going; save path may be stale until the next successful build capture.
@@ -4414,7 +4614,7 @@ function frame(now: number): void {
         }
       }
       if (worldUpdate.cullBrandKill) {
-        audio.playAnnihilationPulse(worldUpdate.cullBrandKill.position);
+        audio.playCullBrandKill(worldUpdate.cullBrandKill.position);
         hitTrauma = Math.max(hitTrauma, 0.42);
         flash("event");
       }
@@ -4422,7 +4622,7 @@ function frame(now: number): void {
         world.applyPhoenixRevive(playerPosition);
         if (effects.phoenixCharges !== undefined) world.setPhoenixCharges(effects.phoenixCharges);
         syncPhoenixHud(0);
-        audio.playAnnihilationPulse(playerPosition);
+        audio.playPhoenixRevive(playerPosition);
         hitTrauma = Math.max(hitTrauma, 0.55);
         flash("event");
         updateResolve();
@@ -4486,14 +4686,14 @@ function frame(now: number): void {
   }
   camera.getWorldDirection(audioForward);
   audio.setListener(camera.position, audioForward);
-  // Asset ambience, spatial torches, and nearby creature calls.
+  // World anchors move far slower than render frames. A bounded refresh keeps
+  // the selected biome and HRTF placement current even before play resumes.
+  if (now - lastAudioFrameSync >= 125) {
+    audio.syncWorld(world.getAudioFrame());
+    lastAudioFrameSync = now;
+  }
+  // Threat reactions and soundscape timers advance only during active play.
   if (simulationActive) {
-    // World anchors move far slower than render frames. A bounded refresh keeps
-    // HRTF placement current without recreating a fire/enemy snapshot at 60 Hz.
-    if (now - lastAudioFrameSync >= 125) {
-      audio.syncWorld(world.getAudioFrame());
-      lastAudioFrameSync = now;
-    }
     audio.setThreatDistance(currentThreatDistance);
     audio.tick(delta);
   } else {
@@ -4778,7 +4978,7 @@ setBootProgress(0.28, visualQaState ? "Forging the QA map…" : "Opening the hal
 // The welcome screen does not need either WebGL world. Keep the runtime canvas
 // empty and the Forge iframe unmounted until the player chooses a real route.
 setEditorSurface("runtime");
-setEngineMode("editor", { hydrate: false, persist: false });
+setEngineMode("editor", { hydrate: false, persist: false, loadEditor: false });
 // Keep welcome closed only while its font and cover art settle.
 setWelcomeOpen(false);
 const localContinue = readLocalRunSave();
@@ -4830,7 +5030,7 @@ if (visualQaState) {
       if (localDevTools) {
         const hydrated = await domainBridge.hydrateFromAuthority();
         if (hydrated && canContinueDomainRun(hydrated.state)) {
-          applyDungeonDomainToForm(hydrated.state);
+          applyDungeonDomainParams(hydrated.state);
           elements.seed.value = hydrated.seed;
           setContinueCandidate(hydrated.state, "Saved descent ready.", null, {
             biomeId: forcedPlayMoodId ?? undefined,

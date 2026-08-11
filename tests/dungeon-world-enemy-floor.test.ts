@@ -8,6 +8,7 @@ import { biomeCampaignParams } from "../src/systems/BiomeCampaign";
 import { getDungeonMood } from "../src/systems/DungeonMood";
 import { DungeonLoadTrace } from "../src/systems/DungeonLoadTrace";
 import { DungeonWorld } from "../src/world/DungeonWorld";
+import { PLAYER_COMBAT_EYE_HEIGHT } from "../src/world/EnemySim";
 import {
   StaticDungeonScene,
   type StaticDungeonSceneHandles,
@@ -44,39 +45,39 @@ type EnemyActor = {
 const ENEMY_FLOOR_FIXTURE = Object.freeze([
   {
     floorIndex: 0,
-    count: 179,
-    active: 55,
-    reserve: 124,
+    count: 141,
+    active: 44,
+    reserve: 97,
     billboardKinds: 11,
     rawBatches: 12,
-    hash: "bda4d0d2",
+    hash: "3ab798c4",
   },
   {
     floorIndex: 1,
-    count: 188,
-    active: 55,
-    reserve: 133,
+    count: 145,
+    active: 44,
+    reserve: 101,
     billboardKinds: 11,
     rawBatches: 12,
-    hash: "69259b67",
+    hash: "c886c3d5",
   },
   {
     floorIndex: 2,
-    count: 156,
-    active: 53,
-    reserve: 103,
+    count: 129,
+    active: 43,
+    reserve: 86,
     billboardKinds: 11,
     rawBatches: 12,
-    hash: "92e97e2c",
+    hash: "198d791a",
   },
   {
     floorIndex: 3,
-    count: 172,
-    active: 55,
-    reserve: 117,
+    count: 126,
+    active: 43,
+    reserve: 83,
     billboardKinds: 11,
     rawBatches: 12,
-    hash: "134023b5",
+    hash: "427e3ef1",
   },
 ]);
 
@@ -272,14 +273,13 @@ describe("DungeonWorld per-floor enemy occupancy", () => {
           const stackedSnapshot = enemySnapshotForRuntime(runtime);
           const isolatedSnapshot = enemySnapshot(isolatedWorld);
           const stackedSeats = enemySeatKeys(runtime, dungeon);
-
           // Floors may reuse the same X/Z elsewhere in the stack, but enemy
           // planning and local state must stay inside their resident owner.
           expect(stackedSnapshot).toEqual(isolatedSnapshot);
           expect(stackedSnapshot).toHaveLength(expected.count);
           expect(snapshotHash(stackedSnapshot)).toBe(expected.hash);
           expect(new Set(stackedSeats).size).toBe(stackedSeats.length);
-          expect(runtime.root.parent).toBe(floorRuntime!.root);
+          expect(runtime.root.parent).toBe(floorRuntime!.detailRoot);
           expect(runtime.seatCount).toBe(expected.count);
           expect(runtime.activeCount).toBe(expected.active);
           expect(runtime.reserveCount).toBe(expected.reserve);
@@ -306,12 +306,12 @@ describe("DungeonWorld per-floor enemy occupancy", () => {
         stackedWorld
           .getResidentEnemyBuildDiagnostics()
           .reduce((total, runtime) => total + runtime.seats, 0),
-      ).toBe(695);
+      ).toBe(541);
       expect(
         stackedWorld
           .getResidentEnemyBuildDiagnostics()
           .reduce((total, runtime) => total + runtime.active, 0),
-      ).toBe(218);
+      ).toBe(174);
 
       const runtimeRoots = ENEMY_FLOOR_FIXTURE.map(
         ({ floorIndex }) => stackedWorld.getResidentEnemyRuntime(floorIndex)!.root,
@@ -458,7 +458,7 @@ describe("DungeonWorld per-floor enemy occupancy", () => {
       actor0.phaseVisibility = 1;
       for (const pickup of world.getActiveFloorRuntime()!.pickups) pickup.available = false;
       const contact = floor0.worldPositionInto(actor0.position, new THREE.Vector3());
-      contact.y += 1.5;
+      contact.y = floor0.floorSlabY + PLAYER_COMBAT_EYE_HEIGHT;
 
       const activeHit = world.update(0, contact, false);
       expect(activeHit.damage).toBeGreaterThan(0);
@@ -496,6 +496,50 @@ describe("DungeonWorld per-floor enemy occupancy", () => {
     }
   });
 
+  test("warms one visible pickup representative per shared reward kind", () => {
+    const restoreDocument = installCanvasDocument();
+    const world = createWorld();
+    try {
+      const floorSet = generateDungeonFloorSet(
+        "pickup-warmup-representatives",
+        { roomTarget: 8 },
+        4,
+      );
+      world.setDungeon(floorSet.floors[0]!, getDungeonMood("ash"), { stack: floorSet.floors });
+      const handles = enemyInternals(world).staticHandles;
+      const hasVisibleMesh = (root: THREE.Object3D): boolean => {
+        let visible = false;
+        root.traverse((object) => {
+          if (object instanceof THREE.Mesh && object.visible) visible = true;
+        });
+        return visible;
+      };
+
+      world.setPickupEffectsWarmupVisible(true);
+      const representatives = handles.pickups.filter((pickup) => hasVisibleMesh(pickup.object));
+      const keys = representatives.map((pickup) =>
+        pickup.kind === "stone" ? `stone:${pickup.stoneId ?? pickup.id}` : pickup.kind,
+      );
+      expect(representatives.length).toBeGreaterThan(0);
+      expect(new Set(keys).size).toBe(keys.length);
+      expect(
+        representatives.every(
+          (pickup) => handles.residentFloors[pickup.floorIndex]?.root.visible === true,
+        ),
+      ).toBe(true);
+
+      world.setPickupEffectsWarmupVisible(false);
+      expect(
+        handles.pickups
+          .filter((pickup) => pickup.collected || !pickup.available)
+          .every((pickup) => !hasVisibleMesh(pickup.object)),
+      ).toBe(true);
+    } finally {
+      world.dispose();
+      restoreDocument();
+    }
+  });
+
   test("scopes resident interactives to the active floor and rebinds without rebuilding", () => {
     const restoreDocument = installCanvasDocument();
     const world = createWorld();
@@ -514,7 +558,7 @@ describe("DungeonWorld per-floor enemy occupancy", () => {
         chests: floor0.chests.length,
         pickups: floor0.pickups.length,
       }).toEqual({
-        doors: 7,
+        doors: 20,
         chests: 13,
         pickups: 23,
       });
@@ -533,7 +577,7 @@ describe("DungeonWorld per-floor enemy occupancy", () => {
         restoreArrays.forEach((restore) => restore());
       }
       expect({ doorIterations, chestIterations, pickupIterations }).toEqual({
-        doorIterations: 7,
+        doorIterations: 20,
         chestIterations: 13,
         pickupIterations: 23,
       });
@@ -555,6 +599,16 @@ describe("DungeonWorld per-floor enemy occupancy", () => {
       world.update(0.016, lowerDoorPosition, false);
       expect(lowerDoor.targetOpen).toBe(true);
       expect(upperDoor.targetOpen).toBe(false);
+      world.update(
+        0.016,
+        new THREE.Vector3(
+          lowerDoorPosition.x + 100,
+          lowerDoorPosition.y + 10,
+          lowerDoorPosition.z + 100,
+        ),
+        false,
+      );
+      expect(lowerDoor.targetOpen).toBe(true);
 
       const lowerChestPosition = lowerChest.root.getWorldPosition(new THREE.Vector3());
       world.update(0.016, lowerChestPosition, false, true);

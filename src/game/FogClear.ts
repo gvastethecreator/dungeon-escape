@@ -1,10 +1,6 @@
 /** Temporary vision pickup: clears exploration/scene fog for a short window. */
 
-import {
-  activateTimedSeconds,
-  isTimedSecondsActive,
-  tickTimedSeconds,
-} from "./TimedSeconds";
+import { activateTimedSeconds, isTimedSecondsActive, tickTimedSeconds } from "./TimedSeconds";
 
 export const FOG_CLEAR_DURATION_SECONDS = 20;
 

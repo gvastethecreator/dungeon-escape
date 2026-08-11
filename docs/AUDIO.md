@@ -12,17 +12,17 @@ pwsh -File scripts/build-audio-pack.ps1
 
 ## Mix targets
 
-| Group           |                    Runtime gain |    Asset target | Effective bus target | Use                     |
-| --------------- | ------------------------------: | --------------: | -------------------: | ----------------------- |
-| ambience        |                            0.60 |        -29 LUFS |           ~-39 LUFS | Cave room tone          |
-| torch           |                     ambience ×0.69 |        -25 LUFS |           ~-36 LUFS | Nearby fire             |
-| sfx (pickups)   |                            0.84 | -21 to -19 LUFS |           ~-26 LUFS | Stones and powers       |
-| sfx (world)     |                            0.84 | -24 to -22 LUFS |      ~-31 to -30 LUFS | Doors and chests        |
-| sfx (hits/ends) |                            0.84 | -25 to -18 LUFS |      ~-27 to -24 LUFS | Damage, win, lose, portal |
-| stone footsteps | 0.84 group; 0.10–0.11 per asset |        -30 LUFS |           soft bed  | Dry floors (left soft)  |
-| wet footsteps   | 0.84 group; 0.14–0.16 per asset |        -32 LUFS |           soft bed  | Water masks (left soft) |
-| threat          |                            0.72 | -24 to -18 LUFS |      ~-30 to -27 LUFS | Enemy voices            |
-| ui              |                            0.28 |        -32 LUFS |           soft bed  | Soft menu clicks/ticks  |
+| Group           |                    Runtime gain |    Asset target | Effective bus target | Use                       |
+| --------------- | ------------------------------: | --------------: | -------------------: | ------------------------- |
+| ambience        |                            0.60 |        -29 LUFS |            ~-39 LUFS | Cave room tone            |
+| torch           |                  ambience ×0.69 |        -25 LUFS |            ~-36 LUFS | Nearby fire               |
+| sfx (pickups)   |                            0.84 | -21 to -19 LUFS |            ~-26 LUFS | Stones and powers         |
+| sfx (world)     |                            0.84 | -24 to -22 LUFS |     ~-31 to -30 LUFS | Doors and chests          |
+| sfx (hits/ends) |                            0.84 | -25 to -18 LUFS |     ~-27 to -24 LUFS | Damage, win, lose, portal |
+| stone footsteps | 0.84 group; 0.10–0.11 per asset |        -30 LUFS |             soft bed | Dry floors (left soft)    |
+| wet footsteps   | 0.84 group; 0.14–0.16 per asset |        -32 LUFS |             soft bed | Water masks (left soft)   |
+| threat          |                            0.72 | -24 to -18 LUFS |     ~-30 to -27 LUFS | Enemy voices              |
+| ui              |                            0.28 |        -32 LUFS |             soft bed | Soft menu clicks/ticks    |
 
 Master defaults to `0.76`. Effective level ≈ file LUFS + asset gain + group gain + master. Per-asset gains in `GameAudio` were matched to measured Opus loudness; footsteps stay intentionally quiet.
 
@@ -30,26 +30,27 @@ A compressor at -12 dB / 12:1 limits overlap. Encode uses loudnorm plus a pre-Op
 
 ## Asset map
 
-| Asset | Role |
-| ----- | ---- |
-| `ambience-cave` | Looping dungeon room tone |
-| `torch-crackle` | Nearby fire one-shot |
-| `step-stone-a/b` | Dry footstep variants |
-| `step-water-a/b` | Wet footstep variants |
-| `ui-metal` | Forge / heavy UI confirm |
-| `ui-click` | Default interface click |
-| `ui-tick` | Slider ticks / seed chips |
-| `ui-hover` | Soft menu hover blip |
-| `ui-select` | Primary menu / biome select |
-| `ui-back` | Back / secondary actions |
-| `ui-toggle` | Mute / CRT / checkbox toggles |
-| `ui-deny` | Disabled control feedback |
+| Asset            | Role                          |
+| ---------------- | ----------------------------- |
+| `ambience-cave`  | Looping dungeon room tone     |
+| `torch-crackle`  | Nearby fire one-shot          |
+| `step-stone-a/b` | Dry footstep variants         |
+| `step-water-a/b` | Wet footstep variants         |
+| `ui-metal`       | Forge / heavy UI confirm      |
+| `ui-click`       | Default interface click       |
+| `ui-tick`        | Slider ticks / seed chips     |
+| `ui-hover`       | Soft menu hover blip          |
+| `ui-select`      | Primary menu / biome select   |
+| `ui-back`        | Back / secondary actions      |
+| `ui-toggle`      | Mute / CRT / checkbox toggles |
+| `ui-deny`        | Disabled control feedback     |
 
 Regenerate synthetic UI clicks with:
 
 ```powershell
 python scripts/generate-ui-sounds.py
 ```
+
 | `pickup-stone` | Magic stone bind |
 | `pickup-resolve` | Health flask |
 | `pickup-time-freeze` | Time freeze power |
@@ -64,13 +65,13 @@ Kinds: `carrion`, `goblin`, `ghost`, `ratling`, `husk`, `imp`, `zombie-orc`, `sp
 
 `creatureVoiceForEnemy(kind)` is 1:1 with roster kind. Proximity picks from presence takes; `playEnemyHit` picks from attack takes. The active dungeon mood is on `DungeonAudioFrame.moodId` and maps via `creatureToneForMood`:
 
-| Mood | Tone | Pool effect |
-| ---- | ---- | ----------- |
-| frost | cold | skin clips double-weighted into take pool |
-| sunken, fungal | wet | same |
-| molten, obsidian | fire | same |
-| backrooms | weird | same |
-| others | base | only v0–v2 |
+| Mood             | Tone  | Pool effect                               |
+| ---------------- | ----- | ----------------------------------------- |
+| frost            | cold  | skin clips double-weighted into take pool |
+| sunken, fungal   | wet   | same                                      |
+| molten, obsidian | fire  | same                                      |
+| backrooms        | weird | same                                      |
+| others           | base  | only v0–v2                                |
 
 Sources live in `scripts/enemy-audio-map.ps1` (personal library under `F:\# AUDIO\# SAMPLES\#SFX\`). Rebuild with `build-audio-pack.ps1`.
 | `door-open` / `door-close` | Dungeon doors |

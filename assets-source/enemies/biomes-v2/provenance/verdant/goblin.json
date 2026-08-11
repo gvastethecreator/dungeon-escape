@@ -1,0 +1,37 @@
+{
+  "version": 1,
+  "sourceType": "imagegen",
+  "artEngine": "imagegen",
+  "verificationStatus": "approved-user",
+  "acceptedSource": "sources/verdant/goblin.png",
+  "sha256": "16b92675be15f08bfa2d3afd20df0e6c2467550d39f10815a6f5c4d582ff7785",
+  "sizeBytes": 898463,
+  "prompt": "prompts/verdant/goblin.txt",
+  "promptSha256": "95a330c7323e2d7d00e8d156a2ff2d5c6e21853f033e711806688dcbc2d9e1bf",
+  "baseReference": "reference/base/goblin.png",
+  "baseReferenceSha256": "f6310f6b8465bb1d0bac4b31d460dd62eb385ad27ca346fe94afa5aa1aa3d514",
+  "moodReference": "reference/mood/verdant.png",
+  "moodReferenceSha256": "8666d392d410af1d96c7b1a8e3b3177709a7dccaf3c74016d115b72d302b7a9a",
+  "materialReferences": [
+    "../../public/assets/textures/biomes/verdant/wall.webp",
+    "../../public/assets/textures/biomes/verdant/floor.webp",
+    "../../public/assets/textures/biomes/verdant/ceiling.webp"
+  ],
+  "materialReferenceSha256": {
+    "../../public/assets/textures/biomes/verdant/wall.webp": "fdf355131f3ed206817cb33a56ac048d52bfd805640203316ff170c781c3047d",
+    "../../public/assets/textures/biomes/verdant/floor.webp": "772b3c463a46b2092b4b8fc7180f336b49021e247f7a16545017b718866a6cf0",
+    "../../public/assets/textures/biomes/verdant/ceiling.webp": "bf551698b4c6a1497a2d8c472b318340cf0f7c942d34f61939c2628aaecc5523"
+  },
+  "approval": {
+    "status": "approved-user",
+    "date": "2026-08-04",
+    "review_record": ".scratch/biome-enemy-base-sprites/reviews.json",
+    "notes": "Rabbit de zarzas conservado por indicación del usuario."
+  },
+  "consolidation": {
+    "package": "assets-source/enemies/biomes-v2",
+    "original_source": ".scratch/biome-enemy-base-sprites/new/verdant/goblin.png",
+    "original_prompt": ".scratch/biome-enemy-base-sprites/prompts/verdant/goblin.txt",
+    "original_provenance": ".scratch/biome-enemy-base-sprites/provenance/verdant/goblin.json"
+  }
+}

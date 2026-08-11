@@ -51,7 +51,8 @@ for (let i = 0; i < 20; i++) {
     };
   });
   console.log(`t+${Date.now() - t0}`, JSON.stringify(snap));
-  if (snap.bootHidden === true || snap.rendererReady === "true" || snap.rendererReady === "error") break;
+  if (snap.bootHidden === true || snap.rendererReady === "true" || snap.rendererReady === "error")
+    break;
 }
 
 // frame cost sample

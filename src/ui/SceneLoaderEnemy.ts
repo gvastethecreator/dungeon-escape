@@ -59,9 +59,7 @@ export function sceneLoaderEnemyStyle(
   };
 }
 
-export function pickSceneLoaderEnemyKind(
-  random: () => number = Math.random,
-): EnemyRosterKind {
+export function pickSceneLoaderEnemyKind(random: () => number = Math.random): EnemyRosterKind {
   const index = Math.min(
     ENEMY_ROSTER.length - 1,
     Math.max(0, Math.floor(random() * ENEMY_ROSTER.length)),
@@ -98,10 +96,7 @@ export class SceneLoaderEnemy {
     return this.kind;
   }
 
-  show(
-    moodId: string,
-    options: { kind?: EnemyRosterKind; random?: () => number } = {},
-  ): void {
+  show(moodId: string, options: { kind?: EnemyRosterKind; random?: () => number } = {}): void {
     const kind = options.kind ?? pickSceneLoaderEnemyKind(options.random);
     this.kind = kind;
     this.visible = true;
@@ -139,14 +134,8 @@ export class SceneLoaderEnemy {
 
     stage.style.width = `${style.cellSizePx}px`;
     stage.style.height = `${style.cellSizePx}px`;
-    stage.style.setProperty(
-      "--scene-loader-enemy-strip-width",
-      `${style.stripWidthPx}px`,
-    );
-    stage.style.setProperty(
-      "--scene-loader-enemy-frame-duration",
-      `${style.frameDurationSec}s`,
-    );
+    stage.style.setProperty("--scene-loader-enemy-strip-width", `${style.stripWidthPx}px`);
+    stage.style.setProperty("--scene-loader-enemy-frame-duration", `${style.frameDurationSec}s`);
 
     sprite.style.backgroundImage = style.backgroundImage;
     sprite.style.backgroundSize = style.backgroundSize;

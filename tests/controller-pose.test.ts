@@ -66,9 +66,7 @@ describe("controller pose restore boundary", () => {
       { x: 0, y: 1.68 + 0.22, z: 0, yaw: 0, pitch: 0, distanceTravelled: 3 },
       {
         ...OPTIONS,
-        colliders: [
-          { minX: -0.5, maxX: 0.5, minZ: -0.5, maxZ: 0.5, minY: 0, maxY: 0.22 },
-        ],
+        colliders: [{ minX: -0.5, maxX: 0.5, minZ: -0.5, maxZ: 0.5, minY: 0, maxY: 0.22 }],
       },
     );
     expect(restored?.y).toBeCloseTo(1.9, 5);
@@ -93,11 +91,7 @@ describe("controller pose restore boundary", () => {
     ).toBeNull();
     expect(resolveRestorableControllerPose(dungeon(), { ...base, y: 1e300 }, OPTIONS)).toBeNull();
     expect(
-      resolveRestorableControllerPose(
-        dungeon(),
-        { ...base, distanceTravelled: 1e300 },
-        OPTIONS,
-      ),
+      resolveRestorableControllerPose(dungeon(), { ...base, distanceTravelled: 1e300 }, OPTIONS),
     ).toBeNull();
   });
 

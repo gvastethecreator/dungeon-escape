@@ -122,7 +122,10 @@ describe("local SQLite leaderboard", () => {
     first.close();
     openRepositories.splice(openRepositories.indexOf(first), 1);
 
-    const reopened = await SqliteLeaderboardRepository.open({ databasePath, storageSource: "test" });
+    const reopened = await SqliteLeaderboardRepository.open({
+      databasePath,
+      storageSource: "test",
+    });
     openRepositories.push(reopened);
     const minimum = await reopened.create(
       submission("run_reopen_0008", "Minimum Runner", 180_000, 8),

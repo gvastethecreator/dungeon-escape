@@ -51,6 +51,7 @@ function createAssets(): AssetLibrary {
     biomeDoor: () => albedo,
     biomeSpriteProp: () => albedo,
     biomeSpriteDecorAtlas: () => albedo,
+    uncannyWallAtlas: () => albedo,
     biomeWallDecorPbr: () => pbr,
     wallArtPbr: () => pbr,
   } as unknown as AssetLibrary;
@@ -360,6 +361,8 @@ function isRdl05Renderable(object: THREE.Object3D): object is THREE.Mesh {
     object.name.startsWith("Creation passable arch ") ||
     object.name.startsWith("Runtime chest ") ||
     object.name.startsWith("Runtime door frame ") ||
+    object.name.startsWith("Runtime left door leaf ") ||
+    object.name.startsWith("Runtime right door leaf ") ||
     object.name.startsWith("Room wall artwork ") ||
     object.name === "Static prop contact shadows" ||
     object.name.includes("closed iron-bound door leaf") ||
@@ -389,7 +392,7 @@ function exactGeometryCopies(root: THREE.Object3D): {
  * Frozen pre-migration contract. Numeric transforms and bounds use five decimals.
  * Objects sort by name and world matrix. Instance matrices keep their authored order.
  */
-const PREMIGRATION_PARITY_VERSION = "rdl05-premigration-v1-round5";
+const PREMIGRATION_PARITY_VERSION = "rdl05-runtime-batching-v2";
 
 function rounded(value: number): number {
   const result = Math.round(value * 100_000) / 100_000;
@@ -600,17 +603,22 @@ function sceneParityBaseline(
 
 function doorParityBaseline(fixture: string, handles: ReturnType<StaticDungeonScene["build"]>) {
   const renderables: ReturnType<typeof renderableParitySnapshot>[] = [];
-  const actors = handles.doors.map(({ root, left, right }) => {
+  const batchRoots = new Set<THREE.Object3D>();
+  const actors = handles.doors.map(({ root, left, right, runtimeBatch }) => {
     root.updateMatrixWorld(true);
-    root.traverse((object) => {
-      if (object instanceof THREE.Mesh) renderables.push(renderableParitySnapshot(object));
-    });
+    if (runtimeBatch) batchRoots.add(runtimeBatch.root);
     return {
       root: roundedArray(root.matrixWorld.elements),
       left: roundedArray(left.matrix.elements),
       right: roundedArray(right.matrix.elements),
     };
   });
+  for (const batchRoot of batchRoots) {
+    batchRoot.updateMatrixWorld(true);
+    batchRoot.traverse((object) => {
+      if (object instanceof THREE.Mesh) renderables.push(renderableParitySnapshot(object));
+    });
+  }
   sortParityRenderables(renderables);
   return {
     version: PREMIGRATION_PARITY_VERSION,
@@ -624,10 +632,10 @@ function doorParityBaseline(fixture: string, handles: ReturnType<StaticDungeonSc
 }
 
 const PREMIGRATION_CLASSIC_BASELINE = Object.freeze({
-  version: "rdl05-premigration-v1-round5",
+  version: "rdl05-runtime-batching-v2",
   fixture: "classic:RDL05-CLASSIC-PARITY:rooms10:ash:decor0.72",
-  renderableObjects: 85,
-  renderableInstances: 192,
+  renderableObjects: 53,
+  renderableInstances: 257,
   familyVariants: [
     "Classic barrels:0|3|3",
     "Classic barrels:1|3|3",
@@ -644,30 +652,28 @@ const PREMIGRATION_CLASSIC_BASELINE = Object.freeze({
     "Classic urns:0|2|4",
     "Classic urns:2|2|2",
     "Classic weapon-rack:0|3|3",
-    "Left closed iron-bound door leaf|9|9",
-    "Left door iron straps|9|9",
-    "Right closed iron-bound door leaf|9|9",
-    "Right door iron straps|9|9",
     "Room wall artwork 1|1|3",
     "Room wall artwork 3|1|2",
     "Runtime chest body|3|45",
     "Runtime chest lid|2|30",
-    "Runtime door frame|1|9",
+    "Runtime door frame|1|22",
+    "Runtime left door leaf|2|44",
+    "Runtime right door leaf|2|44",
     "Static prop contact shadows|1|18",
   ],
-  doors: 9,
+  doors: 22,
   objectOccupied: 259,
   solid: 33,
   wallSprite: 67,
   colliders: 33,
   reservationsFingerprint: "fnv1a-d07e63c2",
-  // Generated floor props now reserve room-edge seats, never corridor floor cells.
-  fingerprint: "fnv1a-b39296a2",
+  // Every topology opening now owns a persistent door; rigid batches remain shared.
+  fingerprint: "fnv1a-9bf1f9df",
 });
 const PREMIGRATION_FORGE_BASELINE = Object.freeze({
-  version: "rdl05-premigration-v1-round5",
+  version: "rdl05-runtime-batching-v2",
   fixture: "forge:50505:rooms9:loop0.28:backrooms:decor0.7",
-  renderableObjects: 93,
+  renderableObjects: 85,
   renderableInstances: 282,
   familyVariants: [
     "Creation passable arch batch 1|1|7",
@@ -696,37 +702,34 @@ const PREMIGRATION_FORGE_BASELINE = Object.freeze({
     "Forge static weapon-rack:0|3|3",
     "Forge static weapon-rack:1|3|3",
     "Forge static weapon-rack:2|3|9",
-    "Left closed iron-bound door leaf|3|3",
-    "Left office push bar|3|3",
-    "Right closed iron-bound door leaf|3|3",
-    "Right office push bar|3|3",
     "Runtime chest body|3|30",
     "Runtime chest lid|2|20",
     "Runtime door frame|1|3",
+    "Runtime left door leaf|2|6",
+    "Runtime right door leaf|2|6",
     "Static prop contact shadows|1|42",
   ],
   doors: 3,
-  objectOccupied: 233,
+  objectOccupied: 235,
   solid: 51,
-  wallSprite: 56,
+  wallSprite: 76,
   colliders: 51,
-  reservationsFingerprint: "fnv1a-7c904afc",
-  // Dense wall/ceiling decor still preserves authored rigid prop parity.
-  fingerprint: "fnv1a-0a29d9f5",
+  reservationsFingerprint: "fnv1a-b558aca1",
+  // Floor-free V2 decor and denser wall/ceiling batches preserve authored rigid prop parity.
+  fingerprint: "fnv1a-695b1df6",
 });
 const PREMIGRATION_DOOR_BASELINE = Object.freeze({
-  version: "rdl05-premigration-v1-round5",
+  version: "rdl05-runtime-batching-v2",
   fixture: "forge:50505:rooms9:loop0.28:backrooms:decor0.7:doors",
   actors: 3,
-  renderableObjects: 12,
-  renderableInstances: 12,
+  renderableObjects: 5,
+  renderableInstances: 15,
   familyVariants: [
-    "Left closed iron-bound door leaf|3|3",
-    "Left office push bar|3|3",
-    "Right closed iron-bound door leaf|3|3",
-    "Right office push bar|3|3",
+    "Runtime door frame|1|3",
+    "Runtime left door leaf|2|6",
+    "Runtime right door leaf|2|6",
   ],
-  fingerprint: "fnv1a-97b912c4",
+  fingerprint: "fnv1a-9e7f764b",
 });
 
 function archInstanceMatrices(
@@ -875,11 +878,15 @@ describe("RDL-05 rigid prop catalog", () => {
       expect([...disposals.values()]).toEqual(geometries.map(() => 0));
       for (const door of first.doors) {
         for (const name of expectedNames.slice(1)) {
-          expect((door.root.getObjectByName(name) as THREE.Mesh).geometry).toBe(
-            (template.getObjectByName(name) as THREE.Mesh).geometry,
-          );
+          expect(door.root.getObjectByName(name)).toBeUndefined();
         }
+        expect(door.runtimeBatch).not.toBeNull();
       }
+      const doorBatches = first.residentFloors[0]!.doorBatchRoots[0]!.children.filter(
+        (object): object is THREE.InstancedMesh => object instanceof THREE.InstancedMesh,
+      );
+      expect(doorBatches).toHaveLength(5);
+      expect(doorBatches.every((batch) => batch.count === expectedDoorCount)).toBe(true);
 
       const second = staticScene.build(dungeon, getDungeonMood("ash"), 0.72);
       expect(second.doors).toHaveLength(expectedDoorCount);
@@ -1043,8 +1050,8 @@ describe("RDL-05 rigid prop catalog", () => {
         doorGeometries: doorGeometries.size,
         materials: materialDisposals.size,
       }).toEqual({
-        assetTextures: 37,
-        catalogGeometries: 126,
+        assetTextures: 38,
+        catalogGeometries: 122,
         doorGeometries: 5,
         materials: 42,
       });
@@ -1349,8 +1356,8 @@ describe("RDL-05 rigid prop catalog", () => {
     };
     try {
       expect(stack.floors).toHaveLength(4);
-      expect(stack.floors.every((floor) => floor.width === 121 && floor.height === 121)).toBe(true);
-      expect(backroomsOptions().roomTarget).toBe(42);
+      expect(stack.floors.every((floor) => floor.width === 105 && floor.height === 105)).toBe(true);
+      expect(backroomsOptions().roomTarget).toBe(34);
 
       doorProfile = [];
       const cold = runWithDoorCloneCounter(() =>

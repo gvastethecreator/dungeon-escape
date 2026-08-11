@@ -59,6 +59,7 @@ function createAssets(): AssetLibrary {
     biomeDoor: () => albedo,
     biomeSpriteProp: () => albedo,
     biomeSpriteDecorAtlas: () => albedo,
+    uncannyWallAtlas: () => albedo,
     biomeWallDecorPbr: () => pbr,
     wallArtPbr: () => pbr,
   } as unknown as AssetLibrary;

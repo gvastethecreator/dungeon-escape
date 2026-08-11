@@ -9,8 +9,6 @@ describe("AudioMusicPolicy", () => {
 
   test("falls back to ancient for unknown moods", () => {
     expect(musicTrackForBiome("not-a-biome")).toBe("biome-ancient");
-    expect(musicTrackForBiome("not-a-biome", { portalOpen: true })).toBe(
-      "biome-ancient-portal",
-    );
+    expect(musicTrackForBiome("not-a-biome", { portalOpen: true })).toBe("biome-ancient-portal");
   });
 });

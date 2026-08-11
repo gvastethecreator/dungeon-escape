@@ -1,0 +1,37 @@
+{
+  "version": 1,
+  "sourceType": "imagegen",
+  "artEngine": "imagegen",
+  "verificationStatus": "approved-user",
+  "acceptedSource": "sources/ash/imp.png",
+  "sha256": "a578bd8ea759154e96f2026c97f6975c813824d19c488cc44799f9f295e0a494",
+  "sizeBytes": 924009,
+  "prompt": "prompts/ash/imp.txt",
+  "promptSha256": "d2c9d8d23dada690be8e4619d0cbf9fd3203672b88d7996c0e89a6dcf974ed9b",
+  "baseReference": "reference/base/imp.png",
+  "baseReferenceSha256": "4797388f5b93dd0bcfd063eda2f19c543be7f63ef7929c59a107c90040235db9",
+  "moodReference": "reference/mood/ash.png",
+  "moodReferenceSha256": "19b41ecc89dde1e98c2424cdfdc9b9b99efc5a28f02f60d04bff8091587aad37",
+  "materialReferences": [
+    "../../public/assets/textures/biomes/ash/wall.webp",
+    "../../public/assets/textures/biomes/ash/floor.webp",
+    "../../public/assets/textures/biomes/ash/ceiling.webp"
+  ],
+  "materialReferenceSha256": {
+    "../../public/assets/textures/biomes/ash/wall.webp": "a47676f48d8ec595f4f7b2293c38bd33bde3d53c9df13f8ae0f77a709f95eac8",
+    "../../public/assets/textures/biomes/ash/floor.webp": "4f66043cf6d4400e5a54ba94c4aa2984e4914395999f6362ef69f782b7c9e72c",
+    "../../public/assets/textures/biomes/ash/ceiling.webp": "43b00def8fa0a22211c1ce7588644bf44ede90e30e1f8e5880b609fa973aea12"
+  },
+  "approval": {
+    "status": "approved-user",
+    "date": "2026-08-04",
+    "review_record": ".scratch/biome-enemy-base-sprites/reviews.json",
+    "notes": "Búho carroñero frontal con dos alas, dos patas recogidas y disco facial fracturado."
+  },
+  "consolidation": {
+    "package": "assets-source/enemies/biomes-v2",
+    "original_source": ".scratch/biome-enemy-base-sprites/new/ash/imp.png",
+    "original_prompt": ".scratch/biome-enemy-base-sprites/prompts/ash/imp.txt",
+    "original_provenance": ".scratch/biome-enemy-base-sprites/provenance/ash/imp.json"
+  }
+}

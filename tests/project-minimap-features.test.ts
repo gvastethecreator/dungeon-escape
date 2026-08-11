@@ -60,9 +60,7 @@ describe("projectMinimapFeatures", () => {
     });
 
     expect(features.enemies).toEqual([{ cell: { x: 3, y: 3 }, tier: 1 }]);
-    expect(features.stones).toEqual([
-      { cell: { x: 5, y: 5 }, collected: true, id: "ember" },
-    ]);
+    expect(features.stones).toEqual([{ cell: { x: 5, y: 5 }, collected: true, id: "ember" }]);
     expect(features.pickups).toEqual([{ x: 6, y: 6 }]);
     expect(features.map).toEqual({ x: 8, y: 8 });
     expect(features.swarmCurse).toEqual({ x: 11, y: 11 });

@@ -4,6 +4,8 @@ import type { FootstepSurface } from "./FootstepSurface";
 import type { MusicTrack } from "./AudioMusicPolicy";
 import {
   audioAssetCount,
+  audioAssetForBiomeAccent,
+  audioAssetForBiomeAmbience,
   audioAssetForCue,
   audioAssetForMusic,
   audioAssetForPickup,
@@ -66,6 +68,9 @@ export interface CollectedPickupAudio {
 }
 
 export interface AudioLoadDiagnostics {
+  contextState: AudioContextState | "uninitialized";
+  ready: boolean;
+  currentAmbienceAsset: AudioAssetId | null;
   catalogAssets: number;
   requestedAssets: number;
   decodedAssets: number;
@@ -73,6 +78,8 @@ export interface AudioLoadDiagnostics {
   downloadedBytes: number;
   residentBuffers: number;
   inflightAssets: number;
+  queuedAssets: number;
+  backgroundPrefetchActive: boolean;
 }
 
 const MUSIC_FADE_SEC = 0.55;
@@ -80,7 +87,6 @@ const MUSIC_FADE_SEC = 0.55;
 const SILENT_GAIN = 0.0001;
 
 const STARTUP_AUDIO_ASSETS: readonly AudioAssetId[] = [
-  "ambience-cave",
   "ui-click",
   "ui-tick",
   "ui-hover",
@@ -90,6 +96,26 @@ const STARTUP_AUDIO_ASSETS: readonly AudioAssetId[] = [
   "ui-deny",
   "ui-metal",
 ];
+
+/**
+ * Play-path sounds that must be resident before the first likely interaction.
+ * They stay out of the blocking unlock set and enter the throttled route queue.
+ */
+const PLAY_AUDIO_PREFETCH_ASSETS: readonly AudioAssetId[] = [
+  "step-stone-a",
+  "step-stone-b",
+  "chest-open",
+  "chest-reward",
+  "door-open",
+  "door-close",
+  "damage",
+  "pickup-stone",
+  "enemy-growl",
+  "enemy-attack",
+  "torch-crackle",
+];
+
+const BACKGROUND_PREFETCH_YIELD_MS = 16;
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
@@ -203,12 +229,19 @@ export class GameAudio {
     { position?: AudioPosition; gainScale: number }
   >();
   private readonly pendingPlaybackWaiters = new Set<AudioAssetId>();
+  private readonly backgroundPrefetchQueue: AudioAssetId[] = [];
+  private readonly queuedPrefetchAssets = new Set<AudioAssetId>();
+  private backgroundPrefetchTimer: ReturnType<typeof setTimeout> | null = null;
+  private backgroundPrefetchRunning = false;
+  private activePrefetchAsset: AudioAssetId | null = null;
   private prefetchedRouteKey = "";
   private requestedAssets = 0;
   private decodedAssets = 0;
   private decodedMilliseconds = 0;
   private downloadedBytes = 0;
   private ambienceSource: AudioBufferSourceNode | null = null;
+  private ambienceGain: GainNode | null = null;
+  private ambienceAssetId: AudioAssetId | null = null;
   private musicSource: AudioBufferSourceNode | null = null;
   private musicGain: GainNode | null = null;
   private musicTrack: MusicTrack | null = null;
@@ -221,6 +254,7 @@ export class GameAudio {
   private threatIntensity = 0;
   private threatCooldown = 0;
   private torchTimer = 1.4;
+  private biomeAccentTimer = 8;
   private stepVariant = 0;
   private lastThreatBand: ThreatBand = 0;
   private frame: DungeonAudioFrame = {
@@ -259,6 +293,9 @@ export class GameAudio {
 
   getLoadDiagnostics(): AudioLoadDiagnostics {
     return {
+      contextState: this.context?.state ?? "uninitialized",
+      ready: this.isReady,
+      currentAmbienceAsset: this.ambienceAssetId,
       catalogAssets: audioAssetCount(),
       requestedAssets: this.requestedAssets,
       decodedAssets: this.decodedAssets,
@@ -266,6 +303,9 @@ export class GameAudio {
       downloadedBytes: this.downloadedBytes,
       residentBuffers: this.buffers.size,
       inflightAssets: this.assetLoads.size,
+      queuedAssets: this.backgroundPrefetchQueue.length,
+      backgroundPrefetchActive:
+        this.backgroundPrefetchRunning || this.backgroundPrefetchTimer !== null,
     };
   }
 
@@ -287,12 +327,12 @@ export class GameAudio {
     await this.ensureAssets(this.startupAssetIds());
     if (context.state !== "running") return false;
     this.applyMix();
-    this.startAmbience();
+    this.startAmbience(audioAssetForBiomeAmbience(this.frame.moodId));
     // Welcome/end may request a bed before the first unlock gesture resolves.
     if (this.musicTrack && !this.musicSource && !this.musicMuted) {
       this.startMusic(this.musicTrack);
     }
-    this.prefetchActiveRoute();
+    this.syncBiomeSoundscape();
     return true;
   }
 
@@ -343,9 +383,15 @@ export class GameAudio {
   }
 
   playAnnihilationPulse(position: AudioPosition): void {
-    // The existing portal swell is the closest local library take for a wide
-    // spatial pulse, and keeps the new item free of an unreviewed audio asset.
-    this.playAsset("portal-open", position);
+    this.playAsset("power-annihilation-pulse", position);
+  }
+
+  playCullBrandKill(position: AudioPosition): void {
+    this.playAsset("power-cull-brand-kill", position);
+  }
+
+  playPhoenixRevive(position: AudioPosition): void {
+    this.playAsset("power-phoenix-revive", position);
   }
 
   get currentMusic(): MusicTrack | null {
@@ -463,6 +509,7 @@ export class GameAudio {
   syncWorld(frame: DungeonAudioFrame): void {
     this.frame = frame;
     this.prefetchActiveRoute();
+    this.syncBiomeSoundscape();
   }
 
   /** Continuous enemy proximity. Calls remain safe before unlock. */
@@ -504,6 +551,11 @@ export class GameAudio {
       if (fire) this.playAsset("torch-crackle", fire);
       this.torchTimer = 3.8 + Math.random() * 4.2;
     }
+    this.biomeAccentTimer -= delta;
+    if (this.biomeAccentTimer <= 0) {
+      this.playAsset(audioAssetForBiomeAccent(this.frame.moodId));
+      this.biomeAccentTimer = 12 + Math.random() * 18;
+    }
     const ambient = resolveThreatAmbientBark({
       intensity: this.threatIntensity,
       cooldownRemaining: this.threatCooldown,
@@ -539,11 +591,19 @@ export class GameAudio {
       }
     }
     this.ambienceSource = null;
+    this.ambienceGain?.disconnect();
+    this.ambienceGain = null;
+    this.ambienceAssetId = null;
     this.groups.clear();
     this.buffers.clear();
     this.assetLoads.clear();
     this.pendingPlayback.clear();
     this.pendingPlaybackWaiters.clear();
+    if (this.backgroundPrefetchTimer !== null) clearTimeout(this.backgroundPrefetchTimer);
+    this.backgroundPrefetchTimer = null;
+    this.backgroundPrefetchQueue.length = 0;
+    this.queuedPrefetchAssets.clear();
+    this.activePrefetchAsset = null;
     void this.context?.close();
     this.context = null;
     this.master = null;
@@ -572,19 +632,35 @@ export class GameAudio {
   }
 
   private startupAssetIds(): readonly AudioAssetId[] {
-    if (!this.musicTrack) return STARTUP_AUDIO_ASSETS;
-    return [...STARTUP_AUDIO_ASSETS, audioAssetForMusic(this.musicTrack)];
+    const assets: AudioAssetId[] = [
+      audioAssetForBiomeAmbience(this.frame.moodId),
+      ...STARTUP_AUDIO_ASSETS,
+    ];
+    if (this.musicTrack) assets.push(audioAssetForMusic(this.musicTrack));
+    return assets;
   }
 
   private prefetchActiveRoute(): void {
     const context = this.context;
     if (!context || context.state !== "running" || this.disposed) return;
     const tone = creatureToneForMood(this.frame.moodId);
-    const voices = [...new Set(this.frame.enemies.map((enemy) => enemy.voice))].sort();
-    const routeKey = `${tone}:${voices.join(",")}`;
+    const orderedEnemies = [...this.frame.enemies].sort((left, right) => {
+      const leftDistance =
+        (left.x - this.listener.x) ** 2 +
+        (left.y - this.listener.y) ** 2 +
+        (left.z - this.listener.z) ** 2;
+      const rightDistance =
+        (right.x - this.listener.x) ** 2 +
+        (right.y - this.listener.y) ** 2 +
+        (right.z - this.listener.z) ** 2;
+      return leftDistance - rightDistance || left.voice.localeCompare(right.voice);
+    });
+    const voices = [...new Set(orderedEnemies.map((enemy) => enemy.voice))];
+    const ambience = audioAssetForBiomeAmbience(this.frame.moodId);
+    const routeKey = `${ambience}:${tone}:${[...voices].sort().join(",")}`;
     if (routeKey === this.prefetchedRouteKey) return;
     this.prefetchedRouteKey = routeKey;
-    const ids: AudioAssetId[] = [];
+    const ids: AudioAssetId[] = [...PLAY_AUDIO_PREFETCH_ASSETS];
     for (const voice of voices) {
       ids.push(...creatureBaseTakes(voice, "voice"), ...creatureBaseTakes(voice, "attack"));
       if (tone !== "base") {
@@ -592,7 +668,62 @@ export class GameAudio {
         ids.push(creatureToneAsset(voice, "attack", tone));
       }
     }
-    void this.ensureAssets(ids);
+    this.replaceBackgroundPrefetch(ids);
+  }
+
+  private replaceBackgroundPrefetch(ids: readonly AudioAssetId[]): void {
+    this.backgroundPrefetchQueue.length = 0;
+    this.queuedPrefetchAssets.clear();
+    for (const id of ids) {
+      if (
+        this.buffers.has(id) ||
+        this.assetLoads.has(id) ||
+        id === this.activePrefetchAsset ||
+        this.queuedPrefetchAssets.has(id)
+      ) {
+        continue;
+      }
+      this.backgroundPrefetchQueue.push(id);
+      this.queuedPrefetchAssets.add(id);
+    }
+    this.scheduleBackgroundPrefetch();
+  }
+
+  private scheduleBackgroundPrefetch(): void {
+    if (
+      this.disposed ||
+      this.backgroundPrefetchRunning ||
+      this.backgroundPrefetchTimer !== null ||
+      this.backgroundPrefetchQueue.length === 0
+    ) {
+      return;
+    }
+    this.backgroundPrefetchTimer = setTimeout(() => {
+      this.backgroundPrefetchTimer = null;
+      void this.drainBackgroundPrefetch();
+    }, 0);
+  }
+
+  private async drainBackgroundPrefetch(): Promise<void> {
+    if (this.backgroundPrefetchRunning || this.disposed) return;
+    this.backgroundPrefetchRunning = true;
+    try {
+      while (!this.disposed) {
+        const id = this.backgroundPrefetchQueue.shift();
+        if (!id) break;
+        this.queuedPrefetchAssets.delete(id);
+        this.activePrefetchAsset = id;
+        await this.ensureAsset(id);
+        this.activePrefetchAsset = null;
+        if (this.backgroundPrefetchQueue.length > 0) {
+          await new Promise<void>((resolve) => setTimeout(resolve, BACKGROUND_PREFETCH_YIELD_MS));
+        }
+      }
+    } finally {
+      this.activePrefetchAsset = null;
+      this.backgroundPrefetchRunning = false;
+      this.scheduleBackgroundPrefetch();
+    }
   }
 
   private async ensureAssets(ids: readonly AudioAssetId[]): Promise<void> {
@@ -634,22 +765,63 @@ export class GameAudio {
     }
   }
 
-  private startAmbience(): void {
+  private syncBiomeSoundscape(): void {
+    const context = this.context;
+    if (!context || context.state !== "running" || this.disposed) return;
+    const requested = audioAssetForBiomeAmbience(this.frame.moodId);
+    if (requested === this.ambienceAssetId && this.ambienceSource) return;
+    void this.ensureAssets([requested, audioAssetForBiomeAccent(this.frame.moodId)]).then(() => {
+      if (this.disposed || requested !== audioAssetForBiomeAmbience(this.frame.moodId)) return;
+      this.startAmbience(requested);
+      this.biomeAccentTimer = 7 + Math.random() * 8;
+    });
+  }
+
+  private startAmbience(assetId: AudioAssetId): void {
     const context = this.context;
     const destination = this.groups.get("ambience");
-    const buffer = this.buffers.get("ambience-cave");
-    if (!context || !destination || !buffer || this.ambienceSource || this.disposed) return;
+    const buffer = this.buffers.get(assetId);
+    if (!context || !destination || !buffer || this.disposed) return;
+    if (this.ambienceSource && this.ambienceAssetId === assetId) return;
+    const now = context.currentTime;
+    const fadingSource = this.ambienceSource;
+    const fadingGain = this.ambienceGain;
+    if (fadingSource && fadingGain) {
+      fadingGain.gain.cancelScheduledValues(now);
+      fadingGain.gain.setValueAtTime(Math.max(SILENT_GAIN, fadingGain.gain.value), now);
+      fadingGain.gain.linearRampToValueAtTime(SILENT_GAIN, now + MUSIC_FADE_SEC);
+      globalThis.setTimeout(
+        () => {
+          try {
+            fadingSource.stop();
+          } catch {
+            // Source already stopped.
+          }
+          fadingSource.disconnect();
+          fadingGain.disconnect();
+        },
+        MUSIC_FADE_SEC * 1000 + 40,
+      );
+    }
     const source = context.createBufferSource();
     const gain = context.createGain();
     source.buffer = buffer;
     source.loop = true;
-    gain.gain.value = getAudioAsset("ambience-cave").gain;
+    gain.gain.value = SILENT_GAIN;
+    gain.gain.setValueAtTime(SILENT_GAIN, now);
+    gain.gain.linearRampToValueAtTime(getAudioAsset(assetId).gain, now + MUSIC_FADE_SEC);
     source.connect(gain).connect(destination);
     source.start();
     source.onended = () => {
-      if (this.ambienceSource === source) this.ambienceSource = null;
+      if (this.ambienceSource === source) {
+        this.ambienceSource = null;
+        this.ambienceGain = null;
+        this.ambienceAssetId = null;
+      }
     };
     this.ambienceSource = source;
+    this.ambienceGain = gain;
+    this.ambienceAssetId = assetId;
   }
 
   private startMusic(track: MusicTrack | null): void {

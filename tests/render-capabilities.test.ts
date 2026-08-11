@@ -4,6 +4,12 @@ import { readFileSync } from "node:fs";
 import { detectRenderCapabilities, isFirefoxUserAgent } from "../src/systems/RenderCapabilities";
 
 describe("render capabilities", () => {
+  test("production avoids synchronous shader diagnostic reads", () => {
+    const source = readFileSync("src/main.ts", "utf8");
+
+    expect(source).toContain("if (import.meta.env.PROD) renderer.debug.checkShaderErrors = false;");
+  });
+
   test("detects Firefox from user agent", () => {
     expect(isFirefoxUserAgent("Mozilla/5.0 Firefox/153.0")).toBe(true);
     expect(isFirefoxUserAgent("Mozilla/5.0 Chrome/150.0.0.0 Safari/537.36")).toBe(false);
@@ -24,7 +30,7 @@ describe("render capabilities", () => {
     expect(caps.pixelRatioCap).toBe(1);
   });
 
-  test("Chrome desktop keeps CRT and the full readiness deadline", () => {
+  test("Chrome desktop keeps the full readiness deadline with CRT opt-in", () => {
     const caps = detectRenderCapabilities({
       userAgent:
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36",
@@ -33,7 +39,7 @@ describe("render capabilities", () => {
       search: "",
     });
     expect(caps.isFirefox).toBe(false);
-    expect(caps.enableCrtByDefault).toBe(true);
+    expect(caps.enableCrtByDefault).toBe(false);
     expect(caps.telemetryPath).toBe("default");
     expect(caps.rendererReadyTimeoutMs).toBe(8_000);
     expect(caps.preferDefaultGpu).toBe(false);
@@ -63,7 +69,14 @@ describe("render capabilities", () => {
     });
     expect(forced.telemetryPath).toBe("firefox");
     expect(forced.rendererReadyTimeoutMs).toBe(8_000);
-    expect(forced.enableCrtByDefault).toBe(true);
+    expect(forced.enableCrtByDefault).toBe(false);
+
+    const forcedCrt = detectRenderCapabilities({
+      userAgent: "Mozilla/5.0 Firefox/153.0",
+      hardwareConcurrency: 8,
+      search: "?quality=1&crt=1",
+    });
+    expect(forcedCrt.enableCrtByDefault).toBe(true);
 
     const safe = detectRenderCapabilities({
       userAgent:

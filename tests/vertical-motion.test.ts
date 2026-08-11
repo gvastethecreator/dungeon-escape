@@ -135,6 +135,17 @@ describe("first-person vertical motion", () => {
     expect(event & VERTICAL_EVENT.jumped).toBe(0);
   });
 
+  test("grounded step-down follows a normal stair tread", () => {
+    const state = createVerticalMotionState(CONFIG.eyeHeight + STORY_STEP_RISE, CONFIG.maxAirJumps);
+    stepVerticalMotion(state, 1 / 60, false, {
+      ...CONFIG,
+      maxStepUp: STORY_MAX_STEP_UP,
+      floorEyeY: CONFIG.eyeHeight,
+    });
+    expect(state.grounded).toBe(true);
+    expect(state.y).toBeCloseTo(CONFIG.eyeHeight, 5);
+  });
+
   test("pickSupportTop prefers the highest reachable tread", () => {
     const feetY = 0.1;
     const picked = pickSupportTop([0, 0.22, 0.44, 1.5], feetY, STORY_MAX_STEP_UP);

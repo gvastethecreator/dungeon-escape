@@ -82,7 +82,10 @@ export function detectRenderCapabilities(
   const safeMode = forceSafe === true || (forceQuality === false && forceSafe !== false);
   const treatAsConstrained = safeMode || isFirefox || isLowEnd;
 
-  let enableCrtByDefault = !treatAsConstrained;
+  // CRT history adds full-screen render targets and is an observed source of
+  // cold-load stalls and frame spikes even on fast desktop GPUs. Keep it as an
+  // explicit aesthetic option instead of charging every run by default.
+  let enableCrtByDefault = false;
   if (forceCrt === true) enableCrtByDefault = true;
   if (forceCrt === false) enableCrtByDefault = false;
 
@@ -101,7 +104,7 @@ export function detectRenderCapabilities(
     isFirefox,
     isLowEnd,
     preferDefaultGpu: treatAsConstrained && !highQuality,
-    enableCrtByDefault: highQuality ? forceCrt !== false : enableCrtByDefault,
+    enableCrtByDefault,
     pixelRatioCap: highQuality ? 1.25 : treatAsConstrained ? 1 : 1.25,
     telemetryPath,
     rendererReadyTimeoutMs: shortWarmupDeadline ? 2_500 : 8_000,

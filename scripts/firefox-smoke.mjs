@@ -94,10 +94,18 @@ for (let i = 0; i < 60; i++) {
         rendererReady: shell?.dataset?.rendererReady ?? null,
         engineReady: engine?.ready ?? null,
         canvas: canvas
-          ? { width: canvas.width, height: canvas.height, clientW: canvas.clientWidth, clientH: canvas.clientHeight }
+          ? {
+              width: canvas.width,
+              height: canvas.height,
+              clientW: canvas.clientWidth,
+              clientH: canvas.clientHeight,
+            }
           : null,
         rendererInfo,
-        scripts: [...document.scripts].map((s) => s.src).filter(Boolean).slice(0, 12),
+        scripts: [...document.scripts]
+          .map((s) => s.src)
+          .filter(Boolean)
+          .slice(0, 12),
       };
     });
   } catch (error) {
@@ -112,7 +120,11 @@ for (let i = 0; i < 60; i++) {
     );
   }
 
-  if (snapshot?.engineReady === true || snapshot?.rendererReady === "true" || snapshot?.rendererReady === "error") {
+  if (
+    snapshot?.engineReady === true ||
+    snapshot?.rendererReady === "true" ||
+    snapshot?.rendererReady === "error"
+  ) {
     break;
   }
   if (snapshot?.bootHidden === true && Date.now() - started > 5_000) break;
@@ -153,19 +165,26 @@ try {
 // Click New Game and first biome if possible
 let playStats = null;
 try {
-  const canClick = await page.locator("#welcome-new").isVisible({ timeout: 2_000 }).catch(() => false);
+  const canClick = await page
+    .locator("#welcome-new")
+    .isVisible({ timeout: 2_000 })
+    .catch(() => false);
   if (canClick) {
     console.log(`[smoke] click New Game`);
     await page.click("#welcome-new");
     await page.waitForTimeout(800);
-    const biomeBtn = page.locator("#welcome-biome-picker button, .biome-pick, [data-biome]").first();
+    const biomeBtn = page
+      .locator("#welcome-biome-picker button, .biome-pick, [data-biome]")
+      .first();
     if (await biomeBtn.count()) {
       console.log(`[smoke] click biome`);
       await biomeBtn.click({ timeout: 3_000 }).catch(() => {});
     }
     // wait for renderer ready up to 20s
     for (let i = 0; i < 40; i++) {
-      const ready = await page.evaluate(() => document.querySelector(".app-shell")?.dataset?.rendererReady);
+      const ready = await page.evaluate(
+        () => document.querySelector(".app-shell")?.dataset?.rendererReady,
+      );
       if (ready === "true" || ready === "error") {
         console.log(`[smoke] play rendererReady=${ready} after ${i * 500}ms`);
         break;
@@ -209,7 +228,9 @@ try {
 }
 
 const screenshotPath = path.join(outDir, "shot.png");
-await page.screenshot({ path: screenshotPath, fullPage: false }).catch((e) => console.log("shot fail", e));
+await page
+  .screenshot({ path: screenshotPath, fullPage: false })
+  .catch((e) => console.log("shot fail", e));
 
 const report = {
   engineName,

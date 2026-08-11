@@ -1,0 +1,179 @@
+{
+  "version": 1,
+  "kind": "biome-enemy-animation-atlas",
+  "biome": "verdant",
+  "size": [640, 3520],
+  "cell": [160, 160],
+  "layout": "two interleaved rows per enemy: movement, attack",
+  "frames_per_state": 4,
+  "reviewed": [
+    "carrion",
+    "goblin",
+    "ghost",
+    "ratling",
+    "husk",
+    "imp",
+    "zombie-orc",
+    "spider",
+    "bone-slime",
+    "white-eyed-shadow",
+    "carrion-stalker"
+  ],
+  "enemies": {
+    "carrion": {
+      "status": "reviewed",
+      "candidate": ".scratch/biome-enemy-animation-spritesheets/candidates/verdant/carrion",
+      "source_sha256": "54475dcf12e514ffd81eb4a08888606de639b7e81c36e9927cc0f6bdbb65f6dd",
+      "validation_fingerprint": "b22b58ee0939123d1ef09fa1ca7ca7306635c47b38db48b39bf3ed0400dfae0c",
+      "movement_row": 0,
+      "attack_row": 1,
+      "movement_fps": 8,
+      "attack_fps": 10,
+      "pivot": {
+        "x": 80,
+        "bottom": 152
+      }
+    },
+    "goblin": {
+      "status": "reviewed",
+      "candidate": ".scratch/biome-enemy-animation-spritesheets/candidates/verdant/goblin",
+      "source_sha256": "68a72187c8ea419ac56bd2958e31a259688b1ce0474941935d378f4d3275bfc3",
+      "validation_fingerprint": "73d2c59842150812ba5c0c8fd6def62633049b2c4fcb10da41df7db84269734c",
+      "movement_row": 2,
+      "attack_row": 3,
+      "movement_fps": 8,
+      "attack_fps": 10,
+      "pivot": {
+        "x": 80,
+        "bottom": 152
+      }
+    },
+    "ghost": {
+      "status": "reviewed",
+      "candidate": ".scratch/biome-enemy-animation-spritesheets/candidates/verdant/ghost",
+      "source_sha256": "a403d9c30abd632e5cf7143a6a398e7987065f53207db792717b87f72ead1e7a",
+      "validation_fingerprint": "20333694088f72973e7b0273c47e6845835fb333b5d4b7156e26e50dad5e4464",
+      "movement_row": 4,
+      "attack_row": 5,
+      "movement_fps": 8,
+      "attack_fps": 10,
+      "pivot": {
+        "x": 80,
+        "bottom": 152
+      }
+    },
+    "ratling": {
+      "status": "reviewed",
+      "candidate": ".scratch/biome-enemy-animation-spritesheets/candidates/verdant/ratling",
+      "source_sha256": "f6b495c01e6227e0ff4f0934d1a2059b3521f6cec3cc629ecef4f401211bd3c5",
+      "validation_fingerprint": "dd4180e4ca0150aff55ef5d5fecc84a4ad3dd4ee1f0b44c290e436a9e4811ed6",
+      "movement_row": 6,
+      "attack_row": 7,
+      "movement_fps": 8,
+      "attack_fps": 10,
+      "pivot": {
+        "x": 80,
+        "bottom": 152
+      }
+    },
+    "husk": {
+      "status": "reviewed",
+      "candidate": ".scratch/biome-enemy-animation-spritesheets/candidates/verdant/husk",
+      "source_sha256": "f31ac03509b87ce6fc17792f5d0db643df9d546978246ed30eca9b9ac79714c7",
+      "validation_fingerprint": "a7ad7d0cbf495ba7bb8645ee444f6366d84104e0384b84691a2584cfa14fd66a",
+      "movement_row": 8,
+      "attack_row": 9,
+      "movement_fps": 8,
+      "attack_fps": 10,
+      "pivot": {
+        "x": 80,
+        "bottom": 152
+      }
+    },
+    "imp": {
+      "status": "reviewed",
+      "candidate": ".scratch/biome-enemy-animation-spritesheets/candidates/verdant/imp",
+      "source_sha256": "f4aa2ced09380a7aa90b954b788ff54f6d2ee66d3a50f294d2e8c716acde0aac",
+      "validation_fingerprint": "7287d69d68df66656a05a7b838d99b9e4fe7ae2abf3cf86af3e245481a4d36ae",
+      "movement_row": 10,
+      "attack_row": 11,
+      "movement_fps": 8,
+      "attack_fps": 10,
+      "pivot": {
+        "x": 80,
+        "bottom": 152
+      }
+    },
+    "zombie-orc": {
+      "status": "reviewed",
+      "candidate": ".scratch/biome-enemy-animation-spritesheets/candidates/verdant/zombie-orc",
+      "source_sha256": "16a010ea0c5f75659881267a5eec191b7383471e019db596a8370fd9a1662337",
+      "validation_fingerprint": "424aee3a36f4c6e65d784921d752808ba419b0bd5a9a72c8da5f4220fe476098",
+      "movement_row": 12,
+      "attack_row": 13,
+      "movement_fps": 8,
+      "attack_fps": 10,
+      "pivot": {
+        "x": 80,
+        "bottom": 152
+      }
+    },
+    "spider": {
+      "status": "reviewed",
+      "candidate": ".scratch/biome-enemy-animation-spritesheets/candidates/verdant/spider",
+      "source_sha256": "3418b776decaf9ae32f243d5fa5a46032e5c2dca5bcf1a4abaf5cc053054f211",
+      "validation_fingerprint": "4ab4112ff32e31dfae9cba293c40051698b75fea4f245d63956d58390aabd177",
+      "movement_row": 14,
+      "attack_row": 15,
+      "movement_fps": 8,
+      "attack_fps": 10,
+      "pivot": {
+        "x": 80,
+        "bottom": 152
+      }
+    },
+    "bone-slime": {
+      "status": "reviewed",
+      "candidate": ".scratch/biome-enemy-animation-spritesheets/candidates/verdant/bone-slime",
+      "source_sha256": "c784972630213a88accd48452f9422757a525581d6a1694d9a0c3adb5a5f5a0b",
+      "validation_fingerprint": "b5ff4245acb002c83d8f94d72c3512e5cc2e76869f70deaa5eedbc7051849b01",
+      "movement_row": 16,
+      "attack_row": 17,
+      "movement_fps": 8,
+      "attack_fps": 10,
+      "pivot": {
+        "x": 80,
+        "bottom": 152
+      }
+    },
+    "white-eyed-shadow": {
+      "status": "reviewed",
+      "candidate": ".scratch/biome-enemy-animation-spritesheets/candidates/verdant/white-eyed-shadow",
+      "source_sha256": "decc3d0297d91f8579fe563f27f2bcc336956f232067f21e2a7082fa1c8e4fe0",
+      "validation_fingerprint": "783824aa6499a56d2e878b6d40f24b6774874cdf389e56e4bc992ec1f6a0b507",
+      "movement_row": 18,
+      "attack_row": 19,
+      "movement_fps": 8,
+      "attack_fps": 10,
+      "pivot": {
+        "x": 80,
+        "bottom": 152
+      }
+    },
+    "carrion-stalker": {
+      "status": "reviewed",
+      "candidate": ".scratch/biome-enemy-animation-spritesheets/candidates/verdant/carrion-stalker",
+      "source_sha256": "bbdfe406ddc9597962b1febc32fff3fd2233d93db257041a6dcb1c2f24236809",
+      "validation_fingerprint": "1439917fdce17edc4d8e00bc0b5a8b34758dd523c8203cfa5ffc8d026ca1aea6",
+      "movement_row": 20,
+      "attack_row": 21,
+      "movement_fps": 8,
+      "attack_fps": 10,
+      "pivot": {
+        "x": 80,
+        "bottom": 152
+      }
+    }
+  },
+  "output_sha256": "37d1ba984098d579c284c62d8d68b75fefeb720eb2ce4b6dc9d5688b4f03b890"
+}

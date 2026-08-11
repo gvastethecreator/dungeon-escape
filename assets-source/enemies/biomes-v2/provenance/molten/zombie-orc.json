@@ -1,0 +1,37 @@
+{
+  "version": 1,
+  "sourceType": "imagegen",
+  "artEngine": "imagegen",
+  "verificationStatus": "approved-user",
+  "acceptedSource": "sources/molten/zombie-orc.png",
+  "sha256": "c936aa34252f245b2cb11f75de33a8a5d870fd09c5ae448588e4a0a89d2caf9c",
+  "sizeBytes": 1369861,
+  "prompt": "prompts/molten/zombie-orc.txt",
+  "promptSha256": "ca355056289f16ba3b66af9038c5f57cccf82ef4c58035ff6261ea72d1916285",
+  "baseReference": "reference/base/zombie-orc.png",
+  "baseReferenceSha256": "85ede65013c6162f96e45eae975acf4b30d019f1445be7c1c5f0de04e1c948dc",
+  "moodReference": "../biome-particles/play-molten-final.png",
+  "moodReferenceSha256": "8033f4e6b5f6f867ee41a04ffe9b8d4df376d0f64a547dd96e9a46ac685278f8",
+  "materialReferences": [
+    "../../public/assets/textures/biomes/molten/wall.webp",
+    "../../public/assets/textures/biomes/molten/floor.webp",
+    "../../public/assets/textures/biomes/molten/ceiling.webp"
+  ],
+  "materialReferenceSha256": {
+    "../../public/assets/textures/biomes/molten/wall.webp": "15e37d889e2e536ae1270f5971c2148369656f133289833df6a4edf2926566b7",
+    "../../public/assets/textures/biomes/molten/floor.webp": "79a524adb4ee9c763a1a760931a8d649a362a0d416650ceddae9c0b11d6d05ff",
+    "../../public/assets/textures/biomes/molten/ceiling.webp": "56f20209795cd1819bc5157048cc0d919457420071956848653c387a0e71b943"
+  },
+  "approval": {
+    "status": "approved-user",
+    "date": "2026-08-04",
+    "review_record": ".scratch/biome-enemy-base-sprites/reviews.json",
+    "notes": "Bruto orgánico de subsuelo validado por Cristian como dirección correcta."
+  },
+  "consolidation": {
+    "package": "assets-source/enemies/biomes-v2",
+    "original_source": ".scratch/biome-enemy-base-sprites/new/molten/zombie-orc.png",
+    "original_prompt": ".scratch/biome-enemy-base-sprites/prompts/molten/zombie-orc.txt",
+    "original_provenance": ".scratch/biome-enemy-base-sprites/provenance/molten/zombie-orc.json"
+  }
+}

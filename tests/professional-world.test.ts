@@ -11,6 +11,7 @@ import {
   ENEMY_ROSTER,
   enemyAnimationsForMood,
   enemyAtlasSrcForMood,
+  enemyAtlasUsesAttackRows,
 } from "../src/world/EnemySpriteAtlas";
 import { listDungeonMoodIds } from "../src/systems/DungeonMood";
 import { createForgeProp } from "../src/world/ForgePropFactory";
@@ -111,14 +112,14 @@ describe("professional world kit", () => {
         expect(frames.map(({ x, w, h }) => ({ x, w, h }))).toEqual(
           canonicalFrames.map(({ x, w, h }) => ({ x, w, h })),
         );
-        const expectedRow = moodId === "ancient" ? index * 2 : index;
+        const expectedRow = enemyAtlasUsesAttackRows(moodId) ? index * 2 : index;
         expect(frames.map(({ y }) => y)).toEqual(
           Array.from({ length: 4 }, () => expectedRow * 160),
         );
-        // Ancient owns movement + attack rows in one taller atlas; the other
+        // Completed animation packages own movement + attack rows. Pending
         // biomes keep the canonical movement-only sheet dimensions.
         expect(animations[kind].size).toEqual(
-          moodId === "ancient" ? [640, 3520] : ENEMY_ANIMATIONS[kind].size,
+          enemyAtlasUsesAttackRows(moodId) ? [640, 3520] : ENEMY_ANIMATIONS[kind].size,
         );
       }
     }

@@ -1,8 +1,4 @@
-import {
-  canOccupy,
-  WorldColliderSpatialIndex,
-  type WorldCollider,
-} from "../dungeon/gridCollision";
+import { canOccupy, WorldColliderSpatialIndex, type WorldCollider } from "../dungeon/gridCollision";
 import type { DungeonData } from "../dungeon/types";
 import {
   ENEMY_ARCHETYPES,
@@ -13,10 +9,7 @@ import {
   type EnemyKind,
 } from "./EnemyArchetypes";
 import { applyBiomeEnemyMods } from "./EnemyBiomeMods";
-import {
-  enemyStrikesPlayerVertically,
-  PLAYER_COMBAT_EYE_HEIGHT,
-} from "./EnemyContact";
+import { enemyStrikesPlayerVertically, PLAYER_COMBAT_EYE_HEIGHT } from "./EnemyContact";
 import { knockbackAwayFrom } from "./knockback";
 import { DEFAULT_DIFFICULTY } from "../game/DifficultyDirector";
 

@@ -1,11 +1,14 @@
 import * as THREE from "three";
 
+/** Two local practicals are enough beside the player lantern and emissive fire kit. */
+export const DYNAMIC_FIRE_LIGHTS_PER_FLOOR = 2;
+
 /**
- * Keep the visible PointLight count fixed while the player moves. Three.js
- * includes that count in its shader key, so changing it during play can force
- * a costly shader compile on the render thread.
+ * Resident stacks keep two practical PointLights per slab, but only the active
+ * slab exposes them to the renderer. Three.js bakes the visible light count
+ * into every PBR shader, so a larger graph causes severe first-view stalls.
  */
-export const MAX_DYNAMIC_FIRE_LIGHTS = 10;
+export const MAX_DYNAMIC_FIRE_LIGHTS = DYNAMIC_FIRE_LIGHTS_PER_FLOOR * 4;
 
 export const PLAYER_LANTERN_TUNING = Object.freeze({
   color: 0xd0a064,
@@ -52,11 +55,7 @@ export function resolveInteriorRimColor(moodColor: number): number {
   const hsl = { h: 0, s: 0, l: 0 };
   color.getHSL(hsl);
   return color
-    .setHSL(
-      hsl.h,
-      THREE.MathUtils.clamp(hsl.s * 0.92, 0.18, 0.58),
-      Math.max(hsl.l, 0.58),
-    )
+    .setHSL(hsl.h, THREE.MathUtils.clamp(hsl.s * 0.92, 0.18, 0.58), Math.max(hsl.l, 0.58))
     .getHex();
 }
 

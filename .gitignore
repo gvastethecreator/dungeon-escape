@@ -2,6 +2,10 @@ node_modules/
 dist/
 .scratch/
 .proof-hud/
+.code-review-graph/
+.local/
+.cache/
+.vite/
 .venv-pbr/
 coverage/
 playwright-report/
@@ -12,4 +16,8 @@ test-results/
 *.tsbuildinfo
 .data/
 .wrangler/
-scripts/__pycache__/*.pyc
+__pycache__/
+*.py[cod]
+*.log
+.DS_Store
+Thumbs.db

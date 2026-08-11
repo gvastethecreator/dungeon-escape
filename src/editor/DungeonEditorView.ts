@@ -117,12 +117,12 @@ export class DungeonEditorView {
     void this.loadEditorFont();
   }
 
-  /** Ensure Pixelify Sans is ready before the canvas paints editor captions. */
+  /** Ensure Mek Sans is ready before the canvas paints editor captions. */
   private async loadEditorFont(): Promise<void> {
     if (typeof document === "undefined" || !("fonts" in document)) return;
     try {
-      await document.fonts.load('10px "Pixelify Sans"');
-      await document.fonts.load('bold 10px "Pixelify Sans"');
+      await document.fonts.load('10px "Mek Sans"');
+      await document.fonts.load('bold 10px "Mek Sans"');
       this.scheduleDraw();
     } catch {
       /* fall back to Courier New silently */
@@ -481,7 +481,7 @@ export class DungeonEditorView {
     this.drawMarker(context, dungeon.exit, view, "#d8d4c9", "E");
     this.drawMarker(context, this.spawn ?? dungeon.spawn, view, "#8da69b", "S");
     context.fillStyle = "#777873";
-    context.font = '10px "Pixelify Sans", "Courier New", monospace';
+    context.font = '10px "Mek Sans", "Courier New", monospace';
     context.fillText(
       `${dungeon.seed} · ${dungeon.stats.roomCount} rooms · ${dungeon.stats.loopCount} loops`,
       14,
@@ -641,7 +641,7 @@ export class DungeonEditorView {
     context.strokeRect(x + 0.5, y + 0.5, Math.max(1, width - 1), Math.max(1, height - 1));
     if (view.scale < 3.4) return;
     context.fillStyle = "#d3d0c5";
-    context.font = `bold ${Math.max(7, Math.min(10, view.scale * 1.05))}px "Pixelify Sans", monospace`;
+    context.font = `bold ${Math.max(7, Math.min(10, view.scale * 1.05))}px "Mek Sans", monospace`;
     context.textAlign = "center";
     context.textBaseline = "middle";
     context.fillText(
@@ -805,7 +805,7 @@ export class DungeonEditorView {
     const itemWidth = 62;
     const x = Math.max(12, width - items.length * itemWidth - 12);
     const y = height - 18;
-    context.font = '8px "Pixelify Sans", monospace';
+    context.font = '8px "Mek Sans", monospace';
     for (const [index, [color, label]] of items.entries()) {
       const itemX = x + index * itemWidth;
       context.fillStyle = color;
@@ -828,7 +828,7 @@ export class DungeonEditorView {
     context.fillStyle = color;
     context.fillRect(Math.round(x - radius), Math.round(y - radius), radius * 2, radius * 2);
     context.fillStyle = "#070809";
-    context.font = 'bold 10px "Pixelify Sans", "Courier New", monospace';
+    context.font = 'bold 10px "Mek Sans", "Courier New", monospace';
     context.textAlign = "center";
     context.textBaseline = "middle";
     context.fillText(label, x, y + 0.5);

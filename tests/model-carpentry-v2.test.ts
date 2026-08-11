@@ -488,9 +488,9 @@ describe("carpentry model reconstruction v2", () => {
     ) as THREE.Mesh[];
     expect(displayedBones).toHaveLength(4);
     const displayedBone = displayedBones[0]!;
-    expect(new THREE.Box3().setFromObject(displayedBone).getSize(new THREE.Vector3()).y).toBeGreaterThan(
-      0.42,
-    );
+    expect(
+      new THREE.Box3().setFromObject(displayedBone).getSize(new THREE.Vector3()).y,
+    ).toBeGreaterThan(0.42);
     const boneMaterial = displayedBone.material as THREE.MeshStandardMaterial;
     expect(boneMaterial).not.toBe(materials.bone);
     expect(boneMaterial.map).toBe(materials.bone.map);

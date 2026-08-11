@@ -29,7 +29,9 @@ PROVENANCE = V8_SOURCE / "source-provenance.json"
 CELL = 160
 COLS = 4
 ROWS = 11
-SHEET_SIZE = (COLS * CELL, ROWS * CELL)
+BASE_SHEET_SIZE = (COLS * CELL, ROWS * CELL)
+ANIMATED_SHEET_SIZE = (COLS * CELL, ROWS * CELL * 2)
+ANIMATION_STATES = ("movement", "attack")
 
 
 def sha256(path: Path) -> str:
@@ -110,7 +112,9 @@ def write_background_review(
     header = 48
     panel_count = COLS * 3
     output = Image.new(
-        "RGB", (label + panel_count * thumb, header + len(roster) * thumb), (20, 20, 23)
+        "RGB",
+        (label + panel_count * thumb, header + len(roster) * len(ANIMATION_STATES) * thumb),
+        (20, 20, 23),
     )
     draw = ImageDraw.Draw(output)
     body_font = font(13)
@@ -123,22 +127,30 @@ def write_background_review(
     for column in range(COLS):
         x = label + column * thumb * 3
         draw.text((x + 3, 27), f"f{column} D / L / A", fill=(190, 190, 196), font=body_font)
-    for row, kind in enumerate(roster):
-        y = header + row * thumb
-        draw.text((8, y + 35), kind, fill=(245, 245, 242), font=body_font)
-        for column in range(COLS):
-            frame = atlas.crop(
-                (column * CELL, row * CELL, (column + 1) * CELL, (row + 1) * CELL)
-            ).resize((thumb, thumb), Image.Resampling.LANCZOS)
-            alpha = frame.getchannel("A").convert("RGB")
-            panels = (
-                composite(frame, (8, 8, 10)),
-                composite(frame, (238, 238, 232)),
-                alpha,
-            )
-            for panel_index, panel in enumerate(panels):
-                x = label + (column * 3 + panel_index) * thumb
-                output.paste(panel, (x, y))
+    for roster_row, kind in enumerate(roster):
+        for state_index, state in enumerate(ANIMATION_STATES):
+            atlas_row = roster_row * 2 + state_index
+            review_row = atlas_row
+            y = header + review_row * thumb
+            draw.text((8, y + 35), f"{kind} {state}", fill=(245, 245, 242), font=body_font)
+            for column in range(COLS):
+                frame = atlas.crop(
+                    (
+                        column * CELL,
+                        atlas_row * CELL,
+                        (column + 1) * CELL,
+                        (atlas_row + 1) * CELL,
+                    )
+                ).resize((thumb, thumb), Image.Resampling.LANCZOS)
+                alpha = frame.getchannel("A").convert("RGB")
+                panels = (
+                    composite(frame, (8, 8, 10)),
+                    composite(frame, (238, 238, 232)),
+                    alpha,
+                )
+                for panel_index, panel in enumerate(panels):
+                    x = label + (column * 3 + panel_index) * thumb
+                    output.paste(panel, (x, y))
     destination.parent.mkdir(parents=True, exist_ok=True)
     output.save(destination, "PNG", optimize=True)
 
@@ -151,8 +163,8 @@ def frame_layout(roster: list[str]) -> dict[str, Any]:
             for column in range(COLS)
         ]
     return {
-        "sheetWidth": SHEET_SIZE[0],
-        "sheetHeight": SHEET_SIZE[1],
+        "sheetWidth": BASE_SHEET_SIZE[0],
+        "sheetHeight": BASE_SHEET_SIZE[1],
         "cellWidth": CELL,
         "cellHeight": CELL,
         "rows": rows,
@@ -189,13 +201,13 @@ def main() -> int:
             atlas = loaded.convert("RGBA")
         if loaded.mode != "RGBA":
             issues.append(f"{mood}: expected RGBA, got {loaded.mode}")
-        if atlas.size != SHEET_SIZE:
-            issues.append(f"{mood}: expected {SHEET_SIZE}, got {atlas.size}")
+        if atlas.size != ANIMATED_SHEET_SIZE:
+            issues.append(f"{mood}: expected {ANIMATED_SHEET_SIZE}, got {atlas.size}")
             continue
 
-        frames: dict[str, list[dict[str, Any]]] = {}
+        frames: dict[str, dict[str, list[dict[str, Any]]]] = {}
         for row, kind in enumerate(roster):
-            frames[kind] = []
+            frames[kind] = {}
             source_mood, source = resolve_source(assignments, mood, kind)
             with Image.open(source) as source_image:
                 source_dimensions = list(source_image.size)
@@ -210,16 +222,24 @@ def main() -> int:
                     "source_dimensions": source_dimensions,
                 }
             )
-            for column in range(COLS):
-                frame = atlas.crop(
-                    (column * CELL, row * CELL, (column + 1) * CELL, (row + 1) * CELL)
-                )
-                metrics = alpha_metrics(frame)
-                if not metrics["bbox"]:
-                    issues.append(f"{mood}/{kind}/f{column}: empty alpha")
-                if metrics["edge_nonzero"]:
-                    issues.append(f"{mood}/{kind}/f{column}: alpha touches cell edge")
-                frames[kind].append(metrics)
+            for state_index, state in enumerate(ANIMATION_STATES):
+                atlas_row = row * 2 + state_index
+                frames[kind][state] = []
+                for column in range(COLS):
+                    frame = atlas.crop(
+                        (
+                            column * CELL,
+                            atlas_row * CELL,
+                            (column + 1) * CELL,
+                            (atlas_row + 1) * CELL,
+                        )
+                    )
+                    metrics = alpha_metrics(frame)
+                    if not metrics["bbox"]:
+                        issues.append(f"{mood}/{kind}/{state}/f{column}: empty alpha")
+                    if metrics["edge_nonzero"]:
+                        issues.append(f"{mood}/{kind}/{state}/f{column}: alpha touches cell edge")
+                    frames[kind][state].append(metrics)
 
         review = qa_root / f"{mood}-background-review.png"
         write_background_review(atlas, mood, roster, review)
@@ -232,17 +252,35 @@ def main() -> int:
             "frames": frames,
         }
 
+    for mood in moods:
+        if mood not in atlas_reports:
+            continue
+        animation_package = V8_SOURCE / f"{mood}-enemies-animated.json"
+        if not animation_package.is_file():
+            issues.append(f"{mood}: missing animation package")
+            continue
+        package = load_json(animation_package)
+        if package.get("output_sha256") != atlas_reports[mood]["sha256"]:
+            issues.append(f"{mood}: animation package hash does not match atlas")
+        if package.get("size") != list(ANIMATED_SHEET_SIZE):
+            issues.append(f"{mood}: animation package has invalid atlas size")
+
     report = {
         "version": 1,
         "kind": "published-biome-enemy-atlas-audit",
         "status": "pass" if not issues else "fail",
         "counts": {
             "moods": len(atlas_reports),
-            "rows": sum(len(atlas["frames"]) for atlas in atlas_reports.values()),
+            "rows": sum(
+                len(states)
+                for atlas in atlas_reports.values()
+                for states in atlas["frames"].values()
+            ),
             "frames": sum(
                 len(frames)
                 for atlas in atlas_reports.values()
-                for frames in atlas["frames"].values()
+                for states in atlas["frames"].values()
+                for frames in states.values()
             ),
             "sources": len(source_entries),
         },
@@ -276,14 +314,7 @@ def main() -> int:
                 "sha256": sha256(base_atlas),
                 "size_bytes": base_atlas.stat().st_size,
             },
-            "biome_atlases": {
-                mood: {
-                    "path": f"/assets/sprites/enemies-v8/biomes/{mood}-enemies.webp",
-                    "sha256": atlas_reports[mood]["sha256"],
-                    "size_bytes": atlas_reports[mood]["size_bytes"],
-                }
-                for mood in moods
-            },
+            "biome_atlases": {},
             "frame_layout": frame_layout(roster),
             "animation": {
                 "rows": {
@@ -291,16 +322,26 @@ def main() -> int:
                 }
             },
             "processing": {
-                "script": "scripts/pack-enemy-strips-v8.py",
-                "method": "hybrid",
-                "background_model": "ZhengPeng7/BiRefNet",
-                "cell_margin": 16,
+                "script": "scripts/build-biome-enemy-animation-atlas.py",
+                "method": "reviewed-video-candidates",
+                "background_model": "egeorcun/lucida",
+                "segmentation": "adaptive",
+                "cell_margin": 8,
             },
             "source_assignments": relative(ASSIGNMENTS),
             "source_assignments_sha256": sha256(ASSIGNMENTS),
             "source_provenance": relative(PROVENANCE),
             "source_provenance_sha256": sha256(PROVENANCE),
         }
+        for mood in moods:
+            animation_package = V8_SOURCE / f"{mood}-enemies-animated.json"
+            manifest["biome_atlases"][mood] = {
+                "path": f"/assets/sprites/enemies-v8/biomes/{mood}-enemies.webp",
+                "sha256": atlas_reports[mood]["sha256"],
+                "size_bytes": atlas_reports[mood]["size_bytes"],
+                "animation_package": relative(animation_package),
+                "atlas_size": list(ANIMATED_SHEET_SIZE),
+            }
         MANIFEST.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
 
     print(json.dumps({"status": report["status"], **report["counts"]}, indent=2))

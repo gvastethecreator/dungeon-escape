@@ -1,0 +1,37 @@
+{
+  "version": 1,
+  "sourceType": "imagegen",
+  "artEngine": "imagegen",
+  "verificationStatus": "approved-user",
+  "acceptedSource": "sources/backrooms/zombie-orc.png",
+  "sha256": "5a4a6fd6c92ea3ab05181eea15c25000a4cfc2be476b2754acfabbe2e9425e66",
+  "sizeBytes": 892424,
+  "prompt": "prompts/backrooms/zombie-orc.txt",
+  "promptSha256": "193c83bcf3aecd4731c247d7eb0b34bf20a280727b0ac32ff79a165b3e644d12",
+  "baseReference": "reference/base/zombie-orc.png",
+  "baseReferenceSha256": "85ede65013c6162f96e45eae975acf4b30d019f1445be7c1c5f0de04e1c948dc",
+  "moodReference": "../portal-biome-matrix/backrooms-portal-open.png",
+  "moodReferenceSha256": "ec3daed5ce31d03de2ff53b2aebf4ae034a07ac06b5ee677f6911cdf4162630f",
+  "materialReferences": [
+    "../../public/assets/textures/biomes/backrooms/wall.webp",
+    "../../public/assets/textures/biomes/backrooms/floor.webp",
+    "../../public/assets/textures/biomes/backrooms/ceiling.webp"
+  ],
+  "materialReferenceSha256": {
+    "../../public/assets/textures/biomes/backrooms/wall.webp": "a231313e602af052fdddc45f48df4f5b7b6d7933309186f195b5a89791bbecb6",
+    "../../public/assets/textures/biomes/backrooms/floor.webp": "bb4b1714a88246000d998b41041fe48aceff0ddb5dc25f25a64abe0fb37deb3f",
+    "../../public/assets/textures/biomes/backrooms/ceiling.webp": "5809fe650b6a2c74158e49e5749b02fb727a3bd99df3b632a4d3fd2c43aefdd7"
+  },
+  "approval": {
+    "status": "approved-user",
+    "date": "2026-08-04",
+    "review_record": ".scratch/biome-enemy-base-sprites/reviews.json",
+    "notes": "Autoauditoría visual completa; pendiente de aprobación del usuario."
+  },
+  "consolidation": {
+    "package": "assets-source/enemies/biomes-v2",
+    "original_source": ".scratch/biome-enemy-base-sprites/new/backrooms/zombie-orc.png",
+    "original_prompt": ".scratch/biome-enemy-base-sprites/prompts/backrooms/zombie-orc.txt",
+    "original_provenance": ".scratch/biome-enemy-base-sprites/provenance/backrooms/zombie-orc.json"
+  }
+}

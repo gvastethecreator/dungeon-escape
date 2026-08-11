@@ -1,4 +1,5 @@
 import { FLOOR, isFloorCell } from "./generateDungeon";
+import { stairFlightFootprintCells } from "./StairShaftPlan";
 import type { DungeonData, GridCell } from "./types";
 
 export interface WorldPoint {
@@ -46,7 +47,7 @@ export function createFloorDeckColliders(
     // Only the mouth reached from the lower story opens this slab. The outgoing
     // upward flight keeps normal support beneath its lower landing and treads.
     if (stair.targetFloor >= floorIndex) continue;
-    for (const cell of stair.footprint) {
+    for (const cell of stairFlightFootprintCells(stair.footprint)) {
       if (cell.x < 0 || cell.y < 0 || cell.x >= dungeon.width || cell.y >= dungeon.height) continue;
       openMask[cell.y * dungeon.width + cell.x] = 1;
     }
@@ -244,7 +245,14 @@ export function overlapsColliderHeight(
   if (!verticalRange) return true;
   const colliderMinY = collider.minY ?? Number.NEGATIVE_INFINITY;
   const colliderMaxY = collider.maxY ?? Number.POSITIVE_INFINITY;
-  return verticalRange.maxY > colliderMinY && verticalRange.minY < colliderMaxY;
+  // Standing on a finite collider often leaves the computed sole a few ULPs
+  // below its top (for example 0.21999999999999986 vs 0.22). Treat that as
+  // contact, not penetration, or the tread blocks the next horizontal step.
+  const contactEpsilon = 1e-5;
+  return (
+    verticalRange.maxY > colliderMinY + contactEpsilon &&
+    verticalRange.minY < colliderMaxY - contactEpsilon
+  );
 }
 
 /**

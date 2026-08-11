@@ -37,11 +37,7 @@ export interface PlayWorldUpdate extends Omit<SessionWorldUpdate, "collectedPick
  * browser, or Three types so a fake world can exercise the same runtime seam.
  */
 export interface PlayWorldPort<TDungeon, TMood, TPlayer, TWorldUpdate extends PlayWorldUpdate> {
-  setDungeon(
-    dungeon: TDungeon,
-    mood: TMood,
-    options?: PlayWorldLoadOptions<TDungeon>,
-  ): void;
+  setDungeon(dungeon: TDungeon, mood: TMood, options?: PlayWorldLoadOptions<TDungeon>): void;
   /**
    * Optional: clear the previous floor, yield once, then rebuild. Hosts use this
    * during successive map loads so the load cover can paint between dispose and build.

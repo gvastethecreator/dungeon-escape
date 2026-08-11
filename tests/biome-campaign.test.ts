@@ -21,6 +21,27 @@ function withinGenerationRanges(params: ReturnType<typeof biomeCampaignParams>):
 }
 
 describe("biome campaign difficulty ramp", () => {
+  test("uses smaller campaign layouts while keeping the biome ramp", () => {
+    const expectedLayouts = {
+      ancient: [9, 47],
+      molten: [11, 51],
+      frost: [12, 55],
+      grim: [13, 59],
+      verdant: [14, 63],
+      ash: [15, 67],
+      iron: [16, 71],
+      obsidian: [18, 77],
+      sunken: [20, 83],
+      fungal: [22, 89],
+      backrooms: [34, 105],
+    } as const;
+    for (const biomeId of listBiomeIds()) {
+      const params = biomeCampaignParams(biomeId);
+      expect([params.roomTarget, params.mapWidth] as const).toEqual(expectedLayouts[biomeId]);
+      expect(params.mapHeight).toBe(params.mapWidth);
+    }
+  });
+
   test("orders biomes from Ancient (easiest) to Backrooms (hardest)", () => {
     const order = listBiomeIds();
     expect(order[0]).toBe("ancient");

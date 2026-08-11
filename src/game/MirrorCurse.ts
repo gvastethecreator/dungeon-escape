@@ -1,10 +1,6 @@
 /** Timed control curse: invert look and movement axes. */
 
-import {
-  activateTimedSeconds,
-  isTimedSecondsActive,
-  tickTimedSeconds,
-} from "./TimedSeconds";
+import { activateTimedSeconds, isTimedSecondsActive, tickTimedSeconds } from "./TimedSeconds";
 
 export const MIRROR_CURSE_DURATION_SECONDS = 12;
 

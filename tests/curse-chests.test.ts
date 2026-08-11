@@ -9,9 +9,21 @@ import {
   isBiomeEligibleForCurseChests,
   planCurseChestPlacements,
 } from "../src/game/CurseChestPlan";
-import { FRENZY_CURSE_SPEED_MULTIPLIER, activateFrenzyCurse, tickFrenzyCurse } from "../src/game/FrenzyCurse";
-import { GLOOM_CURSE_FOG_MULTIPLIER, activateGloomCurse, tickGloomCurse } from "../src/game/GloomCurse";
-import { SLOW_CURSE_SPEED_MULTIPLIER, activateSlowCurse, tickSlowCurse } from "../src/game/SlowCurse";
+import {
+  FRENZY_CURSE_SPEED_MULTIPLIER,
+  activateFrenzyCurse,
+  tickFrenzyCurse,
+} from "../src/game/FrenzyCurse";
+import {
+  GLOOM_CURSE_FOG_MULTIPLIER,
+  activateGloomCurse,
+  tickGloomCurse,
+} from "../src/game/GloomCurse";
+import {
+  SLOW_CURSE_SPEED_MULTIPLIER,
+  activateSlowCurse,
+  tickSlowCurse,
+} from "../src/game/SlowCurse";
 import { SWARM_CURSE_TARGET_MULTIPLIER, swarmTargetEnemies } from "../src/game/SwarmCurse";
 
 describe("curse pure modules", () => {

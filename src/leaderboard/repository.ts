@@ -1,8 +1,4 @@
-import type {
-  LeaderboardEntry,
-  PlayerBiomeStars,
-  ValidLeaderboardSubmission,
-} from "./contract";
+import type { LeaderboardEntry, PlayerBiomeStars, ValidLeaderboardSubmission } from "./contract";
 
 export interface LeaderboardRepository {
   list(limit: number): Promise<LeaderboardEntry[]>;

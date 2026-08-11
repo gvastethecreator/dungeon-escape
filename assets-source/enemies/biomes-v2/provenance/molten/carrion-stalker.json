@@ -1,0 +1,37 @@
+{
+  "version": 1,
+  "sourceType": "imagegen",
+  "artEngine": "imagegen",
+  "verificationStatus": "approved-user",
+  "acceptedSource": "sources/molten/carrion-stalker.png",
+  "sha256": "26898a07f178293e4364cdd1662dd50db505e4fec1a63d761b07cee5a69ba726",
+  "sizeBytes": 964719,
+  "prompt": "prompts/molten/carrion-stalker.txt",
+  "promptSha256": "4c1f0b7137c9f964efd1f57bb98157bcd81a533d25a89a40cdaa0a75870a8b9f",
+  "baseReference": "reference/base/carrion-stalker.png",
+  "baseReferenceSha256": "a23b7d2aa9472a94b669c349425d002a22c4ef78c64f3ac2bec15b6933ec46f3",
+  "moodReference": "../biome-particles/play-molten-final.png",
+  "moodReferenceSha256": "8033f4e6b5f6f867ee41a04ffe9b8d4df376d0f64a547dd96e9a46ac685278f8",
+  "materialReferences": [
+    "../../public/assets/textures/biomes/molten/wall.webp",
+    "../../public/assets/textures/biomes/molten/floor.webp",
+    "../../public/assets/textures/biomes/molten/ceiling.webp"
+  ],
+  "materialReferenceSha256": {
+    "../../public/assets/textures/biomes/molten/wall.webp": "15e37d889e2e536ae1270f5971c2148369656f133289833df6a4edf2926566b7",
+    "../../public/assets/textures/biomes/molten/floor.webp": "79a524adb4ee9c763a1a760931a8d649a362a0d416650ceddae9c0b11d6d05ff",
+    "../../public/assets/textures/biomes/molten/ceiling.webp": "56f20209795cd1819bc5157048cc0d919457420071956848653c387a0e71b943"
+  },
+  "approval": {
+    "status": "approved-user",
+    "date": "2026-08-04",
+    "review_record": ".scratch/biome-enemy-base-sprites/reviews.json",
+    "notes": "Ember Maw orgánico con un único señuelo de llama en la garganta."
+  },
+  "consolidation": {
+    "package": "assets-source/enemies/biomes-v2",
+    "original_source": ".scratch/biome-enemy-base-sprites/new/molten/carrion-stalker.png",
+    "original_prompt": ".scratch/biome-enemy-base-sprites/prompts/molten/carrion-stalker.txt",
+    "original_provenance": ".scratch/biome-enemy-base-sprites/provenance/molten/carrion-stalker.json"
+  }
+}

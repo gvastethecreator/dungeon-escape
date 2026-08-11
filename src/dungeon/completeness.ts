@@ -1,7 +1,4 @@
-import {
-  generateDungeon,
-  isExitReachable,
-} from "./generateDungeon";
+import { generateDungeon, isExitReachable } from "./generateDungeon";
 import type { DungeonData, DungeonOptions } from "./types";
 import {
   hasValidMagicStonePlacementContract,

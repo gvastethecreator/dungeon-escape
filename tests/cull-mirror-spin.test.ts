@@ -20,10 +20,7 @@ import {
   SPIN_CURSE_YAW_BIAS,
   tickSpinCurse,
 } from "../src/game/SpinCurse";
-import {
-  OFFENSE_POWER_KINDS,
-  planOffensePowerKind,
-} from "../src/game/OffensePowerPlan";
+import { OFFENSE_POWER_KINDS, planOffensePowerKind } from "../src/game/OffensePowerPlan";
 import { CURSE_CHEST_KINDS, planCurseChestPlacements } from "../src/game/CurseChestPlan";
 import { projectPickupFeedback } from "../src/ui/PickupFeedback";
 import { COPY } from "../src/ui/copy";

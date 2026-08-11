@@ -115,9 +115,7 @@ export function stepStamina(
       justExhausted = true;
     }
   } else {
-    const regen = state.exhausted
-      ? config.regenExhaustedPerSecond
-      : config.regenEarlyPerSecond;
+    const regen = state.exhausted ? config.regenExhaustedPerSecond : config.regenEarlyPerSecond;
     if (regen > 0 && state.value < max) {
       state.value = Math.min(max, state.value + regen * dt);
     }

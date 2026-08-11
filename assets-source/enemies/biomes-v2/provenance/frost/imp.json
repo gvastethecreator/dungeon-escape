@@ -1,0 +1,37 @@
+{
+  "version": 1,
+  "sourceType": "imagegen",
+  "artEngine": "imagegen",
+  "verificationStatus": "approved-user",
+  "acceptedSource": "sources/frost/imp.png",
+  "sha256": "ac2c1128eb838e3c88752cfe7aa618f9ab0ed4dcb40fb2afd736d96a8c9faacc",
+  "sizeBytes": 1214062,
+  "prompt": "prompts/frost/imp.txt",
+  "promptSha256": "1631c7adc5269a91d711eccc1fa4afb3720363d8d03f49e6a5ffa9c0f472630e",
+  "baseReference": "reference/base/imp.png",
+  "baseReferenceSha256": "4797388f5b93dd0bcfd063eda2f19c543be7f63ef7929c59a107c90040235db9",
+  "moodReference": "../biome-particles/play-frost.png",
+  "moodReferenceSha256": "b72b98c857af88bae6bf9c326508e73df44ca347168a26515ef00e98d962de6d",
+  "materialReferences": [
+    "../../public/assets/textures/biomes/frost/wall.webp",
+    "../../public/assets/textures/biomes/frost/floor.webp",
+    "../../public/assets/textures/biomes/frost/ceiling.webp"
+  ],
+  "materialReferenceSha256": {
+    "../../public/assets/textures/biomes/frost/wall.webp": "f80e113b74af92a1a9e3547ea00865045eca1ada62c05d667946db30929224b2",
+    "../../public/assets/textures/biomes/frost/floor.webp": "ec3dd7c3ef99a5706b74bc849c817e2d6b8b1d20eb0fd73098c360ce7db04e1f",
+    "../../public/assets/textures/biomes/frost/ceiling.webp": "b97757c3bb4287a4b34a54eb48aed09a77a4603cef0761a3628108d5dae3c748"
+  },
+  "approval": {
+    "status": "approved-user",
+    "date": "2026-08-04",
+    "review_record": ".scratch/biome-enemy-base-sprites/reviews.json",
+    "notes": "Polilla de nieve depredadora con alas polvorientas, órgano alimentario central y escarcha localizada."
+  },
+  "consolidation": {
+    "package": "assets-source/enemies/biomes-v2",
+    "original_source": ".scratch/biome-enemy-base-sprites/new/frost/imp.png",
+    "original_prompt": ".scratch/biome-enemy-base-sprites/prompts/frost/imp.txt",
+    "original_provenance": ".scratch/biome-enemy-base-sprites/provenance/frost/imp.json"
+  }
+}

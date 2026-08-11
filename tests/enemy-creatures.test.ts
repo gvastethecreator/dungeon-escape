@@ -4,8 +4,9 @@ import {
   ENEMY_ARCHETYPES,
   ENEMY_SPRITE_METRICS,
   enemyGroundY,
-  getEnemySpriteRenderMetrics,
   getEnemyMotion,
+  getEnemySpriteRenderMetrics,
+  getEnemyVisualBodySize,
   isHumanoidEnemy,
   isLowProfileEnemy,
 } from "../src/world/EnemyArchetypes";
@@ -117,16 +118,46 @@ describe("enemy roster v8", () => {
     }
   });
 
-  test("alpha bounds recover the intended visible size without stretching", () => {
+  test("legacy alpha bounds remain the fallback for an unknown biome", () => {
     for (const kind of ENEMY_ROSTER) {
       const body = ENEMY_ARCHETYPES[kind];
       const alpha = ENEMY_SPRITE_METRICS[kind];
-      const render = getEnemySpriteRenderMetrics(kind);
-      expect(render.planeWidth * (alpha.opaqueWidth / alpha.frameSize)).toBeCloseTo(body.width, 5);
+      const render = getEnemySpriteRenderMetrics(kind, "unknown-biome");
+      expect(render.planeWidth).toBeCloseTo(render.planeHeight, 5);
       expect(render.planeHeight * (alpha.opaqueHeight / alpha.frameSize)).toBeCloseTo(
         body.height,
         5,
       );
+    }
+  });
+
+  test("locks all 121 biome bodies to their approved base sprites and idle frames", async () => {
+    const catalog = (await Bun.file(
+      new URL("../assets-source/enemies/biomes-v2/runtime-size-catalog.json", import.meta.url),
+    ).json()) as {
+      counts: { entries: number };
+      entries: Array<{
+        biome: string;
+        enemy: (typeof ENEMY_ROSTER)[number];
+        body_size_meters: { width: number; height: number };
+        base_source: { foreground_bounds: [number, number, number, number] };
+        runtime_idle: { cell: number; opaque_width: number; opaque_height: number };
+      }>;
+    };
+
+    expect(catalog.counts.entries).toBe(121);
+    expect(new Set(catalog.entries.map((entry) => `${entry.biome}/${entry.enemy}`)).size).toBe(121);
+    for (const entry of catalog.entries) {
+      const body = getEnemyVisualBodySize(entry.enemy, entry.biome);
+      const render = getEnemySpriteRenderMetrics(entry.enemy, entry.biome);
+      const [left, top, right, bottom] = entry.base_source.foreground_bounds;
+      const sourceAspect = (right - left) / (bottom - top);
+      expect(body).toEqual(entry.body_size_meters);
+      expect(body.width).toBeCloseTo(body.height * sourceAspect, 3);
+      expect(render.planeWidth).toBeCloseTo(render.planeHeight, 5);
+      expect(
+        render.planeHeight * (entry.runtime_idle.opaque_height / entry.runtime_idle.cell),
+      ).toBeCloseTo(body.height, 5);
     }
   });
 

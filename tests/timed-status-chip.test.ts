@@ -1,8 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import {
-  formatTimedStatusSeconds,
-  TIMED_STATUS_URGENT_SECONDS,
-} from "../src/ui/TimedStatusChip";
+import { formatTimedStatusSeconds, TIMED_STATUS_URGENT_SECONDS } from "../src/ui/TimedStatusChip";
 
 describe("TimedStatusChip", () => {
   test("formats active remaining seconds with urgent threshold", () => {

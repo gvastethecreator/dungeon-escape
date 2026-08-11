@@ -10,10 +10,7 @@ export const TIMED_SECONDS_ACTIVE_EPSILON = 0.0001;
  * Extend or refresh a window: remaining becomes max(current, duration).
  * Non-finite inputs collapse to zero before the max.
  */
-export function activateTimedSeconds(
-  currentSeconds = 0,
-  durationSeconds = 0,
-): number {
+export function activateTimedSeconds(currentSeconds = 0, durationSeconds = 0): number {
   const current = Number.isFinite(currentSeconds) ? Math.max(0, currentSeconds) : 0;
   const duration = Number.isFinite(durationSeconds) ? Math.max(0, durationSeconds) : 0;
   return Math.max(current, duration);
@@ -48,9 +45,6 @@ export function tickTimedSeconds(
 }
 
 /** True when a remaining window is still active. */
-export function isTimedSecondsActive(
-  remainingSeconds: number,
-  epsilon = 0,
-): boolean {
+export function isTimedSecondsActive(remainingSeconds: number, epsilon = 0): boolean {
   return Number.isFinite(remainingSeconds) && remainingSeconds > epsilon;
 }

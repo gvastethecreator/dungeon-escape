@@ -1,8 +1,5 @@
 import { hashSeed } from "../core/random";
-import {
-  DEFAULT_STORY_METRICS,
-  type StoryMetrics,
-} from "../world/StoryMetrics";
+import { DEFAULT_STORY_METRICS, type StoryMetrics } from "../world/StoryMetrics";
 import { FLOOR, isFloorCell } from "./generateDungeon";
 import type { DungeonData, DungeonRoom, GridCell } from "./types";
 
@@ -10,7 +7,7 @@ export interface StairShaftLink {
   shaftId: string;
   lowerFloor: number;
   upperFloor: number;
-  /** Shared grid cell used as the lower landing / upper landing anchor. */
+  /** Shared first flight cell. The physical flight starts at its near edge. */
   anchor: GridCell;
   yaw: number;
   footprint: GridCell[];
@@ -48,11 +45,7 @@ function roomInteriorCandidates(room: DungeonRoom): GridCell[] {
   return cells;
 }
 
-function buildFootprint(
-  anchor: GridCell,
-  yaw: number,
-  metrics: StoryMetrics,
-): GridCell[] {
+function buildFootprint(anchor: GridCell, yaw: number, metrics: StoryMetrics): GridCell[] {
   const { dx, dy } = yawGridStep(yaw);
   const along = metrics.shaftCellsAlong + metrics.landingCells * 2;
   const across = Math.max(1, metrics.shaftCellsAcross);
@@ -66,6 +59,20 @@ function buildFootprint(
     }
   }
   return cells;
+}
+
+/**
+ * Return only the cells crossed by the physical flight. Landing cells remain
+ * supported so the player can enter and leave the staircase without a gap.
+ */
+export function stairFlightFootprintCells(
+  footprint: readonly GridCell[],
+  metrics: StoryMetrics = DEFAULT_STORY_METRICS,
+): readonly GridCell[] {
+  const trim = Math.max(0, metrics.landingCells * Math.max(1, metrics.shaftCellsAcross));
+  if (trim === 0) return footprint;
+  if (footprint.length <= trim * 2) return [];
+  return footprint.slice(trim, footprint.length - trim);
 }
 
 function scoreFootprintCandidate(
@@ -112,9 +119,7 @@ function candidateAnchors(dungeon: DungeonData): GridCell[] {
     dungeon.rooms.find((room) => room.id === dungeon.entranceRoomId) ?? dungeon.rooms[0];
   const orderedRooms = [
     exitRoom,
-    ...dungeon.rooms.filter(
-      (room) => room.id !== exitRoom?.id && room.id !== entranceRoom?.id,
-    ),
+    ...dungeon.rooms.filter((room) => room.id !== exitRoom?.id && room.id !== entranceRoom?.id),
     entranceRoom,
   ].filter((room): room is DungeonRoom => Boolean(room));
 
@@ -151,13 +156,11 @@ export function planStairShafts(
     }
 
     const anchors = candidateAnchors(lower);
-    let best:
-      | {
-          score: number;
-          anchor: GridCell;
-          yaw: number;
-        }
-      | null = null;
+    let best: {
+      score: number;
+      anchor: GridCell;
+      yaw: number;
+    } | null = null;
 
     for (const anchor of anchors) {
       for (const yaw of YAWS) {
@@ -197,10 +200,7 @@ export function planStairShafts(
 }
 
 /** Carve footprint cells to floor on both linked dungeons (mutates grids). */
-export function applyStairShaftCarves(
-  floors: DungeonData[],
-  plan: StairShaftPlan,
-): void {
+export function applyStairShaftCarves(floors: DungeonData[], plan: StairShaftPlan): void {
   for (const link of plan.links) {
     for (const floorIndex of [link.lowerFloor, link.upperFloor]) {
       const dungeon = floors[floorIndex];

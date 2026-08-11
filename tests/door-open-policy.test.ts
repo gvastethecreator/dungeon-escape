@@ -24,9 +24,7 @@ describe("DoorOpenPolicy", () => {
   });
 
   test("DoorFactory and world fall back to the same open-distance constant", async () => {
-    const factory = await Bun.file(
-      new URL("../src/world/DoorFactory.ts", import.meta.url),
-    ).text();
+    const factory = await Bun.file(new URL("../src/world/DoorFactory.ts", import.meta.url)).text();
     const world = await Bun.file(new URL("../src/world/DungeonWorld.ts", import.meta.url)).text();
     expect(factory).toContain("DOOR_DEFAULT_OPEN_DISTANCE");
     expect(factory).toContain("openDistance = DOOR_DEFAULT_OPEN_DISTANCE");
@@ -34,4 +32,3 @@ describe("DoorOpenPolicy", () => {
     expect(world).not.toContain("?? 2.65");
   });
 });
-
