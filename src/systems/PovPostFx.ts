@@ -128,7 +128,7 @@ export class PovPostFx {
         uPaletteColors: { value: this.paletteColors },
         uPaletteOklabColors: { value: this.paletteOklabColors },
         uPaletteDither: { value: 0 },
-        uPaletteDitherAmplitude: { value: 0.07 },
+        uPaletteDitherAmplitude: { value: 0.85 },
         uPalettePatternScale: { value: 1 },
         uPaletteShadowStart: { value: 0.1 },
         uPaletteShadowEnd: { value: 0.3 },
@@ -250,12 +250,14 @@ export class PovPostFx {
           float ditherGate = mix(0.08, 1.0, shadowGate) * flatGate * highlightGate;
           sourceLab.x = clamp(
             sourceLab.x + uPaletteLightnessBias +
-              threshold * uPaletteDither * uPaletteDitherAmplitude * ditherGate,
+              threshold * uPaletteDither * uPaletteDitherAmplitude * ditherGate * 0.055,
             0.0,
             1.0
           );
           vec3 closest = uPaletteColors[0];
+          vec3 secondClosest = uPaletteColors[0];
           float closestDistance = 1000.0;
+          float secondDistance = 1000.0;
           for (int index = 0; index < ${MAX_POST_PALETTE_COLORS}; index++) {
             if (float(index) >= uPaletteSize) continue;
             vec3 candidate = uPaletteColors[index];
@@ -264,11 +266,19 @@ export class PovPostFx {
               delta.x * delta.x * uPaletteLightnessWeight +
               (delta.y * delta.y + delta.z * delta.z) * uPaletteChromaWeight;
             if (distance < closestDistance) {
+              secondDistance = closestDistance;
+              secondClosest = closest;
               closestDistance = distance;
               closest = candidate;
+            } else if (distance < secondDistance) {
+              secondDistance = distance;
+              secondClosest = candidate;
             }
           }
-          return closest;
+          float secondChance = closestDistance / max(closestDistance + secondDistance, 0.00001);
+          secondChance *= uPaletteDither * uPaletteDitherAmplitude * ditherGate;
+          float orderedSample = (paletteBayer4(gl_FragCoord.xy / max(uPalettePatternScale, 1.0)) + 0.5) / 16.0;
+          return orderedSample < secondChance ? secondClosest : closest;
         }
 
         vec3 crtPhosphorMask(vec2 pixel) {

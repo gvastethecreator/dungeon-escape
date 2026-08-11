@@ -1,7 +1,7 @@
 {
-  "current_commit": "dbe6d3eb1bb8910db9f4dfa1b911148d377aea4f",
+  "current_commit": "a65581c8f754dc4581153e96cee0d07bd85e1ef8",
   "working_tree_dirty": true,
-  "generated_at": "2026-08-11T18:04:22Z",
+  "generated_at": "2026-08-11T18:54:10Z",
   "scanned_scope": [
     "."
   ],
@@ -11,15 +11,6 @@
     ".hg",
     ".next",
     ".nuxt",
-    ".proof-deploy-1eb1cf00",
-    ".proof-deploy-dead-1eb1cf00",
-    ".proof-escape-dead-final",
-    ".proof-escape-dead-final-2",
-    ".proof-escape-mobile",
-    ".proof-escape-smoke",
-    ".proof-escape-smoke-final",
-    ".proof-escape-smoke-final-2",
-    ".proof-escape-you-died",
     ".svn",
     ".turbo",
     ".venv",
@@ -41,13 +32,67 @@
       "id": ".",
       "path": ".",
       "file_count": 17,
-      "fingerprint": "1f269cd6d441f77b365fdb90aee2920d20e499c1eeb4126d020b6c27ada10aa6"
+      "fingerprint": "bf48639c3904bdf2dd2c63b3c9ef521ca3bec19c28c9917e0b67679621b3afc8"
     },
     {
       "id": ".github",
       "path": ".github",
       "file_count": 1,
       "fingerprint": "bdee7e8ddbca67d3866d04e0596df05ee6aa47e736be82b7f6e9ee3f1796caa9"
+    },
+    {
+      "id": ".proof-deploy-1eb1cf00",
+      "path": ".proof-deploy-1eb1cf00",
+      "file_count": 4,
+      "fingerprint": "48c03550d4b3b6efb3646045c3286d239b1a22e09546a422a4057cb70ba0a495"
+    },
+    {
+      "id": ".proof-deploy-dead-1eb1cf00",
+      "path": ".proof-deploy-dead-1eb1cf00",
+      "file_count": 2,
+      "fingerprint": "be502945e337e5d2c0c42a5354225ee2d24527da3ec5c723c74348cb5f680fbb"
+    },
+    {
+      "id": ".proof-escape-dead-final",
+      "path": ".proof-escape-dead-final",
+      "file_count": 2,
+      "fingerprint": "58854129b7f2cdc5cccd7e91c262506639e2c2e750c6320eebb39e777ac64693"
+    },
+    {
+      "id": ".proof-escape-dead-final-2",
+      "path": ".proof-escape-dead-final-2",
+      "file_count": 2,
+      "fingerprint": "4d8c05d55382820196f841147954b02e0103dca02abf8a673ff39db489762d99"
+    },
+    {
+      "id": ".proof-escape-mobile",
+      "path": ".proof-escape-mobile",
+      "file_count": 2,
+      "fingerprint": "08e0f305ae54635002a2d260d7f30d36f4195f5b6c71ca3cc77136bc47039e80"
+    },
+    {
+      "id": ".proof-escape-smoke",
+      "path": ".proof-escape-smoke",
+      "file_count": 4,
+      "fingerprint": "894148f0b704772cb9a8db0671bcd1685dad34e6a3b98c3a737071d481238205"
+    },
+    {
+      "id": ".proof-escape-smoke-final",
+      "path": ".proof-escape-smoke-final",
+      "file_count": 4,
+      "fingerprint": "0882533b7f44148795378a89c3f3a1c5c74696eb2ec6aeb60cc718675955c067"
+    },
+    {
+      "id": ".proof-escape-smoke-final-2",
+      "path": ".proof-escape-smoke-final-2",
+      "file_count": 4,
+      "fingerprint": "1f2573b49eadeeb789c52cd81210fbf1deca3b92355dfd0894fe789ce807d2b1"
+    },
+    {
+      "id": ".proof-escape-you-died",
+      "path": ".proof-escape-you-died",
+      "file_count": 2,
+      "fingerprint": "a6aa48e6e11da2b4b057f7d14cfeeacbf674313e7d5215deeebb8ea6fce9cbfb"
     },
     {
       "id": ".vscode",
@@ -64,8 +109,8 @@
     {
       "id": "docs",
       "path": "docs",
-      "file_count": 41,
-      "fingerprint": "c111ee29bdac0958ff34d3cc8e4be6bfb36dd46dfa04f1e9dc39ebe1afa9fa2b"
+      "file_count": 42,
+      "fingerprint": "f13255868acf5f0bfcdb2d4f9bc0284b0a2be520616a237fa38d513775c3560d"
     },
     {
       "id": "migrations",
@@ -94,14 +139,14 @@
     {
       "id": "src",
       "path": "src",
-      "file_count": 229,
-      "fingerprint": "55e95e73ef5bebd506e4e636b2b66078f19a796e28a2eef8cb6cb228f5ace4b4"
+      "file_count": 231,
+      "fingerprint": "3870223496e21258c9b853575cbb428eafe763d17e4befef850f41f4df6ab12e"
     },
     {
       "id": "tests",
       "path": "tests",
-      "file_count": 205,
-      "fingerprint": "da1b1f91387e1bb9005d8f7cfec33305361dcab3e4d919c38a06753c6f69ae13"
+      "file_count": 207,
+      "fingerprint": "ba01fbd50b32b45075598c9d5816aafe07e901d7fef8b681817155429589deb2"
     },
     {
       "id": "worker",
