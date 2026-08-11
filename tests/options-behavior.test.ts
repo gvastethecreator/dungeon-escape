@@ -10,6 +10,7 @@ describe("pause options behavior", () => {
     expect(html).toContain('id="palette-effect"');
     expect(html).toContain('id="palette-dither"');
     expect(html).toContain('id="display-post-fx-lab"');
+    expect(html).toContain('id="display-post-fx-layer"');
     expect(html).toContain('id="display-palette-stage"');
     expect(html).toContain('data-display-tuning="halation"');
     expect(html).toContain('data-display-tuning="phosphorMask"');
@@ -26,6 +27,8 @@ describe("pause options behavior", () => {
     expect(main).toContain("paletteDitherStrength: profile.recommendedDitherStrength");
     expect(main).toContain("updateUserSettings({ paletteDitherStrength })");
     expect(main).toContain("povPost.setDisplayTuning(displayPostFxTuning)");
+    expect(main).toContain("elements.displayPostFxLayer.append(elements.displayPostFxLab)");
+    expect(main).toContain("elements.shell.dataset.displayLabOpen = String(nextOpen)");
     expect(main).toContain("if (!localDevTools) return;");
     expect(main).toContain("writeDisplayPostFxTuning(displayPostFxTuning)");
     expect(main).not.toContain("applyTextureSmoothing(");
@@ -53,6 +56,8 @@ describe("pause options behavior", () => {
       handler.indexOf('event.target.closest("input, textarea, select")'),
     );
     expect(handler).toContain("if (optionsOpen) {");
+    expect(handler).toContain("if (elements.displayPostFxLab.open) {");
+    expect(handler).toContain("setDisplayPostFxLabOpen(false);");
     expect(handler).toContain("resumePlay();");
     expect(handler).not.toContain("if (controller.getState().locked) return;");
     expect(handler).toContain('setOptionsOpen(true, "escape");');

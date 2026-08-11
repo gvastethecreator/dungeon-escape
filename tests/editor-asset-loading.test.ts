@@ -149,26 +149,28 @@ async function flushImageTasks(): Promise<void> {
 }
 
 describe("DungeonEditorView asset loading", () => {
-  test("requests only the active ash mood plus shared editor art at startup", () => {
+  test("waits for a dungeon before requesting only the art needed by its visible map", () => {
     const restoreImage = installPendingImage();
+    const restoreWindow = installWindow();
     resetImageRequests();
     try {
-      new DungeonEditorView(makeCanvas().canvas, { onSelectSpawn: () => {} });
+      const view = new DungeonEditorView(makeCanvas().canvas, { onSelectSpawn: () => {} });
+
+      expect(requestedUrls).toEqual([]);
+      view.setDungeon(makeDungeon(), getDungeonMood("ash"));
 
       expect([...requestedUrls].sort()).toEqual(
         [
-          "/assets/textures/biomes/ash/floor.webp",
-          "/assets/textures/biomes/ash/wall.webp",
-          "/assets/sprites/enemies-v8/biomes/ash-enemies.webp",
-          "/assets/sprites/enemies-v8/iron-ash-enemies-v8.webp",
-          "/assets/sprites/iron-ash-items.webp",
-          "/assets/sprites/keyed/ember-sheet.webp",
           "/assets/sprites/keyed/ash-sheet.webp",
           "/assets/sprites/keyed/crypt-sheet.webp",
+          "/assets/sprites/keyed/ember-sheet.webp",
           "/assets/sprites/keyed/verdant-sheet.webp",
+          "/assets/textures/biomes/ash/floor.webp",
+          "/assets/textures/biomes/ash/wall.webp",
         ].sort(),
       );
     } finally {
+      restoreWindow();
       restoreImage();
     }
   });
@@ -186,14 +188,12 @@ describe("DungeonEditorView asset loading", () => {
       const frostUrls = [
         "/assets/textures/biomes/frost/floor.webp",
         "/assets/textures/biomes/frost/wall.webp",
-        "/assets/sprites/enemies-v8/biomes/frost-enemies.webp",
       ];
       for (const url of frostUrls)
         expect(requestedUrls.filter((requested) => requested === url)).toHaveLength(1);
 
-      completeImage("/assets/textures/biomes/ash/floor.webp");
-      completeImage("/assets/textures/biomes/ash/wall.webp");
-      await flushImageTasks();
+      expect(requestedUrls.some((url) => url.includes("/biomes/ash/"))).toBe(false);
+      expect(requestedUrls).toContain("/assets/sprites/keyed/ash-sheet.webp");
       expect(drawnUrls).toEqual([]);
 
       completeImage("/assets/textures/biomes/frost/floor.webp");
@@ -210,7 +210,6 @@ describe("DungeonEditorView asset loading", () => {
       const moltenUrls = [
         "/assets/textures/biomes/molten/floor.webp",
         "/assets/textures/biomes/molten/wall.webp",
-        "/assets/sprites/enemies-v8/biomes/molten-enemies.webp",
       ];
       for (const url of moltenUrls)
         expect(requestedUrls.filter((requested) => requested === url)).toHaveLength(1);
