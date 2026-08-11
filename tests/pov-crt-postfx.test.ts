@@ -43,6 +43,8 @@ describe("POV CRT post effect", () => {
     expect(internals.material.fragmentShader).toContain("fwidth(sourceLab.x)");
     expect(internals.material.fragmentShader).toContain("uPaletteFlatSuppression");
     expect(internals.material.fragmentShader).toContain("uPaletteShadowStart");
+    expect(internals.material.fragmentShader).toContain("secondClosest");
+    expect(internals.material.fragmentShader).toContain("secondChance");
     expect(internals.material.fragmentShader).toContain("uPaletteOklabColors[index]");
     expect(internals.material.fragmentShader).not.toContain("paletteOklab(candidate)");
     expect(internals.material.fragmentShader).toContain("heatwaveOffset");
@@ -62,9 +64,9 @@ describe("POV CRT post effect", () => {
     expect(internals.material.uniforms.uPaletteEnabled.value).toBe(1);
     expect(internals.material.uniforms.uPaletteSize.value).toBe(4);
     expect(internals.material.uniforms.uPaletteDither.value).toBe(1);
-    expect(internals.material.uniforms.uPaletteFlatSuppression.value).toBeCloseTo(0.92, 5);
-    expect(internals.material.uniforms.uPaletteShadowStart.value).toBeCloseTo(0.18, 5);
-    expect(internals.material.uniforms.uPaletteLightnessWeight.value).toBeCloseTo(5.5, 5);
+    expect(internals.material.uniforms.uPaletteFlatSuppression.value).toBeCloseTo(0.82, 5);
+    expect(internals.material.uniforms.uPaletteShadowStart.value).toBeCloseTo(0.08, 5);
+    expect(internals.material.uniforms.uPaletteLightnessWeight.value).toBeCloseTo(6.5, 5);
     const colors = internals.material.uniforms.uPaletteColors.value as THREE.Vector3[];
     expect(
       colors.slice(0, 4).map(
