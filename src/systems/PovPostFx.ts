@@ -1,5 +1,17 @@
 import * as THREE from "three";
 
+import {
+  MAX_POST_PALETTE_COLORS,
+  palettePostEffectProfile,
+  type PalettePostEffectProfile,
+  type PalettePostEffectId,
+} from "./PalettePostEffect";
+import {
+  DEFAULT_DISPLAY_POST_FX_TUNING,
+  normalizeDisplayPostFxTuning,
+  type DisplayPostFxTuning,
+} from "./DisplayPostFxTuning";
+
 export const POV_VIGNETTE_STRENGTH = 0.1;
 export const POV_VIGNETTE_INNER_RADIUS = 0.62;
 export const POV_CRT_HISTORY_WEIGHT = 0.16;
@@ -27,6 +39,33 @@ function createPostTarget(depthBuffer: boolean): THREE.WebGLRenderTarget {
   return target;
 }
 
+function parsePaletteColor(hex: string | undefined): THREE.Vector3 {
+  const value = Number.parseInt((hex ?? "#000000").slice(1), 16);
+  return new THREE.Vector3(
+    ((value >> 16) & 0xff) / 255,
+    ((value >> 8) & 0xff) / 255,
+    (value & 0xff) / 255,
+  );
+}
+
+function linearPaletteChannel(value: number): number {
+  return value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
+}
+
+function paletteColorToOklab(color: THREE.Vector3): THREE.Vector3 {
+  const red = linearPaletteChannel(color.x);
+  const green = linearPaletteChannel(color.y);
+  const blue = linearPaletteChannel(color.z);
+  const l = Math.cbrt(0.4122214708 * red + 0.5363325363 * green + 0.0514459929 * blue);
+  const m = Math.cbrt(0.2119034982 * red + 0.6806995451 * green + 0.1073969566 * blue);
+  const s = Math.cbrt(0.0883024619 * red + 0.2817188376 * green + 0.6299787005 * blue);
+  return new THREE.Vector3(
+    0.2104542553 * l + 0.793617785 * m - 0.0040720468 * s,
+    1.9779984951 * l - 2.428592205 * m + 0.4505937099 * s,
+    0.0259040371 * l + 0.7827717662 * m - 0.808675766 * s,
+  );
+}
+
 /**
  * Full-screen post pass: mild outward (pincushion) lens warp + radial chromatic aberration.
  * Renders the main scene into a target, then composites to the canvas.
@@ -42,6 +81,14 @@ export class PovPostFx {
   private readonly geometry = new THREE.PlaneGeometry(2, 2);
   private readonly mesh: THREE.Mesh;
   private readonly copyMesh: THREE.Mesh;
+  private readonly paletteColors = Array.from(
+    { length: MAX_POST_PALETTE_COLORS },
+    () => new THREE.Vector3(),
+  );
+  private readonly paletteOklabColors = Array.from(
+    { length: MAX_POST_PALETTE_COLORS },
+    () => new THREE.Vector3(),
+  );
   private width = 1;
   private height = 1;
   private enabled = true;
@@ -49,6 +96,8 @@ export class PovPostFx {
   private historyReadIndex = 0;
   private historyReady = false;
   private animateGrain = true;
+  private displayTuning: DisplayPostFxTuning = { ...DEFAULT_DISPLAY_POST_FX_TUNING };
+  private activePaletteProfile: PalettePostEffectProfile | null = null;
 
   constructor() {
     this.sceneTarget = createPostTarget(true);
@@ -59,6 +108,11 @@ export class PovPostFx {
         tHistory: { value: this.historyTargets[0].texture },
         uHistoryReady: { value: 0 },
         uCrtEnabled: { value: 1 },
+        uCrtHalation: { value: DEFAULT_DISPLAY_POST_FX_TUNING.halation },
+        uCrtPersistence: { value: DEFAULT_DISPLAY_POST_FX_TUNING.persistence },
+        uCrtScanlines: { value: DEFAULT_DISPLAY_POST_FX_TUNING.scanlines },
+        uCrtPhosphor: { value: DEFAULT_DISPLAY_POST_FX_TUNING.phosphorMask },
+        uCrtBrightness: { value: DEFAULT_DISPLAY_POST_FX_TUNING.brightness },
         uCurvature: { value: 0.032 },
         uChromatic: { value: 0 },
         uCriticalRed: { value: 0 },
@@ -69,6 +123,21 @@ export class PovPostFx {
         uSpikeEdge: { value: 0 },
         uGrain: { value: 0.007 },
         uVignette: { value: POV_VIGNETTE_STRENGTH },
+        uPaletteEnabled: { value: 0 },
+        uPaletteSize: { value: 0 },
+        uPaletteColors: { value: this.paletteColors },
+        uPaletteOklabColors: { value: this.paletteOklabColors },
+        uPaletteDither: { value: 0 },
+        uPaletteDitherAmplitude: { value: 0.07 },
+        uPalettePatternScale: { value: 1 },
+        uPaletteShadowStart: { value: 0.1 },
+        uPaletteShadowEnd: { value: 0.3 },
+        uPaletteFlatSuppression: { value: 0.8 },
+        uPaletteDetailBoost: { value: 1 },
+        uPaletteLightnessBias: { value: 0 },
+        uPaletteLightnessWeight: { value: 4 },
+        uPaletteChromaWeight: { value: 1 },
+        uPaletteStage: { value: 1 },
         uTime: { value: 0 },
         uResolution: { value: new THREE.Vector2(1, 1) },
       },
@@ -79,6 +148,11 @@ export class PovPostFx {
         uniform sampler2D tHistory;
         uniform float uHistoryReady;
         uniform float uCrtEnabled;
+        uniform float uCrtHalation;
+        uniform float uCrtPersistence;
+        uniform float uCrtScanlines;
+        uniform float uCrtPhosphor;
+        uniform float uCrtBrightness;
         uniform float uCurvature;
         uniform float uChromatic;
         uniform float uCriticalRed;
@@ -89,6 +163,21 @@ export class PovPostFx {
         uniform float uSpikeEdge;
         uniform float uGrain;
         uniform float uVignette;
+        uniform float uPaletteEnabled;
+        uniform float uPaletteSize;
+        uniform vec3 uPaletteColors[${MAX_POST_PALETTE_COLORS}];
+        uniform vec3 uPaletteOklabColors[${MAX_POST_PALETTE_COLORS}];
+        uniform float uPaletteDither;
+        uniform float uPaletteDitherAmplitude;
+        uniform float uPalettePatternScale;
+        uniform float uPaletteShadowStart;
+        uniform float uPaletteShadowEnd;
+        uniform float uPaletteFlatSuppression;
+        uniform float uPaletteDetailBoost;
+        uniform float uPaletteLightnessBias;
+        uniform float uPaletteLightnessWeight;
+        uniform float uPaletteChromaWeight;
+        uniform float uPaletteStage;
         uniform float uTime;
         uniform vec2 uResolution;
         varying vec2 vUv;
@@ -99,6 +188,98 @@ export class PovPostFx {
 
         float random(vec2 seed) {
           return fract(sin(dot(seed, vec2(12.9898, 78.233))) * 43758.5453);
+        }
+
+        float paletteBayer2(vec2 pixel) {
+          vec2 cell = mod(floor(pixel), 2.0);
+          if (cell.x < 0.5 && cell.y < 0.5) return 0.0;
+          if (cell.x > 0.5 && cell.y > 0.5) return 1.0;
+          if (cell.x > 0.5 && cell.y < 0.5) return 2.0;
+          return 3.0;
+        }
+
+        float paletteBayer4(vec2 pixel) {
+          vec2 cell = floor(pixel);
+          return paletteBayer2(cell) * 4.0 + paletteBayer2(floor(cell * 0.5));
+        }
+
+        float paletteLinearChannel(float value) {
+          return value <= 0.04045
+            ? value / 12.92
+            : pow((value + 0.055) / 1.055, 2.4);
+        }
+
+        vec3 paletteOklab(vec3 color) {
+          vec3 linearColor = vec3(
+            paletteLinearChannel(color.r),
+            paletteLinearChannel(color.g),
+            paletteLinearChannel(color.b)
+          );
+          float l = pow(max(dot(linearColor, vec3(0.4122214708, 0.5363325363, 0.0514459929)), 0.0), 1.0 / 3.0);
+          float m = pow(max(dot(linearColor, vec3(0.2119034982, 0.6806995451, 0.1073969566)), 0.0), 1.0 / 3.0);
+          float s = pow(max(dot(linearColor, vec3(0.0883024619, 0.2817188376, 0.6299787005)), 0.0), 1.0 / 3.0);
+          return vec3(
+            0.2104542553 * l + 0.7936177850 * m - 0.0040720468 * s,
+            1.9779984951 * l - 2.4285922050 * m + 0.4505937099 * s,
+            0.0259040371 * l + 0.7827717662 * m - 0.8086757660 * s
+          );
+        }
+
+        vec3 limitToPalette(vec3 color) {
+          if (uPaletteEnabled < 0.5 || uPaletteSize < 1.5) return color;
+          vec3 sourceLab = paletteOklab(clamp(color, 0.0, 1.0));
+          float edgeEnergy = fwidth(sourceLab.x);
+          float detailGate = smoothstep(
+            0.004,
+            0.04,
+            edgeEnergy * max(uPaletteDetailBoost, 0.01)
+          );
+          float flatGate = mix(
+            1.0 - clamp(uPaletteFlatSuppression, 0.0, 0.98),
+            1.0,
+            detailGate
+          );
+          float shadowGate = smoothstep(
+            min(uPaletteShadowStart, uPaletteShadowEnd - 0.001),
+            max(uPaletteShadowEnd, uPaletteShadowStart + 0.001),
+            sourceLab.x
+          );
+          float highlightGate = 1.0 - smoothstep(0.92, 0.995, sourceLab.x);
+          float threshold =
+            (paletteBayer4(gl_FragCoord.xy / max(uPalettePatternScale, 1.0)) + 0.5) / 16.0 - 0.5;
+          float ditherGate = mix(0.08, 1.0, shadowGate) * flatGate * highlightGate;
+          sourceLab.x = clamp(
+            sourceLab.x + uPaletteLightnessBias +
+              threshold * uPaletteDither * uPaletteDitherAmplitude * ditherGate,
+            0.0,
+            1.0
+          );
+          vec3 closest = uPaletteColors[0];
+          float closestDistance = 1000.0;
+          for (int index = 0; index < ${MAX_POST_PALETTE_COLORS}; index++) {
+            if (float(index) >= uPaletteSize) continue;
+            vec3 candidate = uPaletteColors[index];
+            vec3 delta = sourceLab - uPaletteOklabColors[index];
+            float distance =
+              delta.x * delta.x * uPaletteLightnessWeight +
+              (delta.y * delta.y + delta.z * delta.z) * uPaletteChromaWeight;
+            if (distance < closestDistance) {
+              closestDistance = distance;
+              closest = candidate;
+            }
+          }
+          return closest;
+        }
+
+        vec3 crtPhosphorMask(vec2 pixel) {
+          float triad = mod(floor(pixel.x), 3.0);
+          vec3 mask = triad < 0.5
+            ? vec3(1.08, 0.94, 0.94)
+            : triad < 1.5
+              ? vec3(0.94, 1.08, 0.94)
+              : vec3(0.94, 0.94, 1.08);
+          float grille = mix(0.97, 1.02, step(0.5, mod(floor(pixel.y), 2.0)));
+          return mask * grille;
         }
 
         vec3 crtHalation(vec2 uv, vec3 center) {
@@ -195,7 +376,8 @@ export class PovPostFx {
           if (maskB < 0.5) b = fallback.b;
 
           vec3 baseColor = vec3(r, g, b);
-          baseColor += crtHalation(uvG, fallback) * uCrtEnabled * ${POV_CRT_HALATION_STRENGTH.toFixed(2)};
+          vec3 crtGlow = crtHalation(uvG, fallback) * uCrtEnabled * uCrtHalation;
+          if (uPaletteStage >= 0.5) baseColor += crtGlow;
           float baseLuma = luma(baseColor);
           vec3 criticalColor = vec3(
             max(baseColor.r, baseLuma * 0.82),
@@ -225,12 +407,16 @@ export class PovPostFx {
             gradedColor * vec3(0.82, 0.8, 0.76) + vec3(0.08, 0.07, 0.05) * edge,
             clamp(uSpikeEdge * edge, 0.0, 1.0)
           );
+          if (uPaletteStage < 0.5) {
+            gradedColor = limitToPalette(clamp(gradedColor, 0.0, 1.0));
+            gradedColor += crtGlow;
+          }
 
           vec3 historyColor = texture2D(tHistory, clamp(uvG, 0.0, 1.0)).rgb;
           vec3 decayedHistory = historyColor * vec3(0.93, 0.95, 0.92);
           float historyDelta = max(luma(decayedHistory) - luma(gradedColor), 0.0);
           float persistence = smoothstep(0.012, 0.24, historyDelta) *
-            uHistoryReady * uCrtEnabled * ${POV_CRT_HISTORY_WEIGHT.toFixed(2)};
+            uHistoryReady * uCrtEnabled * uCrtPersistence;
           gradedColor = mix(gradedColor, max(gradedColor, decayedHistory), persistence);
           // Soft temporal film grain: dual hash (less patterned than a single
           // sin seed), bipolar, and slightly luminance-weighted so deep shadows
@@ -243,13 +429,23 @@ export class PovPostFx {
           float grainResponse = mix(0.52, 1.0, smoothstep(0.03, 0.42, luma(gradedColor)));
           gradedColor += grain * uGrain * grainResponse;
           float scanPhase = cos(gl_FragCoord.y * 1.5707963) * 0.5 + 0.5;
-          float scanBeam = mix(0.94, 1.015, smoothstep(0.12, 0.82, luma(gradedColor)));
-          gradedColor *= mix(1.0, mix(scanBeam, 1.0, scanPhase), uCrtEnabled * 0.28);
+          float scanBeam = mix(0.88, 1.035, scanPhase) *
+            mix(0.97, 1.025, smoothstep(0.08, 0.78, luma(gradedColor)));
+          gradedColor *= mix(1.0, scanBeam, uCrtEnabled * uCrtScanlines);
+          gradedColor *= mix(
+            vec3(1.0),
+            crtPhosphorMask(gl_FragCoord.xy),
+            uCrtEnabled * uCrtPhosphor
+          );
+          gradedColor *= mix(1.0, uCrtBrightness, uCrtEnabled);
           // Soft peripheral falloff: clear center, slight black only near frame edges.
           vec2 vignetteUv = vUv * 2.0 - 1.0;
           vignetteUv.x *= 0.82;
           float vignette = smoothstep(${POV_VIGNETTE_INNER_RADIUS.toFixed(2)}, 1.18, length(vignetteUv));
           gradedColor *= 1.0 - vignette * uVignette;
+          if (uPaletteStage >= 0.5) {
+            gradedColor = limitToPalette(clamp(gradedColor, 0.0, 1.0));
+          }
           gl_FragColor = vec4(clamp(gradedColor, 0.0, 1.0), 1.0);
         }
       `,
@@ -302,6 +498,71 @@ export class PovPostFx {
     return this.crtEnabled;
   }
 
+  setPaletteEffect(paletteId: PalettePostEffectId, ditherStrength: number): void {
+    const profile = palettePostEffectProfile(paletteId);
+    this.activePaletteProfile = profile;
+    this.material.uniforms.uPaletteEnabled.value = profile ? 1 : 0;
+    this.material.uniforms.uPaletteSize.value = profile?.colors.length ?? 0;
+    this.material.uniforms.uPaletteDither.value = THREE.MathUtils.clamp(ditherStrength, 0, 1);
+    this.paletteColors.forEach((color, index) => {
+      const parsed = parsePaletteColor(profile?.colors[index]);
+      color.copy(parsed);
+      this.paletteOklabColors[index].copy(paletteColorToOklab(parsed));
+    });
+    this.syncPaletteTuningUniforms();
+  }
+
+  private syncPaletteTuningUniforms(): void {
+    const profile = this.activePaletteProfile;
+    if (!profile) return;
+    const quantization = profile.quantization;
+    const tuning = this.displayTuning;
+    this.material.uniforms.uPaletteDitherAmplitude.value =
+      quantization.ditherAmplitude * tuning.paletteDitherScale;
+    this.material.uniforms.uPalettePatternScale.value = quantization.patternScale;
+    this.material.uniforms.uPaletteShadowStart.value = THREE.MathUtils.clamp(
+      quantization.shadowStart * tuning.paletteShadowGuard,
+      0,
+      0.9,
+    );
+    this.material.uniforms.uPaletteShadowEnd.value = THREE.MathUtils.clamp(
+      quantization.shadowEnd * tuning.paletteShadowGuard,
+      0.01,
+      0.98,
+    );
+    this.material.uniforms.uPaletteFlatSuppression.value = THREE.MathUtils.clamp(
+      quantization.flatSuppression * tuning.paletteFlatGuard,
+      0,
+      0.98,
+    );
+    this.material.uniforms.uPaletteDetailBoost.value =
+      quantization.detailBoost * tuning.paletteDetailBoost;
+    this.material.uniforms.uPaletteLightnessBias.value = THREE.MathUtils.clamp(
+      quantization.lightnessBias + tuning.paletteLightnessBias,
+      -0.15,
+      0.15,
+    );
+    this.material.uniforms.uPaletteLightnessWeight.value = quantization.lightnessWeight;
+    this.material.uniforms.uPaletteChromaWeight.value = quantization.chromaWeight;
+  }
+
+  setDisplayTuning(value: DisplayPostFxTuning): void {
+    const tuning = normalizeDisplayPostFxTuning(value);
+    this.displayTuning = tuning;
+    this.material.uniforms.uCrtHalation.value = tuning.halation;
+    this.material.uniforms.uCrtPersistence.value = tuning.persistence;
+    this.material.uniforms.uCrtScanlines.value = tuning.scanlines;
+    this.material.uniforms.uCrtPhosphor.value = tuning.phosphorMask;
+    this.material.uniforms.uCrtBrightness.value = tuning.brightness;
+    this.material.uniforms.uPaletteStage.value = tuning.paletteStage === "world" ? 0 : 1;
+    this.syncPaletteTuningUniforms();
+    this.resetCrtHistory();
+  }
+
+  getDisplayTuning(): DisplayPostFxTuning {
+    return { ...this.displayTuning };
+  }
+
   resetCrtHistory(): void {
     this.historyReady = false;
     this.material.uniforms.uHistoryReady.value = 0;
@@ -328,11 +589,15 @@ export class PovPostFx {
     grain = 0.007,
     animateGrain = true,
   ): void {
-    this.material.uniforms.uCurvature.value = curvature;
+    this.material.uniforms.uCurvature.value = curvature * this.displayTuning.curvatureScale;
     this.material.uniforms.uChromatic.value = chromatic;
     this.material.uniforms.uCriticalRed.value = THREE.MathUtils.clamp(criticalRed, 0, 1);
     // Cap stays tight: film grain should grade the image, not read as dirt.
-    this.material.uniforms.uGrain.value = THREE.MathUtils.clamp(grain, 0, 0.014);
+    this.material.uniforms.uGrain.value = THREE.MathUtils.clamp(
+      grain * this.displayTuning.grainScale,
+      0,
+      0.014,
+    );
     this.animateGrain = animateGrain;
   }
 

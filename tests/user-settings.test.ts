@@ -22,12 +22,23 @@ describe("persistent user settings", () => {
     const storage = memoryStorage();
     expect(readUserSettings(storage)).toEqual(DEFAULT_USER_SETTINGS);
     expect(
-      writeUserSettings({ musicVolume: 0.35, effectsVolume: 0.8, textureSmoothing: true }, storage),
+      writeUserSettings(
+        {
+          musicVolume: 0.35,
+          effectsVolume: 0.8,
+          textureSmoothing: true,
+          paletteEffect: "pico-8",
+          paletteDitherStrength: 0.88,
+        },
+        storage,
+      ),
     ).toBe(true);
     expect(readUserSettings(storage)).toEqual({
       musicVolume: 0.35,
       effectsVolume: 0.8,
       textureSmoothing: true,
+      paletteEffect: "pico-8",
+      paletteDitherStrength: 0.88,
     });
     storage.setItem(
       USER_SETTINGS_KEY,
@@ -37,6 +48,8 @@ describe("persistent user settings", () => {
       musicVolume: 1,
       effectsVolume: 0,
       textureSmoothing: false,
+      paletteEffect: "off",
+      paletteDitherStrength: 0.72,
     });
   });
 

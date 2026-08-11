@@ -30,10 +30,91 @@ describe("POV CRT post effect", () => {
     expect(internals.material.fragmentShader).toContain("decayedHistory");
     expect(internals.material.fragmentShader).toContain("jitterGate");
     expect(internals.material.fragmentShader).toContain("scanBeam");
+    expect(internals.material.fragmentShader).toContain("crtPhosphorMask");
+    expect(internals.material.fragmentShader).toContain("uCrtHalation");
+    expect(internals.material.fragmentShader).toContain("uCrtPersistence");
+    expect(internals.material.fragmentShader).toContain("uCrtScanlines");
+    expect(internals.material.fragmentShader).toContain("uCrtPhosphor");
+    expect(internals.material.fragmentShader).toContain("vec3 crtGlow");
+    expect(internals.material.fragmentShader).toContain("gradedColor += crtGlow");
+    expect(internals.material.fragmentShader).toContain("limitToPalette");
+    expect(internals.material.fragmentShader).toContain("paletteBayer4");
+    expect(internals.material.fragmentShader).toContain("paletteOklab");
+    expect(internals.material.fragmentShader).toContain("fwidth(sourceLab.x)");
+    expect(internals.material.fragmentShader).toContain("uPaletteFlatSuppression");
+    expect(internals.material.fragmentShader).toContain("uPaletteShadowStart");
+    expect(internals.material.fragmentShader).toContain("uPaletteOklabColors[index]");
+    expect(internals.material.fragmentShader).not.toContain("paletteOklab(candidate)");
     expect(internals.material.fragmentShader).toContain("heatwaveOffset");
     expect(internals.material.fragmentShader).toContain("uHeatwave");
     expect(internals.material.fragmentShader).toContain("uToxinGreen");
     expect(internals.material.fragmentShader.match(/texture2D\(tDiffuse/g)).toHaveLength(8);
+
+    post.dispose();
+  });
+
+  test("loads a classic palette and clamps its notable dithering", () => {
+    const post = new PovPostFx();
+    const internals = post as unknown as PovPostFxInternals;
+
+    post.setPaletteEffect("cga-0-high", 2);
+
+    expect(internals.material.uniforms.uPaletteEnabled.value).toBe(1);
+    expect(internals.material.uniforms.uPaletteSize.value).toBe(4);
+    expect(internals.material.uniforms.uPaletteDither.value).toBe(1);
+    expect(internals.material.uniforms.uPaletteFlatSuppression.value).toBeCloseTo(0.92, 5);
+    expect(internals.material.uniforms.uPaletteShadowStart.value).toBeCloseTo(0.18, 5);
+    expect(internals.material.uniforms.uPaletteLightnessWeight.value).toBeCloseTo(5.5, 5);
+    const colors = internals.material.uniforms.uPaletteColors.value as THREE.Vector3[];
+    expect(
+      colors.slice(0, 4).map(
+        (color) =>
+          `#${[color.x, color.y, color.z]
+            .map((channel) =>
+              Math.round(channel * 255)
+                .toString(16)
+                .padStart(2, "0"),
+            )
+            .join("")}`,
+      ),
+    ).toEqual(["#000000", "#55ff55", "#ff5555", "#ffff55"]);
+
+    post.setPaletteEffect("off", 0.2);
+    expect(internals.material.uniforms.uPaletteEnabled.value).toBe(0);
+    expect(internals.material.uniforms.uPaletteSize.value).toBe(0);
+    post.dispose();
+  });
+
+  test("tunes the CRT and compares world-grade with final-screen palette placement", () => {
+    const post = new PovPostFx();
+    const internals = post as unknown as PovPostFxInternals;
+
+    post.setDisplayTuning({
+      paletteStage: "world",
+      paletteDitherScale: 0.8,
+      paletteShadowGuard: 1.2,
+      paletteFlatGuard: 1.1,
+      paletteDetailBoost: 1.25,
+      paletteLightnessBias: 0.02,
+      halation: 0.21,
+      persistence: 0.19,
+      scanlines: 0.62,
+      phosphorMask: 0.44,
+      brightness: 1.06,
+      curvatureScale: 1.25,
+      grainScale: 0.5,
+    });
+    post.setParams(0.04, 0, 0, 0.01);
+
+    expect(post.getDisplayTuning().paletteStage).toBe("world");
+    expect(internals.material.uniforms.uPaletteStage.value).toBe(0);
+    expect(internals.material.uniforms.uCrtHalation.value).toBe(0.21);
+    expect(internals.material.uniforms.uCrtPersistence.value).toBe(0.19);
+    expect(internals.material.uniforms.uCrtScanlines.value).toBe(0.62);
+    expect(internals.material.uniforms.uCrtPhosphor.value).toBe(0.44);
+    expect(internals.material.uniforms.uCrtBrightness.value).toBe(1.06);
+    expect(internals.material.uniforms.uCurvature.value).toBeCloseTo(0.05, 5);
+    expect(internals.material.uniforms.uGrain.value).toBeCloseTo(0.005, 5);
 
     post.dispose();
   });

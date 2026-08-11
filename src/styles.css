@@ -2854,6 +2854,25 @@ kbd {
   accent-color: var(--bone);
 }
 
+.options-palette select {
+  grid-column: 1 / -1;
+  width: 100%;
+  min-height: 34px;
+  padding: 6px 30px 6px 8px;
+  border: var(--edge);
+  background: var(--ink);
+  color: var(--bone);
+  font: inherit;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.options-palette select:disabled,
+.options-volume input:disabled {
+  cursor: not-allowed;
+  opacity: 0.42;
+}
+
 .options-volume:focus-within {
   outline: 2px solid var(--bone);
   outline-offset: 2px;
@@ -4877,6 +4896,134 @@ kbd {
 .options-status {
   padding-top: 12px;
   border-top: 1px solid rgb(201 197 184 / 12%);
+}
+
+.app-shell[data-local-dev-tools="false"] .display-post-fx-lab {
+  display: none !important;
+}
+
+.display-post-fx-lab {
+  border: 1px solid rgb(227 196 125 / 24%);
+  background: rgb(2 3 4 / 44%);
+}
+
+.display-post-fx-lab > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 42px;
+  padding: 0 12px;
+  cursor: pointer;
+  color: #e3c47d;
+  font-family: var(--font-pixel);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  list-style: none;
+}
+
+.display-post-fx-lab > summary::-webkit-details-marker {
+  display: none;
+}
+
+.display-post-fx-lab > summary small {
+  color: var(--ash);
+  font-size: 9px;
+}
+
+.display-post-fx-lab[open] > summary {
+  border-bottom: 1px solid rgb(201 197 184 / 14%);
+}
+
+.display-post-fx-lab__body {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+}
+
+.display-post-fx-lab__metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 4px;
+}
+
+.display-post-fx-lab__metrics span {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+  padding: 7px;
+  border: 1px solid rgb(201 197 184 / 12%);
+  color: var(--ash);
+  font: 600 9px/1.2 var(--font-pixel);
+  letter-spacing: 0.08em;
+}
+
+.display-post-fx-lab__metrics output {
+  overflow: hidden;
+  color: var(--bone);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  text-overflow: ellipsis;
+}
+
+.display-post-fx-lab__ranges {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.display-post-fx-lab__ranges .options-volume {
+  min-width: 0;
+  padding: 7px 8px;
+}
+
+#display-post-fx-config {
+  width: 100%;
+  resize: vertical;
+  border: 1px solid rgb(201 197 184 / 14%);
+  background: rgb(0 0 0 / 34%);
+  color: #a9b2aa;
+  font:
+    10px/1.4 ui-monospace,
+    SFMono-Regular,
+    Consolas,
+    monospace;
+}
+
+.display-post-fx-lab__actions {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 6px;
+}
+
+.display-post-fx-lab__actions button {
+  min-height: 36px;
+  border: 1px solid rgb(227 196 125 / 24%);
+  background: rgb(227 196 125 / 8%);
+  color: var(--bone);
+  font-size: 10px;
+}
+
+.options-menu:has(.display-post-fx-lab[open]) .options-backdrop {
+  background: rgb(2 3 4 / 18%);
+  backdrop-filter: none;
+}
+
+.options-menu:has(.display-post-fx-lab[open]) .options-card {
+  width: min(430px, calc(100vw - 32px));
+  max-height: calc(100dvh - 32px);
+  margin-right: max(16px, env(safe-area-inset-right));
+  justify-self: end;
+}
+
+@media (max-width: 680px) {
+  .display-post-fx-lab__ranges {
+    grid-template-columns: 1fr;
+  }
+
+  .options-menu:has(.display-post-fx-lab[open]) .options-card {
+    margin-right: 0;
+  }
 }
 
 .end-overlay {

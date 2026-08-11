@@ -543,7 +543,8 @@ describe("StaticDungeonScene", () => {
         );
         const actualDoors = new Set(
           handles.residentFloors[floorIndex]!.doors.map(
-            (door) => `${String(door.root.userData.edgeIndex)}:${String(door.root.userData.roomId)}`,
+            (door) =>
+              `${String(door.root.userData.edgeIndex)}:${String(door.root.userData.roomId)}`,
           ),
         );
         expect(actualDoors).toEqual(expectedDoorways);
@@ -558,8 +559,11 @@ describe("StaticDungeonScene", () => {
       wallCores.forEach((core) => {
         core.geometry.computeBoundingBox();
         const size = core.geometry.boundingBox!.getSize(new THREE.Vector3());
-        expect(size.x).toBeGreaterThanOrEqual(2.4);
-        expect(size.z).toBeGreaterThanOrEqual(2.4);
+        // Structural fill must stay behind the visible masonry face plane.
+        expect(size.x).toBeGreaterThan(2.36);
+        expect(size.x).toBeLessThan(2.4);
+        expect(size.z).toBeGreaterThan(2.36);
+        expect(size.z).toBeLessThan(2.4);
       });
       const resolveRewards = handles.pickups.filter((pickup) => pickup.kind === "resolve");
       expect(resolveRewards.length).toBeGreaterThan(1);
