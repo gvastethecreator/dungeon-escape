@@ -1,6 +1,6 @@
 # ADR 0009: WebGPU renderer and TSL materials
 
-Status: proposed
+Status: accepted
 
 Date: 2026-08-12
 
