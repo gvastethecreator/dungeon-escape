@@ -88,6 +88,10 @@ import {
   readPlayRendererBackendName,
   type PlayRendererHandle,
 } from "./systems/PlayRendererFactory";
+import {
+  resolvePreferWebGpuWhenAuto,
+  WEBGPU_FLIP_POLICY,
+} from "./systems/WebGpuFlipPolicy";
 import { collectVisibleRenderInventory } from "./systems/RenderInventory";
 import { resolveRenderPixelRatio } from "./systems/RenderScale";
 import {
@@ -504,6 +508,7 @@ try {
     canvas: elements.scene,
     preference: renderPathCaps.requestedRenderer,
     preferDefaultGpu: renderPathCaps.preferDefaultGpu,
+    preferWebGpuWhenAuto: resolvePreferWebGpuWhenAuto(WEBGPU_FLIP_POLICY),
   });
 } catch (error) {
   const message =
@@ -562,6 +567,8 @@ if (typeof globalThis !== "undefined") {
     fallbackReason: playRendererHandle.fallbackReason,
     isWebGpuRenderer: playRendererHandle.isWebGpuRenderer,
     shaderProgramMode,
+    capabilityPath: renderPathCaps.telemetryPath,
+    webgpuFlip: WEBGPU_FLIP_POLICY,
   };
 }
 const renderCaps = {
