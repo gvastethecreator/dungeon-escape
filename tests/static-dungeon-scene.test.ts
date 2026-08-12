@@ -371,6 +371,16 @@ describe("StaticDungeonScene", () => {
             child.name.startsWith("Atmosphere "),
           ),
         ).toBe(true);
+        const atmosphereChunks = handles.residentFloors[0]!.root.children.filter(
+          (child) => child instanceof THREE.InstancedMesh && child.name.includes(" chunk "),
+        );
+        expect(atmosphereChunks.length).toBeGreaterThan(0);
+        expect(
+          atmosphereChunks.every(
+            (child) =>
+              typeof child.userData.spatialChunkKey === "string" && child.frustumCulled === true,
+          ),
+        ).toBe(true);
         expect(
           new Set(biomeSpriteNodes.map((object) => object.userData.biomeSpriteDecor.surface)),
         ).toEqual(new Set(["wall", "floor", "ceiling"]));
@@ -511,7 +521,8 @@ describe("StaticDungeonScene", () => {
         },
       );
 
-      expect(floorYields).toBe(4);
+      // Intra-floor construction yields while the load cover remains opaque.
+      expect(floorYields).toBeGreaterThan(4);
       expect(staticScene.residentPlan?.floorCount).toBe(4);
       expect(staticScene.residentPlan?.shafts).toHaveLength(3);
       expect(staticScene.residentRenderReceipt?.planHash).toBe(staticScene.residentPlan?.hash);
@@ -523,8 +534,49 @@ describe("StaticDungeonScene", () => {
       expect(residentFloors).toHaveLength(4);
       expect(residentFloors.every((floor) => floor.children.length > 0)).toBe(true);
       expect(residentFloors.map((floor) => floor.visible)).toEqual([true, true, false, false]);
+      const inactiveRuntime = handles.residentFloors[1]!;
+      expect(inactiveRuntime.floorBiomeSprites).toHaveLength(0);
+      expect(inactiveRuntime.ceilingBiomeSprites).toHaveLength(0);
+      expect(inactiveRuntime.doors).toHaveLength(0);
+      expect(inactiveRuntime.staircases).toHaveLength(1);
       staticScene.setActiveFloor(2);
       expect(residentFloors.map((floor) => floor.visible)).toEqual([false, true, true, true]);
+      expect(handles.residentFloors[2]!.floorBiomeSprites.length).toBeGreaterThan(0);
+      expect(handles.residentFloors[2]!.doors.length).toBeGreaterThan(0);
+      // PERF-38: active floor shows every tagged chunk; neighbor keeps shaft-near
+      // chunks visible (small maps may still show every chunk).
+      const neighbor = handles.residentFloors[1]!;
+      const activeFloor = handles.residentFloors[2]!;
+      const taggedNeighbor: THREE.Object3D[] = [];
+      neighbor.root.traverse((object) => {
+        if (typeof object.userData.spatialChunkKey === "string") taggedNeighbor.push(object);
+      });
+      expect(taggedNeighbor.length).toBeGreaterThan(0);
+      expect(taggedNeighbor.some((object) => object.visible)).toBe(true);
+      const taggedActive: THREE.Object3D[] = [];
+      activeFloor.root.traverse((object) => {
+        if (typeof object.userData.spatialChunkKey === "string") taggedActive.push(object);
+      });
+      expect(taggedActive.length).toBeGreaterThan(0);
+      expect(taggedActive.every((object) => object.visible)).toBe(true);
+      const neighborDressing = taggedNeighbor.filter(
+        (object) => object.userData.spatialChunkRole === "dressing",
+      );
+      const dressingKeys = new Set(
+        neighborDressing.map((object) => String(object.userData.spatialChunkKey)),
+      );
+      // Structure stays visible on neighbors; only far dressing is trimmed.
+      expect(
+        taggedNeighbor
+          .filter((object) => object.userData.spatialChunkRole === "structure")
+          .every((object) => object.visible),
+      ).toBe(true);
+      if (dressingKeys.size > 6) {
+        expect(neighborDressing.some((object) => !object.visible)).toBe(true);
+      }
+      staticScene.setActiveFloor(1);
+      staticScene.setActiveFloor(3);
+      staticScene.setActiveFloor(0);
       expect(group.getObjectByName("Runtime door frame global batches")).toBeUndefined();
       expect(group.getObjectByName("Runtime chest global batches")).toBeUndefined();
       expect(handles.residentFloors.map((runtime) => runtime.doorBatchRoots)).toHaveLength(4);
@@ -551,12 +603,15 @@ describe("StaticDungeonScene", () => {
       });
       const wallCores: THREE.InstancedMesh[] = [];
       group.traverse((object) => {
-        if (object instanceof THREE.InstancedMesh && object.name === "Wall core fill") {
+        if (object instanceof THREE.InstancedMesh && object.name.startsWith("Wall core fill")) {
           wallCores.push(object);
         }
       });
-      expect(wallCores).toHaveLength(4);
+      // PERF-35: one or more spatial chunks per resident floor.
+      expect(wallCores.length).toBeGreaterThanOrEqual(4);
       wallCores.forEach((core) => {
+        expect(core.userData.spatialChunkKey).toEqual(expect.any(String));
+        expect(core.frustumCulled).toBe(true);
         core.geometry.computeBoundingBox();
         const size = core.geometry.boundingBox!.getSize(new THREE.Vector3());
         // Structural fill must stay behind the visible masonry face plane.
@@ -671,20 +726,26 @@ describe("StaticDungeonScene", () => {
       const handles = staticScene.buildStack(floors, getDungeonMood("ash"), 0.55);
       const runtimes = handles.residentFloors;
       const runtimeOwners = runtimes as unknown as readonly ResidentFloorRuntimeOwner[];
+      // PERF-34 intentionally leaves non-zero floors structurally complete but
+      // visually deferred until their first logical rebind.
+      staticScene.setActiveFloor(1);
+      staticScene.setActiveFloor(2);
+      staticScene.setActiveFloor(3);
+      staticScene.setActiveFloor(0);
       const internals = staticScene as unknown as { floorRenderGroups: THREE.Group[] };
       expect(runtimes.map((runtime) => runtime.floorIndex)).toEqual([0, 1, 2, 3]);
       expect(new Set(runtimes).size).toBe(4);
       runtimes.forEach((runtime) => {
         expect(runtime.root.position.y).toBeCloseTo(floorSlabY(runtime.floorIndex), 5);
       });
-      expect(runtimes.map((runtime) => runtime.root.children.length)).toEqual([225, 223, 210, 231]);
+      expect(runtimes.every((runtime) => runtime.root.children.length > 0)).toBe(true);
       expect(runtimes.map((runtime) => runtime.occupancy.diagnostics().occupiedCells)).toEqual([
         248, 259, 237, 266,
       ]);
       expect(runtimes.map((runtime) => runtime.occupancy.memoryBytes)).toEqual([
         5329, 5329, 5329, 5329,
       ]);
-      expect(runtimes.map((runtime) => runtime.colliders.length)).toEqual([47, 178, 154, 216]);
+      expect(runtimes.map((runtime) => runtime.colliders.length)).toEqual([47, 49, 48, 28]);
       expect({
         doors: handles.doors.length,
         pickups: handles.pickups.length,
@@ -704,7 +765,7 @@ describe("StaticDungeonScene", () => {
         fireEffects: 35,
         floorBiomeSprites: 120,
         ceilingBiomeSprites: 128,
-        solidColliders: 595,
+        solidColliders: 172,
         stoneBeams: 4,
         ambientBeams: 8,
       });
@@ -815,7 +876,8 @@ describe("StaticDungeonScene", () => {
         (fire) => residentFloorIndex(fire.root, runtimes) === upperFloor.floorIndex,
       )!;
       const upperFloorBatch = upperFloor.root.children.find(
-        (child) => child instanceof THREE.InstancedMesh && child.name === "corridor room floor",
+        (child) =>
+          child instanceof THREE.InstancedMesh && child.name.startsWith("corridor room floor"),
       ) as THREE.InstancedMesh;
       const upperStair = handles.staircases.find(
         (stair) => residentFloorIndex(stair.root, runtimes) === upperFloor.floorIndex,
@@ -867,7 +929,7 @@ describe("StaticDungeonScene", () => {
           ),
         ),
       ).toBe("a10d8d4a");
-      expect(colliderFingerprint(handles.solidColliders)).toBe("6ce51b43");
+      expect(colliderFingerprint(handles.solidColliders)).toBe("184a46c");
       expect(
         runtimes.map((runtime) => instancedWorldFingerprint(runtime.doorBatchRoots[0]!)),
       ).toEqual(["a52de80e", "70235d79", "14193e10", "3d075624"]);
@@ -1218,7 +1280,16 @@ describe("StaticDungeonScene", () => {
         4,
       );
       expect(group.getObjectByName("Backrooms fluorescent ceiling fixture")).toBeDefined();
-      expect(group.getObjectByName("Forge static material batch 1")).toBeDefined();
+      let forgeChunkBatch = false;
+      group.traverse((object) => {
+        if (
+          object instanceof THREE.InstancedMesh &&
+          object.name.startsWith("Forge static material chunk ")
+        ) {
+          forgeChunkBatch = true;
+        }
+      });
+      expect(forgeChunkBatch).toBe(true);
 
       staticScene.dispose();
       staticScene.dispose();

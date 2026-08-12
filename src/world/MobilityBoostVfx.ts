@@ -143,6 +143,7 @@ export class MobilityBoostVfx {
       }),
     );
     this.dust.name = "Mobility draught motes";
+    // Player-relative dust; cull would drop the active draught cue.
     this.dust.frustumCulled = false;
     this.dust.renderOrder = 4;
     this.root.add(this.dust);

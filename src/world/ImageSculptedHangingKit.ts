@@ -138,8 +138,10 @@ function finish(
     geometry: {
       triangles: triangleCount(root),
       materialBatches: materials.size,
-      targetTriangles: 1500,
-      maxTriangles: 3000,
+      // Hanging chains are ceiling atmosphere; keep them readable but cheap
+      // (PERF-36). Other hangings keep the prior authoring budget.
+      targetTriangles: family === "hanging-chain" ? 600 : 1500,
+      maxTriangles: family === "hanging-chain" ? 700 : 3000,
       mergeStrategy: "StaticDungeonScene merges template meshes by shared DungeonMaterial",
     },
     lod: { near: 0, mid: 14, far: 28 },
@@ -456,13 +458,16 @@ function createCuredMeatHaunchGeometry(): THREE.BufferGeometry {
 }
 
 /** A broad, chamfered forged link that keeps its hole visible from side views. */
-function createRectangularChainLinkGeometry(): THREE.ExtrudeGeometry {
+function createRectangularChainLinkGeometry(options?: {
+  readonly bevel?: boolean;
+}): THREE.ExtrudeGeometry {
   const outerWidth = 0.102;
   const outerHeight = 0.145;
   const outerChamfer = 0.035;
   const innerWidth = 0.052;
   const innerHeight = 0.091;
   const innerChamfer = 0.022;
+  const bevel = options?.bevel ?? true;
   const shape = new THREE.Shape();
   shape.moveTo(-outerWidth + outerChamfer, -outerHeight);
   shape.lineTo(outerWidth - outerChamfer, -outerHeight);
@@ -489,14 +494,16 @@ function createRectangularChainLinkGeometry(): THREE.ExtrudeGeometry {
   const geometry = new THREE.ExtrudeGeometry(shape, {
     depth: 0.052,
     steps: 1,
-    bevelEnabled: true,
-    bevelSegments: 1,
-    bevelSize: 0.006,
-    bevelThickness: 0.006,
+    bevelEnabled: bevel,
+    bevelSegments: bevel ? 1 : 0,
+    bevelSize: bevel ? 0.006 : 0,
+    bevelThickness: bevel ? 0.006 : 0,
   });
   geometry.translate(0, 0, -0.026);
-  geometry.name = "Chamfered rectangular forged chain link";
-  geometry.userData.linkProfile = "rectangular-chamfered";
+  geometry.name = bevel
+    ? "Chamfered rectangular forged chain link"
+    : "Lean rectangular forged chain link";
+  geometry.userData.linkProfile = bevel ? "rectangular-chamfered" : "rectangular-lean";
   geometry.computeBoundingBox();
   geometry.computeBoundingSphere();
   return geometry;
@@ -648,10 +655,16 @@ function addInterlockedChainLinks(
   startY: number,
   spacing: number,
   drift: number,
+  options?: {
+    readonly bevel?: boolean;
+    readonly weldBands?: boolean;
+  },
 ): number {
+  const bevel = options?.bevel ?? true;
+  const weldBands = options?.weldBands ?? true;
   const links = pivot("Interlocked chain links pivot", "alternating-links");
-  const linkGeometry = createRectangularChainLinkGeometry();
-  const weldGeometry = new THREE.BoxGeometry(0.036, 0.048, 0.064);
+  const linkGeometry = createRectangularChainLinkGeometry({ bevel });
+  const weldGeometry = weldBands ? new THREE.BoxGeometry(0.036, 0.048, 0.064) : null;
   for (let index = 0; index < count; index += 1) {
     const t = index / Math.max(1, count - 1);
     const frontFacing = index % 2 === 0;
@@ -674,14 +687,16 @@ function addInterlockedChainLinks(
     link.userData.chainOrientation = frontFacing ? "front" : "cross";
     links.add(link);
 
-    const weldOffset = new THREE.Vector3(0.101, 0, 0).applyAxisAngle(
-      new THREE.Vector3(0, 1, 0),
-      yaw,
-    );
-    const weld = mesh(weldGeometry, materials.iron, "Forged link weld collar", "weld-bands", true);
-    weld.rotation.y = yaw;
-    weld.position.copy(link.position).add(weldOffset);
-    links.add(weld);
+    if (weldGeometry) {
+      const weldOffset = new THREE.Vector3(0.101, 0, 0).applyAxisAngle(
+        new THREE.Vector3(0, 1, 0),
+        yaw,
+      );
+      const weld = mesh(weldGeometry, materials.iron, "Forged link weld collar", "weld-bands", true);
+      weld.rotation.y = yaw;
+      weld.position.copy(link.position).add(weldOffset);
+      links.add(weld);
+    }
   }
   parent.add(links);
   return startY - (count - 1) * spacing;
@@ -1348,10 +1363,25 @@ function hangingChain(materials: DungeonMaterials, length: number): THREE.Group 
     ...materials,
     iron: getReadableChainIronMaterial(materials),
   };
-  addBoltedCeilingMount(root, chainMaterials, "ceiling-mount", 0.22, "mount-bolts");
-  const assembly = pivot("Nine-link chain assembly pivot", "chain-assembly");
+  // PERF-36: atmosphere chains were ~1.8k tris each and dominated multi-floor
+  // draw cost. Keep the readable alternating-link silhouette with fewer links,
+  // no weld collars, unbeveled extrusion, and a bolt-free mount plate.
+  // Spacing stays capped so successive links keep a visible interlocking overlap.
+  const linkCount = 6;
+  const mount = pivot("Bolted ceiling mount pivot", "ceiling-mount");
+  mount.position.y = -0.038;
+  mount.add(
+    mesh(
+      new THREE.CylinderGeometry(0.22, 0.224, 0.075, 8),
+      chainMaterials.iron,
+      "Blackened iron ceiling plate",
+      "ceiling-mount",
+    ),
+  );
+  root.add(mount, socket("Ceiling contact socket", "ceiling", [0, 0, 0]));
+  const assembly = pivot("Six-link chain assembly pivot", "chain-assembly");
   const mountNeck = mesh(
-    new THREE.CylinderGeometry(0.058, 0.072, 0.14, 8),
+    new THREE.CylinderGeometry(0.058, 0.072, 0.14, 6),
     chainMaterials.iron,
     "Heavy forged mount neck",
     "mount-neck",
@@ -1359,14 +1389,14 @@ function hangingChain(materials: DungeonMaterials, length: number): THREE.Group 
   mountNeck.position.y = -0.125;
   mountNeck.userData.attachedTo = ["ceiling-mount", "anchor-eye"];
   const eye = mesh(
-    new THREE.TorusGeometry(0.092, 0.031, 6, 12),
+    new THREE.TorusGeometry(0.092, 0.031, 4, 8),
     chainMaterials.iron,
     "Heavy welded chain anchor eye",
     "anchor-eye",
   );
   eye.position.y = -0.205;
   const shacklePin = mesh(
-    new THREE.CylinderGeometry(0.035, 0.035, 0.19, 8),
+    new THREE.CylinderGeometry(0.035, 0.035, 0.19, 6),
     chainMaterials.iron,
     "Forged anchor shackle pin",
     "anchor-shackle",
@@ -1375,21 +1405,21 @@ function hangingChain(materials: DungeonMaterials, length: number): THREE.Group 
   shacklePin.position.set(0, -0.205, 0);
   assembly.add(mountNeck, eye, shacklePin);
   const available = THREE.MathUtils.clamp(length, 1.65, 3.2);
-  const spacing = THREE.MathUtils.clamp((available - 0.53) / 8, 0.19, 0.265);
-  const tipY = addInterlockedChainLinks(assembly, chainMaterials, 9, -0.32, spacing, 0.028);
+  const spacing = THREE.MathUtils.clamp((available - 0.53) / (linkCount - 1), 0.19, 0.24);
+  const tipY = addInterlockedChainLinks(assembly, chainMaterials, linkCount, -0.32, spacing, 0.028, {
+    bevel: false,
+    weldBands: false,
+  });
   const hookPoints = [
     new THREE.Vector3(0, 0, 0),
-    new THREE.Vector3(-0.004, -0.11, 0),
-    new THREE.Vector3(0.008, -0.23, 0.004),
-    new THREE.Vector3(0.045, -0.34, 0.006),
-    new THREE.Vector3(0.13, -0.405, 0.006),
-    new THREE.Vector3(0.225, -0.37, 0.004),
-    new THREE.Vector3(0.265, -0.275, 0.002),
-    new THREE.Vector3(0.245, -0.18, 0),
-    new THREE.Vector3(0.202, -0.13, 0),
+    new THREE.Vector3(0.008, -0.18, 0.004),
+    new THREE.Vector3(0.06, -0.34, 0.006),
+    new THREE.Vector3(0.16, -0.4, 0.004),
+    new THREE.Vector3(0.25, -0.3, 0),
+    new THREE.Vector3(0.21, -0.16, 0),
   ];
   const hook = mesh(
-    createTaperedTubeGeometry(hookPoints, 0.055, 0.026, 15, 7),
+    createTaperedTubeGeometry(hookPoints, 0.055, 0.026, 6, 4),
     chainMaterials.iron,
     "Heavy round open chain hook",
     "end-hook",

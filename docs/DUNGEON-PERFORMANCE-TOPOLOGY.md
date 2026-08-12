@@ -14,8 +14,8 @@ Updated: 2026-07-28
 
 ## Browser paths (`RenderCapabilities`)
 
-- Chrome/Edge desktop: full `compileAsync` warmup, CRT history on, DPR cap 1.25, `powerPreference: high-performance`.
-- Firefox (and low-end / `?safeRender=1`): skip `compileAsync` (one warmup draw only), CRT off by default, DPR cap 1, `powerPreference: default`, warmup timeout 2s.
+- Chrome/Edge desktop: when `renderer.compileAsync` and `KHR_parallel_shader_compile` are both available, warm resident floor roots incrementally under the load cover, yielding between batches. The warmup has a 2s wall budget and then falls through to live drawing; it also exercises the composite, CRT-history, and copy passes. It is not a guaranteed full-scene precompile.
+- Firefox (and low-end / `?safeRender=1`): skip async compilation and retain one live warmup draw, CRT off by default, DPR cap 1, `powerPreference: default`, warmup timeout 2s.
 - Firefox Web Audio: `AudioListener` still lacks `positionX`/`forwardX` AudioParams (only `setPosition`/`setOrientation`). `GameAudio.applyAudioListenerPose` uses the legacy path so unlock no longer throws every frame and aborts the render loop. Panner nodes keep the modern axes where available.
 - Production Chrome sample (2026-07-28): renderer ready ~12s, longest long-task ~5.5s, ~112 programs — that precompile freezes Firefox hard enough to look dead.
 - Overrides: `?quality=1` forces the high path; `?crt=0` / `?crt=1` force CRT; `?safeRender=1` forces the constrained path.

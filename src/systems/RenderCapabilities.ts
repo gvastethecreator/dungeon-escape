@@ -8,6 +8,8 @@ import type { LaunchRenderOverrides } from "../launch/LaunchConfiguration";
 export interface RenderCapabilityProfile {
   readonly isFirefox: boolean;
   readonly isLowEnd: boolean;
+  /** Whether this browser path may use incremental async shader warmup. */
+  readonly allowAsyncShaderWarmup: boolean;
   /** Use default GPU selection (avoids dual-GPU high-performance black screens). */
   readonly preferDefaultGpu: boolean;
   /** CRT phosphor/history path (extra full-screen targets + samples). */
@@ -31,6 +33,44 @@ export interface RenderCapabilityInput {
   search?: string;
   /** Parsed once by the browser host. Wins over `search` when supplied. */
   overrides?: LaunchRenderOverrides;
+}
+
+export interface RendererCompileCapabilities {
+  /** Three.js exposes the async compilation entry point. */
+  readonly hasCompileAsync: boolean;
+  /** The current WebGL context can report asynchronous program completion. */
+  readonly hasParallelShaderCompile: boolean;
+  /** Both renderer support and the WebGL extension are present. */
+  readonly canCompileAsync: boolean;
+}
+
+interface RendererCompileCapabilitySource {
+  compileAsync?: unknown;
+  extensions?: {
+    get?: (name: string) => unknown;
+  };
+}
+
+/**
+ * `compileAsync` only yields usefully when KHR_parallel_shader_compile is
+ * available. Keep this renderer probe separate from browser-path selection so
+ * tests and fallback hosts can make the decision without creating WebGL.
+ */
+export function detectRendererCompileCapabilities(
+  renderer: RendererCompileCapabilitySource,
+): RendererCompileCapabilities {
+  const hasCompileAsync = typeof renderer.compileAsync === "function";
+  let hasParallelShaderCompile = false;
+  try {
+    hasParallelShaderCompile = Boolean(renderer.extensions?.get?.("KHR_parallel_shader_compile"));
+  } catch {
+    // A failed extension probe is equivalent to an unsupported async path.
+  }
+  return {
+    hasCompileAsync,
+    hasParallelShaderCompile,
+    canCompileAsync: hasCompileAsync && hasParallelShaderCompile,
+  };
 }
 
 function readQueryFlag(search: string, key: string): boolean | null {
@@ -103,6 +143,7 @@ export function detectRenderCapabilities(
   return {
     isFirefox,
     isLowEnd,
+    allowAsyncShaderWarmup: !treatAsConstrained && !isFirefox,
     preferDefaultGpu: treatAsConstrained && !highQuality,
     enableCrtByDefault,
     pixelRatioCap: highQuality ? 1.25 : treatAsConstrained ? 1 : 1.25,

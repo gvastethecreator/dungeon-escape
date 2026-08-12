@@ -23,15 +23,24 @@ export interface ProjectedLocomotionMods {
 }
 
 /** Map remaining curse/power windows into absolute locomotion modifiers. */
-export function projectLocomotionMods(source: ControlModsSource): ProjectedLocomotionMods {
+export function projectLocomotionMods(
+  source: ControlModsSource,
+  target: ProjectedLocomotionMods = {
+    invertLook: false,
+    invertMove: false,
+    yawBias: 0,
+    sensitivityScale: 1,
+    slowActive: false,
+    mobilityActive: false,
+  },
+): ProjectedLocomotionMods {
   const mirror = isTimedSecondsActive(source.mirrorCurseRemaining);
   const spin = isTimedSecondsActive(source.spinCurseRemaining);
-  return {
-    invertLook: mirror,
-    invertMove: mirror,
-    yawBias: spin ? SPIN_CURSE_YAW_BIAS : 0,
-    sensitivityScale: spin ? SPIN_CURSE_SENSITIVITY_SCALE : 1,
-    slowActive: isTimedSecondsActive(source.slowCurseRemaining ?? 0),
-    mobilityActive: isTimedSecondsActive(source.mobilityBoostRemaining ?? 0),
-  };
+  target.invertLook = mirror;
+  target.invertMove = mirror;
+  target.yawBias = spin ? SPIN_CURSE_YAW_BIAS : 0;
+  target.sensitivityScale = spin ? SPIN_CURSE_SENSITIVITY_SCALE : 1;
+  target.slowActive = isTimedSecondsActive(source.slowCurseRemaining ?? 0);
+  target.mobilityActive = isTimedSecondsActive(source.mobilityBoostRemaining ?? 0);
+  return target;
 }

@@ -4,6 +4,7 @@ import { parseForgeDungeonMessage } from "../src/dungeon/forgeIntake";
 import { FORGE_THEME_PROFILES } from "../src/forge/ForgeThemeProfiles";
 import type { ForgeThemeId } from "../src/forge/ForgeThemeProfiles";
 import { generateForgeDungeon } from "../src/forge/generateForgeDungeon";
+import { resolveForgeOverlayRoutes } from "../src/forge/ForgePresentationGeometry";
 import { listForgeBiomeIds } from "../src/systems/BiomeIdentity";
 
 type ForgeGolden = {
@@ -171,6 +172,26 @@ describe("Forge pure generation", () => {
     expect(clone.grid).not.toBe(first.grid);
     expect(typedArrayHash(clone.grid)).toBe(typedArrayHash(first.grid));
     expect(listHash(clone.rooms)).toBe(listHash(first.rooms));
+  });
+
+  test("exposes a complete walkable route for every rendered graph edge", () => {
+    for (const themeKey of Object.keys(golden.cases) as ForgeThemeId[]) {
+      const dungeon = generateForgeDungeon(buildParams(themeKey));
+      const routes = resolveForgeOverlayRoutes({
+        width: dungeon.W,
+        height: dungeon.H,
+        grid: dungeon.grid,
+        rooms: dungeon.rooms,
+        pairs: dungeon.edges,
+        routes: dungeon.edgeRoutes,
+        walkableValues: [1, 3],
+      });
+      expect(routes).toHaveLength(dungeon.edges.length);
+      expect(
+        routes.every((route) => route.length > 1),
+        themeKey,
+      ).toBe(true);
+    }
   });
 
   test("produces a v1 payload accepted by the Forge intake for every theme", () => {

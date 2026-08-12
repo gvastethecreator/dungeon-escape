@@ -203,6 +203,7 @@ export class EnemyMotionTrailVfx {
 
     const mesh = new THREE.InstancedMesh(geometry, material, count * TRAIL_SAMPLES);
     mesh.name = `Enemy motion trail ${kind}`;
+    // Trails stretch behind moving enemies; bounds lag and would pop if culled.
     mesh.frustumCulled = false;
     mesh.renderOrder = 1;
     mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
