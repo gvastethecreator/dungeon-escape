@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { afterEach, describe, expect, test } from "bun:test";
 import * as THREE from "three";
 import { MeshBasicNodeMaterial, PointsNodeMaterial } from "three/webgpu";
 
@@ -17,6 +17,12 @@ import {
   type NoiseFlameEmberUniformHandles,
   type NoiseFlameUniformHandles,
 } from "../src/world/ProceduralFlameVfx";
+
+// The shader program mode registry is process-global; leaking `tsl` mode
+// into later test files would build node materials where GLSL is expected.
+afterEach(() => {
+  resetShaderProgramModeRegistryForTests();
+});
 
 describe("procedural noise flame", () => {
   test("rebuilds the reference technique on one two-triangle card", () => {

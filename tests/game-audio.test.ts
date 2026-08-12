@@ -332,7 +332,10 @@ describe("GameAudio dungeon soundscape", () => {
     expect(main).toContain("now - lastAudioFrameSync >= 125");
     expect(main).toContain("renderer.info.autoReset = false");
     expect(main).not.toContain("renderer.compile(");
-    expect(main).toContain("renderer.compileAsync(scene, camera)");
+    // WebGPU has no KHR_parallel_shader_compile warmup, so async compile is
+    // bound from the WebGL renderer only.
+    expect(main).toContain("webGlRenderer?.compileAsync?.bind(webGlRenderer)");
+    expect(main).toContain("compileAsync(scene, camera)");
     expect(main).toContain("renderWarmupReady");
   });
 

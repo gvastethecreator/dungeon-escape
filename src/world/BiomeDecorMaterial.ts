@@ -16,6 +16,7 @@ import {
   max,
   mix,
   smoothstep,
+  texture,
   uniform,
   vec3,
   vec4,
@@ -39,11 +40,6 @@ import type { BiomeSpritePlacement } from "./BiomeSpriteDecorKit";
 export const BIOME_MUTED_PROP_SHADER_FACTORY_ID = "biome-muted-prop";
 /** ShaderProgramMode factory id for palette-integrated biome decor sprites. */
 export const BIOME_INTEGRATED_DECOR_SHADER_FACTORY_ID = "biome-integrated-decor";
-
-const MUTED_GLSL_CACHE_KEY = "environment-sprite-muted-fog-v4";
-const MUTED_TSL_CACHE_KEY = "environment-sprite-muted-tsl-v1";
-const INTEGRATED_GLSL_CACHE_KEY_PREFIX = "biome-prop-v2";
-const INTEGRATED_TSL_CACHE_KEY_PREFIX = "biome-prop-v2-tsl";
 
 /** Rec.601 — mute path matches the historical GLSL wall-sprite treatment. */
 const REC601_LUMA = vec3(0.299, 0.587, 0.114);
@@ -128,14 +124,22 @@ export function integrateBiomeDecorShader(shader: { fragmentShader: string }): v
   }
 }
 
-function applyMutedPropTslColor(material: MeshStandardNodeMaterial): void {
+/**
+ * `colorNode` replaces the whole diffuseColor, alpha included. These sprites are
+ * alpha-tested cut-outs, so the map alpha has to be carried through or every
+ * decal renders as an opaque quad.
+ */
+function applyMutedPropTslColor(material: MeshStandardNodeMaterial, map: THREE.Texture): void {
   const baseRgb = vec3(materialColor);
   const luma = dot(baseRgb, REC601_LUMA);
   const muted = mix(vec3(luma), baseRgb, float(0.38)).mul(0.78);
-  material.colorNode = vec4(muted, float(1));
+  material.colorNode = vec4(muted, texture(map).a);
 }
 
-function applyIntegratedDecorTslColor(material: MeshStandardNodeMaterial): void {
+function applyIntegratedDecorTslColor(
+  material: MeshStandardNodeMaterial,
+  map: THREE.Texture,
+): void {
   // materialColor already includes map × material.color (palette tint = GLSL `diffuse`).
   const sampled = vec3(materialColor);
   const tint = uniform(material.color) as any;
@@ -145,7 +149,7 @@ function applyIntegratedDecorTslColor(material: MeshStandardNodeMaterial): void 
   const surfaceValue = mix(float(0.32), float(0.82), smoothstep(float(0.08), float(0.92), relative));
   const surfaceTone = tint.mul(surfaceValue);
   const integrated = mix(surfaceTone, sampled, float(0.28)).mul(0.86);
-  material.colorNode = vec4(integrated, float(1)) as any;
+  material.colorNode = vec4(integrated, texture(map).a) as any;
 }
 
 function createWallSpriteMaterialGlsl(
@@ -174,7 +178,7 @@ function createWallSpriteMaterialGlsl(
   });
   material.normalScale.set(0.24, 0.24);
   material.onBeforeCompile = muteBiomePropShader;
-  material.customProgramCacheKey = () => MUTED_GLSL_CACHE_KEY;
+  material.customProgramCacheKey = () => "environment-sprite-muted-fog-v4";
   material.userData.depthTexture = textures.depth;
   material.userData.wallSpritePbr = true;
   material.userData.environmentSpriteTreatment = "muted-biome-fog-v4";
@@ -207,8 +211,8 @@ function createWallSpriteMaterialTsl(
     polygonOffsetUnits: -2,
   });
   material.normalScale.set(0.24, 0.24);
-  applyMutedPropTslColor(material);
-  material.customProgramCacheKey = () => MUTED_TSL_CACHE_KEY;
+  applyMutedPropTslColor(material, textures.albedo);
+  material.customProgramCacheKey = () => "environment-sprite-muted-tsl-v1";
   material.userData.depthTexture = textures.depth;
   material.userData.wallSpritePbr = true;
   material.userData.environmentSpriteTreatment = "muted-biome-fog-v4";
@@ -262,7 +266,7 @@ function createBiomeWallDecalMaterialGlsl(
   });
   material.toneMapped = true;
   material.onBeforeCompile = integrateBiomeDecorShader;
-  material.customProgramCacheKey = () => `${INTEGRATED_GLSL_CACHE_KEY_PREFIX}-wall-integrated-v6`;
+  material.customProgramCacheKey = () => "biome-prop-v2-wall-integrated-v6";
   material.userData.sharedDungeonMaterial = true;
   material.userData.biomeSpriteWallDecal = true;
   material.userData.authoredColorWeight = 0.28;
@@ -303,8 +307,8 @@ function createBiomeWallDecalMaterialTsl(
     fog: true,
   });
   material.toneMapped = true;
-  applyIntegratedDecorTslColor(material);
-  material.customProgramCacheKey = () => `${INTEGRATED_TSL_CACHE_KEY_PREFIX}-wall-integrated-v1`;
+  applyIntegratedDecorTslColor(material, texture);
+  material.customProgramCacheKey = () => "biome-prop-v2-tsl-wall-integrated-v1";
   material.userData.sharedDungeonMaterial = true;
   material.userData.biomeSpriteWallDecal = true;
   material.userData.authoredColorWeight = 0.28;
@@ -367,8 +371,7 @@ function createBiomeFloorSpriteMaterialGlsl(
   });
   material.toneMapped = true;
   material.onBeforeCompile = integrateBiomeDecorShader;
-  material.customProgramCacheKey = () =>
-    `${INTEGRATED_GLSL_CACHE_KEY_PREFIX}-${placement}-integrated-v6`;
+  material.customProgramCacheKey = () => `biome-prop-v2-${placement}-integrated-v6`;
   material.userData.sharedDungeonMaterial = true;
   material.userData.biomeSpritePlacement = placement;
   material.userData.biomeSpriteBillboard =
@@ -415,9 +418,8 @@ function createBiomeFloorSpriteMaterialTsl(
     fog: true,
   });
   material.toneMapped = true;
-  applyIntegratedDecorTslColor(material);
-  material.customProgramCacheKey = () =>
-    `${INTEGRATED_TSL_CACHE_KEY_PREFIX}-${placement}-integrated-v1`;
+  applyIntegratedDecorTslColor(material, texture);
+  material.customProgramCacheKey = () => `biome-prop-v2-tsl-${placement}-integrated-v1`;
   material.userData.sharedDungeonMaterial = true;
   material.userData.biomeSpritePlacement = placement;
   material.userData.biomeSpriteBillboard =

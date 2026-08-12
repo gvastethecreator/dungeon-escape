@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { afterEach, describe, expect, test } from "bun:test";
 import * as THREE from "three";
 import { MeshBasicNodeMaterial } from "three/webgpu";
 
@@ -18,6 +18,12 @@ import {
   VOLUMETRIC_BEAM_SHADER_FACTORY_ID,
   type VolumetricBeamUniformHandles,
 } from "../src/world/VolumetricBeam";
+
+// The shader program mode registry is process-global; leaking `tsl` mode
+// into later test files would build node materials where GLSL is expected.
+afterEach(() => {
+  resetShaderProgramModeRegistryForTests();
+});
 
 describe("volumetric beam dual-mode", () => {
   test("glsl mode keeps shader defines and shared handles", () => {

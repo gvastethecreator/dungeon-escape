@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { afterEach, describe, expect, test } from "bun:test";
 
 import {
   createShaderProgramModeRegistry,
@@ -19,6 +19,12 @@ import {
   registerVolumetricBeamShaderFactory,
   VOLUMETRIC_BEAM_SHADER_FACTORY_ID,
 } from "../src/world/VolumetricBeam";
+
+// The shader program mode registry is process-global; leaking `tsl` mode
+// into later test files would build node materials where GLSL is expected.
+afterEach(() => {
+  resetShaderProgramModeRegistryForTests();
+});
 
 describe("shader program mode registry", () => {
   test("defaults to glsl and tracks factory support counts", () => {

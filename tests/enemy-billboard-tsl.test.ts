@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { afterEach, describe, expect, test } from "bun:test";
 import * as THREE from "three";
 import { MeshBasicNodeMaterial, MeshStandardNodeMaterial } from "three/webgpu";
 
@@ -24,6 +24,12 @@ import {
   registerEnemyMotionTrailShaderFactory,
 } from "../src/world/EnemyMotionTrailVfx";
 import { ENEMY_ANIMATIONS } from "../src/world/EnemySpriteAtlas";
+
+// The shader program mode registry is process-global; leaking `tsl` mode
+// into later test files would build node materials where GLSL is expected.
+afterEach(() => {
+  resetShaderProgramModeRegistryForTests();
+});
 
 describe("enemy billboard TSL port", () => {
   test("glsl path keeps onBeforeCompile atlas/freeze wiring", () => {

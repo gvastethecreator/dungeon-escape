@@ -175,6 +175,10 @@ export function createBiomeParticleAssemblyTslWithData(
   const sprite = new THREE.Sprite(material as unknown as THREE.SpriteMaterial);
   sprite.name = name;
   sprite.count = data.count;
+  // Instance offsets live in the node graph, so the CPU-side sprite bounds only
+  // cover the origin quad — culling here would drop the whole field.
+  sprite.frustumCulled = false;
+  sprite.renderOrder = input.layer.glow ? 2 : 1;
   sprite.userData.particlePrimitive = "sprite";
 
   return {

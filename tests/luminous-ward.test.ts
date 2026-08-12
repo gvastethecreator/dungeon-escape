@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { afterEach, describe, expect, test } from "bun:test";
 import * as THREE from "three";
 import { MeshBasicNodeMaterial, PointsNodeMaterial } from "three/webgpu";
 
@@ -25,6 +25,12 @@ import {
   WARD_TRAIL_SAMPLES,
   registerLuminousWardShaderFactories,
 } from "../src/world/LuminousWardVfx";
+
+// The shader program mode registry is process-global; leaking `tsl` mode
+// into later test files would build node materials where GLSL is expected.
+afterEach(() => {
+  resetShaderProgramModeRegistryForTests();
+});
 
 describe("luminous ward power", () => {
   test("holds the safety field for fifteen gameplay seconds", () => {
