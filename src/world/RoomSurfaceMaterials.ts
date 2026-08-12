@@ -1,5 +1,7 @@
 import * as THREE from "three";
+import { MeshStandardNodeMaterial } from "three/webgpu";
 import type { DungeonMoodId } from "../systems/DungeonMood";
+import { getShaderProgramModeRegistry } from "../systems/ShaderProgramMode";
 import type { SceneTextureSink } from "../systems/SceneTextureRegistry";
 import type { BiomeLayerTextures, BiomeSurfaceTextures } from "./AssetLibrary";
 import {
@@ -181,7 +183,7 @@ function makeSurfaceMaterial(
   emissiveIntensity: number,
   roughness: number,
 ): THREE.MeshStandardMaterial {
-  return new THREE.MeshStandardMaterial({
+  const params: THREE.MeshStandardMaterialParameters = {
     map,
     color,
     emissive,
@@ -190,7 +192,12 @@ function makeSurfaceMaterial(
     metalness: 0.04,
     // Stone architecture should stay matte under the scene IBL.
     envMapIntensity: 0.32,
-  });
+  };
+  // WebGPU/TSL mode uses MeshStandardNodeMaterial so node graph properties stick on clone.
+  if (getShaderProgramModeRegistry().mode === "tsl") {
+    return new MeshStandardNodeMaterial(params) as unknown as THREE.MeshStandardMaterial;
+  }
+  return new THREE.MeshStandardMaterial(params);
 }
 
 export function createRoomSurfaceMaterials(

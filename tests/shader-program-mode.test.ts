@@ -2,8 +2,15 @@ import { describe, expect, test } from "bun:test";
 
 import {
   createShaderProgramModeRegistry,
+  getShaderProgramModeRegistry,
+  resetShaderProgramModeRegistryForTests,
+  setShaderProgramModeRegistry,
   UnsupportedShaderProgramModeError,
 } from "../src/systems/ShaderProgramMode";
+import {
+  DUNGEON_SURFACE_SHADER_FACTORY_ID,
+  registerDungeonSurfaceShaderFactory,
+} from "../src/world/TextureTreatment";
 
 describe("shader program mode registry", () => {
   test("defaults to glsl and tracks factory support counts", () => {
@@ -25,5 +32,22 @@ describe("shader program mode registry", () => {
 
     expect(() => registry.require("flame")).toThrow(UnsupportedShaderProgramModeError);
     expect(() => registry.require("missing", "glsl")).toThrow(/missing/);
+  });
+
+  test("dungeon-surface factory rebinds across registry swaps with glsl+tsl support", () => {
+    resetShaderProgramModeRegistryForTests();
+    expect(getShaderProgramModeRegistry().supports(DUNGEON_SURFACE_SHADER_FACTORY_ID, "tsl")).toBe(
+      true,
+    );
+
+    setShaderProgramModeRegistry(createShaderProgramModeRegistry("tsl"));
+    registerDungeonSurfaceShaderFactory();
+    expect(getShaderProgramModeRegistry().supports(DUNGEON_SURFACE_SHADER_FACTORY_ID, "glsl")).toBe(
+      true,
+    );
+    expect(getShaderProgramModeRegistry().supports(DUNGEON_SURFACE_SHADER_FACTORY_ID, "tsl")).toBe(
+      true,
+    );
+    resetShaderProgramModeRegistryForTests();
   });
 });
