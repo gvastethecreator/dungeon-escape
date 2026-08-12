@@ -13,7 +13,6 @@ import {
   Fn,
   abs,
   atan,
-  clamp,
   cos,
   float,
   floor,
@@ -23,11 +22,9 @@ import {
   max,
   mix,
   normalize,
-  pow,
   select,
   sin,
   smoothstep,
-  step,
   texture,
   uniform,
   uv,
@@ -156,41 +153,35 @@ export function createBiomeParticleAssemblyTslWithData(
     const t = fract(float(phaseIn).add(uTime.mul(max(uSpeed, float(0.01))).mul(0.16)));
     const wave = sin(uTime.mul(float(0.55).add(uSpeed)).add(phase));
 
-    const drift = pos
-      .add(
-        uFlow
-          .mul(sin(uTime.mul(0.18).add(phase)))
-          .mul(2.4),
-      )
-      .add(
-        vec3(
-          sin(uTime.mul(0.42).add(phase)).mul(uTurbulence).mul(0.42),
-          wave.mul(uTurbulence).mul(0.24),
-          cos(uTime.mul(0.36).add(phase.mul(1.3))).mul(uTurbulence).mul(0.36),
-        ),
-      );
+    const drift = pos.add(uFlow.mul(sin(uTime.mul(0.18).add(phase))).mul(2.4)).add(
+      vec3(
+        sin(uTime.mul(0.42).add(phase)).mul(uTurbulence).mul(0.42),
+        wave.mul(uTurbulence).mul(0.24),
+        cos(uTime.mul(0.36).add(phase.mul(1.3)))
+          .mul(uTurbulence)
+          .mul(0.36),
+      ),
+    );
     const rise = vec3(
-      pos.x
-        .add(sin(uTime.mul(0.8).add(phase)).mul(uTurbulence).mul(0.38))
-        .add(uFlow.x.mul(t)),
+      pos.x.add(sin(uTime.mul(0.8).add(phase)).mul(uTurbulence).mul(0.38)).add(uFlow.x.mul(t)),
       float(-0.22).add(
         fract(pos.y.add(0.22).div(uWallHeight.add(0.44)).add(t)).mul(uWallHeight.add(0.44)),
       ),
-      pos.z
-        .add(cos(uTime.mul(0.64).add(phase)).mul(uTurbulence).mul(0.3))
-        .add(uFlow.z.mul(t)),
+      pos.z.add(cos(uTime.mul(0.64).add(phase)).mul(uTurbulence).mul(0.3)).add(uFlow.z.mul(t)),
     );
     const fall = vec3(
-      pos.x
-        .add(sin(uTime.mul(0.5).add(phase)).mul(uTurbulence).mul(0.6))
-        .add(uFlow.x.mul(t)),
+      pos.x.add(sin(uTime.mul(0.5).add(phase)).mul(uTurbulence).mul(0.6)).add(uFlow.x.mul(t)),
       float(-0.22).add(
         float(1)
           .sub(fract(pos.y.add(0.22).div(uWallHeight.add(0.44)).add(t)))
           .mul(uWallHeight.add(0.44)),
       ),
       pos.z
-        .add(cos(uTime.mul(0.44).add(phase.mul(1.2))).mul(uTurbulence).mul(0.48))
+        .add(
+          cos(uTime.mul(0.44).add(phase.mul(1.2)))
+            .mul(uTurbulence)
+            .mul(0.48),
+        )
         .add(uFlow.z.mul(t)),
     );
     const orbitRadius = float(0.18).add(
@@ -210,18 +201,16 @@ export function createBiomeParticleAssemblyTslWithData(
           .sub(fract(pos.y.div(uWallHeight).add(t.mul(0.58))))
           .mul(uWallHeight.mul(0.88)),
       ),
-      pos.z.add(cos(uTime.mul(0.76).add(phase.mul(1.5))).mul(uTurbulence).mul(0.52)),
+      pos.z.add(
+        cos(uTime.mul(0.76).add(phase.mul(1.5)))
+          .mul(uTurbulence)
+          .mul(0.52),
+      ),
     );
     const burst = fract(t.mul(2.0).add(hash11(float(phaseIn).add(4.0))));
-    const sparkDirection = normalize(
-      uFlow.add(vec3(sin(phase), 0.22, cos(phase)).mul(0.28)),
-    );
+    const sparkDirection = normalize(uFlow.add(vec3(sin(phase), 0.22, cos(phase)).mul(0.28)));
     const spark = pos
-      .add(
-        sparkDirection.mul(
-          burst.mul(float(0.8).add(uTurbulence.mul(1.7))),
-        ),
-      )
+      .add(sparkDirection.mul(burst.mul(float(0.8).add(uTurbulence.mul(1.7)))))
       .add(vec3(0, sin(burst.mul(3.1415926)).mul(0.24), 0));
     const pulse = pos.add(
       vec3(
@@ -234,7 +223,9 @@ export function createBiomeParticleAssemblyTslWithData(
     );
     const flicker = vec3(
       pos.x.add(
-        floor(sin(uTime.mul(0.34).add(phase)).mul(2.0)).mul(uTurbulence).mul(0.12),
+        floor(sin(uTime.mul(0.34).add(phase)).mul(2.0))
+          .mul(uTurbulence)
+          .mul(0.12),
       ),
       pos.y,
       pos.z,
@@ -244,13 +235,9 @@ export function createBiomeParticleAssemblyTslWithData(
     );
     const dripSpan = uWallHeight.mul(0.98);
     const drip = vec3(
-      pos.x
-        .add(sin(phase).mul(0.035))
-        .add(uFlow.x.mul(dripFall).mul(0.2)),
+      pos.x.add(sin(phase).mul(0.035)).add(uFlow.x.mul(dripFall).mul(0.2)),
       uWallHeight.mul(0.97).sub(dripFall.mul(dripSpan)),
-      pos.z
-        .add(cos(phase.mul(1.3)).mul(0.035))
-        .add(uFlow.z.mul(dripFall).mul(0.2)),
+      pos.z.add(cos(phase.mul(1.3)).mul(0.035)).add(uFlow.z.mul(dripFall).mul(0.2)),
     );
 
     const m = uMotionIn;
@@ -309,13 +296,22 @@ export function createBiomeParticleAssemblyTslWithData(
       uMotion.greaterThan(4.5).and(uMotion.lessThan(5.5)),
       float(0.82).add(
         float(1)
-          .sub(fract(aPhase.add(uTime.mul(max(uSpeed, float(0.01))).mul(0.16)).mul(2.0).add(hash11(aPhase.add(4.0)))))
+          .sub(
+            fract(
+              aPhase
+                .add(uTime.mul(max(uSpeed, float(0.01))).mul(0.16))
+                .mul(2.0)
+                .add(hash11(aPhase.add(4.0))),
+            ),
+          )
           .mul(0.28),
       ),
       select(
         uMotion.lessThan(0.5).or(uMotion.lessThan(1.5)).or(uMotion.lessThan(2.5)),
         float(1.0),
-        float(0.78).add(abs(sin(uTime.mul(float(0.55).add(uSpeed)).add(aPhase.mul(6.2831853)))).mul(0.42)),
+        float(0.78).add(
+          abs(sin(uTime.mul(float(0.55).add(uSpeed)).add(aPhase.mul(6.2831853)))).mul(0.42),
+        ),
       ),
     );
     return float(0.014).add(
@@ -352,13 +348,17 @@ export function createBiomeParticleAssemblyTslWithData(
     );
     const shapeSpore = max(
       smoothstep(0.23, 0.04, d),
-      smoothstep(0.42, 0.35, d).mul(float(1).sub(smoothstep(0.31, 0.37, d))).mul(0.52),
+      smoothstep(0.42, 0.35, d)
+        .mul(float(1).sub(smoothstep(0.31, 0.37, d)))
+        .mul(0.52),
     );
     const shapeShard = float(1).sub(
       smoothstep(0.32, 0.48, abs(local.x).mul(0.72).add(abs(local.y).mul(1.28))),
     );
     const shapeBubble = max(
-      float(1).sub(smoothstep(0.035, 0.09, abs(d.sub(0.32)))).mul(0.8),
+      float(1)
+        .sub(smoothstep(0.035, 0.09, abs(d.sub(0.32))))
+        .mul(0.8),
       smoothstep(0.12, 0.01, length(local.sub(vec2(-0.13, 0.13)))),
     );
     const shapeBlock = float(1).sub(smoothstep(0.32, 0.48, max(abs(local.x), abs(local.y))));
@@ -395,7 +395,11 @@ export function createBiomeParticleAssemblyTslWithData(
                   select(
                     s.lessThan(7.5),
                     shapeBubble,
-                    select(s.lessThan(8.5), shapeBlock, select(s.lessThan(9.5), shapeDrop, shapeCrumb)),
+                    select(
+                      s.lessThan(8.5),
+                      shapeBlock,
+                      select(s.lessThan(9.5), shapeDrop, shapeCrumb),
+                    ),
                   ),
                 ),
               ),

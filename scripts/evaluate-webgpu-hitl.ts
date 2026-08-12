@@ -17,9 +17,7 @@ import type { PerfBaselineArtifact } from "../src/systems/PerfBaselineCompare";
 const [, , baselinePath, candidatePath] = process.argv;
 
 if (!baselinePath || !candidatePath) {
-  console.error(
-    "Usage: bun run scripts/evaluate-webgpu-hitl.ts <baseline.json> <candidate.json>",
-  );
+  console.error("Usage: bun run scripts/evaluate-webgpu-hitl.ts <baseline.json> <candidate.json>");
   process.exit(2);
 }
 

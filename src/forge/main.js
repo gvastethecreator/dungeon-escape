@@ -156,7 +156,7 @@ if (forgeWebGpu) {
   console.warn(
     "[forge] WebGPU backend active — liquid/particle ShaderMaterials use simplified fallbacks; bloom runs through the TSL RenderPipeline stage.",
   );
-  forgePostStagePromise = import("./ForgePost.webgpu.js")
+  _forgePostStagePromise = import("./ForgePost.webgpu.js")
     .then((mod) => mod.createForgePostStage(renderer, scene, cam))
     .then((stage) => {
       forgePostStage = stage;
@@ -1040,7 +1040,7 @@ const partMat = forgeWebGpu
 partMat.toneMapped = false;
 /** Lazily resolved WebGPU post stage; `null` until the dynamic import lands. */
 let forgePostStage = null;
-let forgePostStagePromise = null;
+let _forgePostStagePromise = null;
 if (forgeWebGpu && partMat.color && partUniforms.uColor) {
   // Keep PointsMaterial color loosely synced when theme uniforms change.
   const syncPartColor = () => {

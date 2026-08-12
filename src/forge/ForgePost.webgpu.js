@@ -82,7 +82,9 @@ export function createForgePostStage(renderer, scene, camera) {
     col = mix(
       col,
       col.mul(vec3(0.9, 0.97, 1.12)),
-      float(1).sub(smoothstep(float(0), float(0.4), lum)).mul(0.38),
+      float(1)
+        .sub(smoothstep(float(0), float(0.4), lum))
+        .mul(0.38),
     );
     col = mix(
       col,
