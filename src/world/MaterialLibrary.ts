@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import type { DungeonMoodId } from "../systems/DungeonMood";
+import { getShaderProgramModeRegistry } from "../systems/ShaderProgramMode";
 import type { SceneTextureSink } from "../systems/SceneTextureRegistry";
 import type { BiomeSurfaceTextures } from "./AssetLibrary";
 import {
@@ -435,7 +436,8 @@ export function getDungeonMaterialVariant(
   key: string,
   configure: (material: THREE.MeshStandardMaterial) => void,
 ): THREE.MeshStandardMaterial {
-  const cacheKey = `${base.uuid}::${key}`;
+  // Include shader program mode so glsl/tsl finish variants never collide.
+  const cacheKey = `${base.uuid}::${getShaderProgramModeRegistry().mode}::${key}`;
   const hit = dungeonMaterialVariantCache.get(cacheKey);
   if (hit) return hit;
   const material = base.clone();

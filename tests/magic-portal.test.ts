@@ -1,19 +1,42 @@
-import { describe, expect, test } from "bun:test";
+import { afterEach, beforeAll, describe, expect, test } from "bun:test";
 import * as THREE from "three";
+import { MeshBasicNodeMaterial } from "three/webgpu";
 
 import { generateDungeon } from "../src/dungeon/generateDungeon";
+import {
+  createShaderProgramModeRegistry,
+  getShaderProgramModeRegistry,
+  resetShaderProgramModeRegistryForTests,
+  setShaderProgramModeRegistry,
+} from "../src/systems/ShaderProgramMode";
+import { loadTslMaterialModules } from "../src/systems/TslMaterialModules";
 import {
   MAGIC_PORTAL_APERTURE,
   MAGIC_PORTAL_ENTRY_RADIUS,
   MAGIC_PORTAL_NAMES,
+  MAGIC_PORTAL_SHADER_FACTORY_ID,
   createMagicPortalInterior,
   createPortalApertureGeometry,
   isInsideMagicPortal,
   magicPortalApproachYaw,
+  registerMagicPortalShaderFactory,
   setMagicPortalOpen,
   setMagicPortalWarmupVisible,
   updateMagicPortal,
+  type MagicPortalUniformHandles,
 } from "../src/world/MagicPortalKit";
+
+// The shader program mode registry is process-global; leaking `tsl` mode
+// into later test files would build node materials where GLSL is expected.
+afterEach(() => {
+  resetShaderProgramModeRegistryForTests();
+});
+
+// TSL builders live in lazily imported `*.tsl` siblings so the WebGL bundle
+// never pulls in `three/webgpu`; tests must preload them like Play boot does.
+beforeAll(async () => {
+  await loadTslMaterialModules();
+});
 
 describe("magic portal", () => {
   test("fills the whole door arch with animated currents and runes", () => {
@@ -60,13 +83,23 @@ describe("magic portal", () => {
     expect(triangles).toBeLessThan(1_100);
     aperture.dispose();
 
+    expect(interior.vortex.material).toBeInstanceOf(THREE.ShaderMaterial);
+    expect(interior.spiral.material).toBeInstanceOf(THREE.ShaderMaterial);
+    expect(interior.vortex.material.userData.shaderProgramMode).toBe("glsl");
+    expect(interior.vortex.material.userData.magicPortalVariant).toBe("field");
+    expect(interior.spiral.material.userData.magicPortalVariant).toBe("spiral");
+
     setMagicPortalOpen(portal, true);
     expect(interior.root.visible).toBe(true);
     const priorRuneOpacity = interior.runeArch.material.opacity;
     updateMagicPortal(portal, 2.5);
     expect(interior.runeArch.material.opacity).not.toBe(priorRuneOpacity);
-    expect(interior.vortex.material.uniforms.uTime?.value).toBe(2.5);
-    expect(interior.spiral.material.uniforms.uTime?.value).toBe(2.5);
+    const vortexHandles = interior.vortex.material.userData
+      .magicPortalHandles as MagicPortalUniformHandles;
+    const spiralHandles = interior.spiral.material.userData
+      .magicPortalHandles as MagicPortalUniformHandles;
+    expect(vortexHandles.uTime.value).toBe(2.5);
+    expect(spiralHandles.uTime.value).toBe(2.5);
 
     setMagicPortalOpen(portal, false);
     expect(interior.root.visible).toBe(false);
@@ -74,6 +107,49 @@ describe("magic portal", () => {
     expect(interior.root.visible).toBe(true);
     setMagicPortalWarmupVisible(portal, false, false);
     expect(interior.root.visible).toBe(false);
+  });
+
+  test("TSL mode builds field and spiral MeshBasicNodeMaterial graphs with shared handles", () => {
+    resetShaderProgramModeRegistryForTests();
+    setShaderProgramModeRegistry(createShaderProgramModeRegistry("tsl"));
+    registerMagicPortalShaderFactory();
+
+    const interior = createMagicPortalInterior(undefined, undefined, "tsl");
+    const vortexMat = interior.vortex.material as MeshBasicNodeMaterial;
+    const spiralMat = interior.spiral.material as MeshBasicNodeMaterial;
+
+    expect(vortexMat).toBeInstanceOf(MeshBasicNodeMaterial);
+    expect(spiralMat).toBeInstanceOf(MeshBasicNodeMaterial);
+    expect(vortexMat.userData.shaderProgramMode).toBe("tsl");
+    expect(spiralMat.userData.shaderProgramMode).toBe("tsl");
+    expect(vortexMat.userData.magicPortalVariant).toBe("field");
+    expect(spiralMat.userData.magicPortalVariant).toBe("spiral");
+    expect(vortexMat.colorNode).toBeTruthy();
+    expect(spiralMat.opacityNode).toBeTruthy();
+    expect((vortexMat as unknown as THREE.ShaderMaterial).defines).toBeUndefined();
+
+    const portal = new THREE.Group();
+    portal.add(interior.root);
+    setMagicPortalOpen(portal, true);
+    updateMagicPortal(portal, 4.25);
+    const vortexHandles = vortexMat.userData.magicPortalHandles as MagicPortalUniformHandles;
+    const spiralHandles = spiralMat.userData.magicPortalHandles as MagicPortalUniformHandles;
+    expect(vortexHandles.uTime.value).toBe(4.25);
+    expect(spiralHandles.uTime.value).toBe(4.25);
+
+    resetShaderProgramModeRegistryForTests();
+  });
+
+  test("factory id is registered for both modes", () => {
+    resetShaderProgramModeRegistryForTests();
+    registerMagicPortalShaderFactory();
+    expect(getShaderProgramModeRegistry().supports(MAGIC_PORTAL_SHADER_FACTORY_ID, "glsl")).toBe(
+      true,
+    );
+    expect(getShaderProgramModeRegistry().supports(MAGIC_PORTAL_SHADER_FACTORY_ID, "tsl")).toBe(
+      true,
+    );
+    resetShaderProgramModeRegistryForTests();
   });
 
   test("wins only through the portal center", () => {

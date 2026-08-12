@@ -1,16 +1,26 @@
-import { describe, expect, test } from "bun:test";
+import { afterEach, beforeAll, describe, expect, test } from "bun:test";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import * as THREE from "three";
+import { MeshBasicNodeMaterial } from "three/webgpu";
 
 import { listDungeonMoodIds } from "../src/systems/DungeonMood";
+import {
+  createShaderProgramModeRegistry,
+  getShaderProgramModeRegistry,
+  resetShaderProgramModeRegistryForTests,
+  setShaderProgramModeRegistry,
+} from "../src/systems/ShaderProgramMode";
+import { loadTslMaterialModules } from "../src/systems/TslMaterialModules";
 import {
   UNCANNY_WALL_ATLAS_SIZE,
   uncannyWallAnimations,
 } from "../src/world/UncannyWallCatalog.generated";
 import {
+  UNCANNY_WALL_SHADER_FACTORY_ID,
   advanceUncannyWallPlayback,
   createUncannyWallPlayback,
+  registerUncannyWallShaderFactory,
   sampleUncannyWallPlayback,
   uncannyWallHoldSeconds,
   uncannyWallVisualProfile,
@@ -18,6 +28,18 @@ import {
 } from "../src/world/UncannyWallRuntime";
 
 const durations = [1200, 180, 240, 220] as const;
+
+// The shader program mode registry is process-global; leaking `tsl` mode
+// into later test files would build node materials where GLSL is expected.
+afterEach(() => {
+  resetShaderProgramModeRegistryForTests();
+});
+
+// TSL builders live in lazily imported `*.tsl` siblings so the WebGL bundle
+// never pulls in `three/webgpu`; tests must preload them like Play boot does.
+beforeAll(async () => {
+  await loadTslMaterialModules();
+});
 
 describe("uncanny wall runtime", () => {
   test("holds frame zero for an independent deterministic 1..10 seconds", () => {
@@ -69,10 +91,11 @@ describe("uncanny wall runtime", () => {
     expect(runtime.mesh.count).toBe(2);
     expect(visibility.getX(0)).toBe(1);
     expect(visibility.getX(1)).toBe(0);
-    expect(runtime.mesh.material.fragmentShader).toContain("smoothstep");
-    expect(runtime.mesh.material.fragmentShader).toContain("mix(first, second");
-    expect(runtime.mesh.material.fragmentShader).toContain("uncannySurfaceTint");
-    expect(runtime.mesh.material.fragmentShader).toContain("uncannyFogVisibility");
+    const glsl = runtime.mesh.material as THREE.ShaderMaterial;
+    expect(glsl.fragmentShader).toContain("smoothstep");
+    expect(glsl.fragmentShader).toContain("mix(first, second");
+    expect(glsl.fragmentShader).toContain("uncannySurfaceTint");
+    expect(glsl.fragmentShader).toContain("uncannyFogVisibility");
     expect(runtime.mesh.material.userData).toMatchObject({
       biomeIntegrated: true,
       fogAlphaFade: [0.12, 0.48],
@@ -87,6 +110,30 @@ describe("uncanny wall runtime", () => {
       expect(profile.highlight).toBeGreaterThan(0);
       expect(profile.propTint).toBeGreaterThan(0);
     }
+  });
+
+  test("TSL atlas path registers dual mode and wires node material attributes", () => {
+    resetShaderProgramModeRegistryForTests();
+    setShaderProgramModeRegistry(createShaderProgramModeRegistry("tsl"));
+    registerUncannyWallShaderFactory();
+
+    const definition = uncannyWallAnimations("ancient")[0]!;
+    const runtime = new UncannyWallRuntime(new THREE.Texture(), [
+      { matrix: new THREE.Matrix4(), row: 0, definition, seed: 1, x: 0, z: 0 },
+    ]);
+    runtime.update(1.1, { x: 0, y: 1.6, z: 0 });
+    expect(runtime.mesh.material).toBeInstanceOf(MeshBasicNodeMaterial);
+    expect(runtime.mesh.material.userData.shaderProgramMode).toBe("tsl");
+    expect(runtime.mesh.material.userData.uncannyWallAtlas).toBe(true);
+    expect((runtime.mesh.material as MeshBasicNodeMaterial).colorNode).toBeTruthy();
+    expect((runtime.mesh.material as MeshBasicNodeMaterial).opacityNode).toBeTruthy();
+    expect(getShaderProgramModeRegistry().supports(UNCANNY_WALL_SHADER_FACTORY_ID, "glsl")).toBe(
+      true,
+    );
+    expect(getShaderProgramModeRegistry().supports(UNCANNY_WALL_SHADER_FACTORY_ID, "tsl")).toBe(
+      true,
+    );
+    resetShaderProgramModeRegistryForTests();
   });
 
   test("packages four native-resolution loops for every biome", () => {

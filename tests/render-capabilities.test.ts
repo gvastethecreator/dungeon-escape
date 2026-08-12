@@ -5,13 +5,15 @@ import {
   detectRenderCapabilities,
   detectRendererCompileCapabilities,
   isFirefoxUserAgent,
+  recalibrateRenderCapabilitiesForBackend,
 } from "../src/systems/RenderCapabilities";
 
 describe("render capabilities", () => {
   test("production avoids synchronous shader diagnostic reads", () => {
     const source = readFileSync("src/main.ts", "utf8");
 
-    expect(source).toContain("if (import.meta.env.PROD) renderer.debug.checkShaderErrors = false;");
+    expect(source).toContain("if (import.meta.env.PROD && renderer.debug) {");
+    expect(source).toContain("renderer.debug.checkShaderErrors = false;");
   });
 
   test("detects Firefox from user agent", () => {
@@ -134,12 +136,49 @@ describe("render capabilities", () => {
       userAgent: "Mozilla/5.0 Firefox/153.0",
       hardwareConcurrency: 8,
       search: "?quality=1&crt=1",
-      overrides: { quality: null, crt: null, safeRender: null },
+      overrides: { quality: null, crt: null, safeRender: null, renderer: "auto" },
     });
 
     expect(caps.telemetryPath).toBe("firefox");
     expect(caps.rendererReadyTimeoutMs).toBe(2_500);
     expect(caps.enableCrtByDefault).toBe(false);
+    expect(caps.requestedRenderer).toBe("auto");
+  });
+
+  test("publishes requested renderer preference from overrides or search", () => {
+    expect(
+      detectRenderCapabilities({
+        overrides: { quality: null, crt: null, safeRender: null, renderer: "webgpu" },
+      }).requestedRenderer,
+    ).toBe("webgpu");
+    expect(
+      detectRenderCapabilities({
+        search: "?renderer=webgl",
+      }).requestedRenderer,
+    ).toBe("webgl");
+  });
+
+  test("WebGPU recalibration tightens CRT budget and disables async warmup (WGP-20)", () => {
+    const base = detectRenderCapabilities({
+      userAgent:
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36",
+      hardwareConcurrency: 16,
+      deviceMemory: 16,
+      search: "",
+    });
+    expect(base.allowAsyncShaderWarmup).toBe(true);
+    expect(base.pixelRatioCap).toBe(1.25);
+
+    const webgpu = recalibrateRenderCapabilitiesForBackend(base, "webgpu");
+    expect(webgpu.resolvedBackend).toBe("webgpu");
+    expect(webgpu.allowAsyncShaderWarmup).toBe(false);
+    expect(webgpu.pixelRatioCap).toBeLessThanOrEqual(1.15);
+    expect(webgpu.adaptiveCrtDisableMs).toBeLessThanOrEqual(32);
+
+    const webgl = recalibrateRenderCapabilitiesForBackend(base, "webgl");
+    expect(webgl.resolvedBackend).toBe("webgl");
+    expect(webgl.allowAsyncShaderWarmup).toBe(true);
+    expect(webgl.pixelRatioCap).toBe(base.pixelRatioCap);
   });
 
   test("main incrementally compiles supported resident floors without retaining replacement worlds", () => {
@@ -152,7 +191,7 @@ describe("render capabilities", () => {
     expect(warmup).toContain("compileRendererWarmupBatches()");
     expect(warmup).toContain("povPost.warmup(renderer, scene, camera);");
     expect(warmup).toContain("povPost.render(renderer, scene, camera);");
-    expect(source).toContain("renderer.compileAsync(scene, camera)");
+    expect(source).toContain("webGlRenderer?.compileAsync?.bind(webGlRenderer)");
     expect(source).toContain("await waitAnimationFrames(1);");
     expect(source).toContain("ASYNC_SHADER_WARMUP_BUDGET_MS = 2_000");
     expect(warmup).not.toContain("renderer.compile(");

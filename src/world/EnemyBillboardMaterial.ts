@@ -1,6 +1,13 @@
 import * as THREE from "three";
+import type { MeshStandardNodeMaterial } from "three/webgpu";
 import type { SceneTextureSink } from "../systems/SceneTextureRegistry";
 import type { DungeonMood } from "../systems/DungeonMood";
+import {
+  getShaderProgramModeRegistry,
+  onShaderProgramModeRegistryChange,
+  type ShaderProgramMode,
+} from "../systems/ShaderProgramMode";
+import { requireTslBuilder } from "../systems/TslMaterialModules";
 import type { EnemyAnimationDefinition } from "./EnemySpriteAtlas";
 
 export type EnemyBiomeTintSource = Pick<
@@ -16,6 +23,24 @@ export interface EnemyBiomeMaterialPalette {
 
 const ENEMY_NEUTRAL_ALBEDO = new THREE.Color(0xf2eee6);
 const ENEMY_TINT_CHANNEL_FLOOR = 0.68;
+
+/** ShaderProgramMode factory id for lit enemy billboards. */
+export const ENEMY_BILLBOARD_SHADER_FACTORY_ID = "enemy-billboard";
+
+const ENEMY_BILLBOARD_GLSL_CACHE_KEY = "enemy-billboard-instance-atlas-freeze-v6";
+
+/** Register (or refresh) dual-mode support on the active shader program registry. */
+export function registerEnemyBillboardShaderFactory(
+  registry = getShaderProgramModeRegistry(),
+): void {
+  registry.register({
+    id: ENEMY_BILLBOARD_SHADER_FACTORY_ID,
+    supports: ["glsl", "tsl"],
+  });
+}
+
+registerEnemyBillboardShaderFactory();
+onShaderProgramModeRegistryChange(registerEnemyBillboardShaderFactory);
 
 /** Keep hue while removing value differences that could crush a dark sprite atlas. */
 function normalizedChroma(hex: number): THREE.Color {
@@ -52,25 +77,41 @@ export function resolveEnemyBiomeMaterialPalette(
   return { diffuse, lowLightFill, tintStrength };
 }
 
-export type EnemyBillboardMaterial = THREE.MeshStandardMaterial & {
-  userData: {
-    enemyAtlasFrame?: THREE.Vector4;
-    enemyFreezeAmount?: { value: number };
-    enemyBiomeMood?: string;
-    enemyBiomeTintStrength?: number;
-    enemyBiomeSurfaceTint?: number;
-    enemyBiomeLightTint?: number;
-  } & Record<string, unknown>;
+type EnemyBillboardUserData = {
+  enemyAtlasFrame?: THREE.Vector4;
+  enemyFreezeAmount?: { value: number };
+  enemyBiomeMood?: string;
+  enemyBiomeTintStrength?: number;
+  enemyBiomeSurfaceTint?: number;
+  enemyBiomeLightTint?: number;
+  enemyBillboardShaderMode?: ShaderProgramMode;
+} & Record<string, unknown>;
+
+export type EnemyBillboardMaterial = (THREE.MeshStandardMaterial | MeshStandardNodeMaterial) & {
+  userData: EnemyBillboardUserData;
 };
 
-export function createEnemyBillboardMaterial(
-  map: THREE.Texture,
+export function applyEnemyBillboardUserData(
+  material: EnemyBillboardMaterial,
   mood: EnemyBiomeTintSource,
-): EnemyBillboardMaterial {
-  const atlasFrame = new THREE.Vector4(0, 0, 1, 1);
-  const freezeAmount = { value: 0 };
-  const palette = resolveEnemyBiomeMaterialPalette(mood);
-  const material = new THREE.MeshStandardMaterial({
+  palette: EnemyBiomeMaterialPalette,
+  atlasFrame: THREE.Vector4,
+  freezeAmount: { value: number },
+): void {
+  material.name = "Lit enemy billboard material";
+  material.userData.enemyAtlasFrame = atlasFrame;
+  material.userData.enemyFreezeAmount = freezeAmount;
+  material.userData.enemyBiomeMood = mood.id;
+  material.userData.enemyBiomeTintStrength = palette.tintStrength;
+  material.userData.enemyBiomeSurfaceTint = mood.surfaceTint;
+  material.userData.enemyBiomeLightTint = mood.lanternColor;
+}
+
+export function enemyBillboardParams(
+  map: THREE.Texture,
+  palette: EnemyBiomeMaterialPalette,
+): THREE.MeshStandardMaterialParameters {
+  return {
     map,
     color: palette.diffuse,
     emissive: palette.lowLightFill,
@@ -83,14 +124,27 @@ export function createEnemyBillboardMaterial(
     fog: true,
     toneMapped: true,
     side: THREE.DoubleSide,
-  }) as EnemyBillboardMaterial;
-  material.name = "Lit enemy billboard material";
-  material.userData.enemyAtlasFrame = atlasFrame;
-  material.userData.enemyFreezeAmount = freezeAmount;
-  material.userData.enemyBiomeMood = mood.id;
-  material.userData.enemyBiomeTintStrength = palette.tintStrength;
-  material.userData.enemyBiomeSurfaceTint = mood.surfaceTint;
-  material.userData.enemyBiomeLightTint = mood.lanternColor;
+  };
+}
+
+/**
+ * GLSL onBeforeCompile path (WebGL default): instance atlas UV + visibility +
+ * Rec.601 freeze desaturation.
+ *
+ * Requires geometry attributes `aEnemyVisibility` (float) and `aEnemyAtlasFrame` (vec4).
+ */
+export function createEnemyBillboardMaterialGlsl(
+  map: THREE.Texture,
+  mood: EnemyBiomeTintSource,
+): EnemyBillboardMaterial {
+  const atlasFrame = new THREE.Vector4(0, 0, 1, 1);
+  const freezeAmount = { value: 0 };
+  const palette = resolveEnemyBiomeMaterialPalette(mood);
+  const material = new THREE.MeshStandardMaterial(
+    enemyBillboardParams(map, palette),
+  ) as EnemyBillboardMaterial;
+  applyEnemyBillboardUserData(material, mood, palette, atlasFrame, freezeAmount);
+  material.userData.enemyBillboardShaderMode = "glsl";
   material.onBeforeCompile = (shader) => {
     shader.uniforms.uEnemyAtlasFrame = { value: atlasFrame };
     shader.uniforms.uEnemyFreeze = freezeAmount;
@@ -133,8 +187,31 @@ export function createEnemyBillboardMaterial(
         ].join("\n"),
       );
   };
-  material.customProgramCacheKey = () => "enemy-billboard-instance-atlas-freeze-v6";
+  material.customProgramCacheKey = () => ENEMY_BILLBOARD_GLSL_CACHE_KEY;
   return material;
+}
+
+/**
+ * Lit enemy atlas billboard. Picks GLSL (default) or TSL from `mode`, falling
+ * back to the active ShaderProgramMode registry.
+ */
+export function createEnemyBillboardMaterial(
+  map: THREE.Texture,
+  mood: EnemyBiomeTintSource,
+  mode?: ShaderProgramMode,
+): EnemyBillboardMaterial {
+  registerEnemyBillboardShaderFactory();
+  const registry = getShaderProgramModeRegistry();
+  const resolved = mode ?? registry.mode;
+  registry.require(ENEMY_BILLBOARD_SHADER_FACTORY_ID, resolved);
+
+  if (resolved === "tsl") {
+    const build = requireTslBuilder<
+      typeof import("./EnemyBillboardMaterial.tsl").createEnemyBillboardMaterialTsl
+    >(ENEMY_BILLBOARD_SHADER_FACTORY_ID);
+    return build(map, mood);
+  }
+  return createEnemyBillboardMaterialGlsl(map, mood);
 }
 
 /** 0 = live color, 1 = fully desaturated cold freeze look. */

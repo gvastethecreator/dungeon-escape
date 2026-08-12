@@ -39,6 +39,16 @@ import {
 import { resolveEditorLightingProfile } from "../editor/EditorLightingProfiles";
 import { nextProceduralSeed } from "../game/SeedFactory";
 import { ForgePresentationSession } from "./ForgePresentationSession";
+import { parseLaunchConfiguration } from "../launch/LaunchConfiguration";
+import {
+  createPlayRendererHandle,
+  readPlayRendererBackendName,
+} from "../systems/PlayRendererFactory";
+import {
+  createShaderProgramModeRegistry,
+  setShaderProgramModeRegistry,
+} from "../systems/ShaderProgramMode";
+import { loadTslMaterialModules } from "../systems/TslMaterialModules";
 import {
   BIOME_PARTICLE_MOTION_ID,
   BIOME_PARTICLE_SHAPE_ID,
@@ -109,20 +119,74 @@ const initialViewportSize = resolveForgeRenderSize(innerWidth, innerHeight);
 let appliedViewportWidth = initialViewportSize?.width ?? 0;
 let appliedViewportHeight = initialViewportSize?.height ?? 0;
 let renderQuality = resolveForgeRenderQuality(initialViewportSize?.width ?? 1, devicePixelRatio);
-const renderer = new THREE.WebGLRenderer({ antialias: true });
-renderer.setPixelRatio(renderQuality.pixelRatio);
-if (initialViewportSize) {
-  renderer.setSize(initialViewportSize.width, initialViewportSize.height);
+const forgeCanvas = document.createElement("canvas");
+document.body.appendChild(forgeCanvas);
+const forgeLaunch = parseLaunchConfiguration(
+  typeof location !== "undefined" ? location.search : "",
+);
+/** @type {Awaited<ReturnType<typeof createPlayRendererHandle>>} */
+const forgeRendererHandle = await createPlayRendererHandle({
+  canvas: forgeCanvas,
+  // Forge still owns GLSL ShaderMaterial bloom/liquid/particles — keep WebGL
+  // unless the operator explicitly opts into WebGPU for smoke testing.
+  preference: forgeLaunch.render.renderer === "webgpu" ? "webgpu" : "webgl",
+  preferDefaultGpu: true,
+});
+setShaderProgramModeRegistry(
+  createShaderProgramModeRegistry(forgeRendererHandle.isWebGpuRenderer ? "tsl" : "glsl"),
+);
+if (forgeRendererHandle.isWebGpuRenderer) {
+  await loadTslMaterialModules();
 }
-renderer.setClearColor(canvasBg);
+const renderer = forgeRendererHandle.raw;
+const forgeWebGpu = forgeRendererHandle.isWebGpuRenderer === true;
+if (typeof globalThis !== "undefined") {
+  globalThis.__rendererInfo = {
+    app: "forge",
+    requested: forgeRendererHandle.requested,
+    backend: forgeRendererHandle.backend,
+    backendName: readPlayRendererBackendName(forgeRendererHandle),
+    fellBack: forgeRendererHandle.fellBack,
+    fallbackReason: forgeRendererHandle.fallbackReason,
+    isWebGpuRenderer: forgeWebGpu,
+    shaderProgramMode: forgeWebGpu ? "tsl" : "glsl",
+  };
+}
+if (forgeWebGpu) {
+  console.warn(
+    "[forge] WebGPU backend active — liquid/particle ShaderMaterials use simplified fallbacks; bloom runs through the TSL RenderPipeline stage.",
+  );
+  _forgePostStagePromise = import("./ForgePost.webgpu.js")
+    .then((mod) => mod.createForgePostStage(renderer, scene, cam))
+    .then((stage) => {
+      forgePostStage = stage;
+      const size = new THREE.Vector2();
+      renderer.getDrawingBufferSize(size);
+      stage.setSize(size.x, size.y);
+      return stage;
+    })
+    .catch((error) => {
+      console.warn("[forge] WebGPU post stage failed; falling back to plain render", error);
+      return null;
+    });
+}
+renderer.setPixelRatio?.(renderQuality.pixelRatio);
+if (initialViewportSize) {
+  renderer.setSize?.(initialViewportSize.width, initialViewportSize.height);
+}
+renderer.setClearColor?.(canvasBg);
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.08;
-renderer.shadowMap.enabled = renderQuality.directionalShadows;
-renderer.shadowMap.type = THREE.PCFShadowMap; // PCFSoftShadowMap is deprecated in modern three (it silently falls back to this anyway)
-renderer.info.autoReset = false;
-document.body.appendChild(renderer.domElement);
-const maxAniso = renderer.capabilities.getMaxAnisotropy();
+if (renderer.shadowMap) {
+  renderer.shadowMap.enabled = renderQuality.directionalShadows && !forgeWebGpu;
+  renderer.shadowMap.type = THREE.PCFShadowMap; // PCFSoftShadowMap is deprecated in modern three (it silently falls back to this anyway)
+}
+if (renderer.info) renderer.info.autoReset = false;
+const maxAniso =
+  typeof renderer.capabilities?.getMaxAnisotropy === "function"
+    ? renderer.capabilities.getMaxAnisotropy()
+    : 1;
 
 const scene = new THREE.Scene();
 scene.fog = new THREE.FogExp2(canvasBg, 0.002);
@@ -321,7 +385,8 @@ const POST = (() => {
     h: 0,
     bloomW: 0,
     bloomH: 0,
-    enabled: true,
+    // WebGPU cannot run classic ShaderMaterial bloom targets yet (WGP-27 expand).
+    enabled: !forgeWebGpu,
   };
 })();
 function setupRTs() {
@@ -371,6 +436,11 @@ const _cBg = new THREE.Color();
 function renderFrame() {
   if (!resolveForgeRenderSize(innerWidth, innerHeight)) return false;
   if (!POST.enabled) {
+    if (forgeWebGpu && forgePostStage) {
+      forgePostStage.setUniform("uTime", elapsed);
+      forgePostStage.render();
+      return true;
+    }
     /* straight-to-canvas debug path: let three apply sRGB + its ACES tone map */
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.setClearColor(curBg);
@@ -766,25 +836,36 @@ const matSkirt = new THREE.MeshBasicMaterial({
 matSkirt.toneMapped = false;
 
 /* liquid surface shader: lava / ice / water / miasma via uMode */
-const liquidMat = new THREE.ShaderMaterial({
-  transparent: true,
-  depthWrite: false,
-  uniforms: {
-    uTime: { value: 0 },
-    uMode: { value: 0 },
-    uGlow: { value: 1 },
-    uOp: { value: 1 },
-    uColA: { value: new THREE.Color(0x000000) },
-    uColB: { value: new THREE.Color(0xffffff) },
-  },
-  vertexShader: `
+const liquidUniforms = {
+  uTime: { value: 0 },
+  uMode: { value: 0 },
+  uGlow: { value: 1 },
+  uOp: { value: 1 },
+  uColA: { value: new THREE.Color(0x000000) },
+  uColB: { value: new THREE.Color(0xffffff) },
+};
+const liquidMat = forgeWebGpu
+  ? Object.assign(
+      new THREE.MeshBasicMaterial({
+        transparent: true,
+        depthWrite: false,
+        color: 0x3a6a88,
+        opacity: 0.72,
+      }),
+      { uniforms: liquidUniforms },
+    )
+  : new THREE.ShaderMaterial({
+      transparent: true,
+      depthWrite: false,
+      uniforms: liquidUniforms,
+      vertexShader: `
     attribute vec2 aE;
     attribute vec4 aM;
     varying vec2 vP, vE;
     varying vec4 vM;
     void main(){ vP = vec2(position.x, position.z); vE = aE; vM = aM;
       gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
-  fragmentShader: `
+      fragmentShader: `
     precision highp float;
     varying vec2 vP, vE;
     varying vec4 vM;
@@ -837,27 +918,41 @@ const liquidMat = new THREE.ShaderMaterial({
       else                 aOut *= (1.0 - 0.55*e);
       gl_FragColor = vec4(col * (0.5 + uGlow), aOut);
     }`,
-});
+    });
 
 /* One shared GPU field. Profiles supply a distinct motion and silhouette per biome. */
-const partMat = new THREE.ShaderMaterial({
-  transparent: true,
-  depthWrite: false,
-  blending: THREE.AdditiveBlending,
-  uniforms: {
-    uTime: { value: 0 },
-    uRamp: { value: 1 },
-    uZoom: { value: 2 },
-    uMotion: { value: 0 },
-    uShape: { value: 0 },
-    uColor: { value: new THREE.Color(0xffffff) },
-    uColorAlt: { value: new THREE.Color(0xffffff) },
-    uOpacity: { value: 0.7 },
-    uSpeed: { value: 0.25 },
-    uTurbulence: { value: 0.4 },
-    uFlow: { value: new THREE.Vector3() },
-  },
-  vertexShader: `
+const partUniforms = {
+  uTime: { value: 0 },
+  uRamp: { value: 1 },
+  uZoom: { value: 2 },
+  uMotion: { value: 0 },
+  uShape: { value: 0 },
+  uColor: { value: new THREE.Color(0xffffff) },
+  uColorAlt: { value: new THREE.Color(0xffffff) },
+  uOpacity: { value: 0.7 },
+  uSpeed: { value: 0.25 },
+  uTurbulence: { value: 0.4 },
+  uFlow: { value: new THREE.Vector3() },
+};
+const partMat = forgeWebGpu
+  ? Object.assign(
+      new THREE.PointsMaterial({
+        transparent: true,
+        depthWrite: false,
+        blending: THREE.AdditiveBlending,
+        color: 0xffffff,
+        size: 2,
+        sizeAttenuation: true,
+        opacity: 0.7,
+      }),
+      { uniforms: partUniforms },
+    )
+  : new THREE.ShaderMaterial({
+      transparent: true,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+      uniforms: partUniforms,
+      vertexShader: `
     attribute float aSeed;
     attribute float aSize;
     attribute float aTint;
@@ -918,7 +1013,7 @@ const partMat = new THREE.ShaderMaterial({
       gl_Position = projectionMatrix * modelViewMatrix * vec4(p, 1.0);
       gl_PointSize = clamp(aSize*sizePulse*uZoom, 1.0, 10.0);
     }`,
-  fragmentShader: `
+      fragmentShader: `
     precision mediump float;
     uniform vec3 uColor, uColorAlt;
     uniform float uShape;
@@ -941,8 +1036,20 @@ const partMat = new THREE.ShaderMaterial({
       if(a<.025) discard;
       gl_FragColor=vec4(mix(uColor,uColorAlt,vTint),a);
     }`,
-});
+    });
 partMat.toneMapped = false;
+/** Lazily resolved WebGPU post stage; `null` until the dynamic import lands. */
+let forgePostStage = null;
+let _forgePostStagePromise = null;
+if (forgeWebGpu && partMat.color && partUniforms.uColor) {
+  // Keep PointsMaterial color loosely synced when theme uniforms change.
+  const syncPartColor = () => {
+    partMat.color.copy(partUniforms.uColor.value);
+    partMat.opacity = partUniforms.uOpacity.value * partUniforms.uRamp.value;
+  };
+  syncPartColor();
+  partMat.userData.syncPartColor = syncPartColor;
+}
 
 /* ================================================================
    PROCEDURAL GEOMETRY KIT — authored, merged, shared, instanced
@@ -2100,6 +2207,14 @@ function buildScene(d) {
     liquidMat.uniforms.uColA.value.set(TH.pools.colA);
     liquidMat.uniforms.uColB.value.set(TH.pools.colB);
     liquidMat.uniforms.uGlow.value = TH.pools.glow;
+    if (forgeWebGpu && liquidMat.color) {
+      // MeshBasicMaterial fallback reads color/opacity, not the shader uniforms.
+      liquidMat.color
+        .copy(TH.pools.colB)
+        .lerp(TH.pools.colA, 0.35)
+        .multiplyScalar(0.5 + TH.pools.glow * 0.5);
+      liquidMat.opacity = liquidUniforms.uOp.value;
+    }
   }
   if (d.pools.length) {
     const skirtC = TH.pools.mode === 0 ? 0xff5a1f : TH.pools.mode === 3 ? 0x33531e : 0x11463c;
@@ -2281,6 +2396,7 @@ function buildScene(d) {
       partMat.uniforms.uSpeed.value = spec.speed;
       partMat.uniforms.uTurbulence.value = spec.turbulence;
       partMat.uniforms.uFlow.value.set(spec.flowX, spec.flowY, spec.flowZ);
+      partMat.userData.syncPartColor?.();
       const pm = new THREE.Points(g, partMat);
       pm.name = `Forge biome particles: ${spec.name}`;
       pm.frustumCulled = false;
@@ -2885,6 +3001,10 @@ function liveUpdate(time, tt) {
   partMat.uniforms.uTime.value = time;
   /* device pixels per world unit, so particle sizes track the ortho zoom */
   partMat.uniforms.uZoom.value = (renderer.domElement.height * cam.zoom) / (2 * BASE_HALF);
+  if (forgeWebGpu) {
+    partMat.userData.syncPartColor?.();
+    if (liquidMat.color) liquidMat.opacity = liquidUniforms.uOp.value;
+  }
   for (const sp of fx.spinners) sp.m.rotation.y = time * sp.spd;
   for (const stone of fx.stones) {
     const phase = stone.root.userData.phase || 0;

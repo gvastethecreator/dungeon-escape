@@ -1,6 +1,14 @@
-import { describe, expect, test } from "bun:test";
+import { afterEach, beforeAll, describe, expect, test } from "bun:test";
 import * as THREE from "three";
+import { PointsNodeMaterial } from "three/webgpu";
 
+import {
+  createShaderProgramModeRegistry,
+  getShaderProgramModeRegistry,
+  resetShaderProgramModeRegistryForTests,
+  setShaderProgramModeRegistry,
+} from "../src/systems/ShaderProgramMode";
+import { loadTslMaterialModules } from "../src/systems/TslMaterialModules";
 import {
   createLuminousWardStone,
   createTimeFreezeRelic,
@@ -10,8 +18,24 @@ import {
   PICKUP_DORMANT_SCALE,
 } from "../src/world/ItemFactory";
 import { createDungeonMaterials } from "../src/world/MaterialLibrary";
-import { PickupBurstPool } from "../src/world/PickupBurstPool";
+import {
+  PickupBurstPool,
+  PICKUP_BURST_SPARKS_SHADER_FACTORY_ID,
+  registerPickupBurstSparksShaderFactory,
+} from "../src/world/PickupBurstPool";
 import { TimeFreezeVfx } from "../src/world/TimeFreezeVfx";
+
+// The shader program mode registry is process-global; leaking `tsl` mode
+// into later test files would build node materials where GLSL is expected.
+afterEach(() => {
+  resetShaderProgramModeRegistryForTests();
+});
+
+// TSL builders live in lazily imported `*.tsl` siblings so the WebGL bundle
+// never pulls in `three/webgpu`; tests must preload them like Play boot does.
+beforeAll(async () => {
+  await loadTslMaterialModules();
+});
 
 describe("pickup frame stability", () => {
   test("prepares transparency once and changes opacity without invalidating materials", () => {
@@ -137,6 +161,28 @@ describe("pickup frame stability", () => {
     });
     expect(new Set(shapeIds).size).toBe(kinds.length);
     pool.dispose();
+  });
+
+  test("TSL burst pool uses sprite sparks and registers dual-mode factory", () => {
+    resetShaderProgramModeRegistryForTests();
+    setShaderProgramModeRegistry(createShaderProgramModeRegistry("tsl"));
+    registerPickupBurstSparksShaderFactory();
+
+    const pool = new PickupBurstPool(1);
+    pool.trigger({ x: 0, y: 0.4, z: 0 }, "annihilation-pulse");
+    const sparks = pool.root.children[0]?.getObjectByName("Pickup rising sparks");
+    expect(sparks).toBeInstanceOf(THREE.Sprite);
+    expect((sparks as THREE.Sprite).count).toBe(36);
+    expect((sparks as THREE.Sprite).material).toBeInstanceOf(PointsNodeMaterial);
+    expect((sparks as THREE.Sprite).material.userData.sparkPrimitive).toBe("sprite");
+    expect(
+      getShaderProgramModeRegistry().supports(PICKUP_BURST_SPARKS_SHADER_FACTORY_ID, "glsl"),
+    ).toBe(true);
+    expect(
+      getShaderProgramModeRegistry().supports(PICKUP_BURST_SPARKS_SHADER_FACTORY_ID, "tsl"),
+    ).toBe(true);
+    pool.dispose();
+    resetShaderProgramModeRegistryForTests();
   });
 
   test("dormant power pickups hide meshes but keep PointLights in the graph", () => {

@@ -1,8 +1,11 @@
 import { describe, expect, test } from "bun:test";
 
-const worldSource = await Bun.file(
-  new URL("../src/world/StaticDungeonScene.ts", import.meta.url),
-).text();
+// The sprite material contract lives in BiomeDecorMaterial since the dual-mode
+// (GLSL/TSL) split; placement still lives in StaticDungeonScene.
+const worldSource = [
+  await Bun.file(new URL("../src/world/StaticDungeonScene.ts", import.meta.url)).text(),
+  await Bun.file(new URL("../src/world/BiomeDecorMaterial.ts", import.meta.url)).text(),
+].join("\n");
 const assetSource = await Bun.file(new URL("../src/world/AssetLibrary.ts", import.meta.url)).text();
 
 describe("flat wall sprite material contract", () => {

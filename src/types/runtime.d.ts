@@ -1,4 +1,5 @@
 import type { AudioLoadDiagnostics } from "../audio/GameAudio";
+import type { DungeonData } from "../dungeon/types";
 import type { DungeonEngineApi, DungeonRuntimeState, RendererDiagnostics } from "../main";
 import type { FirstPersonController } from "../player/FirstPersonController";
 import type { PerspectiveCamera, Scene } from "three";
@@ -13,6 +14,7 @@ declare global {
     __BLACK_FLAG_PROTOTYPE__: DungeonEngineApi;
     __THREE_GAME_DIAGNOSTICS__: {
       getState(): DungeonRuntimeState;
+      getDungeon(): DungeonData | null;
       getResidentFloorCount(): number;
       getRenderer(): RendererDiagnostics;
       getScene(): Scene;
@@ -20,6 +22,7 @@ declare global {
       getController(): FirstPersonController;
       getAudio(): AudioLoadDiagnostics;
       getLoop(): { running: boolean; frames: number; renders: number };
+      resetFrameGaps(warmupMs?: number): void;
     };
   }
 }

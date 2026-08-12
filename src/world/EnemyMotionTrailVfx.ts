@@ -1,8 +1,31 @@
 import * as THREE from "three";
-
+import {
+  getShaderProgramModeRegistry,
+  onShaderProgramModeRegistryChange,
+  type ShaderProgramMode,
+} from "../systems/ShaderProgramMode";
+import { requireTslBuilder } from "../systems/TslMaterialModules";
 import { ENEMY_ARCHETYPES, type EnemyKind } from "./EnemyArchetypes";
 import { setEnemyBillboardFrame, type EnemyBillboardAtlasMaterial } from "./EnemyBillboardMaterial";
 import type { EnemyAnimationDefinition } from "./EnemySpriteAtlas";
+
+/** ShaderProgramMode factory id for black enemy motion-trail afterimages. */
+export const ENEMY_MOTION_TRAIL_SHADER_FACTORY_ID = "enemy-motion-trail";
+
+const ENEMY_MOTION_TRAIL_GLSL_CACHE_KEY = "enemy-motion-trail-black-atlas-v2";
+
+/** Register (or refresh) dual-mode support on the active shader program registry. */
+export function registerEnemyMotionTrailShaderFactory(
+  registry = getShaderProgramModeRegistry(),
+): void {
+  registry.register({
+    id: ENEMY_MOTION_TRAIL_SHADER_FACTORY_ID,
+    supports: ["glsl", "tsl"],
+  });
+}
+
+registerEnemyMotionTrailShaderFactory();
+onShaderProgramModeRegistryChange(registerEnemyMotionTrailShaderFactory);
 
 /** Presentation input for one live enemy billboard. */
 export interface EnemyMotionTrailTarget {
@@ -78,13 +101,8 @@ const IDLE_FADE_PER_SECOND = 4.2;
 const FROZEN_FADE_PER_SECOND = 3.0;
 const ZERO_SCALE = new THREE.Vector3(0, 0, 0);
 
-/**
- * Unlit black afterimage of the enemy atlas. RGB is forced black; alpha comes
- * from the sprite (and per-instance trail fade).
- */
-export function createEnemyTrailMaterial(map: THREE.Texture): EnemyBillboardAtlasMaterial {
-  const atlasFrame = new THREE.Vector4(0, 0, 1, 1);
-  const material = new THREE.MeshBasicMaterial({
+export function enemyTrailMaterialParams(map: THREE.Texture): THREE.MeshBasicMaterialParameters {
+  return {
     map,
     color: 0x000000,
     transparent: true,
@@ -96,9 +114,21 @@ export function createEnemyTrailMaterial(map: THREE.Texture): EnemyBillboardAtla
     side: THREE.DoubleSide,
     toneMapped: false,
     fog: true,
-  });
+  };
+}
+
+/**
+ * GLSL onBeforeCompile path (WebGL default): atlas UV from material frame
+ * uniform + per-instance trail alpha, body forced black.
+ *
+ * Requires geometry attribute `aTrailAlpha` (float).
+ */
+export function createEnemyTrailMaterialGlsl(map: THREE.Texture): EnemyBillboardAtlasMaterial {
+  const atlasFrame = new THREE.Vector4(0, 0, 1, 1);
+  const material = new THREE.MeshBasicMaterial(enemyTrailMaterialParams(map));
   material.name = "Enemy motion trail material";
   material.userData.enemyAtlasFrame = atlasFrame;
+  material.userData.enemyMotionTrailShaderMode = "glsl";
   material.onBeforeCompile = (shader) => {
     shader.uniforms.uEnemyAtlasFrame = { value: atlasFrame };
     shader.vertexShader = shader.vertexShader
@@ -121,8 +151,33 @@ diffuseColor.rgb = vec3(0.0);
 diffuseColor.a *= clamp(vTrailAlpha, 0.0, 1.0);`,
       );
   };
-  material.customProgramCacheKey = () => "enemy-motion-trail-black-atlas-v2";
+  material.customProgramCacheKey = () => ENEMY_MOTION_TRAIL_GLSL_CACHE_KEY;
   return material;
+}
+
+/**
+ * Unlit black afterimage of the enemy atlas. RGB is forced black; alpha comes
+ * from the sprite (and per-instance trail fade).
+ *
+ * Picks GLSL (default) or TSL from `mode`, falling back to the active
+ * ShaderProgramMode registry.
+ */
+export function createEnemyTrailMaterial(
+  map: THREE.Texture,
+  mode?: ShaderProgramMode,
+): EnemyBillboardAtlasMaterial {
+  registerEnemyMotionTrailShaderFactory();
+  const registry = getShaderProgramModeRegistry();
+  const resolved = mode ?? registry.mode;
+  registry.require(ENEMY_MOTION_TRAIL_SHADER_FACTORY_ID, resolved);
+
+  if (resolved === "tsl") {
+    const build = requireTslBuilder<
+      typeof import("./EnemyMotionTrailVfx.tsl").createEnemyTrailMaterialTsl
+    >(ENEMY_MOTION_TRAIL_SHADER_FACTORY_ID);
+    return build(map);
+  }
+  return createEnemyTrailMaterialGlsl(map);
 }
 
 /** Animation frame one step behind the live billboard (wraps in the strip). */
