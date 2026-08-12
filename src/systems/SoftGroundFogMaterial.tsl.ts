@@ -184,7 +184,7 @@ export function createSoftGroundFogMaterialTsl(
   material.toneMapped = false;
   material.blending = THREE.NormalBlending;
 
-  const sample = Fn(() => {
+  const sample = Fn((): any => {
     const vWorldPos = modelWorldMatrix.mul(vec4(positionLocal, 1.0)).xyz;
     const ro = cameraPosition;
     const rd = normalize(vWorldPos.sub(ro));
@@ -286,7 +286,7 @@ export function createSoftGroundFogMaterialTsl(
       (uColor as any).mul(0.88),
       clamp(alpha.div(max(uMaxAlpha, 0.001)), 0.0, 1.0),
     );
-    return vec4(col, alpha);
+    return vec4(col as any, alpha as any);
   })();
 
   material.colorNode = sample.rgb;

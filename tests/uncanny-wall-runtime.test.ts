@@ -2,15 +2,24 @@ import { describe, expect, test } from "bun:test";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import * as THREE from "three";
+import { MeshBasicNodeMaterial } from "three/webgpu";
 
 import { listDungeonMoodIds } from "../src/systems/DungeonMood";
+import {
+  createShaderProgramModeRegistry,
+  getShaderProgramModeRegistry,
+  resetShaderProgramModeRegistryForTests,
+  setShaderProgramModeRegistry,
+} from "../src/systems/ShaderProgramMode";
 import {
   UNCANNY_WALL_ATLAS_SIZE,
   uncannyWallAnimations,
 } from "../src/world/UncannyWallCatalog.generated";
 import {
+  UNCANNY_WALL_SHADER_FACTORY_ID,
   advanceUncannyWallPlayback,
   createUncannyWallPlayback,
+  registerUncannyWallShaderFactory,
   sampleUncannyWallPlayback,
   uncannyWallHoldSeconds,
   uncannyWallVisualProfile,
@@ -88,6 +97,30 @@ describe("uncanny wall runtime", () => {
       expect(profile.highlight).toBeGreaterThan(0);
       expect(profile.propTint).toBeGreaterThan(0);
     }
+  });
+
+  test("TSL atlas path registers dual mode and wires node material attributes", () => {
+    resetShaderProgramModeRegistryForTests();
+    setShaderProgramModeRegistry(createShaderProgramModeRegistry("tsl"));
+    registerUncannyWallShaderFactory();
+
+    const definition = uncannyWallAnimations("ancient")[0]!;
+    const runtime = new UncannyWallRuntime(new THREE.Texture(), [
+      { matrix: new THREE.Matrix4(), row: 0, definition, seed: 1, x: 0, z: 0 },
+    ]);
+    runtime.update(1.1, { x: 0, y: 1.6, z: 0 });
+    expect(runtime.mesh.material).toBeInstanceOf(MeshBasicNodeMaterial);
+    expect(runtime.mesh.material.userData.shaderProgramMode).toBe("tsl");
+    expect(runtime.mesh.material.userData.uncannyWallAtlas).toBe(true);
+    expect((runtime.mesh.material as MeshBasicNodeMaterial).colorNode).toBeTruthy();
+    expect((runtime.mesh.material as MeshBasicNodeMaterial).opacityNode).toBeTruthy();
+    expect(getShaderProgramModeRegistry().supports(UNCANNY_WALL_SHADER_FACTORY_ID, "glsl")).toBe(
+      true,
+    );
+    expect(getShaderProgramModeRegistry().supports(UNCANNY_WALL_SHADER_FACTORY_ID, "tsl")).toBe(
+      true,
+    );
+    resetShaderProgramModeRegistryForTests();
   });
 
   test("packages four native-resolution loops for every biome", () => {
