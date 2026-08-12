@@ -296,6 +296,7 @@ export function createSoftGroundFogMaterialTsl(
   material.userData.softGroundFog = true;
   material.userData.softGroundFogHandles = handles;
   material.userData.shaderProgramMode = "tsl";
+  (material as any).uniforms = handles;
 
   return material;
 }

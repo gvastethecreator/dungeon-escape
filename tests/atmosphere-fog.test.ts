@@ -14,7 +14,6 @@ import {
   SOFT_FOG_MAX_ALPHA,
   SOFT_FOG_MAX_DIST,
 } from "../src/systems/AtmosphereSystem";
-import type { BiomeParticleUniformHandles, SoftGroundFogUniformHandles } from "../src/systems/AtmosphereMaterialsShared";
 import {
   biomeParticleHandles,
   BIOME_PARTICLE_SHADER_FACTORY_ID,
@@ -316,13 +315,13 @@ describe("soft ground fog", () => {
     expect((support.material as PointsNodeMaterial).userData.shaderProgramMode).toBe("tsl");
 
     atmosphere.update(0.5, { x: 2, y: 1.6, z: -1 });
-    const fogUniforms = (mesh.material as any).uniforms as SoftGroundFogUniformHandles;
-    expect(fogUniforms.uTime.value).toBeGreaterThan(0);
-    expect(fogUniforms.uBoxCenter.value.x).toBeCloseTo(2);
+    const fogHandles = softGroundFogHandles(mesh.material as THREE.Material);
+    expect(fogHandles?.uTime.value).toBeGreaterThan(0);
+    expect(fogHandles?.uBoxCenter.value.x).toBeCloseTo(2);
 
-    const particleUniforms = (support.material as any).uniforms as BiomeParticleUniformHandles;
-    expect(particleUniforms.uTime.value).toBeGreaterThan(0);
-    expect(particleUniforms.uViewer.value.z).toBe(-1);
+    const particleHandles = biomeParticleHandles(support.material as THREE.Material);
+    expect(particleHandles?.uTime.value).toBeGreaterThan(0);
+    expect(particleHandles?.uViewer.value.z).toBe(-1);
 
     atmosphere.dispose();
     resetShaderProgramModeRegistryForTests();
