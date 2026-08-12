@@ -405,12 +405,47 @@ function makeBeamGeometry(
   return geometry;
 }
 
+function beamMaterial(source: THREE.Mesh | THREE.Material): THREE.ShaderMaterial | null {
+  const material = source instanceof THREE.Mesh ? source.material : source;
+  if (!(material instanceof THREE.ShaderMaterial)) return null;
+  if (!material.userData.volumetricSpace) return null;
+  return material;
+}
+
 /** Advance shared beam time (call once per frame from world update if desired). */
 export function tickVolumetricBeamTime(mesh: THREE.Mesh, time: number): void {
-  const material = mesh.material;
-  if (material instanceof THREE.ShaderMaterial && material.uniforms.uTime) {
-    material.uniforms.uTime.value = time;
-  }
+  const material = beamMaterial(mesh);
+  if (!material?.uniforms.uTime) return;
+  material.uniforms.uTime.value = time;
+}
+
+/** Runtime strength for distance/FX fading. Clamped to a non-negative range. */
+export function setVolumetricBeamStrength(
+  mesh: THREE.Mesh | THREE.Material,
+  strength: number,
+): void {
+  const material = beamMaterial(mesh);
+  if (!material?.uniforms.uStrength) return;
+  material.uniforms.uStrength.value = Math.max(0, strength);
+}
+
+export function getVolumetricBeamStrength(mesh: THREE.Mesh | THREE.Material): number | null {
+  const material = beamMaterial(mesh);
+  const value = material?.uniforms.uStrength?.value;
+  return typeof value === "number" ? value : null;
+}
+
+/** Mood / palette tint. Strength is the lerp factor into the target color. */
+export function tintVolumetricBeamColor(
+  material: THREE.Material,
+  color: THREE.Color,
+  strength: number,
+): boolean {
+  const beam = beamMaterial(material);
+  const uniform = beam?.uniforms.uColor;
+  if (!uniform || !(uniform.value instanceof THREE.Color)) return false;
+  uniform.value.lerp(color, THREE.MathUtils.clamp(strength, 0, 1));
+  return true;
 }
 
 export function createVolumetricBeam(
