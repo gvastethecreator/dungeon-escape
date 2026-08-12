@@ -82,8 +82,47 @@ import {
   detectRenderCapabilities,
   detectRendererCompileCapabilities,
 } from "./systems/RenderCapabilities";
+import type { DungeonRenderer } from "./systems/DungeonRenderer";
+import {
+  createPlayRendererHandle,
+  readPlayRendererBackendName,
+  type PlayRendererHandle,
+} from "./systems/PlayRendererFactory";
 import { collectVisibleRenderInventory } from "./systems/RenderInventory";
 import { resolveRenderPixelRatio } from "./systems/RenderScale";
+import {
+  createShaderProgramModeRegistry,
+  setShaderProgramModeRegistry,
+  type ShaderProgramMode,
+} from "./systems/ShaderProgramMode";
+
+/** Play renderer surface used by the host after backend selection. */
+type PlayHostRenderer = DungeonRenderer & {
+  outputColorSpace: string;
+  toneMappingExposure: number;
+  setPixelRatio(value: number): void;
+  setSize(width: number, height: number, updateStyle?: boolean): void;
+  getPixelRatio(): number;
+  shadowMap: { enabled: boolean; type: THREE.ShadowMapType };
+  debug?: { checkShaderErrors: boolean };
+  info: {
+    autoReset: boolean;
+    reset(): void;
+    render: {
+      calls: number;
+      triangles: number;
+      points: number;
+      lines: number;
+      frame: number;
+    };
+    memory: { geometries: number; textures: number };
+    programs: unknown[] | null;
+  };
+  compileAsync?: (scene: THREE.Object3D, camera: THREE.Camera) => Promise<unknown>;
+  properties?: { get(material: THREE.Material): unknown };
+  renderLists?: { get(scene: THREE.Scene, cameraIndex: number): { opaque: unknown[]; transparent: unknown[] } };
+  dispose(): void;
+};
 import {
   computePovFeel,
   decayExhaustionTrauma,
@@ -459,45 +498,67 @@ const scene = new THREE.Scene();
 
 const camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.08, 120);
 const renderPathCaps = detectRenderCapabilities({ overrides: launchConfig.render });
-/** Wall time spent creating/initializing the play renderer backend. */
-let rendererInitDurationMs = 0;
-async function createPlayRenderer(): Promise<THREE.WebGLRenderer> {
-  const initStartedAt = performance.now();
-  const common = {
+let playRendererHandle: PlayRendererHandle;
+try {
+  playRendererHandle = await createPlayRendererHandle({
     canvas: elements.scene,
-    antialias: false as const,
-  };
-  try {
-    const created = new THREE.WebGLRenderer({
-      ...common,
-      // Firefox dual-GPU + high-performance often picks a dead adapter (black canvas).
-      powerPreference: renderPathCaps.preferDefaultGpu ? "default" : "high-performance",
-    });
-    // WebGL resolves immediately; WGP-08 awaits WebGPURenderer.init() on this path.
-    rendererInitDurationMs = performance.now() - initStartedAt;
-    return created;
-  } catch (error) {
-    console.warn("Primary WebGL context failed; retrying with defaults", error);
-    const created = new THREE.WebGLRenderer(common);
-    rendererInitDurationMs = performance.now() - initStartedAt;
-    return created;
-  }
+    preference: renderPathCaps.requestedRenderer,
+    preferDefaultGpu: renderPathCaps.preferDefaultGpu,
+  });
+} catch (error) {
+  const message =
+    error instanceof Error ? error.message : "Failed to create the requested renderer.";
+  console.error("[renderer-init]", message);
+  elements.shell.dataset.rendererError = message;
+  throw error;
 }
-const renderer = await createPlayRenderer();
+const renderer = playRendererHandle.renderer as PlayHostRenderer;
+const webGlRenderer =
+  playRendererHandle.backend === "webgl"
+    ? (playRendererHandle.raw as THREE.WebGLRenderer)
+    : null;
+const rendererInitDurationMs = playRendererHandle.initDurationMs;
+const shaderProgramMode: ShaderProgramMode = playRendererHandle.isWebGpuRenderer ? "tsl" : "glsl";
+setShaderProgramModeRegistry(createShaderProgramModeRegistry(shaderProgramMode));
+const { registerDungeonSurfaceShaderFactory } = await import("./world/TextureTreatment");
+registerDungeonSurfaceShaderFactory();
 console.info("[renderer-init]", {
   durationMs: Math.round(rendererInitDurationMs),
   requestedRenderer: renderPathCaps.requestedRenderer,
-  backend: "webgl",
+  backend: playRendererHandle.backend,
+  backendName: readPlayRendererBackendName(playRendererHandle),
+  fellBack: playRendererHandle.fellBack,
+  fallbackReason: playRendererHandle.fallbackReason,
+  shaderProgramMode,
 });
+if (typeof globalThis !== "undefined") {
+  (globalThis as { __rendererInfo?: unknown }).__rendererInfo = {
+    requested: playRendererHandle.requested,
+    backend: playRendererHandle.backend,
+    backendName: readPlayRendererBackendName(playRendererHandle),
+    fellBack: playRendererHandle.fellBack,
+    fallbackReason: playRendererHandle.fallbackReason,
+    isWebGpuRenderer: playRendererHandle.isWebGpuRenderer,
+    shaderProgramMode,
+  };
+}
 const renderCaps = {
   ...renderPathCaps,
-  ...detectRendererCompileCapabilities(renderer),
+  ...(webGlRenderer
+    ? detectRendererCompileCapabilities(webGlRenderer)
+    : {
+        hasCompileAsync: false,
+        hasParallelShaderCompile: false,
+        canCompileAsync: false,
+      }),
   requestedRenderer: renderPathCaps.requestedRenderer,
 };
 // Three.js recommends keeping shader diagnostics in development, but each
 // program info-log read can serialize Chrome's shader compiler. The production
 // runtime is covered by browser smokes, so avoid that cold-start stall there.
-if (import.meta.env.PROD) renderer.debug.checkShaderErrors = false;
+if (import.meta.env.PROD && renderer.debug) {
+  renderer.debug.checkShaderErrors = false;
+}
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.18;
@@ -535,6 +596,14 @@ const povPost = new PovPostFx();
 povPost.setDisplayTuning(displayPostFxTuning);
 // CRT history + multi-sample composite is the usual Firefox stutter source.
 povPost.setCrtEnabled(renderCaps.enableCrtByDefault);
+if (playRendererHandle.isWebGpuRenderer) {
+  // WGP-08: PovPostFx still uses ShaderMaterial. Keep the scene playable with a
+  // direct draw until WGP-18 ports the chain to RenderPipeline.
+  povPost.setEnabled(false);
+  console.warn(
+    "[renderer] WebGPU path: custom GLSL VFX and PovPostFx are disabled until their TSL ports land (WGP-09..19).",
+  );
+}
 const povFeel = new PovFeelState();
 const audio = new GameAudio();
 audio.setMusicVolume(userSettings.musicVolume);
@@ -1859,7 +1928,9 @@ async function compileRendererWarmupBatches(): Promise<number> {
 
       const batchStartedAt = performance.now();
       let batchComplete = false;
-      const compile = renderer.compileAsync(scene, camera);
+      const compileAsync = webGlRenderer?.compileAsync?.bind(webGlRenderer);
+      if (!compileAsync) break;
+      const compile = compileAsync(scene, camera);
       await Promise.race([
         compile.then(() => {
           batchComplete = true;
@@ -1927,8 +1998,8 @@ function startRendererWarmup(
           povPost.warmup(renderer, scene, camera);
           warmupWorkMs += performance.now() - postFxStartedAt;
         } else {
-          // Firefox, safe-render, and unsupported WebGL retain the established
-          // single live draw path.
+          // Firefox, safe-render, WebGPU, and unsupported WebGL retain a single
+          // live draw path (PovPostFx no-ops to a direct render when disabled).
           const drawStartedAt = performance.now();
           povPost.render(renderer, scene, camera);
           warmupWorkMs += performance.now() - drawStartedAt;
@@ -3075,6 +3146,8 @@ function publishDungeonLoadTrace(snapshot: DungeonLoadTraceSnapshot): void {
     ...snapshot,
     rendererInitMs: Math.round(rendererInitDurationMs),
     requestedRenderer: renderCaps.requestedRenderer,
+    backend: playRendererHandle.backend,
+    backendName: readPlayRendererBackendName(playRendererHandle),
   });
 }
 
@@ -3782,6 +3855,7 @@ function countSceneMaterials(now = performance.now()): number {
 
 /** Aggregate live material-to-program ownership for opt-in performance audits. */
 function collectRendererProgramProfiles(): readonly RendererProgramProfile[] {
+  if (!webGlRenderer?.properties) return [];
   type Program = {
     id: number;
     name?: string;
@@ -3821,7 +3895,7 @@ function collectRendererProgramProfiles(): readonly RendererProgramProfile[] {
         ? [candidate.material]
         : [];
     for (const material of materials) {
-      const program = (renderer.properties.get(material) as { currentProgram?: Program })
+      const program = (webGlRenderer.properties.get(material) as { currentProgram?: Program })
         .currentProgram;
       if (!program) continue;
       const profile = ensure(program);
@@ -3866,12 +3940,26 @@ function collectRendererProgramProfiles(): readonly RendererProgramProfile[] {
 
 /** Read the completed main-scene render list without traversing hidden slabs. */
 function collectRendererRenderList(): RendererRenderListProfile {
-  const renderList = renderer.renderLists.get(scene, 0);
+  if (!webGlRenderer?.renderLists || !webGlRenderer.properties) {
+    return {
+      opaque: 0,
+      transmissive: 0,
+      transparent: 0,
+      items: 0,
+      profiles: [],
+    };
+  }
+  const renderList = webGlRenderer.renderLists.get(scene, 0) as {
+    opaque: Array<{ object: THREE.Object3D; material: THREE.Material }>;
+    transmissive: Array<{ object: THREE.Object3D; material: THREE.Material }>;
+    transparent: Array<{ object: THREE.Object3D; material: THREE.Material }>;
+  };
   const items = [...renderList.opaque, ...renderList.transmissive, ...renderList.transparent];
   const profiles = new Map<string, RendererRenderItemProfile>();
   for (const item of items) {
-    const program = (renderer.properties.get(item.material) as { currentProgram?: { id: number } })
-      .currentProgram;
+    const program = (
+      webGlRenderer.properties.get(item.material) as { currentProgram?: { id: number } }
+    ).currentProgram;
     const objectName = item.object.name || item.object.type;
     const key = `${objectName}|${item.object.type}|${item.material.type}|${program?.id ?? "none"}`;
     let profile = profiles.get(key);
@@ -5253,7 +5341,7 @@ window.addEventListener("beforeunload", () => {
   textureRegistry.clear();
   povPost.dispose();
   lighting.dispose();
-  renderer.dispose();
+  playRendererHandle.dispose();
 });
 function setBootProgress(progress: number, message: string): void {
   const pct = Math.max(0, Math.min(1, progress));

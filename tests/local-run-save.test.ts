@@ -210,7 +210,7 @@ describe("local dungeon continue save", () => {
     expect(source.slice(beforeUnloadStart)).toContain("localRunSave.dispose();");
     expect(source).toContain("if (appDisposed) return;");
     expect(source).toContain("renderer.setAnimationLoop(null);");
-    expect([...source.matchAll(/renderer\.dispose\(\)/g)]).toHaveLength(1);
+    expect(source).toContain("playRendererHandle.dispose();");
   });
 
   test("keeps storage writes and user failure copy in host callbacks", async () => {
