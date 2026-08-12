@@ -1,14 +1,23 @@
 import { describe, expect, test } from "bun:test";
 import * as THREE from "three";
+import { MeshStandardNodeMaterial } from "three/webgpu";
 
 import { FLOOR, generateDungeon, WALL } from "../src/dungeon/generateDungeon";
 import {
+  createShaderProgramModeRegistry,
+  resetShaderProgramModeRegistryForTests,
+  setShaderProgramModeRegistry,
+} from "../src/systems/ShaderProgramMode";
+import {
   edgeBlendSeamlessRgba,
+  DUNGEON_SURFACE_SHADER_FACTORY_ID,
   DUNGEON_SURFACE_WORLD_UV_SCALE,
   enableDungeonSurfaceShader,
+  enableDungeonSurfaceShaderTsl,
   liftTextureLuminanceRgba,
   liftTextureRoughnessRgba,
   normalMapRgbaFromAlbedo,
+  registerDungeonSurfaceShaderFactory,
   registerTextureSource,
   textureEdgeMismatchRgba,
 } from "../src/world/TextureTreatment";
@@ -120,8 +129,9 @@ describe("texture seam treatment", () => {
   });
 
   test("surface shader varies continuously instead of tinting whole grid cells", () => {
+    resetShaderProgramModeRegistryForTests();
     const material = new THREE.MeshStandardMaterial();
-    enableDungeonSurfaceShader(material);
+    enableDungeonSurfaceShader(material, "glsl");
     const shader = {
       vertexShader:
         "#include <common>\n#include <beginnormal_vertex>\n#include <begin_vertex>\n#include <uv_vertex>",
@@ -137,6 +147,30 @@ describe("texture seam treatment", () => {
     expect(shader.fragmentShader).not.toContain("bfCellId");
     expect(shader.vertexShader).toContain(`* ${DUNGEON_SURFACE_WORLD_UV_SCALE.toFixed(2)}`);
     expect(material.customProgramCacheKey()).toBe("dungeon-surface-v4");
+    expect(material.userData.dungeonSurfaceShaderMode).toBe("glsl");
+  });
+
+  test("TSL surface shader registers dual-mode factory and wires node properties", () => {
+    resetShaderProgramModeRegistryForTests();
+    setShaderProgramModeRegistry(createShaderProgramModeRegistry("tsl"));
+    registerDungeonSurfaceShaderFactory();
+
+    const material = new MeshStandardNodeMaterial();
+    enableDungeonSurfaceShader(material);
+    expect(material.userData.dungeonSurfaceShaderMode).toBe("tsl");
+    expect(material.colorNode).toBeTruthy();
+    expect(material.contextNode).toBeTruthy();
+    expect(material.customProgramCacheKey()).toBe("dungeon-surface-tsl-v1");
+    expect(material.onBeforeCompile).toBe(THREE.Material.prototype.onBeforeCompile);
+
+    const again = new MeshStandardNodeMaterial();
+    enableDungeonSurfaceShaderTsl(again);
+    expect(again.userData.dungeonSurfaceShader).toBe(true);
+
+    const registry = createShaderProgramModeRegistry("glsl");
+    registerDungeonSurfaceShaderFactory(registry);
+    expect(registry.supports(DUNGEON_SURFACE_SHADER_FACTORY_ID, "glsl")).toBe(true);
+    expect(registry.supports(DUNGEON_SURFACE_SHADER_FACTORY_ID, "tsl")).toBe(true);
   });
 
   test("coplanar dungeon faces meet without z-fighting overlap", () => {
