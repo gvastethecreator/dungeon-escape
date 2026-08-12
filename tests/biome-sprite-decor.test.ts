@@ -28,9 +28,12 @@ import {
 import { BIOME_FLOOR_PROP_PLACEMENT_AUDIT } from "../src/world/BiomeSpriteDecorPlacementAudit";
 import { BIOME_SURFACE_PALETTES } from "../src/world/BiomeSurfacePalettes.generated";
 
-const staticSceneSource = await Bun.file(
-  new URL("../src/world/StaticDungeonScene.ts", import.meta.url),
-).text();
+// Decor material treatments moved to BiomeDecorMaterial with the dual-mode
+// (GLSL/TSL) split; StaticDungeonScene still owns placement and batching.
+const staticSceneSource = [
+  await Bun.file(new URL("../src/world/StaticDungeonScene.ts", import.meta.url)).text(),
+  await Bun.file(new URL("../src/world/BiomeDecorMaterial.ts", import.meta.url)).text(),
+].join("\n");
 const worldSource = await Bun.file(new URL("../src/world/DungeonWorld.ts", import.meta.url)).text();
 const residentEnemySource = await Bun.file(
   new URL("../src/world/ResidentEnemyRuntime.ts", import.meta.url),

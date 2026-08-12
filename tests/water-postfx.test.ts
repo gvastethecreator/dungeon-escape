@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { afterEach, describe, expect, test } from "bun:test";
 import * as THREE from "three";
 import { MeshStandardNodeMaterial } from "three/webgpu";
 import { POV_VIGNETTE_INNER_RADIUS, POV_VIGNETTE_STRENGTH } from "../src/systems/PovPostFx";
@@ -13,6 +13,12 @@ import {
   tickLiquidSections,
   type LiquidSurface,
 } from "../src/world/LiquidSectionKit";
+
+// The shader program mode registry is process-global; leaking `tsl` mode
+// into later test files would build node materials where GLSL is expected.
+afterEach(() => {
+  resetShaderProgramModeRegistryForTests();
+});
 
 describe("water and post-process finish", () => {
   test("dark water is rough, non-metallic and has a time-driven wave shader", () => {

@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { afterEach, describe, expect, test } from "bun:test";
 import * as THREE from "three";
 import { MeshBasicNodeMaterial, PointsNodeMaterial } from "three/webgpu";
 
@@ -39,6 +39,12 @@ function dualHeightDensity(y: number): number {
     0.48 * Math.exp(-SOFT_FOG_HEIGHT_FALLOFF_AIR * y)
   );
 }
+
+// The shader program mode registry is process-global; leaking `tsl` mode
+// into later test files would build node materials where GLSL is expected.
+afterEach(() => {
+  resetShaderProgramModeRegistryForTests();
+});
 
 describe("soft ground fog", () => {
   test("local dual-layer volume follows the viewer with continuous height fade", () => {

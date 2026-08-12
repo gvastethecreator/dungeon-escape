@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { afterEach, describe, expect, test } from "bun:test";
 import * as THREE from "three";
 import { PointsNodeMaterial } from "three/webgpu";
 
@@ -23,6 +23,12 @@ import {
   registerPickupBurstSparksShaderFactory,
 } from "../src/world/PickupBurstPool";
 import { TimeFreezeVfx } from "../src/world/TimeFreezeVfx";
+
+// The shader program mode registry is process-global; leaking `tsl` mode
+// into later test files would build node materials where GLSL is expected.
+afterEach(() => {
+  resetShaderProgramModeRegistryForTests();
+});
 
 describe("pickup frame stability", () => {
   test("prepares transparency once and changes opacity without invalidating materials", () => {

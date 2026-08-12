@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { afterEach, describe, expect, test } from "bun:test";
 import * as THREE from "three";
 import { MeshBasicNodeMaterial } from "three/webgpu";
 
@@ -32,6 +32,12 @@ function materialsOf(root: THREE.Group): THREE.Material[] {
   });
   return out;
 }
+
+// The shader program mode registry is process-global; leaking `tsl` mode
+// into later test files would build node materials where GLSL is expected.
+afterEach(() => {
+  resetShaderProgramModeRegistryForTests();
+});
 
 describe("atmosphere props — cobwebs", () => {
   test("cobweb uses a transparent NormalBlended shader that dulls (depthWrite off)", () => {
