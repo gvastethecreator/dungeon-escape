@@ -1,6 +1,8 @@
 import * as THREE from "three";
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
 
+import type { DungeonRenderer } from "./DungeonRenderer";
+
 import {
   INTERIOR_LIGHT_TUNING,
   MATERIAL_FILL_TUNING,
@@ -73,11 +75,12 @@ export class LightingRig {
 
   /**
    * One-shot PMREM from a neutral RoomEnvironment so MeshStandard metals
-   * leave flat gray. Safe to call once after WebGLRenderer exists.
+   * leave flat gray. Safe to call once after the play renderer exists.
    */
-  bindEnvironment(renderer: THREE.WebGLRenderer): void {
+  bindEnvironment(renderer: DungeonRenderer): void {
     if (this.envBound) return;
-    const pmrem = new THREE.PMREMGenerator(renderer);
+    // PMREMGenerator's constructor is still typed against the concrete WebGL path.
+    const pmrem = new THREE.PMREMGenerator(renderer as unknown as THREE.WebGLRenderer);
     pmrem.compileEquirectangularShader();
     const envScene = new RoomEnvironment();
     // Blur keeps reflections soft (interior grit, not chrome studio).

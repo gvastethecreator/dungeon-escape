@@ -209,7 +209,7 @@ describe("local dungeon continue save", () => {
     expect(source.slice(beforeUnloadStart)).toContain("localRunSave.flush();");
     expect(source.slice(beforeUnloadStart)).toContain("localRunSave.dispose();");
     expect(source).toContain("if (appDisposed) return;");
-    expect(source).toContain("cancelAnimationFrame(animationFrameId);");
+    expect(source).toContain("renderer.setAnimationLoop(null);");
     expect([...source.matchAll(/renderer\.dispose\(\)/g)]).toHaveLength(1);
   });
 

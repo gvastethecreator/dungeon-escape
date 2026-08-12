@@ -3,7 +3,10 @@
  * Firefox and low-end hosts choke on high-cost render profiles + CRT history passes.
  */
 
-import type { LaunchRenderOverrides } from "../launch/LaunchConfiguration";
+import type {
+  LaunchRendererPreference,
+  LaunchRenderOverrides,
+} from "../launch/LaunchConfiguration";
 
 export interface RenderCapabilityProfile {
   readonly isFirefox: boolean;
@@ -22,6 +25,8 @@ export interface RenderCapabilityProfile {
   readonly rendererReadyTimeoutMs: number;
   /** Soften grain/CRT motion cost when frames already miss budget. */
   readonly adaptiveCrtDisableMs: number;
+  /** Requested backend from launch configuration (`auto` when unset). */
+  readonly requestedRenderer: LaunchRendererPreference;
 }
 
 export interface RenderCapabilityInput {
@@ -118,6 +123,21 @@ export function detectRenderCapabilities(
   const forceSafe = input.overrides
     ? input.overrides.safeRender
     : readQueryFlag(search, "safeRender");
+  const requestedRenderer: LaunchRendererPreference = input.overrides
+    ? input.overrides.renderer
+    : (() => {
+        const raw = (() => {
+          try {
+            const params = new URLSearchParams(
+              search.startsWith("?") ? search.slice(1) : search,
+            );
+            return params.get("renderer")?.trim().toLowerCase() ?? null;
+          } catch {
+            return null;
+          }
+        })();
+        return raw === "webgpu" || raw === "webgl" || raw === "auto" ? raw : "auto";
+      })();
 
   const safeMode = forceSafe === true || (forceQuality === false && forceSafe !== false);
   const treatAsConstrained = safeMode || isFirefox || isLowEnd;
@@ -150,5 +170,6 @@ export function detectRenderCapabilities(
     telemetryPath,
     rendererReadyTimeoutMs: shortWarmupDeadline ? 2_500 : 8_000,
     adaptiveCrtDisableMs: treatAsConstrained ? 28 : 36,
+    requestedRenderer,
   };
 }
