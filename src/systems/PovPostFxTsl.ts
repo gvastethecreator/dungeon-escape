@@ -1,9 +1,17 @@
 /**
  * WGP-18: TSL / RenderPipeline path for PovPostFx (WebGPU).
- * WGP-19: CRT history ping-pong is stubbed — see TODO markers and AfterImageNode.js.
+ * WGP-19: CRT history ping-pong for the WebGPU path.
  */
 import * as THREE from "three";
-import { RenderPipeline } from "three/webgpu";
+import {
+  NodeMaterial,
+  NodeUpdateType,
+  QuadMesh,
+  RendererUtils,
+  RenderPipeline,
+  RenderTarget,
+  TempNode,
+} from "three/webgpu";
 import {
   Fn,
   clamp,
@@ -16,11 +24,13 @@ import {
   max,
   mix,
   mod,
+  passTexture,
   pass,
   select,
   sin,
   smoothstep,
   step,
+  texture,
   uniform,
   uv,
   vec2,
@@ -65,7 +75,6 @@ export interface PovPostFxTslUniformState {
   uVignette: any;
   uTime: any;
   uResolution: any;
-  /** Always 0 on TSL until WGP-19 wires history RTs. */
   uHistoryReady: any;
 }
 
@@ -155,7 +164,11 @@ const crtPhosphorMask = /*@__PURE__*/ Fn(([pixel]: [any]) => {
   return mask.mul(grille);
 });
 
-function buildCompositeNode(inputTexture: any, u: PovPostFxTslUniformState): any {
+function buildCompositeNode(
+  inputTexture: any,
+  historyTexture: any | null,
+  u: PovPostFxTslUniformState,
+): any {
   // Composite body uses loose node typing — @types/three TSL overloads collapse
   // valid graphs to `never` (same expand pattern as TextureTreatment TSL helpers).
   return Fn((): any => {
@@ -246,16 +259,19 @@ function buildCompositeNode(inputTexture: any, u: PovPostFxTslUniformState): any
       ),
     );
 
-    // TODO(WGP-19): CRT history persistence.
-    // Study three/addons/tsl/display/AfterImageNode.js for ping-pong RTs (_compRT/_oldRT
-    // swap in updateBefore), but keep this game's formula:
-    //   decayedHistory = history * vec3(0.93, 0.95, 0.92)
-    //   persistence = smoothstep(0.012, 0.24, max(luma(decayed) - luma(graded), 0))
-    //                 * uHistoryReady * uCrtEnabled * uCrtPersistence
-    //   graded = mix(graded, max(graded, decayed), persistence)
-    // Until history RTs are wired, uHistoryReady stays 0 so this is a no-op.
-    const historyPersistence = u.uHistoryReady.mul(u.uCrtEnabled).mul(u.uCrtPersistence);
-    gradedColor.assign(mix(gradedColor, gradedColor, historyPersistence.mul(0)));
+    if (historyTexture) {
+      const historyColor = historyTexture.sample(clamp(uvG, 0, 1)).rgb;
+      const decayedHistory = historyColor.mul(vec3(0.93, 0.95, 0.92));
+      const historyDelta = max(rec601Luma(decayedHistory).sub(rec601Luma(gradedColor)), 0);
+      const persistence = smoothstep(0.012, 0.24, historyDelta)
+        .mul(u.uHistoryReady)
+        .mul(u.uCrtEnabled)
+        .mul(u.uCrtPersistence);
+      // Loose cast: vec3 max/mix overloads collapse under @types/three TSL.
+      gradedColor.assign(
+        (mix as any)(gradedColor, (max as any)(gradedColor, decayedHistory), persistence),
+      );
+    }
 
     const grainFrame = floor(u.uTime.mul(18));
     const grainCoord = floor(viewportCoordinate.xy);
@@ -290,6 +306,132 @@ function buildCompositeNode(inputTexture: any, u: PovPostFxTslUniformState): any
   })();
 }
 
+const rendererState = { current: undefined as unknown };
+const historyQuad = /*@__PURE__*/ new QuadMesh();
+const HistoryTempNode = TempNode as unknown as { new (type: string): any };
+
+class PovCrtHistoryNode extends HistoryTempNode {
+  readonly textureNode: any;
+  private readonly uniforms: PovPostFxTslUniformState;
+  private compTarget: RenderTarget;
+  private oldTarget: RenderTarget;
+  private readonly outputTextureNode: any;
+  private readonly oldTextureNode: any;
+  private materialComposed: NodeMaterial | null = null;
+  private historyReady = false;
+  private clearPending = true;
+
+  constructor(textureNode: any, uniforms: PovPostFxTslUniformState) {
+    super("vec4");
+    this.textureNode = textureNode;
+    this.uniforms = uniforms;
+    this.compTarget = this.createHistoryTarget("PovPostFxTsl.history.comp");
+    this.oldTarget = this.createHistoryTarget("PovPostFxTsl.history.old");
+    this.outputTextureNode = (passTexture as any)(this, this.compTarget.texture);
+    this.oldTextureNode = texture(this.oldTarget.texture);
+    this.updateBeforeType = NodeUpdateType.FRAME;
+  }
+
+  getTextureNode(): any {
+    return this.outputTextureNode;
+  }
+
+  getHistoryTargets(): readonly [RenderTarget, RenderTarget] {
+    return [this.compTarget, this.oldTarget] as const;
+  }
+
+  setSize(width: number, height: number): void {
+    const w = Math.max(1, Math.round(width));
+    const h = Math.max(1, Math.round(height));
+    this.compTarget.setSize(w, h);
+    this.oldTarget.setSize(w, h);
+    this.reset();
+  }
+
+  reset(): void {
+    this.historyReady = false;
+    this.clearPending = true;
+    this.uniforms.uHistoryReady.value = 0;
+  }
+
+  updateBefore(frame: any): void {
+    const renderer = frame.renderer;
+    rendererState.current = (RendererUtils.resetRendererState as any)(
+      renderer,
+      rendererState.current,
+    );
+
+    try {
+      this.syncTextureNodes();
+      if (this.clearPending) {
+        this.clearTarget(renderer, this.compTarget);
+        this.clearTarget(renderer, this.oldTarget);
+        this.clearPending = false;
+      }
+
+      this.uniforms.uHistoryReady.value = this.historyReady ? 1 : 0;
+      historyQuad.material = this.materialComposed!;
+      historyQuad.name = "PovPostFxTsl CRT history";
+
+      renderer.setRenderTarget(this.compTarget);
+      renderer.clear();
+      historyQuad.render(renderer);
+
+      const renderedTarget = this.compTarget;
+      this.compTarget = this.oldTarget;
+      this.oldTarget = renderedTarget;
+      this.historyReady = this.uniforms.uCrtEnabled.value > 0;
+    } finally {
+      (RendererUtils.restoreRendererState as any)(renderer, rendererState.current);
+    }
+  }
+
+  setup(builder: any): any {
+    this.oldTextureNode.uvNode = this.textureNode.uvNode || uv();
+    const material =
+      this.materialComposed || (this.materialComposed = new NodeMaterial());
+    material.name = "PovPostFxTsl CRT history";
+    material.fragmentNode = buildCompositeNode(
+      this.textureNode,
+      this.oldTextureNode,
+      this.uniforms,
+    );
+
+    const properties = builder.getNodeProperties(this);
+    properties.textureNode = this.textureNode;
+
+    return this.outputTextureNode;
+  }
+
+  dispose(): void {
+    this.compTarget.dispose();
+    this.oldTarget.dispose();
+    this.materialComposed?.dispose();
+    this.materialComposed = null;
+  }
+
+  private createHistoryTarget(name: string): RenderTarget {
+    const target = new RenderTarget(1, 1, {
+      depthBuffer: false,
+      stencilBuffer: false,
+    });
+    target.texture.name = name;
+    target.texture.generateMipmaps = false;
+    target.texture.colorSpace = THREE.NoColorSpace;
+    return target;
+  }
+
+  private syncTextureNodes(): void {
+    this.outputTextureNode.value = this.compTarget.texture;
+    this.oldTextureNode.value = this.oldTarget.texture;
+  }
+
+  private clearTarget(renderer: any, target: RenderTarget): void {
+    renderer.setRenderTarget(target);
+    renderer.clear(true, true, true);
+  }
+}
+
 /**
  * Owns the WebGPU RenderPipeline + scene pass for PovPostFx.
  */
@@ -297,6 +439,10 @@ export class PovPostFxTslPipeline {
   private readonly uniforms: PovPostFxTslUniformState;
   private pipeline: RenderPipeline | null = null;
   private scenePass: ReturnType<typeof pass> | null = null;
+  private historyNode: PovCrtHistoryNode | null = null;
+  private crtEnabled = true;
+  private historyWidth = 1;
+  private historyHeight = 1;
 
   constructor(uniforms: PovPostFxTslUniformState) {
     this.uniforms = uniforms;
@@ -313,15 +459,40 @@ export class PovPostFxTslPipeline {
     // Effects run in working space; pipeline applies tone map + color space at the end.
     this.pipeline.outputColorTransform = true;
     const beauty = this.scenePass.getTextureNode("output");
-    this.pipeline.outputNode = buildCompositeNode(beauty, this.uniforms);
+    this.historyNode = new PovCrtHistoryNode(beauty, this.uniforms);
+    this.historyNode.setSize(this.historyWidth, this.historyHeight);
+    this.updateOutputNode();
+  }
+
+  setCrtEnabled(value: boolean): void {
+    if (this.crtEnabled === value) return;
+    this.crtEnabled = value;
+    this.resetHistory();
+    this.updateOutputNode();
+  }
+
+  resetHistory(): void {
+    this.historyNode?.reset();
+    this.uniforms.uHistoryReady.value = 0;
+  }
+
+  private updateOutputNode(): void {
+    if (!this.pipeline || !this.scenePass) return;
+    const beauty = this.scenePass.getTextureNode("output");
+    this.pipeline.outputNode = this.crtEnabled
+      ? this.historyNode!.getTextureNode()
+      : buildCompositeNode(beauty, null, this.uniforms);
     this.pipeline.needsUpdate = true;
   }
 
   setSize(width: number, height: number): void {
-    // CRT history buffers would use POV_CRT_RENDER_SCALE here (WGP-19).
-    const crtWidth = Math.max(1, Math.round(width * POV_CRT_RENDER_SCALE));
-    const crtHeight = Math.max(1, Math.round(height * POV_CRT_RENDER_SCALE));
-    (this.uniforms.uResolution.value as THREE.Vector2).set(crtWidth, crtHeight);
+    this.historyWidth = Math.max(1, Math.round(width * POV_CRT_RENDER_SCALE));
+    this.historyHeight = Math.max(1, Math.round(height * POV_CRT_RENDER_SCALE));
+    (this.uniforms.uResolution.value as THREE.Vector2).set(
+      this.historyWidth,
+      this.historyHeight,
+    );
+    this.historyNode?.setSize(this.historyWidth, this.historyHeight);
   }
 
   applyDisplayTuning(tuning: DisplayPostFxTuning): void {
@@ -340,7 +511,9 @@ export class PovPostFxTslPipeline {
   dispose(): void {
     this.pipeline?.dispose();
     this.scenePass?.dispose();
+    this.historyNode?.dispose();
     this.pipeline = null;
     this.scenePass = null;
+    this.historyNode = null;
   }
 }

@@ -7,7 +7,10 @@ import {
   POV_CRT_RENDER_SCALE,
   PovPostFx,
 } from "../src/systems/PovPostFx";
-import { createPovPostFxTslUniforms } from "../src/systems/PovPostFxTsl";
+import {
+  createPovPostFxTslUniforms,
+  PovPostFxTslPipeline,
+} from "../src/systems/PovPostFxTsl";
 
 interface PovPostFxInternals {
   sceneTarget: THREE.WebGLRenderTarget;
@@ -16,6 +19,16 @@ interface PovPostFxInternals {
   material: THREE.ShaderMaterial;
   programMode: "glsl" | "tsl";
   tslUniforms: ReturnType<typeof createPovPostFxTslUniforms> | null;
+  tslPipeline: PovPostFxTslPipeline | null;
+}
+
+interface PovPostFxTslPipelineInternals {
+  historyNode: {
+    getHistoryTargets(): readonly [
+      { width: number; height: number },
+      { width: number; height: number },
+    ];
+  } | null;
 }
 
 describe("POV CRT post effect", () => {
@@ -193,7 +206,7 @@ describe("POV CRT post effect", () => {
     post.dispose();
   });
 
-  test("TSL program mode builds Rec.601 luma and pincushion (not barrelUV)", async () => {
+  test("TSL program mode builds Rec.601 CRT history and pincushion (not barrelUV)", async () => {
     const post = new PovPostFx({ programMode: "tsl" });
     const internals = post as unknown as PovPostFxInternals;
     const tslSource = await Bun.file(
@@ -209,8 +222,10 @@ describe("POV CRT post effect", () => {
     expect(tslSource).not.toMatch(/\bbarrelUV\b/);
     expect(tslSource).not.toContain("from \"three/addons/tsl/display/CRT.js\"");
     expect(tslSource).not.toMatch(/\bluminance\s*\(/);
-    expect(tslSource).toContain("TODO(WGP-19)");
-    expect(tslSource).toContain("AfterImageNode");
+    expect(tslSource).toContain("PovCrtHistoryNode");
+    expect(tslSource).toContain("passTexture");
+    expect(tslSource).toContain("decayedHistory");
+    expect(tslSource).toContain("smoothstep(0.012, 0.24, historyDelta)");
     expect(tslSource).toContain("RenderPipeline");
 
     post.setHazardFeel(0.5, 0.25, 0.1, 0.2);
@@ -219,6 +234,30 @@ describe("POV CRT post effect", () => {
 
     post.setCrtEnabled(false);
     expect(internals.tslUniforms!.uCrtEnabled.value).toBe(0);
+    expect(internals.tslUniforms!.uHistoryReady.value).toBe(0);
+
+    post.dispose();
+  });
+
+  test("TSL history buffers use the CRT render scale and reset latch", () => {
+    const post = new PovPostFx({ programMode: "tsl" });
+    const internals = post as unknown as PovPostFxInternals;
+    const scene = new THREE.Scene();
+    const camera = new THREE.Camera();
+
+    post.setSize(1000, 700, 0.7);
+    internals.tslPipeline!.ensure({} as never, scene, camera);
+
+    const pipelineInternals = internals.tslPipeline as unknown as PovPostFxTslPipelineInternals;
+    expect(internals.tslUniforms!.uResolution.value.x).toBe(560);
+    expect(internals.tslUniforms!.uResolution.value.y).toBe(392);
+    for (const target of pipelineInternals.historyNode!.getHistoryTargets()) {
+      expect(target.width).toBe(560);
+      expect(target.height).toBe(392);
+    }
+
+    internals.tslUniforms!.uHistoryReady.value = 1;
+    post.resetCrtHistory();
     expect(internals.tslUniforms!.uHistoryReady.value).toBe(0);
 
     post.dispose();
