@@ -4,8 +4,41 @@ import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 import { FLOOR } from "../dungeon/generateDungeon";
 import type { DungeonData, GridCell } from "../dungeon/types";
 import type { BiomeId } from "../systems/BiomeIdentity";
+import {
+  getShaderProgramModeRegistry,
+  onShaderProgramModeRegistryChange,
+  type ShaderProgramMode,
+} from "../systems/ShaderProgramMode";
 import { getBiomePortalProfile, type BiomePortalProfile } from "./BiomePortalProfile";
+import { createMagicPortalShaderMaterialTsl } from "./MagicPortalKit.tsl";
+import type {
+  MagicPortalShaderMaterial,
+  MagicPortalShaderVariant,
+  MagicPortalUniformHandles,
+} from "./MagicPortalKitShared";
 import type { DungeonMaterials } from "./MaterialLibrary";
+
+export type {
+  MagicPortalShaderMaterial,
+  MagicPortalShaderVariant,
+  MagicPortalUniformHandles,
+} from "./MagicPortalKitShared";
+
+/** ShaderProgramMode factory id for magic portal field and spiral layers. */
+export const MAGIC_PORTAL_SHADER_FACTORY_ID = "magic-portal";
+
+/** Register (or refresh) dual-mode support on the active shader program registry. */
+export function registerMagicPortalShaderFactory(
+  registry = getShaderProgramModeRegistry(),
+): void {
+  registry.register({
+    id: MAGIC_PORTAL_SHADER_FACTORY_ID,
+    supports: ["glsl", "tsl"],
+  });
+}
+
+registerMagicPortalShaderFactory();
+onShaderProgramModeRegistryChange(registerMagicPortalShaderFactory);
 
 export const MAGIC_PORTAL_ENTRY_RADIUS = 0.7;
 
@@ -124,8 +157,8 @@ const PORTAL_SPIRAL_FRAGMENT_SHADER = /* glsl */ `
 export interface MagicPortalInterior {
   root: THREE.Group;
   veil: THREE.Mesh<THREE.ShapeGeometry, THREE.MeshBasicMaterial>;
-  vortex: THREE.Mesh<THREE.ShapeGeometry, THREE.ShaderMaterial>;
-  spiral: THREE.Mesh<THREE.ShapeGeometry, THREE.ShaderMaterial>;
+  vortex: THREE.Mesh<THREE.ShapeGeometry, MagicPortalShaderMaterial>;
+  spiral: THREE.Mesh<THREE.ShapeGeometry, MagicPortalShaderMaterial>;
   runeArch: THREE.Mesh<THREE.TubeGeometry, THREE.MeshBasicMaterial>;
   runes: THREE.InstancedMesh<THREE.OctahedronGeometry, THREE.MeshBasicMaterial>;
 }
@@ -1048,11 +1081,12 @@ function createPortalRunes(
   return runes;
 }
 
-function portalShaderMaterial(
+function portalShaderMaterialGlsl(
   fragmentShader: string,
   profile: Readonly<BiomePortalProfile>,
+  variant: MagicPortalShaderVariant,
 ): THREE.ShaderMaterial {
-  return new THREE.ShaderMaterial({
+  const material = new THREE.ShaderMaterial({
     uniforms: {
       uTime: { value: 0 },
       uDeepColor: { value: new THREE.Color(profile.deepColor) },
@@ -1073,12 +1107,62 @@ function portalShaderMaterial(
     blending: THREE.AdditiveBlending,
     toneMapped: false,
   });
+  material.name =
+    variant === "field"
+      ? `${profile.biomeId} portal vortex field material`
+      : `${profile.biomeId} portal spiral current material`;
+  material.userData.shaderProgramMode = "glsl";
+  material.userData.magicPortalVariant = variant;
+  const handles: MagicPortalUniformHandles = {
+    uTime: material.uniforms.uTime!,
+    uDeepColor: material.uniforms.uDeepColor!,
+    uMagicColor: material.uniforms.uMagicColor!,
+    uBrightColor: material.uniforms.uBrightColor!,
+    uPrimaryArms: material.uniforms.uPrimaryArms!,
+    uSecondaryArms: material.uniforms.uSecondaryArms!,
+    uRadialFrequency: material.uniforms.uRadialFrequency!,
+    uFlowSpeed: material.uniforms.uFlowSpeed!,
+    uCounterSpeed: material.uniforms.uCounterSpeed!,
+    uSpiralSharpness: material.uniforms.uSpiralSharpness!,
+  };
+  material.userData.magicPortalHandles = handles;
+  return material;
+}
+
+function portalShaderMaterial(
+  profile: Readonly<BiomePortalProfile>,
+  variant: MagicPortalShaderVariant,
+  mode?: ShaderProgramMode,
+): MagicPortalShaderMaterial {
+  registerMagicPortalShaderFactory();
+  const registry = getShaderProgramModeRegistry();
+  const resolved = mode ?? registry.mode;
+  registry.require(MAGIC_PORTAL_SHADER_FACTORY_ID, resolved);
+
+  if (resolved === "tsl") {
+    return createMagicPortalShaderMaterialTsl(profile, variant);
+  }
+  return portalShaderMaterialGlsl(
+    variant === "field" ? PORTAL_FIELD_FRAGMENT_SHADER : PORTAL_SPIRAL_FRAGMENT_SHADER,
+    profile,
+    variant,
+  );
+}
+
+function magicPortalTimeHandle(material: THREE.Material): { value: number } | null {
+  const handles = material.userData.magicPortalHandles as MagicPortalUniformHandles | undefined;
+  if (handles?.uTime) return handles.uTime;
+  if (material instanceof THREE.ShaderMaterial && material.uniforms.uTime) {
+    return material.uniforms.uTime as { value: number };
+  }
+  return null;
 }
 
 /** Animated layers fill the whole arch instead of forming a disc in its center. */
 export function createMagicPortalInterior(
   profile: Readonly<BiomePortalProfile> = getBiomePortalProfile("ancient"),
   sharedFlatMaterial?: THREE.MeshBasicMaterial,
+  mode?: ShaderProgramMode,
 ): MagicPortalInterior {
   const root = new THREE.Group();
   root.name = MAGIC_PORTAL_NAMES.interior;
@@ -1102,18 +1186,12 @@ export function createMagicPortalInterior(
   veil.name = MAGIC_PORTAL_NAMES.veil;
   veil.renderOrder = 2;
 
-  const vortex = new THREE.Mesh(
-    apertureGeometry,
-    portalShaderMaterial(PORTAL_FIELD_FRAGMENT_SHADER, profile),
-  );
+  const vortex = new THREE.Mesh(apertureGeometry, portalShaderMaterial(profile, "field", mode));
   vortex.name = MAGIC_PORTAL_NAMES.vortex;
   vortex.position.z = 0.014;
   vortex.renderOrder = 3;
 
-  const spiral = new THREE.Mesh(
-    apertureGeometry,
-    portalShaderMaterial(PORTAL_SPIRAL_FRAGMENT_SHADER, profile),
-  );
+  const spiral = new THREE.Mesh(apertureGeometry, portalShaderMaterial(profile, "spiral", mode));
   spiral.name = MAGIC_PORTAL_NAMES.spiral;
   spiral.position.z = 0.032;
   spiral.renderOrder = 4;
@@ -1136,6 +1214,7 @@ export function createMagicPortalInterior(
 export function createBiomeMagicPortal(
   biomeId: BiomeId,
   materials: DungeonMaterials,
+  mode?: ShaderProgramMode,
 ): BiomeMagicPortal {
   const profile = getBiomePortalProfile(biomeId);
   const root = new THREE.Group();
@@ -1184,7 +1263,7 @@ export function createBiomeMagicPortal(
   sealedVeil.position.z = -0.09;
   sealedVeil.renderOrder = 1;
 
-  const interior = createMagicPortalInterior(profile, flatMagicMaterial);
+  const interior = createMagicPortalInterior(profile, flatMagicMaterial, mode);
   root.add(frame, sealedVeil, seal, trim, interior.root);
   root.userData.asset = "entrance-portal-gate";
   root.userData.reference =
@@ -1275,9 +1354,9 @@ export function updateMagicPortal(portalRoot: THREE.Object3D, elapsed: number): 
 
   for (const name of [MAGIC_PORTAL_NAMES.vortex, MAGIC_PORTAL_NAMES.spiral]) {
     const layer = portalRoot.getObjectByName(name);
-    if (layer instanceof THREE.Mesh && layer.material instanceof THREE.ShaderMaterial) {
-      layer.material.uniforms.uTime!.value = elapsed;
-    }
+    if (!(layer instanceof THREE.Mesh)) continue;
+    const timeHandle = magicPortalTimeHandle(layer.material);
+    if (timeHandle) timeHandle.value = elapsed;
   }
 
   const runeArch = portalRoot.getObjectByName(MAGIC_PORTAL_NAMES.runeArch);
