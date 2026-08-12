@@ -80,6 +80,7 @@ import { FrameGapProfiler, type FrameGapSnapshot } from "./systems/FrameGapProfi
 import type { BiomeEventSnapshot } from "./systems/BiomeEventDirector";
 import {
   detectRenderCapabilities,
+  recalibrateRenderCapabilitiesForBackend,
   detectRendererCompileCapabilities,
 } from "./systems/RenderCapabilities";
 import type { DungeonRenderer } from "./systems/DungeonRenderer";
@@ -524,6 +525,10 @@ const webGlRenderer =
     : null;
 const rendererInitDurationMs = playRendererHandle.initDurationMs;
 const shaderProgramMode: ShaderProgramMode = playRendererHandle.isWebGpuRenderer ? "tsl" : "glsl";
+const calibratedRenderPathCaps = recalibrateRenderCapabilitiesForBackend(
+  renderPathCaps,
+  playRendererHandle.backend,
+);
 setShaderProgramModeRegistry(createShaderProgramModeRegistry(shaderProgramMode));
 const { registerDungeonSurfaceShaderFactory } = await import("./world/TextureTreatment");
 const { registerNoiseFlameShaderFactory } = await import("./world/ProceduralFlameVfx");
@@ -537,6 +542,8 @@ const { registerAnnihilationBurstShaderFactory } = await import("./world/Annihil
 const { registerPickupBurstSparksShaderFactory } = await import("./world/PickupBurstPool");
 const { registerSoftGroundFogShaderFactory } = await import("./systems/SoftGroundFogMaterial");
 const { registerBiomeParticleShaderFactory } = await import("./systems/BiomeParticleMaterial");
+const { registerLuminousWardShaderFactories } = await import("./world/LuminousWardVfx");
+const { registerBiomeDecorShaderFactories } = await import("./world/BiomeDecorMaterial");
 registerDungeonSurfaceShaderFactory();
 registerNoiseFlameShaderFactory();
 registerVolumetricBeamShaderFactory();
@@ -549,17 +556,23 @@ registerAnnihilationBurstShaderFactory();
 registerPickupBurstSparksShaderFactory();
 registerSoftGroundFogShaderFactory();
 registerBiomeParticleShaderFactory();
+registerLuminousWardShaderFactories();
+registerBiomeDecorShaderFactories();
 console.info("[renderer-init]", {
   durationMs: Math.round(rendererInitDurationMs),
-  requestedRenderer: renderPathCaps.requestedRenderer,
+  requestedRenderer: calibratedRenderPathCaps.requestedRenderer,
   backend: playRendererHandle.backend,
   backendName: readPlayRendererBackendName(playRendererHandle),
   fellBack: playRendererHandle.fellBack,
   fallbackReason: playRendererHandle.fallbackReason,
   shaderProgramMode,
+  capabilityPath: calibratedRenderPathCaps.telemetryPath,
+  pixelRatioCap: calibratedRenderPathCaps.pixelRatioCap,
+  adaptiveCrtDisableMs: calibratedRenderPathCaps.adaptiveCrtDisableMs,
 });
 if (typeof globalThis !== "undefined") {
   (globalThis as { __rendererInfo?: unknown }).__rendererInfo = {
+    app: "play",
     requested: playRendererHandle.requested,
     backend: playRendererHandle.backend,
     backendName: readPlayRendererBackendName(playRendererHandle),
@@ -567,12 +580,16 @@ if (typeof globalThis !== "undefined") {
     fallbackReason: playRendererHandle.fallbackReason,
     isWebGpuRenderer: playRendererHandle.isWebGpuRenderer,
     shaderProgramMode,
-    capabilityPath: renderPathCaps.telemetryPath,
+    capabilityPath: calibratedRenderPathCaps.telemetryPath,
+    resolvedBackend: calibratedRenderPathCaps.resolvedBackend,
+    pixelRatioCap: calibratedRenderPathCaps.pixelRatioCap,
+    adaptiveCrtDisableMs: calibratedRenderPathCaps.adaptiveCrtDisableMs,
+    allowAsyncShaderWarmup: calibratedRenderPathCaps.allowAsyncShaderWarmup,
     webgpuFlip: WEBGPU_FLIP_POLICY,
   };
 }
 const renderCaps = {
-  ...renderPathCaps,
+  ...calibratedRenderPathCaps,
   ...(webGlRenderer
     ? detectRendererCompileCapabilities(webGlRenderer)
     : {
@@ -580,7 +597,7 @@ const renderCaps = {
         hasParallelShaderCompile: false,
         canCompileAsync: false,
       }),
-  requestedRenderer: renderPathCaps.requestedRenderer,
+  requestedRenderer: calibratedRenderPathCaps.requestedRenderer,
 };
 // Three.js recommends keeping shader diagnostics in development, but each
 // program info-log read can serialize Chrome's shader compiler. The production
@@ -1922,6 +1939,9 @@ function markRendererWarmupReady(
   }
   if (inputEnabled) markDungeonLoadInputReady(trace);
   elements.shell.dataset.renderPath = renderCaps.telemetryPath;
+  elements.shell.dataset.rendererBackend = playRendererHandle.backend;
+  elements.shell.dataset.shaderProgramMode = shaderProgramMode;
+  elements.shell.dataset.webgpuFlipCohort = WEBGPU_FLIP_POLICY.cohort;
   if (localDevTools && readyMs !== undefined) {
     setStatus(`${readyMessage} Renderer ready in ${readyMs}ms.`);
   } else if (engineMode === "play") {
