@@ -67,7 +67,10 @@ function cancellableIntroRequest(): RunIntroRequest {
 describe("DungeonLoadTrace", () => {
   test("forwards world observation and completes only after warmup's first usable frame", () => {
     let now = 10;
-    const trace = new DungeonLoadTrace({ clock: () => now, loadId: "load-order" });
+    const trace = new DungeonLoadTrace({
+      clock: () => now,
+      loadId: "load-order",
+    });
     const world = new TraceAwareWorld((milliseconds) => {
       now += milliseconds;
     });
@@ -114,7 +117,10 @@ describe("DungeonLoadTrace", () => {
 
   test("records warmup work separately from the wait span", () => {
     let now = 0;
-    const trace = new DungeonLoadTrace({ clock: () => now, loadId: "warmup-work" });
+    const trace = new DungeonLoadTrace({
+      clock: () => now,
+      loadId: "warmup-work",
+    });
     trace.begin("warmup");
     now = 5;
     expect(trace.recordWarmupWorkMs(12.4)).toBe(true);
@@ -134,7 +140,10 @@ describe("DungeonLoadTrace", () => {
 
   test("accepts a first frame only inside warmup and completes only after its input handoff", () => {
     let now = 0;
-    const invalid = new DungeonLoadTrace({ clock: () => now, loadId: "invalid-warmup-order" });
+    const invalid = new DungeonLoadTrace({
+      clock: () => now,
+      loadId: "invalid-warmup-order",
+    });
 
     expect(invalid.markFirstUsableFrame()).toBe(false);
     expect(invalid.isPhaseOpen("warmup")).toBe(false);
@@ -148,7 +157,10 @@ describe("DungeonLoadTrace", () => {
     expect(invalid.finish("complete")).toBeNull();
     expect(invalid.isOpen).toBe(true);
 
-    const valid = new DungeonLoadTrace({ clock: () => now, loadId: "valid-warmup-order" });
+    const valid = new DungeonLoadTrace({
+      clock: () => now,
+      loadId: "valid-warmup-order",
+    });
     valid.begin("warmup");
     now = 8;
     expect(valid.markFirstUsableFrame()).toBe(true);
@@ -166,7 +178,10 @@ describe("DungeonLoadTrace", () => {
 
   test("keeps missing phases null and has only the declared terminal outcomes", () => {
     let now = 0;
-    const errorTrace = new DungeonLoadTrace({ clock: () => now, loadId: "load-error" });
+    const errorTrace = new DungeonLoadTrace({
+      clock: () => now,
+      loadId: "load-error",
+    });
     errorTrace.begin("generation");
     now = 6;
     const error = errorTrace.finish("error", "generation failed");
@@ -182,12 +197,18 @@ describe("DungeonLoadTrace", () => {
       inputReady: null,
     });
 
-    const timeoutTrace = new DungeonLoadTrace({ clock: () => now, loadId: "load-timeout" });
+    const timeoutTrace = new DungeonLoadTrace({
+      clock: () => now,
+      loadId: "load-timeout",
+    });
     timeoutTrace.begin("warmup");
     now = 13;
     expect(timeoutTrace.finish("timeout")?.terminal).toBe("timeout");
 
-    const incompleteTrace = new DungeonLoadTrace({ clock: () => now, loadId: "load-incomplete" });
+    const incompleteTrace = new DungeonLoadTrace({
+      clock: () => now,
+      loadId: "load-incomplete",
+    });
     expect(incompleteTrace.finish("complete")).toBeNull();
     expect(incompleteTrace.markInputReady()).toBe(false);
     expect(incompleteTrace.isOpen).toBe(true);
@@ -324,7 +345,10 @@ describe("DungeonLoadTrace", () => {
     };
 
     expect(runDirectRebuild()).toBeNull();
-    expect(await running).toMatchObject({ kind: "cancelled", reason: "cancelled" });
+    expect(await running).toMatchObject({
+      kind: "cancelled",
+      reason: "cancelled",
+    });
     expect(controller.finish(introTrace, "error")).toBeNull();
     expect(rebuildCallbackExecuted).toBe(false);
     expect(sequence).toBe(1);
@@ -343,7 +367,10 @@ describe("DungeonLoadTrace", () => {
     const normalSnapshot = controller.complete(normalTrace!);
     if (normalSnapshot) published.push(normalSnapshot);
 
-    expect(normalSnapshot).toMatchObject({ loadId: "intro-rebuild-2", terminal: "complete" });
+    expect(normalSnapshot).toMatchObject({
+      loadId: "intro-rebuild-2",
+      terminal: "complete",
+    });
     expect(published).toMatchObject([
       { loadId: "intro-rebuild-1", terminal: "error" },
       { loadId: "intro-rebuild-2", terminal: "complete" },
@@ -398,15 +425,20 @@ describe("DungeonLoadTrace", () => {
     expect(warmup.lastIndexOf("markRendererWarmupReady(")).toBeGreaterThan(
       warmup.indexOf("trace?.recordWarmupWorkMs(roundedWarmupWorkMs);"),
     );
-    const firstRafStart = warmup.indexOf("window.requestAnimationFrame(() =>");
-    expect(firstRafStart).toBeGreaterThan(-1);
+    const runWarmupStart = warmup.indexOf("const runWarmup = (): void =>");
     const staleWarmupStart = warmup.indexOf(
       "if (!isCurrentRendererWarmup(sequence, trace))",
-      firstRafStart,
+      runWarmupStart,
     );
     const currentWarmupStart = warmup.indexOf("let warmupError: unknown = null;", staleWarmupStart);
-    expect(staleWarmupStart).toBeGreaterThan(firstRafStart);
+    const firstRafStart = warmup.indexOf(
+      "window.requestAnimationFrame(runWarmup)",
+      currentWarmupStart,
+    );
+    expect(runWarmupStart).toBeGreaterThan(-1);
+    expect(staleWarmupStart).toBeGreaterThan(runWarmupStart);
     expect(currentWarmupStart).toBeGreaterThan(staleWarmupStart);
+    expect(firstRafStart).toBeGreaterThan(currentWarmupStart);
     expect(warmup.slice(staleWarmupStart, currentWarmupStart)).not.toContain(
       "setPickupEffectsWarmupVisible(false)",
     );

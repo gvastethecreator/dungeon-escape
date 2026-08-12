@@ -111,7 +111,9 @@ describe("render capabilities", () => {
   test("requires both renderer async compilation and parallel shader completion", () => {
     const supported = detectRendererCompileCapabilities({
       compileAsync() {},
-      extensions: { get: (name) => (name === "KHR_parallel_shader_compile" ? {} : null) },
+      extensions: {
+        get: (name) => (name === "KHR_parallel_shader_compile" ? {} : null),
+      },
     });
     expect(supported).toEqual({
       hasCompileAsync: true,
@@ -136,7 +138,12 @@ describe("render capabilities", () => {
       userAgent: "Mozilla/5.0 Firefox/153.0",
       hardwareConcurrency: 8,
       search: "?quality=1&crt=1",
-      overrides: { quality: null, crt: null, safeRender: null, renderer: "auto" },
+      overrides: {
+        quality: null,
+        crt: null,
+        safeRender: null,
+        renderer: "auto",
+      },
     });
 
     expect(caps.telemetryPath).toBe("firefox");
@@ -148,7 +155,12 @@ describe("render capabilities", () => {
   test("publishes requested renderer preference from overrides or search", () => {
     expect(
       detectRenderCapabilities({
-        overrides: { quality: null, crt: null, safeRender: null, renderer: "webgpu" },
+        overrides: {
+          quality: null,
+          crt: null,
+          safeRender: null,
+          renderer: "webgpu",
+        },
       }).requestedRenderer,
     ).toBe("webgpu");
     expect(
@@ -181,23 +193,22 @@ describe("render capabilities", () => {
     expect(webgl.pixelRatioCap).toBe(base.pixelRatioCap);
   });
 
-  test("main incrementally compiles supported resident floors without retaining replacement worlds", () => {
+  test("main renders one live warmup frame with bounded pickup representatives", () => {
     const source = readFileSync("src/main.ts", "utf8");
     const start = source.indexOf("function startRendererWarmup(");
     const end = source.indexOf("\nfunction clearObjectiveBannerTimers", start);
     const warmup = source.slice(start, end);
 
-    expect(warmup).toContain("renderCaps.allowAsyncShaderWarmup && renderCaps.canCompileAsync");
-    expect(warmup).toContain("compileRendererWarmupBatches()");
-    expect(warmup).toContain("povPost.warmup(renderer, scene, camera);");
+    expect(warmup).not.toContain("compileRendererWarmupBatches()");
+    expect(warmup).toContain("world.prepareVisibleZone(camera.position)");
+    expect(warmup).toContain("world.setPickupEffectsWarmupVisible(true)");
     expect(warmup).toContain("povPost.render(renderer, scene, camera);");
-    expect(source).toContain("webGlRenderer?.compileAsync?.bind(webGlRenderer)");
-    expect(source).toContain("await waitAnimationFrames(1);");
-    expect(source).toContain("ASYNC_SHADER_WARMUP_BUDGET_MS = 2_000");
-    expect(warmup).not.toContain("renderer.compile(");
+    expect(warmup).toContain("window.setTimeout(runWarmup, 250)");
+    expect(warmup).not.toContain("povPost.warmup(renderer, scene, camera);");
+    expect(source).not.toContain("ASYNC_SHADER_WARMUP_BUDGET_MS");
     expect(warmup).not.toContain("compileScene(");
     expect(warmup).not.toContain("rendererWarmupQueue");
-    expect(source).toContain("Do not retain a replaced world's roots");
+    expect(warmup).toContain("isCurrentRendererWarmup(sequence, trace)");
     expect(warmup).toContain("world.setPickupEffectsWarmupVisible(false);");
   });
 });

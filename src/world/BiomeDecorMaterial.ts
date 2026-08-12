@@ -29,6 +29,8 @@ export const BIOME_MUTED_PROP_SHADER_FACTORY_ID = "biome-muted-prop";
 export const BIOME_INTEGRATED_DECOR_SHADER_FACTORY_ID = "biome-integrated-decor";
 /** Second builder slot: floor/ceiling placements of the integrated decor. */
 export const BIOME_INTEGRATED_DECOR_FLOOR_TSL_BUILDER_ID = "biome-integrated-decor:floor";
+/** Wall cards need a restrained self-light floor to remain readable between torches. */
+export const BIOME_WALL_DECOR_EMISSIVE_INTENSITY = 0.9;
 
 export type BiomeDecorMaterial = THREE.MeshStandardMaterial | MeshStandardNodeMaterial;
 
@@ -169,9 +171,11 @@ function createBiomeWallDecalMaterialGlsl(
   const material = new THREE.MeshStandardMaterial({
     map: texture,
     color: biomeDecorTint(mood, "wall"),
-    emissive: new THREE.Color(palette.base),
+    // The authored atlas is intentionally dark; white self-light preserves its
+    // own hue instead of multiplying it by another low-value biome swatch.
+    emissive: new THREE.Color(0xffffff),
     emissiveMap: texture,
-    emissiveIntensity: 0.045,
+    emissiveIntensity: BIOME_WALL_DECOR_EMISSIVE_INTENSITY,
     transparent: true,
     opacity: 1,
     alphaTest,
@@ -197,7 +201,7 @@ function createBiomeWallDecalMaterialGlsl(
   material.userData.biomeMood = mood.id;
   material.userData.biomeSurfacePalette = palette;
   material.userData.biomeSurfacePaletteRole = "wall";
-  material.userData.visibilityBoost = 0.06;
+  material.userData.visibilityBoost = BIOME_WALL_DECOR_EMISSIVE_INTENSITY;
   material.userData.shaderProgramMode = "glsl";
   return material;
 }

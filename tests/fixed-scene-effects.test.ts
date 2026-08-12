@@ -65,6 +65,22 @@ describe("FixedSceneEffects", () => {
       swayAmplitude: 0.02,
       sharedMaterial: true,
     };
+    const clampedCeilingMesh = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), ceilingMaterial);
+    const clampedCeilingSprite: StaticCeilingBiomeSprite = {
+      mesh: clampedCeilingMesh,
+      material: ceilingMaterial,
+      baseOpacity: 1,
+      x: 0,
+      z: 0,
+      baseYaw: 0,
+      maxWallTurn: Math.PI / 6,
+      maxDistance: 10,
+      hysteresis: 2,
+      animationPhase: 0.4,
+      animationSpeed: 0.6,
+      swayAmplitude: 0.02,
+      sharedMaterial: true,
+    };
     const portalBeam = createVolumetricBeam();
     const stoneBeam = createVolumetricBeam();
     const ambientBeam = createVolumetricBeam();
@@ -78,7 +94,7 @@ describe("FixedSceneEffects", () => {
       dungeon: null,
       tileSize: 2.4,
       floorSprites: [sprite],
-      ceilingSprites: [ceilingSprite],
+      ceilingSprites: [ceilingSprite, clampedCeilingSprite],
       fires: [fire],
       portalBeam,
       stoneBeams: [stoneBeam],
@@ -119,6 +135,7 @@ describe("FixedSceneEffects", () => {
     expect(ceilingMaterial.opacity).toBe(1);
     expect(ceilingMesh.rotation.y).toBeCloseTo(Math.atan2(3, 4), 5);
     expect(ceilingMesh.rotation.z).not.toBe(0);
-    expect(effects.diagnostics.lastCeilingSpriteIterations).toBe(1);
+    expect(clampedCeilingMesh.rotation.y).toBeCloseTo(Math.PI / 6, 5);
+    expect(effects.diagnostics.lastCeilingSpriteIterations).toBe(2);
   });
 });

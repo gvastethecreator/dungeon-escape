@@ -528,6 +528,8 @@ try {
     `(async () => {
       const diag = window.__THREE_GAME_DIAGNOSTICS__;
       const ctrl = diag.getController();
+      ctrl.setControlMods?.({});
+      ctrl.setSurfaceMovement?.(1, 1);
       const candidates = [];
       diag.getScene().traverse((o) => {
         if (!o?.name || !o.name.includes('staircase')) return;
@@ -806,9 +808,14 @@ try {
       if (directionLength < 0.1) return { ok: false, reason: 'degenerate-stair-direction' };
       const climbX = directionX / directionLength;
       const climbZ = directionZ / directionLength;
-      const restoreX = Number(climbedTop?.x ?? lastTread.x + climbX * 0.45);
-      const restoreY = Number(climbedTop?.y ?? origin.y + stepCount * stepRise + standingEye);
-      const restoreZ = Number(climbedTop?.z ?? lastTread.z + climbZ * 0.45);
+      // The climb loop may stop as soon as the eye reaches story height, while
+      // the capsule is still overlapping the last riser. Start the reverse
+      // traversal on the authored upper landing instead of that early sample.
+      const restoreX = Number(lastTread.x + climbX * 0.45);
+      const restoreY = Number(origin.y + stepCount * stepRise + standingEye);
+      const restoreZ = Number(lastTread.z + climbZ * 0.45);
+      ctrl.setControlMods?.({});
+      ctrl.setSurfaceMovement?.(1, 1);
       const descendYaw = Number(climbedTop?.descendYaw ?? Math.atan2(climbX, climbZ));
       ctrl.setEnabled(false);
       const restoreOk = ctrl.restorePose({
@@ -825,14 +832,17 @@ try {
       }
       const restoredStartY = ctrl.getState().position.y;
       ctrl.setEnabled(true);
-      ctrl.setVirtualAction('forward', true);
+      // Obsidian can invert locomotion during this live biome-event window.
+      // Use the physical reverse action that currently points down the flight.
+      ctrl.setVirtualAction('backward', true);
       let lowY = ctrl.getState().position.y;
       const deadline = performance.now() + 10_000;
       while (performance.now() < deadline && lowY > origin.y + eye + 0.15) {
         await new Promise((r) => requestAnimationFrame(r));
         lowY = Math.min(lowY, ctrl.getState().position.y);
       }
-      ctrl.setVirtualAction('forward', false);
+      ctrl.setVirtualAction('backward', false);
+      const firstAttempt = ctrl.getState();
       let fallbackDirection = false;
       if (lowY > restoredStartY - 0.25) {
         fallbackDirection = true;
@@ -847,14 +857,14 @@ try {
         });
         ctrl.setEnabled(true);
         if (fallbackOk) {
-          ctrl.setVirtualAction('forward', true);
+          ctrl.setVirtualAction('backward', true);
           lowY = ctrl.getState().position.y;
           const fallbackDeadline = performance.now() + 10_000;
           while (performance.now() < fallbackDeadline && lowY > origin.y + eye + 0.15) {
             await new Promise((r) => requestAnimationFrame(r));
             lowY = Math.min(lowY, ctrl.getState().position.y);
           }
-          ctrl.setVirtualAction('forward', false);
+          ctrl.setVirtualAction('backward', false);
         }
       }
       for (let f = 0; f < 20; f += 1) await new Promise((r) => requestAnimationFrame(r));
@@ -870,6 +880,19 @@ try {
         dy: lowY - restoredStartY,
         restoredStartY,
         afterY: after.position.y,
+        restore: { x: restoreX, y: restoreY, z: restoreZ, yaw: descendYaw },
+        firstAttempt: {
+          x: firstAttempt.position.x,
+          y: firstAttempt.position.y,
+          z: firstAttempt.position.z,
+          cell: firstAttempt.cell,
+        },
+        after: {
+          x: after.position.x,
+          y: after.position.y,
+          z: after.position.z,
+          cell: after.cell,
+        },
         beforeFloor: bm ? Number(bm[1]) : null,
         afterFloor: am ? Number(am[1]) : null,
         beforeStats,
@@ -927,9 +950,6 @@ try {
       const ctrl = window.__THREE_GAME_DIAGNOSTICS__?.getController?.();
       if (!ctrl) return false;
       document.getElementById('options-resume')?.click();
-      ctrl.setVirtualAction('forward', true);
-      ctrl.setVirtualAction('sprint', true);
-      ctrl.setVirtualAction('turnRight', true);
       return true;
     })()`,
   );
@@ -944,9 +964,13 @@ try {
         textures: renderer.textures,
         materials: renderer.materials,
         programs: renderer.programs,
+        programProfiles: renderer.programProfiles,
       } : null;
     })()`,
   );
+  // Keep this window stationary. Traversal above already proves movement;
+  // wandering into a never-visited room would mix first-zone shader discovery
+  // with steady-state frame cadence and invalidate this profiler gate.
   await sleep(2_200 + PERF_SAMPLE_SECONDS * 1_000);
   const performance = await evaluate(
     ws,
@@ -970,6 +994,7 @@ try {
         textures: renderer.textures,
         materials: renderer.materials,
         programs: renderer.programs,
+        programProfiles: renderer.programProfiles,
       } : null;
     })()`,
   );

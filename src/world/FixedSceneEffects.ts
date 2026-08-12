@@ -231,7 +231,11 @@ export class FixedSceneEffects {
       prop.mesh.rotation.z =
         Math.sin(elapsed * prop.animationSpeed + prop.animationPhase) * prop.swayAmplitude;
       if (Math.abs(deltaX) + Math.abs(deltaZ) >= 0.0001) {
-        prop.mesh.rotation.y = Math.atan2(deltaX, deltaZ);
+        const targetYaw = Math.atan2(deltaX, deltaZ);
+        prop.mesh.rotation.y =
+          prop.maxWallTurn !== undefined
+            ? clampBiomeSpriteYaw(prop.baseYaw, targetYaw, prop.maxWallTurn)
+            : targetYaw;
       }
     }
   }
@@ -245,6 +249,16 @@ export class FixedSceneEffects {
     const lod = computeTorchLod(distance, effect.cutoffDistance);
     effect.root.visible = lod.rootVisible;
     effect.runtimeFixture?.setVisible(lod.rootVisible);
+    if (effect.taken) {
+      effect.flame.visible = false;
+      for (const detail of effect.flameDetails) detail.visible = false;
+      for (const halo of effect.halos) halo.visible = false;
+      effect.currentLightFactor = 0;
+      if (effect.light) {
+        effect.light.intensity = 0;
+      }
+      return;
+    }
     const fxFactor = effect.losOpen ? Math.max(lod.lightFactor, effect.currentLightFactor) : 0;
     const showFlame = fxFactor > 0.02;
     const showHalo = fxFactor > 0.08 && distance < Math.min(15, effect.cutoffDistance);

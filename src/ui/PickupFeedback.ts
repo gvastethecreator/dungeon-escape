@@ -8,6 +8,7 @@ export type PickupFeedbackKind =
   | "map"
   | "clarity"
   | "mobility"
+  | "hand-torch"
   | "annihilation-pulse"
   | "cull-brand"
   | "phoenix-egg"
@@ -29,6 +30,7 @@ export interface PickupFeedbackFlags {
   mapReveal?: boolean;
   fogClear?: boolean;
   mobilityBoost?: boolean;
+  handTorch?: boolean;
   annihilationPulse?: boolean;
   cullBrand?: boolean;
   phoenixEgg?: boolean;
@@ -68,6 +70,9 @@ export function projectPickupFeedback(flags: PickupFeedbackFlags = {}): PickupFe
   }
   if (flags.mobilityBoost) {
     return { kind: "mobility", kickerKey: "itemFound", restoreResolve };
+  }
+  if (flags.handTorch) {
+    return { kind: "hand-torch", kickerKey: "itemFound", restoreResolve };
   }
   if (flags.annihilationPulse) {
     return { kind: "annihilation-pulse", kickerKey: "itemFound", restoreResolve };

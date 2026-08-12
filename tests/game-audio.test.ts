@@ -52,7 +52,10 @@ describe("GameAudio dungeon soundscape", () => {
     audio.playChest({ x: 0.5, y: 1, z: -0.5 });
     audio.playPickup({ kind: "time-freeze", position: { x: 1, y: 1, z: 0 } });
     audio.playPickup({ kind: "luminous-ward", position: { x: 1, y: 1, z: 0 } });
-    audio.playPickup({ kind: "annihilation-pulse", position: { x: 1, y: 1, z: 0 } });
+    audio.playPickup({
+      kind: "annihilation-pulse",
+      position: { x: 1, y: 1, z: 0 },
+    });
     audio.playAnnihilationPulse({ x: 1, y: 1, z: 0 });
     audio.playCullBrandKill({ x: 1, y: 1, z: 0 });
     audio.playPhoenixRevive({ x: 1, y: 1, z: 0 });
@@ -332,19 +335,17 @@ describe("GameAudio dungeon soundscape", () => {
     expect(main).toContain("now - lastAudioFrameSync >= 125");
     expect(main).toContain("renderer.info.autoReset = false");
     expect(main).not.toContain("renderer.compile(");
-    // WebGPU has no KHR_parallel_shader_compile warmup, so async compile is
-    // bound from the WebGL renderer only.
-    expect(main).toContain("webGlRenderer?.compileAsync?.bind(webGlRenderer)");
-    expect(main).toContain("compileAsync(scene, camera)");
+    expect(main).toContain("povPost.render(renderer, scene, camera)");
+    expect(main).not.toContain("compileRendererWarmupBatches");
+    expect(main).not.toContain("compileAsync(deferredScene");
+    expect(main).toContain("world.setPickupEffectsWarmupVisible(true)");
     expect(main).toContain("renderWarmupReady");
   });
 
   test("any player gesture arms audio before the scene can capture pointer lock", async () => {
     const main = await Bun.file(new URL("../src/main.ts", import.meta.url)).text();
     const audio = await Bun.file(new URL("../src/audio/GameAudio.ts", import.meta.url)).text();
-    expect(main).toContain(
-      'document.addEventListener("pointerdown", unlockAudioFromGesture, { capture: true })',
-    );
+    expect(main).toContain('document.addEventListener("pointerdown", unlockAudioFromGesture, {');
     expect(main).toContain(
       'document.addEventListener("keydown", unlockAudioFromGesture, { capture: true })',
     );
@@ -478,6 +479,7 @@ describe("GameAudio dungeon soundscape", () => {
         enemies: [{ id: "near-goblin", voice: "goblin", x: 2, y: 1, z: 0 }],
         portal: null,
         moodId: "frost",
+        pickupKinds: ["stone", "time-freeze"],
       });
       const deadline = Date.now() + 2_000;
       while (Date.now() < deadline) {

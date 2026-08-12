@@ -5,6 +5,7 @@ import { CULL_BRAND_DURATION_SECONDS } from "../game/CullBrand";
 import { FOG_CLEAR_DURATION_SECONDS } from "../game/FogClear";
 import { FRENZY_CURSE_DURATION_SECONDS } from "../game/FrenzyCurse";
 import { GLOOM_CURSE_DURATION_SECONDS } from "../game/GloomCurse";
+import { HAND_TORCH_DURATION_SECONDS } from "../game/HandTorch";
 import { LUMINOUS_WARD_DURATION_SECONDS } from "../game/LuminousWard";
 import { MIRROR_CURSE_DURATION_SECONDS } from "../game/MirrorCurse";
 import { PHOENIX_REVIVE_RESOLVE } from "../game/PhoenixEgg";
@@ -41,6 +42,7 @@ export const COPY = {
     map: "Dungeon Map",
     mobility: "Wayfinder Draught",
     clarity: "Clear Air",
+    handTorch: "Wall Torch",
     swarmCurse: "Swarm Curse",
     slowCurse: "Heavy Limbs",
     frenzyCurse: "Blood Frenzy",
@@ -50,6 +52,7 @@ export const COPY = {
   },
   interaction: {
     openChest: "OPEN CHEST",
+    takeTorch: "TAKE TORCH",
   },
   stones: {
     ember: "Ember core",
@@ -64,7 +67,7 @@ export const COPY = {
     forgingMap: "Forging the dungeon…",
     enteringDungeon: "Entering the depths…",
     exploring:
-      "WASD or hold click move · Right-click or SPACE jump · SHIFT sprint · E interact · ESC options.",
+      "WASD or hold click move · Right-click or SPACE jump · SHIFT sprint · Q/E snap 90° · F interact · ESC options.",
     pointerReleased: "Paused. ESC or RESUME to continue.",
     pointerFailed: "Could not capture the pointer. Click the scene to retry.",
     pointerBlocked: "The browser blocked the pointer. Click the scene to retry.",
@@ -80,6 +83,7 @@ export const COPY = {
     map: "Dungeon map found. Every room and route is now visible.",
     mobility: "Speed and stamina boosted. Floor traps cannot harm you for 14 seconds.",
     clarity: `Fog thins for ${FOG_CLEAR_DURATION_SECONDS} seconds.`,
+    handTorch: `Torch lit for ${HAND_TORCH_DURATION_SECONDS} seconds.`,
     swarmCurse: "The dungeon swarms. Monster pressure doubles on this floor.",
     slowCurse: `Your limbs are heavy for ${SLOW_CURSE_DURATION_SECONDS} seconds.`,
     frenzyCurse: `Enemies hunt harder for ${FRENZY_CURSE_DURATION_SECONDS} seconds.`,
@@ -174,7 +178,13 @@ export const COPY = {
   },
   pause: {
     title: "Paused",
-    settings: "SETTINGS",
+    settings: "Settings",
+    settingsAction: "SETTINGS",
+    back: "BACK",
+    kicker: "The dungeon waits",
+    resumeHint: "Return to the dungeon",
+    settingsHint: "Audio, display, and feel",
+    ledger: (clock: string, found: number, total: number) => `${clock} · ${found}/${total} stones`,
     restarted: "Map restarted. Click the scene to explore.",
     returnedHome: "Returned to the main screen.",
   },

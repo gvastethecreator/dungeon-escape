@@ -18,12 +18,12 @@ export interface ExplorationFogState {
  * Deepest fog band for unmapped floors: only a few metres of readable depth.
  * Multiplies the biome's base FogExp2 density.
  */
-export const EXPLORATION_FOG_HIDDEN_MAX = 9.4;
+export const EXPLORATION_FOG_HIDDEN_MAX = 8.2;
 /**
  * Soft haze once the floor is mapped. Matches the previous "unknown" mid fog:
  * never crystal clear, but comfortable mid-range visibility.
  */
-export const EXPLORATION_FOG_REVEALED = 5.2;
+export const EXPLORATION_FOG_REVEALED = 4.5;
 /**
  * Biome base fog after all four stones bind. Multiplier 1 leaves only the
  * mood-authored FogExp2 density so corridors stay readable to the portal.

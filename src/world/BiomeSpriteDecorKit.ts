@@ -479,8 +479,12 @@ export const BIOME_SPRITE_ATLAS_SIZE = [768, 512] as const;
 export const BIOME_SPRITE_CELL_SIZE = 256;
 export const BIOME_FLOOR_PROP_FADE_NEAR = 0.9;
 export const BIOME_FLOOR_PROP_FADE_FAR = 2.35;
-/** Keep wall-edge cards visually grounded instead of swivelling like billboards. */
-export const BIOME_CORNER_PROP_MAX_TURN = Math.PI / 8 - 0.02;
+/** Keep a corner card inside the 90° open sector with a small masonry margin. */
+export const BIOME_CORNER_PROP_MAX_TURN = Math.PI / 4 - 0.08;
+/** Wall-edge floor cards stay grounded — enough turn to read, not full billboards. */
+export const BIOME_EDGE_PROP_MAX_TURN = Math.PI / 8 - 0.02;
+/** Corridor ceiling hangers may face along the hall, not into masonry. */
+export const BIOME_CORRIDOR_HANGER_MAX_TURN = Math.PI / 6;
 
 export function clampBiomeSpriteYaw(
   baseYaw: number,

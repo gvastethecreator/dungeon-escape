@@ -40,6 +40,8 @@ export interface NoiseFlameEmberUniformHandles {
   uPhase: { value: number };
   uOpacity: { value: number };
   uColor: { value: THREE.Color };
+  /** Camera/local wind drift applied on top of the authored ember path (x, z). */
+  uWind: { value: THREE.Vector2 };
 }
 
 export type NoiseFlameMaterial = THREE.ShaderMaterial | MeshBasicNodeMaterial;

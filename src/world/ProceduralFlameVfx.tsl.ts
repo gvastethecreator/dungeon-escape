@@ -115,6 +115,7 @@ function createNoiseFlameEmbersTsl(
   const uPhase = uniform(options.phase);
   const uOpacity = uniform(baseOpacity);
   const uColor = uniform(emberColor.clone());
+  const uWind = uniform(new THREE.Vector2(0, 0));
 
   const aBasePosition = instancedBufferAttribute<"vec3">(positionAttr, "vec3");
   const aSeed = instancedBufferAttribute<"float">(seedAttr, "float");
@@ -136,13 +137,17 @@ function createNoiseFlameEmbersTsl(
     )
       .mul(float(0.035).add(aSeed.mul(0.035)))
       .mul(float(0.35).add(cycle));
+    const windScale = float(0.55).add(cycle);
     const emberPosition = vec3(aBasePosition).toVar();
     emberPosition.y.addAssign(rise);
-    emberPosition.x.addAssign(drift.add(sin(cycle.mul(5.8).add(aSeed.mul(11.0))).mul(0.018)));
+    emberPosition.x.addAssign(
+      drift.add(sin(cycle.mul(5.8).add(aSeed.mul(11.0))).mul(0.018)).add(uWind.x.mul(windScale)),
+    );
     emberPosition.z.addAssign(
       cos(uTime.mul(0.84).add(aSeed.mul(13.0)).add(uPhase))
         .mul(float(0.018).add(aSeed.mul(0.022)))
-        .mul(cycle),
+        .mul(cycle)
+        .add(uWind.y.mul(windScale)),
     );
     const emberLife = smoothstep(0.0, 0.08, cycle).mul(float(1).sub(smoothstep(0.72, 1.0, cycle)));
     return vec4(emberPosition, emberLife);
@@ -180,6 +185,7 @@ function createNoiseFlameEmbersTsl(
     uPhase,
     uOpacity,
     uColor,
+    uWind,
   };
   material.userData.noiseFlameEmber = true;
   material.userData.noiseFlameEmberHandles = handles;
