@@ -316,6 +316,62 @@ function buildCompositeNode(
   })();
 }
 
+/** One-sample path for the default CRT-off presentation. */
+function buildLightCompositeNode(inputTexture: any, u: PovPostFxTslUniformState): any {
+  return Fn((): any => {
+    const vUv: any = uv();
+    const centered = vUv.mul(2).sub(1).toVar();
+    const sampleUv = vUv
+      .add(heatwaveOffset(vUv, u.uHeatwave, u.uTime))
+      .add(waterWarpOffset(vUv, u.uWaterWarp, u.uTime));
+    const color = inputTexture.sample(clamp(sampleUv, 0, 1)).rgb.toVar();
+    const luma = rec601Luma(color);
+
+    const criticalColor = vec3(max(color.r, luma.mul(0.82)), color.g.mul(0.48), color.b.mul(0.42));
+    color.assign(mix(color, criticalColor, u.uCriticalRed));
+    color.assign(
+      mix(
+        color,
+        color.mul(vec3(1.14, 0.9, 0.72)).add(vec3(0.05, 0.012, 0).mul(u.uHeatwave)),
+        clamp(u.uHeatwave.mul(0.62), 0, 1),
+      ),
+    );
+    color.assign(
+      mix(
+        color,
+        vec3(color.r.mul(0.4), max(color.g, luma.mul(0.88)), color.b.mul(0.46)),
+        clamp(u.uToxinGreen, 0, 1),
+      ),
+    );
+    color.assign(
+      mix(
+        color,
+        vec3(color.r.mul(0.52), color.g.mul(0.78), max(color.b, luma.mul(0.92))),
+        clamp(u.uIceBlue, 0, 1),
+      ),
+    );
+    const edge = smoothstep(0.42, 1.08, length(centered));
+    color.assign(
+      mix(
+        color,
+        color.mul(vec3(0.82, 0.8, 0.76)).add(vec3(0.08, 0.07, 0.05).mul(edge)),
+        clamp(u.uSpikeEdge.mul(edge), 0, 1),
+      ),
+    );
+
+    const grainCoord = floor(viewportCoordinate.xy);
+    const grainFrame = floor(u.uTime.mul(18));
+    const grain = random21(grainCoord.add(grainFrame)).sub(0.5);
+    color.addAssign(grain.mul(u.uGrain).mul(0.72));
+
+    const vignetteUv = centered.toVar();
+    vignetteUv.x.mulAssign(0.82);
+    const vignette = smoothstep(float(POV_VIGNETTE_INNER_RADIUS), float(1.18), length(vignetteUv));
+    color.mulAssign(float(1).sub(vignette.mul(u.uVignette)));
+    return vec4((clamp as any)(color, vec3(0), vec3(1)), 1);
+  })();
+}
+
 const rendererState = { current: undefined as unknown };
 const historyQuad = /*@__PURE__*/ new QuadMesh();
 const HistoryTempNode = TempNode as unknown as { new (type: string): any };
@@ -465,8 +521,9 @@ export class PovPostFxTslPipeline {
     }
     this.scenePass = pass(scene, camera);
     this.pipeline = new RenderPipeline(renderer as never);
-    // Effects run in working space; pipeline applies tone map + color space at the end.
-    this.pipeline.outputColorTransform = true;
+    // The scene pass output already carries the renderer's tone/color transform.
+    // Reapplying it here lifts shadows and washes the WebGPU composite.
+    this.pipeline.outputColorTransform = false;
     const beauty = this.scenePass.getTextureNode("output");
     this.historyNode = new PovCrtHistoryNode(beauty, this.uniforms);
     this.historyNode.setSize(this.historyWidth, this.historyHeight);
@@ -490,7 +547,7 @@ export class PovPostFxTslPipeline {
     const beauty = this.scenePass.getTextureNode("output");
     this.pipeline.outputNode = this.crtEnabled
       ? this.historyNode!.getTextureNode()
-      : buildCompositeNode(beauty, null, this.uniforms);
+      : buildLightCompositeNode(beauty, this.uniforms);
     this.pipeline.needsUpdate = true;
   }
 

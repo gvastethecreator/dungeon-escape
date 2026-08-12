@@ -26,7 +26,10 @@ export interface PlayRendererHandle {
   /** Concrete Three renderer for diagnostics that still need backend-specific fields. */
   readonly raw:
     | THREE.WebGLRenderer
-    | { isWebGPURenderer?: boolean; backend?: { constructor?: { name?: string } } };
+    | {
+        isWebGPURenderer?: boolean;
+        backend?: { isWebGPUBackend?: boolean; constructor?: { name?: string } };
+      };
   dispose(): void;
 }
 
@@ -50,7 +53,7 @@ async function createWebGpuRenderer(canvas: HTMLCanvasElement): Promise<{
   renderer: DungeonRenderer;
   raw: {
     isWebGPURenderer?: boolean;
-    backend?: { constructor?: { name?: string } };
+    backend?: { isWebGPUBackend?: boolean; constructor?: { name?: string } };
     dispose(): void;
   };
 }> {
@@ -65,7 +68,7 @@ async function createWebGpuRenderer(canvas: HTMLCanvasElement): Promise<{
     renderer: renderer as unknown as DungeonRenderer,
     raw: renderer as unknown as {
       isWebGPURenderer?: boolean;
-      backend?: { constructor?: { name?: string } };
+      backend?: { isWebGPUBackend?: boolean; constructor?: { name?: string } };
       dispose(): void;
     },
   };
@@ -104,8 +107,7 @@ export async function createPlayRendererHandle(
 
     try {
       const created = await createWebGpuRenderer(options.canvas);
-      const backendName = created.raw.backend?.constructor?.name ?? "";
-      const actuallyWebGpu = /WebGPU/i.test(backendName) || created.raw.isWebGPURenderer === true;
+      const actuallyWebGpu = created.raw.backend?.isWebGPUBackend === true;
       return {
         renderer: created.renderer,
         backend: actuallyWebGpu ? "webgpu" : "webgl",

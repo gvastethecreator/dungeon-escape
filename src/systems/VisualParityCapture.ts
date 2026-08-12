@@ -37,6 +37,9 @@ export function buildVisualParitySceneUrl(options: {
     renderer: options.backend,
     crt: options.crt === "on" ? "1" : "0",
     parityScene: scene.id,
+    perfAudit: "1",
+    skipRunIntro: "1",
   });
+  if (scene.qaState) params.set("qaState", scene.qaState);
   return `${base}/?${params.toString()}`;
 }

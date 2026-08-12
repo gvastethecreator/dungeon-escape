@@ -692,7 +692,13 @@ function addInterlockedChainLinks(
         new THREE.Vector3(0, 1, 0),
         yaw,
       );
-      const weld = mesh(weldGeometry, materials.iron, "Forged link weld collar", "weld-bands", true);
+      const weld = mesh(
+        weldGeometry,
+        materials.iron,
+        "Forged link weld collar",
+        "weld-bands",
+        true,
+      );
       weld.rotation.y = yaw;
       weld.position.copy(link.position).add(weldOffset);
       links.add(weld);
@@ -1406,10 +1412,18 @@ function hangingChain(materials: DungeonMaterials, length: number): THREE.Group 
   assembly.add(mountNeck, eye, shacklePin);
   const available = THREE.MathUtils.clamp(length, 1.65, 3.2);
   const spacing = THREE.MathUtils.clamp((available - 0.53) / (linkCount - 1), 0.19, 0.24);
-  const tipY = addInterlockedChainLinks(assembly, chainMaterials, linkCount, -0.32, spacing, 0.028, {
-    bevel: false,
-    weldBands: false,
-  });
+  const tipY = addInterlockedChainLinks(
+    assembly,
+    chainMaterials,
+    linkCount,
+    -0.32,
+    spacing,
+    0.028,
+    {
+      bevel: false,
+      weldBands: false,
+    },
+  );
   const hookPoints = [
     new THREE.Vector3(0, 0, 0),
     new THREE.Vector3(0.008, -0.18, 0.004),

@@ -75,10 +75,21 @@ export function evaluatePerfGoNoGo(
   thresholds: PerfGoNoGoThresholds = DEFAULT_PERF_GO_NO_GO_THRESHOLDS,
 ): PerfGoNoGoResult {
   const reasons: string[] = [];
+  const requiredMetrics = ["frameP95Ms", "rendererReadyMs", "drawCalls"] as const;
+  for (const metric of requiredMetrics) {
+    const baselineValue = baseline.median[metric];
+    const candidateValue = candidate.median[metric];
+    if (baselineValue <= 0 || candidateValue <= 0) {
+      reasons.push(
+        `${metric} requires positive baseline and candidate values; received ${baselineValue}/${candidateValue}`,
+      );
+    }
+  }
   const ratio = (metric: keyof PerfBaselineSample): number | null => {
     const left = baseline.median[metric];
     const right = candidate.median[metric];
-    if (typeof left !== "number" || typeof right !== "number" || left <= 0) return null;
+    if (typeof left !== "number" || typeof right !== "number" || left <= 0 || right <= 0)
+      return null;
     return right / left;
   };
 

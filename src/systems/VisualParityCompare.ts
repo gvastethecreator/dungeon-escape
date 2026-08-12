@@ -139,6 +139,10 @@ export interface VisualParitySceneConfig {
   readonly floorIndex: number;
   readonly channelTolerance: number;
   readonly mismatchRatioThreshold: number;
+  readonly qaState?: "portal";
+  readonly targetName?: string;
+  readonly targetDistance?: number;
+  readonly targetAimHeight?: number;
 }
 
 /** Baseline scene matrix for WGP-02. Capture scripts should honor these ids. */
@@ -158,6 +162,9 @@ export const VISUAL_PARITY_SCENES: readonly VisualParitySceneConfig[] = [
     floorIndex: 1,
     channelTolerance: 3,
     mismatchRatioThreshold: 0.004,
+    targetName: "Wall torch sconce",
+    targetDistance: 3.2,
+    targetAimHeight: 1.1,
   },
   {
     id: "enemy-near",
@@ -166,6 +173,9 @@ export const VISUAL_PARITY_SCENES: readonly VisualParitySceneConfig[] = [
     floorIndex: 2,
     channelTolerance: 3,
     mismatchRatioThreshold: 0.004,
+    targetName: "Enemy billboard batch",
+    targetDistance: 3.4,
+    targetAimHeight: 0.9,
   },
   {
     id: "portal-ready",
@@ -174,6 +184,10 @@ export const VISUAL_PARITY_SCENES: readonly VisualParitySceneConfig[] = [
     floorIndex: 3,
     channelTolerance: 3,
     mismatchRatioThreshold: 0.005,
+    qaState: "portal",
+    targetName: "Escape portal gate",
+    targetDistance: 4.2,
+    targetAimHeight: 1.7,
   },
   {
     id: "hazard-floor",
@@ -182,5 +196,8 @@ export const VISUAL_PARITY_SCENES: readonly VisualParitySceneConfig[] = [
     floorIndex: 0,
     channelTolerance: 3,
     mismatchRatioThreshold: 0.004,
+    targetName: "hazard tile batch",
+    targetDistance: 3.2,
+    targetAimHeight: 0.25,
   },
 ];

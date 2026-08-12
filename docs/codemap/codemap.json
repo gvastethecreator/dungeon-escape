@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-08-12T00:31:07Z",
-  "generated_from_commit": "c408d501786581ca1bf17fb3b8d93b7283f20732",
+  "generated_at": "2026-08-12T05:45:18Z",
+  "generated_from_commit": "e33147c22844ad0e74fff746534ef8438a70127b",
   "scope": [
     "."
   ],
@@ -450,10 +450,10 @@
       ],
       "tests": [
         "tests/adaptive-crt-policy.test.ts",
+        "tests/annihilation-pulse.test.ts",
         "tests/asset-library-texture-registry.test.ts",
         "tests/atmosphere-fog.test.ts",
-        "tests/biome-campaign.test.ts",
-        "tests/biome-door-textures-v2.test.ts"
+        "tests/atmosphere-props.test.ts"
       ],
       "constraints": [
         "This baseline uses tracked source and explicit dependency references only."
@@ -510,8 +510,8 @@
         "tests/annihilation-pulse.test.ts",
         "tests/asset-library-texture-registry.test.ts",
         "tests/atmosphere-props.test.ts",
-        "tests/biome-portal.test.ts",
-        "tests/biome-sprite-decor.test.ts"
+        "tests/biome-decor-material.test.ts",
+        "tests/biome-portal.test.ts"
       ],
       "constraints": [
         "This baseline uses tracked source and explicit dependency references only."
@@ -635,6 +635,20 @@
     },
     {
       "from": "other-modules",
+      "to": "src-dungeon",
+      "type": "imports",
+      "evidence": {
+        "status": "verified",
+        "locations": [
+          {
+            "path": "src/types/runtime.d.ts",
+            "symbol": "../dungeon/types"
+          }
+        ]
+      }
+    },
+    {
+      "from": "other-modules",
       "to": "src-forge",
       "type": "imports",
       "evidence": {
@@ -692,6 +706,14 @@
           },
           {
             "path": "package.json",
+            "symbol": "scripts/capture-visual-parity-matrix.ts"
+          },
+          {
+            "path": "package.json",
+            "symbol": "scripts/capture-perf-baseline.ts"
+          },
+          {
+            "path": "package.json",
             "symbol": "scripts/clean.mjs"
           },
           {
@@ -709,14 +731,6 @@
           {
             "path": "package.json",
             "symbol": "scripts/audit-runtime-assets.ts"
-          },
-          {
-            "path": "package.json",
-            "symbol": "scripts/audit-enemy-atlases-v8.py"
-          },
-          {
-            "path": "package.json",
-            "symbol": "scripts/generate-biome-textures.ts"
           }
         ]
       }
@@ -799,8 +813,32 @@
         "status": "verified",
         "locations": [
           {
+            "path": "scripts/capture-perf-baseline.ts",
+            "symbol": "../src/systems/PerfBaselineCapture"
+          },
+          {
+            "path": "scripts/capture-perf-baseline.ts",
+            "symbol": "../src/systems/PerfBaselineCompare"
+          },
+          {
+            "path": "scripts/capture-visual-parity-matrix.ts",
+            "symbol": "../src/systems/VisualParityCapture"
+          },
+          {
+            "path": "scripts/capture-visual-parity-matrix.ts",
+            "symbol": "../src/systems/VisualParityCompare"
+          },
+          {
             "path": "scripts/cdp-photo.ts",
             "symbol": "../src/systems/BiomeIdentity"
+          },
+          {
+            "path": "scripts/evaluate-webgpu-hitl.ts",
+            "symbol": "../src/systems/PerfBaselineCapture"
+          },
+          {
+            "path": "scripts/evaluate-webgpu-hitl.ts",
+            "symbol": "../src/systems/PerfBaselineCompare"
           }
         ]
       }
@@ -885,6 +923,14 @@
           {
             "path": "src/main.ts",
             "symbol": "./styles/editor.css"
+          },
+          {
+            "path": "src/model-lab.ts",
+            "symbol": "./launch/LaunchConfiguration"
+          },
+          {
+            "path": "src/reliquary-preview.ts",
+            "symbol": "./launch/LaunchConfiguration"
           }
         ]
       }
@@ -1241,20 +1287,20 @@
             "symbol": "./world/WorldMetrics"
           },
           {
-            "path": "src/model-lab.ts",
-            "symbol": "./world/ForgePropFactory"
+            "path": "src/main.ts",
+            "symbol": "./world/TextureTreatment"
           },
           {
-            "path": "src/model-lab.ts",
-            "symbol": "./world/DoorFactory"
+            "path": "src/main.ts",
+            "symbol": "./world/ProceduralFlameVfx"
           },
           {
-            "path": "src/model-lab.ts",
-            "symbol": "./world/ItemFactory"
+            "path": "src/main.ts",
+            "symbol": "./world/VolumetricBeam"
           },
           {
-            "path": "src/model-lab.ts",
-            "symbol": "./world/MaterialLibrary"
+            "path": "src/main.ts",
+            "symbol": "./world/EnemyBillboardMaterial"
           }
         ]
       }
@@ -1551,12 +1597,38 @@
         "status": "verified",
         "locations": [
           {
+            "path": "src/forge/ForgePost.webgpu.js",
+            "symbol": "three/webgpu"
+          },
+          {
+            "path": "src/forge/ForgePost.webgpu.js",
+            "symbol": "three/tsl"
+          },
+          {
+            "path": "src/forge/ForgePost.webgpu.js",
+            "symbol": "three"
+          },
+          {
             "path": "src/forge/SurfaceGeometryAudit.ts",
             "symbol": "three"
           },
           {
             "path": "src/forge/main.js",
             "symbol": "three"
+          }
+        ]
+      }
+    },
+    {
+      "from": "src-forge",
+      "to": "other-modules",
+      "type": "imports",
+      "evidence": {
+        "status": "verified",
+        "locations": [
+          {
+            "path": "src/forge/main.js",
+            "symbol": "../launch/LaunchConfiguration"
           }
         ]
       }
@@ -1621,6 +1693,18 @@
           {
             "path": "src/forge/ForgeThemeProfiles.d.ts",
             "symbol": "../systems/BiomeIdentity"
+          },
+          {
+            "path": "src/forge/main.js",
+            "symbol": "../systems/PlayRendererFactory"
+          },
+          {
+            "path": "src/forge/main.js",
+            "symbol": "../systems/ShaderProgramMode"
+          },
+          {
+            "path": "src/forge/main.js",
+            "symbol": "../systems/TslMaterialModules"
           },
           {
             "path": "src/forge/main.js",
@@ -1999,35 +2083,35 @@
         "status": "verified",
         "locations": [
           {
+            "path": "src/systems/AtmosphereMaterialsShared.ts",
+            "symbol": "three"
+          },
+          {
+            "path": "src/systems/AtmosphereMaterialsShared.ts",
+            "symbol": "three/webgpu"
+          },
+          {
             "path": "src/systems/AtmosphereSystem.ts",
             "symbol": "three"
           },
           {
-            "path": "src/systems/LightTuning.ts",
+            "path": "src/systems/BiomeParticleMaterial.ts",
             "symbol": "three"
           },
           {
-            "path": "src/systems/LightingRig.ts",
+            "path": "src/systems/BiomeParticleMaterial.tsl.ts",
             "symbol": "three"
           },
           {
-            "path": "src/systems/LightingRig.ts",
-            "symbol": "three/addons/environments/RoomEnvironment.js"
+            "path": "src/systems/BiomeParticleMaterial.tsl.ts",
+            "symbol": "three/webgpu"
           },
           {
-            "path": "src/systems/PovPostFx.ts",
-            "symbol": "three"
+            "path": "src/systems/BiomeParticleMaterial.tsl.ts",
+            "symbol": "three/tsl"
           },
           {
-            "path": "src/systems/RenderInventory.ts",
-            "symbol": "three"
-          },
-          {
-            "path": "src/systems/SceneTextureRegistry.ts",
-            "symbol": "three"
-          },
-          {
-            "path": "src/systems/TextureSmoothing.ts",
+            "path": "src/systems/DungeonRenderer.ts",
             "symbol": "three"
           }
         ]
@@ -2040,6 +2124,10 @@
       "evidence": {
         "status": "verified",
         "locations": [
+          {
+            "path": "src/systems/PlayRendererFactory.ts",
+            "symbol": "../launch/LaunchConfiguration"
+          },
           {
             "path": "src/systems/RenderCapabilities.ts",
             "symbol": "../launch/LaunchConfiguration"
@@ -2133,6 +2221,30 @@
           {
             "path": "src/systems/PlayStepEffects.ts",
             "symbol": "../world/HazardTileSystem"
+          },
+          {
+            "path": "src/systems/TslMaterialModules.ts",
+            "symbol": "../world/AnnihilationPulseVfx.tsl"
+          },
+          {
+            "path": "src/systems/TslMaterialModules.ts",
+            "symbol": "../world/AtmospherePropsKit.tsl"
+          },
+          {
+            "path": "src/systems/TslMaterialModules.ts",
+            "symbol": "../world/BiomeDecorMaterial.tsl"
+          },
+          {
+            "path": "src/systems/TslMaterialModules.ts",
+            "symbol": "../world/EnemyBillboardMaterial.tsl"
+          },
+          {
+            "path": "src/systems/TslMaterialModules.ts",
+            "symbol": "../world/EnemyMotionTrailVfx.tsl"
+          },
+          {
+            "path": "src/systems/TslMaterialModules.ts",
+            "symbol": "../world/LiquidSectionKit.tsl"
           }
         ]
       }
@@ -2277,6 +2389,22 @@
             "symbol": "three"
           },
           {
+            "path": "src/world/AnnihilationPulseVfx.ts",
+            "symbol": "three/webgpu"
+          },
+          {
+            "path": "src/world/AnnihilationPulseVfx.tsl.ts",
+            "symbol": "three"
+          },
+          {
+            "path": "src/world/AnnihilationPulseVfx.tsl.ts",
+            "symbol": "three/webgpu"
+          },
+          {
+            "path": "src/world/AnnihilationPulseVfx.tsl.ts",
+            "symbol": "three/tsl"
+          },
+          {
             "path": "src/world/AssetLibrary.ts",
             "symbol": "three"
           },
@@ -2287,22 +2415,6 @@
           {
             "path": "src/world/AtmospherePropsKit.ts",
             "symbol": "three/examples/jsm/utils/BufferGeometryUtils.js"
-          },
-          {
-            "path": "src/world/ChestPresentation.ts",
-            "symbol": "three"
-          },
-          {
-            "path": "src/world/ControlCurseVfx.ts",
-            "symbol": "three"
-          },
-          {
-            "path": "src/world/CullBrandVfx.ts",
-            "symbol": "three"
-          },
-          {
-            "path": "src/world/DoorFactory.ts",
-            "symbol": "three"
           }
         ]
       }
@@ -2479,6 +2591,18 @@
         "status": "verified",
         "locations": [
           {
+            "path": "src/world/AnnihilationPulseVfx.ts",
+            "symbol": "../systems/ShaderProgramMode"
+          },
+          {
+            "path": "src/world/AnnihilationPulseVfx.ts",
+            "symbol": "../systems/TslMaterialModules"
+          },
+          {
+            "path": "src/world/AnnihilationPulseVfx.tsl.ts",
+            "symbol": "../systems/TslMaterialModules"
+          },
+          {
             "path": "src/world/AssetLibrary.ts",
             "symbol": "../systems/DungeonMood"
           },
@@ -2487,28 +2611,16 @@
             "symbol": "../systems/SceneTextureRegistry"
           },
           {
-            "path": "src/world/BiomeDecorationProfile.ts",
-            "symbol": "../systems/DungeonMood"
+            "path": "src/world/AtmospherePropsKit.ts",
+            "symbol": "../systems/ShaderProgramMode"
           },
           {
-            "path": "src/world/BiomePortalProfile.ts",
-            "symbol": "../systems/BiomeIdentity"
+            "path": "src/world/AtmospherePropsKit.ts",
+            "symbol": "../systems/TslMaterialModules"
           },
           {
-            "path": "src/world/BiomeSpriteDecorCatalogs.generated.ts",
-            "symbol": "../systems/DungeonMood"
-          },
-          {
-            "path": "src/world/BiomeSpriteDecorContract.ts",
-            "symbol": "../systems/DungeonMood"
-          },
-          {
-            "path": "src/world/BiomeSpriteDecorKit.ts",
-            "symbol": "../systems/DungeonMood"
-          },
-          {
-            "path": "src/world/BiomeSpriteDecorPlacementAudit.ts",
-            "symbol": "../systems/DungeonMood"
+            "path": "src/world/AtmospherePropsKit.tsl.ts",
+            "symbol": "../systems/TslMaterialModules"
           }
         ]
       }

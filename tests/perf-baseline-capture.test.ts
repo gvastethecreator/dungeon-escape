@@ -75,4 +75,15 @@ describe("perf baseline capture helpers", () => {
     expect(result.pass).toBe(false);
     expect(result.reasons.length).toBeGreaterThanOrEqual(2);
   });
+
+  test("go/no-go fails closed when capture metrics are missing", () => {
+    const baseline = artifact("webgl", { rendererReadyMs: 0, drawCalls: 0 });
+    const candidate = artifact("webgpu", { rendererReadyMs: 0, drawCalls: 0 });
+    const result = evaluatePerfGoNoGo(baseline, candidate);
+    expect(result.pass).toBe(false);
+    expect(result.reasons).toEqual([
+      "rendererReadyMs requires positive baseline and candidate values; received 0/0",
+      "drawCalls requires positive baseline and candidate values; received 0/0",
+    ]);
+  });
 });

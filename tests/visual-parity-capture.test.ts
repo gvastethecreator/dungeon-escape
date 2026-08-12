@@ -28,6 +28,10 @@ describe("visual parity capture matrix", () => {
       expect(url).toContain(`mood=${scene.mood}`);
       expect(url).toContain("renderer=webgpu");
       expect(url).toContain(`parityScene=${scene.id}`);
+      expect(url).toContain("perfAudit=1");
+      expect(url).toContain("skipRunIntro=1");
+      expect(url).toContain(`floor=${scene.floorIndex}`);
+      if (scene.qaState) expect(url).toContain(`qaState=${scene.qaState}`);
       expect(visualParitySceneById(scene.id).channelTolerance).toBe(scene.channelTolerance);
     }
   });

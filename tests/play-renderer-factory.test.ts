@@ -10,10 +10,13 @@ describe("play renderer factory", () => {
     expect(main).toContain("preference: renderPathCaps.requestedRenderer");
     expect(main).toContain("__rendererInfo");
     expect(main).toContain("playRendererHandle.isWebGpuRenderer");
+    expect(main).toContain("!playRendererHandle.isWebGpuRenderer || povPost.isCrtEnabled()");
     // WebGPU keeps POV post; it runs the TSL RenderPipeline instead of the GLSL passes.
     expect(main).toContain('programMode: playRendererHandle.isWebGpuRenderer ? "tsl" : "glsl"');
     expect(main).toContain("recalibrateRenderCapabilitiesForBackend(");
     expect(factory).toContain("await renderer.init()");
+    expect(factory).toContain("created.raw.backend?.isWebGPUBackend === true");
+    expect(factory).not.toContain("|| created.raw.isWebGPURenderer === true");
     expect(factory).toContain('preference === "webgpu"');
     expect(factory).toContain("WebGPU was requested");
   });
