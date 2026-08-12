@@ -266,8 +266,8 @@ describe("soft ground fog", () => {
     expect(
       Array.from((signature.geometry.getAttribute("position") as THREE.BufferAttribute).array),
     ).toEqual(signatureBefore);
-    expect((support.material as THREE.ShaderMaterial).uniforms.uViewer.value.x).toBeCloseTo(6.8);
-    expect((signature.material as THREE.ShaderMaterial).uniforms.uViewer.value.z).toBeCloseTo(-3.6);
+    expect((support.material as any).uniforms.uViewer.value.x).toBeCloseTo(6.8);
+    expect((signature.material as any).uniforms.uViewer.value.z).toBeCloseTo(-3.6);
 
     atmosphere.dispose();
   });
