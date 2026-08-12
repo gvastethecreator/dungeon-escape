@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 import { listBiomeIds } from "../src/systems/BiomeIdentity";
+import { hasLocalSourceAssets } from "./local-source-assets";
 
 interface DoorTextureRecord {
   id: string;
@@ -49,18 +50,30 @@ const digest = (path: string) =>
     .update(readFileSync(projectPath(path)))
     .digest("hex");
 
-describe("biome door texture v2 contract", () => {
-  const manifest = JSON.parse(
-    readFileSync(
-      projectPath("assets-source", "imagegen", "biome-door-textures-v2", "manifest.json"),
-      "utf8",
-    ),
-  ) as DoorTextureManifest;
-  const runtimeImages = (
-    JSON.parse(
-      readFileSync(projectPath("assets-source", "runtime-optimization-manifest.json"), "utf8"),
-    ) as { images: RuntimeOptimizationEntry[] }
-  ).images;
+const hasDoorSources = hasLocalSourceAssets(
+  "imagegen",
+  "biome-door-textures-v2",
+  "manifest.json",
+);
+const manifest = (
+  hasDoorSources
+    ? JSON.parse(
+        readFileSync(
+          projectPath("assets-source", "imagegen", "biome-door-textures-v2", "manifest.json"),
+          "utf8",
+        ),
+      )
+    : { contract: { layout: "", wrap: "", lighting: "" }, doors: [] }
+) as DoorTextureManifest;
+const runtimeImages = hasDoorSources
+  ? (
+      JSON.parse(
+        readFileSync(projectPath("assets-source", "runtime-optimization-manifest.json"), "utf8"),
+      ) as { images: RuntimeOptimizationEntry[] }
+    ).images
+  : [];
+
+describe.skipIf(!hasDoorSources)("biome door texture v2 contract", () => {
 
   test("covers every biome with a centered full double-leaf plate", () => {
     expect(manifest.doors.map(({ id }) => id)).toEqual([...listBiomeIds()]);

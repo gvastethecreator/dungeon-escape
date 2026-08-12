@@ -8,4 +8,4 @@ Include the affected version or commit, steps to reproduce, impact, and any miti
 
 ## Scope
 
-Reports about source code, bundled dependencies, build tooling, and the optional authority-client boundary are in scope. The local demo has no production authentication or hosted service.
+Reports about source code, bundled dependencies, build tooling, the Cloudflare Worker, the D1 Hall of Escapes path, and the optional authority-client boundary are in scope. The game has no player login. Do not send live database dumps or Worker tokens in a report.

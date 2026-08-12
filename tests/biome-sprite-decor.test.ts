@@ -5,6 +5,8 @@ import {
   BIOME_FLOOR_PROP_FADE_FAR,
   BIOME_FLOOR_PROP_FADE_NEAR,
   BIOME_CORNER_PROP_MAX_TURN,
+  BIOME_CORRIDOR_HANGER_MAX_TURN,
+  BIOME_EDGE_PROP_MAX_TURN,
   BIOME_SPRITE_PROPS,
   clampBiomeSpriteYaw,
   biomeSpriteFloorDistanceFade,
@@ -27,6 +29,7 @@ import {
 } from "../src/world/BiomeSpriteDecorDistribution";
 import { BIOME_FLOOR_PROP_PLACEMENT_AUDIT } from "../src/world/BiomeSpriteDecorPlacementAudit";
 import { BIOME_SURFACE_PALETTES } from "../src/world/BiomeSurfacePalettes.generated";
+import { hasLocalSourceAssets } from "./local-source-assets";
 
 // Decor material treatments moved to BiomeDecorMaterial with the dual-mode
 // (GLSL/TSL) split; StaticDungeonScene still owns placement and batching.
@@ -143,17 +146,19 @@ describe("biome sprite decor atlas", () => {
     expect(JSON.stringify(BIOME_SPRITE_PROPS.frost)).not.toContain("chest");
   });
 
-  test("renders active v2 props at authored opacity and with bounded culling", () => {
+  test("renders active v2 props at authored opacity without batch-wide wall culling", () => {
     expect(staticSceneSource).toContain('"biome-prop-v2-wall-integrated-v6"');
     expect(staticSceneSource).toContain("biome-prop-v2-${placement}-integrated-v6");
     expect(staticSceneSource).toContain("opacity: 1");
+    expect(staticSceneSource).toContain("BIOME_WALL_DECOR_EMISSIVE_INTENSITY = 0.9");
+    expect(staticSceneSource).toContain("emissiveIntensity: BIOME_WALL_DECOR_EMISSIVE_INTENSITY");
     expect(staticSceneSource).toContain("emissiveIntensity: 0.045");
     expect(staticSceneSource).toContain(
       'material.userData.mapBlend = "authored-v2-biome-surface-tone-v6"',
     );
     expect(staticSceneSource).toContain("color: biomeDecorTint(mood, paletteRole)");
     expect(staticSceneSource).toContain("biomeSurfacePalette(mood.id, paletteRole)");
-    expect(staticSceneSource).toContain("batch.frustumCulled = catalog.runtime.culling.frustum");
+    expect(staticSceneSource).toContain("batch.frustumCulled = false");
     expect(staticSceneSource).toContain(
       "sprite.name = `${this.activeMood.label} ${definition.label} ceiling hanging`",
     );
@@ -212,15 +217,22 @@ describe("biome sprite decor atlas", () => {
   });
 
   test("keeps legacy corner math while excluding floor cards from the active scene", () => {
-    expect(BIOME_CORNER_PROP_MAX_TURN).toBeLessThan(Math.PI / 6);
+    expect(BIOME_CORNER_PROP_MAX_TURN).toBeCloseTo(Math.PI / 4 - 0.08, 5);
+    expect(BIOME_EDGE_PROP_MAX_TURN).toBeLessThan(Math.PI / 6);
+    expect(BIOME_CORRIDOR_HANGER_MAX_TURN).toBeLessThan(Math.PI / 4);
     expect(clampBiomeSpriteYaw(0, Math.PI)).toBeCloseTo(BIOME_CORNER_PROP_MAX_TURN);
     expect(clampBiomeSpriteYaw(0, -Math.PI)).toBeCloseTo(-BIOME_CORNER_PROP_MAX_TURN);
+    expect(
+      clampBiomeSpriteYaw(0, Math.PI, BIOME_EDGE_PROP_MAX_TURN),
+    ).toBeCloseTo(BIOME_EDGE_PROP_MAX_TURN);
     expect(staticSceneSource).toContain("collectRoomCornerSeats");
     expect(staticSceneSource).toContain("cornerHugWorldOffset");
+    expect(staticSceneSource).toContain("corridorHangerFacing");
     expect(fixedEffectsSource).toContain(
       "clampBiomeSpriteYaw(prop.baseYaw, targetYaw, prop.maxWallTurn)",
     );
     expect(staticSceneSource).toContain("definition.maxYawTurn ?? BIOME_CORNER_PROP_MAX_TURN");
+    expect(staticSceneSource).toContain("definition.maxYawTurn ?? BIOME_EDGE_PROP_MAX_TURN");
     expect(staticSceneSource).toContain("registerFloorBiomeSprite({");
   });
 
@@ -272,7 +284,9 @@ describe("biome sprite decor atlas", () => {
     expect(staticSceneSource).toContain("!this.isObjectOccupiedCell(cell)");
   });
 
-  test("ships every processed atlas and a complete alpha manifest", async () => {
+  test.skipIf(!hasLocalSourceAssets("runtime-metadata", "sprites", "biome-props", "manifest.json"))(
+    "ships every processed atlas and a complete alpha manifest",
+    async () => {
     const root = new URL("../assets-source/runtime-metadata/sprites/biome-props/", import.meta.url);
     const manifest = (await Bun.file(new URL("manifest.json", root)).json()) as {
       sheets: Array<{
@@ -300,7 +314,9 @@ describe("biome sprite decor atlas", () => {
     }
   });
 
-  test("ships every active v2 runtime atlas with 28 authored frame records", async () => {
+  test.skipIf(
+    !hasLocalSourceAssets("runtime-metadata", "sprites", "biome-props-v2", "manifest.json"),
+  )("ships every active v2 runtime atlas with 28 authored frame records", async () => {
     const root = new URL(
       "../assets-source/runtime-metadata/sprites/biome-props-v2/",
       import.meta.url,

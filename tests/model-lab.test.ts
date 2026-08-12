@@ -19,6 +19,7 @@ import {
   settleModelQaState,
 } from "../src/model-lab";
 import { createDungeonMaterials } from "../src/world/MaterialLibrary";
+import { hasLocalSourceAssets } from "./local-source-assets";
 
 describe("model QA lab", () => {
   test("allows a cold PBR texture load to finish before timing out", () => {
@@ -55,7 +56,9 @@ describe("model QA lab", () => {
     expect(css).toContain("outline: 2px solid #91b7b0");
   });
 
-  test("lists every accepted reference before optional runtime variants", async () => {
+  test.skipIf(!hasLocalSourceAssets("imagegen", "model-references-v2", "manifest.json"))(
+    "lists every accepted reference before optional runtime variants",
+    async () => {
     const manifest = (await Bun.file(
       new URL("../assets-source/imagegen/model-references-v2/manifest.json", import.meta.url),
     ).json()) as { objects: Array<{ id: string }> };

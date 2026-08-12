@@ -8,10 +8,10 @@ Dungeon Escape is a first-person run through a generated dungeon. Creation, Play
 A connected set of rooms, corridors, features, entry, objectives, and exit used by Creation and Play.
 
 **Dungeon floor stack**:
-Una colección determinista de nivel de campaña de uno a cuatro pisos hermanos con el mismo tamaño de mapa y `Stair shaft` alineados. Play genera y construye todo el stack residente como pisos apilados en una escena antes de liberar input.
+A deterministic campaign set of one to four sibling floors. The floors share map size and aligned `Stair shaft` openings. Play builds the full resident stack in one scene before it releases input.
 
 **Dungeon floor campaign**:
-La campaña determinista que genera todos los pisos del `Dungeon floor stack` desde una semilla raíz de campaña para mantener los `Stair shaft` alineados. Todos los pisos se construyen y quedan residentes antes de input; subir nunca materializa un piso.
+The campaign that generates every floor of the `Dungeon floor stack` from one root seed. Aligned `Stair shaft` openings stay in place. All floors stay resident before input. A climb never materializes a floor.
 
 **Dungeon generation engine**:
 The pure owner of topology settings, single-floor generation, and resident-stack generation. It has no DOM, editor, Three.js, or world dependency.
@@ -26,7 +26,7 @@ An aligned vertical opening with walkable tread colliders linking floor `i` to `
 Shared vertical constants for story height, step rise/run, and shaft footprint used by generation, the stair kit, and vertical motion.
 
 **Active floor**:
-El piso bajo los pies del jugador, derivado de la altura de soporte. Sólo selecciona la lógica, visibilidad y updates de ese piso, incluidos `Floor exploration`, minimap y la grilla lógica del `Dungeon`. Nunca reconstruye ni materializa la escena.
+The floor under the player's feet, from support height. It selects logic, visibility, and updates for that floor only. That includes `Floor exploration`, the minimap, and the logical `Dungeon` grid. It never rebuilds or materializes the scene.
 
 **Creation**:
 The shell mode for building and previewing a map (`engineMode: "editor"` in code). UI label is Creation, not Authority.
@@ -89,7 +89,7 @@ The owner of active and per-floor visited cells, map visibility, floor switching
 It also supplies the explored ratio that drives first-person fog: unknown space sits behind a deep fog wall with only a few meters of visibility, softening into a light haze after enough traversal or an active-floor map reveal. Binding all four stones lifts that fog wall to the biome's authored density so the escape path stays readable.
 
 **Runtime asset boundary**:
-Only deployable assets live under `public/`. Source sheets, raw generations, provenance, and production manifests live under `assets-source/`. Runtime rasters are half-size WebP files tracked by one optimization manifest and checked before deployment.
+Only deployable assets live under `public/`. Source sheets, raw generations, provenance, and production manifests live in local `assets-source/` and are not in git. Runtime rasters are half-size WebP files. A local optimization manifest is checked before deployment.
 
 **Run resume activation plan**:
 The pure projection that maps persisted run state into generation, session, runtime, player, and exploration inputs. Save parsing and effects remain outside it.
@@ -110,7 +110,7 @@ The frame update for decorative actors that do not own gameplay state: fires, li
 The asynchronous owner of Hall comparison loading, timeout retry, stale-response rejection, saved rank, and the result states rendered by the round-results screen.
 
 **Floor transition transaction**:
-Ruta legacy de fade/rebuild conservada sólo para recovery. Play normal nunca la usa para escaleras; los `Stair shaft` caminables la reemplazan.
+A legacy fade and rebuild path kept only for recovery. Normal Play never uses it for stairs. Walkable `Stair shaft` openings replace it.
 
 **Forge frame client**:
 The browser boundary for the Forge iframe source, trusted messages, versioned presentation commands, waits, cancellation, and cleanup.
@@ -131,7 +131,7 @@ The live run state for health, rewards, outcome, and elapsed time.
 The four-stone objective state, stone timing, and portal readiness within a run.
 
 **Static dungeon scene**:
-La escena fija, colisión, occupied seats y cleanup producidos desde un `Dungeon floor stack` antes de que comiencen los updates de Play.
+The fixed scene, collision, occupied seats, and cleanup produced from a `Dungeon floor stack`. Play updates start after this scene exists.
 
 **Enemy biome mods**:
 Live combat stats and pursuit behavior resolved from the base enemy archetype, active biome profile, and run difficulty (`applyBiomeEnemyMods`). Presentation size stays on the base archetype.

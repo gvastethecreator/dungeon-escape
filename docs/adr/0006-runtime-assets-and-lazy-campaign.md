@@ -19,7 +19,7 @@ siguen aceptados.
 
 - `public/` contains deployable files only. Raw/source material and production metadata live under `assets-source/`.
 - Runtime rasters use WebP at half the source width and height. Pixel art uses nearest-neighbor sampling; continuous art uses Lanczos.
-- `assets-source/runtime-optimization-manifest.json` records the source and output dimensions, hashes, byte sizes, resampling, and encoding.
+- `assets-source/runtime-optimization-manifest.json` records the source and output dimensions, hashes, byte sizes, resampling, and encoding. That file stays in the local `assets-source/` tree and is not in git.
 - Deployment fails unless `audit:runtime-assets` validates the full public boundary and every optimized raster.
 - Campaign floors are generated through a deterministic lazy cache. Only the active floor is materialized; revisiting a floor returns the cached dungeon.
 

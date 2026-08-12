@@ -1,12 +1,14 @@
 # Dungeon Escape
 
-A first-person procedural dungeon game built with Three.js. Forge a seeded map, inspect it in the editor, then explore it in a local WebGL run.
+A first-person run through a generated dungeon.
 
-The project includes a deterministic map generator, first-person controls, a local run save, touch controls, audio, a Forge map editor, and a reliquary preview.
+Play a seeded campaign in the browser. Forge a custom map, then walk it with keyboard, mouse, or touch.
+
+Live play: [https://dungeon.gvaste.ar](https://dungeon.gvaste.ar)
 
 ## Quick start
 
-Requires Bun 1.3.14 or later and a modern WebGL browser.
+Requires Bun 1.3.14 or later and a current Chrome, Edge, or Firefox browser.
 
 ```bash
 bun install
@@ -15,35 +17,33 @@ bun run dev
 
 Open `http://127.0.0.1:24211/`.
 
-Use **New Game** to start a fresh dungeon run. Use **Custom Run** to open the Forge editor. The main entry also supports `?mode=editor`, `?mode=debug`, and `?mode=play`.
+Use **New Game** for a campaign run. Use **Custom Run** to open the Forge editor.
 
 ## What is included
 
-- Deterministic dungeon layouts with seeded replay.
-- Forge map editing and a matching in-game map preview.
-- First-person exploration with keyboard, mouse, and touch input.
-- Eleven visual moods, enemy sprites, spatial audio, and local run persistence.
+- Seeded dungeon layouts you can replay
+- First-person play with keyboard, mouse, and touch
+- Eleven biomes, enemies, spatial audio, and a local run save
+- Forge map editing and an in-game map preview
 
 ## Documentation
 
 - [Development](docs/DEVELOPMENT.md)
-- [Dependencies and upgrade notes](docs/DEPENDENCIES.md)
-- [Maintenance status](docs/MAINTENANCE.md)
-- [Architecture, performance, and UX review](docs/REVIEWS.md)
 - [Standalone architecture](docs/STANDALONE.md)
-- [Editor, world signals, and jump](docs/DUNGEON-EDITOR-WORLD-JUMP.md)
-- [Performance and topology](docs/DUNGEON-PERFORMANCE-TOPOLOGY.md)
 - [Audio runtime](docs/AUDIO.md)
+- [Hall of Escapes](docs/LEADERBOARD.md)
+- [Dependencies](docs/DEPENDENCIES.md)
 - [Third-party notices](THIRD_PARTY_NOTICES.md)
 
 ## Attribution
 
-The map generator is a modified version of [Majid Manzarpour's threejs-procedural-dungeon](https://github.com/majidmanzarpour/threejs-procedural-dungeon). Thank you to Majid Manzarpour for the original procedural-dungeon work. See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for the upstream MIT notice.
+The map generator is a modified version of [Majid Manzarpour's threejs-procedural-dungeon](https://github.com/majidmanzarpour/threejs-procedural-dungeon). See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for the upstream MIT notice.
 
 ## Status
 
-Dungeon Escape is a standalone local application with a verified build and test suite. The optional authority client expects a compatible `/health` and `/v0` HTTP API when `authority` is supplied in the URL.
+- The default renderer is WebGL. WebGPU is an optional path. See `docs/adr/0009-webgpu-renderer-and-tsl.md`.
+- Public deploys hide Map tools so players cannot rewrite seeds into the Hall path.
 
 ## License
 
-No project-wide license has been selected yet.
+MIT. See [LICENSE](LICENSE). Upstream map-generator portions keep their own MIT notice in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).

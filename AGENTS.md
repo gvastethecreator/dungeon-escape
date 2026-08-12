@@ -4,7 +4,7 @@
 
 ### Issue tracker
 
-Project work lives under `.scratch/`; remote issues and pull requests are read-only sources. See `docs/agents/issue-tracker.md`.
+GitHub Issues and the linked GitHub Project hold live state. `.scratch/` holds synchronized local mirrors. See `docs/agents/issue-tracker.md`.
 
 ### Triage labels
 

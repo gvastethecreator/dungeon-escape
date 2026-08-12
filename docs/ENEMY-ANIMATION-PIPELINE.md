@@ -1,10 +1,10 @@
-# Pipeline de enemigos por bioma
+# Enemy animation pipeline
 
-Las 121 identidades aprobadas viven en [`assets-source/enemies/biomes-v2`](../assets-source/enemies/biomes-v2/README.md).
+The approved 121 identities live in the local `assets-source/enemies/biomes-v2` tree. That tree is not in git.
 
-El manifiesto durable contiene los hashes, dimensiones, prompts y registros de procedencia.
+The durable manifest stores hashes, dimensions, prompts, and provenance records.
 
-El [plan de animación](../assets-source/enemies/biomes-v2/ANIMATION-PLAN.md) define el orden de producción y las puertas de aprobación.
+The local animation plan in that tree defines production order and approval gates.
 
 Los 11 biomas están integrados: 121/121 identidades tienen cuatro cuadros de movimiento y cuatro de ataque en los atlas runtime. Los diez biomas posteriores a Ancient usan dos videos Grok por identidad, selección dinámica de cuadros, Lucida y segmentación adaptativa. Imagegen queda reservado para reparar un cuadro excepcional sin consumir otra generación de video.
 

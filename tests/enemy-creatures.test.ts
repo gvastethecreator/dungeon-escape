@@ -15,6 +15,7 @@ import {
   ENEMY_ROSTER,
   enemyAnimationFrameIndex,
 } from "../src/world/EnemySpriteAtlas";
+import { hasLocalSourceAssets } from "./local-source-assets";
 
 describe("enemy roster v8", () => {
   test("ships the complete front-facing roster with four-frame animation rows", () => {
@@ -131,7 +132,9 @@ describe("enemy roster v8", () => {
     }
   });
 
-  test("locks all 121 biome bodies to their approved base sprites and idle frames", async () => {
+  test.skipIf(!hasLocalSourceAssets("enemies", "biomes-v2", "runtime-size-catalog.json"))(
+    "locks all 121 biome bodies to their approved base sprites and idle frames",
+    async () => {
     const catalog = (await Bun.file(
       new URL("../assets-source/enemies/biomes-v2/runtime-size-catalog.json", import.meta.url),
     ).json()) as {
@@ -159,7 +162,8 @@ describe("enemy roster v8", () => {
         render.planeHeight * (entry.runtime_idle.opaque_height / entry.runtime_idle.cell),
       ).toBeCloseTo(body.height, 5);
     }
-  });
+  },
+  );
 
   test("corrects the reported goblin, ghost, shadow, and carrion proportions", () => {
     expect(ENEMY_ARCHETYPES.goblin.height).toBeLessThanOrEqual(1.55);

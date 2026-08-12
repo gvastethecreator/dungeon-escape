@@ -2,6 +2,7 @@
   "name": "dungeon-escape",
   "version": "0.1.0",
   "private": true,
+  "license": "MIT",
   "type": "module",
   "scripts": {
     "install:check": "bun install --frozen-lockfile",
@@ -20,8 +21,8 @@
     "typecheck:worker": "tsc -p tsconfig.worker.json --noEmit",
     "typecheck:all": "bun run typecheck && bun run typecheck:server && bun run typecheck:worker",
     "lint": "oxlint .",
-    "fmt": "oxfmt . '!docs/codemap/**' '!assets-source/runtime-optimization-manifest.json'",
-    "fmt:check": "oxfmt --check . '!docs/codemap/**' '!assets-source/runtime-optimization-manifest.json'",
+    "fmt": "oxfmt . '!docs/codemap/**' '!assets-source/**'",
+    "fmt:check": "oxfmt --check . '!docs/codemap/**' '!assets-source/**'",
     "check": "bun run typecheck:all && bun run lint && bun run fmt:check && bun run test && bun run audit:runtime-assets && bun run build:code",
     "clean": "bun run scripts/clean.mjs",
     "deps:outdated": "bun outdated",
