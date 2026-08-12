@@ -1,7 +1,35 @@
 import * as THREE from "three";
+import { MeshBasicNodeMaterial, PointsNodeMaterial } from "three/webgpu";
+import {
+  Fn,
+  abs,
+  cameraPosition,
+  clamp,
+  dot,
+  float,
+  instancedBufferAttribute,
+  materialOpacity,
+  max,
+  mix,
+  modelWorldMatrix,
+  normalLocal,
+  normalize,
+  positionLocal,
+  pow,
+  sin,
+  texture,
+  uniform,
+  vec3,
+  vec4,
+} from "three/tsl";
 import type { SceneTextureSink } from "../systems/SceneTextureRegistry";
 
 import { LUMINOUS_WARD_DURATION_SECONDS } from "../game/LuminousWard";
+import {
+  getShaderProgramModeRegistry,
+  onShaderProgramModeRegistryChange,
+  type ShaderProgramMode,
+} from "../systems/ShaderProgramMode";
 
 export interface LuminousWardViewer {
   x: number;
@@ -17,6 +45,28 @@ export const WARD_TRAIL_SAMPLES = 4;
 const WARD_COLOR = 0xc7f39a;
 const WARD_COLOR_OUTER = 0x84b75d;
 const WARD_COLOR_CORE = 0xe8ffc8;
+
+/** ShaderProgramMode factory id for the luminous ward shield shell. */
+export const LUMINOUS_WARD_SHIELD_SHADER_FACTORY_ID = "luminous-ward-shield";
+/** ShaderProgramMode factory id for luminous ward mote/trail particles. */
+export const LUMINOUS_WARD_TRAILS_SHADER_FACTORY_ID = "luminous-ward-trails";
+
+/** Register (or refresh) dual-mode support on the active shader program registry. */
+export function registerLuminousWardShaderFactories(
+  registry = getShaderProgramModeRegistry(),
+): void {
+  registry.register({
+    id: LUMINOUS_WARD_SHIELD_SHADER_FACTORY_ID,
+    supports: ["glsl", "tsl"],
+  });
+  registry.register({
+    id: LUMINOUS_WARD_TRAILS_SHADER_FACTORY_ID,
+    supports: ["glsl", "tsl"],
+  });
+}
+
+registerLuminousWardShaderFactories();
+onShaderProgramModeRegistryChange(registerLuminousWardShaderFactories);
 
 interface WardMote {
   /** Base orbit angle offset (radians). */
@@ -44,6 +94,30 @@ interface WardMote {
   trailWrite: number;
   trailFilled: number;
 }
+
+type WardShieldUniforms = {
+  uColor: { value: THREE.Color };
+  uRimColor: { value: THREE.Color };
+  uOpacity: { value: number };
+  uPulse: { value: number };
+  uTime: { value: number };
+};
+
+type WardShieldMaterial = (THREE.ShaderMaterial | MeshBasicNodeMaterial) & {
+  uniforms: WardShieldUniforms;
+};
+
+type WardTrailUniforms = {
+  map: { value: THREE.Texture };
+  uColor: { value: THREE.Color };
+  uOpacity: { value: number };
+  uPixelRatio: { value: number };
+  uBaseSize: { value: number };
+};
+
+type WardTrailMaterial = (THREE.ShaderMaterial | PointsNodeMaterial) & {
+  uniforms: WardTrailUniforms;
+};
 
 /**
  * Soft circular disc texture for Points (radial alpha falloff).
@@ -153,8 +227,8 @@ export function createWardAuraDiscTexture(size = 128): THREE.Texture {
   return texture;
 }
 
-function createShieldMaterial(): THREE.ShaderMaterial {
-  return new THREE.ShaderMaterial({
+function createShieldMaterialGlsl(): WardShieldMaterial {
+  const material = new THREE.ShaderMaterial({
     uniforms: {
       uColor: { value: new THREE.Color(WARD_COLOR) },
       uRimColor: { value: new THREE.Color(WARD_COLOR_CORE) },
@@ -183,7 +257,6 @@ function createShieldMaterial(): THREE.ShaderMaterial {
       void main() {
         vec3 viewDir = normalize(cameraPosition - vWorldPosition);
         float ndotv = abs(dot(normalize(vWorldNormal), viewDir));
-        // Soft shell: invisible head-on, bright on the silhouette.
         float fresnel = pow(1.0 - ndotv, 2.35);
         float bands = 0.55 + 0.45 * sin(vWorldPosition.y * 7.5 + uTime * 1.8);
         float hex = 0.72 + 0.28 * sin((vWorldPosition.x + vWorldPosition.z) * 4.2 - uTime * 1.1);
@@ -202,6 +275,166 @@ function createShieldMaterial(): THREE.ShaderMaterial {
     toneMapped: false,
     fog: false,
   });
+  material.userData.luminousWardShield = true;
+  material.userData.shaderProgramMode = "glsl";
+  return material as WardShieldMaterial;
+}
+
+function createShieldMaterialTsl(): WardShieldMaterial {
+  const uColor = uniform(new THREE.Color(WARD_COLOR));
+  const uRimColor = uniform(new THREE.Color(WARD_COLOR_CORE));
+  const uOpacity = uniform(0);
+  const uPulse = uniform(1);
+  const uTime = uniform(0);
+  const material = new MeshBasicNodeMaterial() as WardShieldMaterial;
+  material.transparent = true;
+  material.depthWrite = false;
+  material.depthTest = true;
+  material.side = THREE.DoubleSide;
+  material.blending = THREE.AdditiveBlending;
+  material.toneMapped = false;
+  material.fog = false;
+  const sample = Fn(() => {
+    const worldPos = modelWorldMatrix.mul(vec4(positionLocal, 1.0)).xyz;
+    const worldNormal = normalize(modelWorldMatrix.mul(vec4(normalLocal, 0.0)).xyz);
+    const viewDir = normalize(cameraPosition.sub(worldPos));
+    const ndotv = abs(dot(normalize(worldNormal), viewDir));
+    const fresnel = pow(float(1).sub(ndotv), 2.35);
+    const bands = float(0.55).add(sin(worldPos.y.mul(7.5).add(uTime.mul(1.8))).mul(0.45));
+    const hex = float(0.72).add(sin(worldPos.x.add(worldPos.z).mul(4.2).sub(uTime.mul(1.1))).mul(0.28));
+    const shell = fresnel.mul(bands).mul(hex).mul(uPulse);
+    const color = mix(uColor, uRimColor, clamp(fresnel.mul(1.15), 0.0, 1.0));
+    return vec4(vec3(color), clamp(shell.mul(uOpacity), 0.0, 1.0));
+  })();
+  material.colorNode = sample.rgb;
+  material.opacityNode = sample.a;
+  material.alphaTest = 0.004;
+  material.uniforms = { uColor, uRimColor, uOpacity, uPulse, uTime } as WardShieldUniforms;
+  material.userData.luminousWardShield = true;
+  material.userData.shaderProgramMode = "tsl";
+  return material;
+}
+
+function createShieldMaterial(mode: ShaderProgramMode): WardShieldMaterial {
+  return mode === "tsl" ? createShieldMaterialTsl() : createShieldMaterialGlsl();
+}
+
+
+function createWardMoteSpriteMaterial(
+  particleTexture: THREE.Texture,
+  positionAttribute: THREE.InstancedBufferAttribute,
+  sizeAttribute: THREE.InstancedBufferAttribute,
+): PointsNodeMaterial {
+  const aPosition = instancedBufferAttribute<"vec3">(positionAttribute, "vec3");
+  const aSize = instancedBufferAttribute<"float">(sizeAttribute, "float");
+  const material = new PointsNodeMaterial();
+  const texel = texture(particleTexture);
+  material.name = "Luminous ward floating mote material (TSL sprites)";
+  material.transparent = true;
+  material.depthWrite = false;
+  material.blending = THREE.AdditiveBlending;
+  material.sizeAttenuation = true;
+  material.toneMapped = false;
+  material.alphaTest = 0.02;
+  material.positionNode = aPosition;
+  material.sizeNode = max(float(0.035), aSize.mul(1.1));
+  material.colorNode = vec4(vec3(WARD_COLOR_CORE).mul(texel.rgb), texel.a);
+  material.opacityNode = texel.a.mul(materialOpacity);
+  material.userData.luminousWardMotes = true;
+  material.userData.shaderProgramMode = "tsl";
+  material.userData.particlePrimitive = "sprite";
+  return material;
+}
+
+function createWardTrailMaterialGlsl(particleTexture: THREE.Texture): WardTrailMaterial {
+  const material = new THREE.ShaderMaterial({
+    uniforms: {
+      map: { value: particleTexture },
+      uColor: { value: new THREE.Color(WARD_COLOR) },
+      uOpacity: { value: 0 },
+      uPixelRatio: {
+        value: typeof window !== "undefined" ? Math.min(window.devicePixelRatio, 2) : 1,
+      },
+      uBaseSize: { value: 110 },
+    },
+    vertexShader: /* glsl */ `
+      attribute float aTrailSize;
+      attribute float aTrailAlpha;
+      uniform float uPixelRatio;
+      uniform float uBaseSize;
+      varying float vTrailAlpha;
+      void main() {
+        vTrailAlpha = aTrailAlpha;
+        vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+        gl_Position = projectionMatrix * mvPosition;
+        float size = max(aTrailSize, 0.001) * uBaseSize * uPixelRatio;
+        gl_PointSize = size / max(0.12, -mvPosition.z);
+      }
+    `,
+    fragmentShader: /* glsl */ `
+      uniform sampler2D map;
+      uniform vec3 uColor;
+      uniform float uOpacity;
+      varying float vTrailAlpha;
+      void main() {
+        vec4 texel = texture2D(map, gl_PointCoord);
+        float alpha = texel.a * vTrailAlpha * uOpacity;
+        if (alpha < 0.01) discard;
+        gl_FragColor = vec4(uColor * texel.rgb, alpha);
+      }
+    `,
+    transparent: true,
+    depthWrite: false,
+    depthTest: true,
+    blending: THREE.AdditiveBlending,
+    toneMapped: false,
+    fog: false,
+  });
+  material.userData.luminousWardTrails = true;
+  material.userData.shaderProgramMode = "glsl";
+  material.userData.particlePrimitive = "points";
+  return material as WardTrailMaterial;
+}
+
+function createWardTrailMaterialTsl(
+  particleTexture: THREE.Texture,
+  positionAttribute: THREE.InstancedBufferAttribute,
+  sizeAttribute: THREE.InstancedBufferAttribute,
+  alphaAttribute: THREE.InstancedBufferAttribute,
+): WardTrailMaterial {
+  const uColor = uniform(new THREE.Color(WARD_COLOR));
+  const uOpacity = uniform(0);
+  const uPixelRatio = uniform(typeof window !== "undefined" ? Math.min(window.devicePixelRatio, 2) : 1);
+  const uBaseSize = uniform(110);
+  const aPosition = instancedBufferAttribute<"vec3">(positionAttribute, "vec3");
+  const aTrailSize = instancedBufferAttribute<"float">(sizeAttribute, "float");
+  const aTrailAlpha = instancedBufferAttribute<"float">(alphaAttribute, "float");
+  const material = new PointsNodeMaterial() as WardTrailMaterial;
+  const texel = texture(particleTexture);
+  material.name = "Luminous ward motion trail material (TSL sprites)";
+  material.transparent = true;
+  material.depthWrite = false;
+  material.depthTest = true;
+  material.blending = THREE.AdditiveBlending;
+  material.toneMapped = false;
+  material.fog = false;
+  material.sizeAttenuation = true;
+  material.positionNode = aPosition;
+  material.sizeNode = max(float(0.018), aTrailSize.mul(0.12).mul(uPixelRatio));
+  material.colorNode = vec4(uColor.mul(texel.rgb), texel.a);
+  material.opacityNode = texel.a.mul(aTrailAlpha).mul(uOpacity);
+  material.alphaTest = 0.01;
+  material.uniforms = {
+    map: { value: particleTexture },
+    uColor,
+    uOpacity,
+    uPixelRatio,
+    uBaseSize,
+  } as WardTrailUniforms;
+  material.userData.luminousWardTrails = true;
+  material.userData.shaderProgramMode = "tsl";
+  material.userData.particlePrimitive = "sprite";
+  return material;
 }
 
 /**
@@ -215,16 +448,21 @@ export class LuminousWardVfx {
   private readonly groundDisc: THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>;
   private readonly innerRing: THREE.Mesh<THREE.RingGeometry, THREE.MeshBasicMaterial>;
   private readonly outerRing: THREE.Mesh<THREE.TorusGeometry, THREE.MeshBasicMaterial>;
-  private readonly shield: THREE.Mesh<THREE.SphereGeometry, THREE.ShaderMaterial>;
-  private readonly motes: THREE.Points<THREE.BufferGeometry, THREE.PointsMaterial>;
-  private readonly trails: THREE.Points<THREE.BufferGeometry, THREE.ShaderMaterial>;
+  private readonly shield: THREE.Mesh<THREE.SphereGeometry, WardShieldMaterial>;
+  private readonly motes: THREE.Points<THREE.BufferGeometry, THREE.PointsMaterial> | THREE.Sprite;
+  private readonly trails: THREE.Points<THREE.BufferGeometry, THREE.ShaderMaterial> | THREE.Sprite;
   private readonly particleTexture: THREE.Texture;
   private readonly auraTexture: THREE.Texture;
   private readonly moteData: WardMote[];
   private readonly motePositions: Float32Array;
+  private readonly moteSizes: Float32Array;
   private readonly trailPositions: Float32Array;
   private readonly trailSizes: Float32Array;
   private readonly trailAlphas: Float32Array;
+  private readonly motePositionAttribute: THREE.BufferAttribute | THREE.InstancedBufferAttribute;
+  private readonly trailPositionAttribute: THREE.BufferAttribute | THREE.InstancedBufferAttribute;
+  private readonly trailSizeAttribute: THREE.BufferAttribute | THREE.InstancedBufferAttribute;
+  private readonly trailAlphaAttribute: THREE.BufferAttribute | THREE.InstancedBufferAttribute;
   private readonly baseLightIntensity = 2.8;
   private readonly baseLightRange = 10;
   private readonly position = new THREE.Vector3();
@@ -236,8 +474,21 @@ export class LuminousWardVfx {
   private idleClean = false;
   private disposed = false;
 
-  constructor(private readonly textureSink?: SceneTextureSink) {
+  constructor(
+    private readonly textureSink?: SceneTextureSink,
+    mode?: ShaderProgramMode,
+  ) {
+    registerLuminousWardShaderFactories();
+    const registry = getShaderProgramModeRegistry();
+    const resolved = mode ?? registry.mode;
+    registry.require(LUMINOUS_WARD_SHIELD_SHADER_FACTORY_ID, resolved);
+    registry.require(LUMINOUS_WARD_TRAILS_SHADER_FACTORY_ID, resolved);
     this.root.name = "Luminous ward player field";
+    this.root.userData.shaderProgramMode = resolved;
+    this.root.userData.luminousWardFactories = [
+      LUMINOUS_WARD_SHIELD_SHADER_FACTORY_ID,
+      LUMINOUS_WARD_TRAILS_SHADER_FACTORY_ID,
+    ];
 
     this.particleTexture = createWardParticleTexture();
     this.auraTexture = createWardAuraDiscTexture();
@@ -292,7 +543,7 @@ export class LuminousWardVfx {
 
     this.shield = new THREE.Mesh(
       new THREE.SphereGeometry(3.15, 28, 18, 0, Math.PI * 2, 0, Math.PI * 0.58),
-      createShieldMaterial(),
+      createShieldMaterial(resolved),
     );
     this.shield.name = "Luminous ward protective shell";
     this.shield.position.y = 0.08;
@@ -327,80 +578,85 @@ export class LuminousWardVfx {
     });
 
     this.motePositions = new Float32Array(WARD_PARTICLE_COUNT * 3);
+    this.moteSizes = new Float32Array(WARD_PARTICLE_COUNT);
+    for (let index = 0; index < WARD_PARTICLE_COUNT; index += 1) {
+      this.moteSizes[index] = this.moteData[index]!.size;
+    }
     this.trailPositions = new Float32Array(WARD_PARTICLE_COUNT * WARD_TRAIL_SAMPLES * 3);
     this.trailSizes = new Float32Array(WARD_PARTICLE_COUNT * WARD_TRAIL_SAMPLES);
     this.trailAlphas = new Float32Array(WARD_PARTICLE_COUNT * WARD_TRAIL_SAMPLES);
 
     const moteGeometry = new THREE.BufferGeometry();
-    moteGeometry.setAttribute("position", new THREE.BufferAttribute(this.motePositions, 3));
-    this.motes = new THREE.Points(
-      moteGeometry,
-      new THREE.PointsMaterial({
-        map: this.particleTexture,
-        color: WARD_COLOR_CORE,
-        size: 0.14,
-        transparent: true,
-        opacity: 0,
-        depthWrite: false,
-        blending: THREE.AdditiveBlending,
-        sizeAttenuation: true,
-        toneMapped: false,
-        alphaTest: 0.02,
-      }),
-    );
+    this.motePositionAttribute =
+      resolved === "tsl"
+        ? new THREE.InstancedBufferAttribute(this.motePositions, 3)
+        : new THREE.BufferAttribute(this.motePositions, 3);
+    moteGeometry.setAttribute("position", this.motePositionAttribute);
+    if (resolved === "tsl") {
+      const moteSizeAttribute = new THREE.InstancedBufferAttribute(this.moteSizes, 1);
+      moteGeometry.setAttribute("aMoteSize", moteSizeAttribute);
+      const moteMaterial = createWardMoteSpriteMaterial(
+        this.particleTexture,
+        this.motePositionAttribute as THREE.InstancedBufferAttribute,
+        moteSizeAttribute,
+      );
+      this.motes = new THREE.Sprite(moteMaterial as unknown as THREE.SpriteMaterial);
+      this.motes.count = WARD_PARTICLE_COUNT;
+      this.motes.userData.particlePrimitive = "sprite";
+    } else {
+      this.motes = new THREE.Points(
+        moteGeometry,
+        new THREE.PointsMaterial({
+          map: this.particleTexture,
+          color: WARD_COLOR_CORE,
+          size: 0.14,
+          transparent: true,
+          opacity: 0,
+          depthWrite: false,
+          blending: THREE.AdditiveBlending,
+          sizeAttenuation: true,
+          toneMapped: false,
+          alphaTest: 0.02,
+        }),
+      );
+    }
     this.motes.name = "Luminous ward floating motes";
     this.motes.renderOrder = 4;
     // Motes orbit the player; keep drawable regardless of world bounds.
     this.motes.frustumCulled = false;
 
     const trailGeometry = new THREE.BufferGeometry();
-    trailGeometry.setAttribute("position", new THREE.BufferAttribute(this.trailPositions, 3));
-    trailGeometry.setAttribute("aTrailSize", new THREE.BufferAttribute(this.trailSizes, 1));
-    trailGeometry.setAttribute("aTrailAlpha", new THREE.BufferAttribute(this.trailAlphas, 1));
-    const trailMaterial = new THREE.ShaderMaterial({
-      uniforms: {
-        map: { value: this.particleTexture },
-        uColor: { value: new THREE.Color(WARD_COLOR) },
-        uOpacity: { value: 0 },
-        uPixelRatio: {
-          value: typeof window !== "undefined" ? Math.min(window.devicePixelRatio, 2) : 1,
-        },
-        uBaseSize: { value: 110 },
-      },
-      vertexShader: /* glsl */ `
-        attribute float aTrailSize;
-        attribute float aTrailAlpha;
-        uniform float uPixelRatio;
-        uniform float uBaseSize;
-        varying float vTrailAlpha;
-        void main() {
-          vTrailAlpha = aTrailAlpha;
-          vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
-          gl_Position = projectionMatrix * mvPosition;
-          float size = max(aTrailSize, 0.001) * uBaseSize * uPixelRatio;
-          gl_PointSize = size / max(0.12, -mvPosition.z);
-        }
-      `,
-      fragmentShader: /* glsl */ `
-        uniform sampler2D map;
-        uniform vec3 uColor;
-        uniform float uOpacity;
-        varying float vTrailAlpha;
-        void main() {
-          vec4 texel = texture2D(map, gl_PointCoord);
-          float alpha = texel.a * vTrailAlpha * uOpacity;
-          if (alpha < 0.01) discard;
-          gl_FragColor = vec4(uColor * texel.rgb, alpha);
-        }
-      `,
-      transparent: true,
-      depthWrite: false,
-      depthTest: true,
-      blending: THREE.AdditiveBlending,
-      toneMapped: false,
-      fog: false,
-    });
-    this.trails = new THREE.Points(trailGeometry, trailMaterial);
+    this.trailPositionAttribute =
+      resolved === "tsl"
+        ? new THREE.InstancedBufferAttribute(this.trailPositions, 3)
+        : new THREE.BufferAttribute(this.trailPositions, 3);
+    this.trailSizeAttribute =
+      resolved === "tsl"
+        ? new THREE.InstancedBufferAttribute(this.trailSizes, 1)
+        : new THREE.BufferAttribute(this.trailSizes, 1);
+    this.trailAlphaAttribute =
+      resolved === "tsl"
+        ? new THREE.InstancedBufferAttribute(this.trailAlphas, 1)
+        : new THREE.BufferAttribute(this.trailAlphas, 1);
+    trailGeometry.setAttribute("position", this.trailPositionAttribute);
+    trailGeometry.setAttribute("aTrailSize", this.trailSizeAttribute);
+    trailGeometry.setAttribute("aTrailAlpha", this.trailAlphaAttribute);
+    const trailMaterial =
+      resolved === "tsl"
+        ? createWardTrailMaterialTsl(
+            this.particleTexture,
+            this.trailPositionAttribute as THREE.InstancedBufferAttribute,
+            this.trailSizeAttribute as THREE.InstancedBufferAttribute,
+            this.trailAlphaAttribute as THREE.InstancedBufferAttribute,
+          )
+        : createWardTrailMaterialGlsl(this.particleTexture);
+    if (resolved === "tsl") {
+      this.trails = new THREE.Sprite(trailMaterial as unknown as THREE.SpriteMaterial);
+      this.trails.count = WARD_PARTICLE_COUNT * WARD_TRAIL_SAMPLES;
+      this.trails.userData.particlePrimitive = "sprite";
+    } else {
+      this.trails = new THREE.Points(trailGeometry, trailMaterial as THREE.ShaderMaterial);
+    }
     this.trails.name = "Luminous ward motion trails";
     this.trails.renderOrder = 3;
     // Motion trails follow the ward root on the player.
@@ -459,7 +715,7 @@ export class LuminousWardVfx {
     (shieldMat.uniforms.uColor.value as THREE.Color).setHex(life < 0.18 ? 0xd8ff90 : WARD_COLOR);
 
     this.motes.material.opacity = 0.38 * fade;
-    this.trails.material.uniforms.uOpacity.value = 0.2 * fade;
+    (this.trails.material as WardTrailMaterial).uniforms.uOpacity.value = 0.2 * fade;
 
     this.outerRing.rotation.z = elapsed * 0.25;
     this.shield.rotation.y = elapsed * 0.11;
@@ -579,14 +835,10 @@ export class LuminousWardVfx {
   }
 
   private markParticleBuffersDirty(): void {
-    const motePos = this.motes.geometry.getAttribute("position") as THREE.BufferAttribute;
-    motePos.needsUpdate = true;
-    const trailPos = this.trails.geometry.getAttribute("position") as THREE.BufferAttribute;
-    trailPos.needsUpdate = true;
-    const trailSize = this.trails.geometry.getAttribute("aTrailSize") as THREE.BufferAttribute;
-    trailSize.needsUpdate = true;
-    const trailAlpha = this.trails.geometry.getAttribute("aTrailAlpha") as THREE.BufferAttribute;
-    trailAlpha.needsUpdate = true;
+    this.motePositionAttribute.needsUpdate = true;
+    this.trailPositionAttribute.needsUpdate = true;
+    this.trailSizeAttribute.needsUpdate = true;
+    this.trailAlphaAttribute.needsUpdate = true;
   }
 
   dispose(): void {
@@ -602,9 +854,9 @@ export class LuminousWardVfx {
     this.outerRing.material.dispose();
     this.shield.geometry.dispose();
     this.shield.material.dispose();
-    this.motes.geometry.dispose();
+    if (this.motes instanceof THREE.Points) this.motes.geometry.dispose();
     this.motes.material.dispose();
-    this.trails.geometry.dispose();
+    if (this.trails instanceof THREE.Points) this.trails.geometry.dispose();
     this.trails.material.dispose();
     this.particleTexture.dispose();
     this.auraTexture.dispose();
