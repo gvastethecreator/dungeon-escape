@@ -134,12 +134,26 @@ describe("render capabilities", () => {
       userAgent: "Mozilla/5.0 Firefox/153.0",
       hardwareConcurrency: 8,
       search: "?quality=1&crt=1",
-      overrides: { quality: null, crt: null, safeRender: null },
+      overrides: { quality: null, crt: null, safeRender: null, renderer: "auto" },
     });
 
     expect(caps.telemetryPath).toBe("firefox");
     expect(caps.rendererReadyTimeoutMs).toBe(2_500);
     expect(caps.enableCrtByDefault).toBe(false);
+    expect(caps.requestedRenderer).toBe("auto");
+  });
+
+  test("publishes requested renderer preference from overrides or search", () => {
+    expect(
+      detectRenderCapabilities({
+        overrides: { quality: null, crt: null, safeRender: null, renderer: "webgpu" },
+      }).requestedRenderer,
+    ).toBe("webgpu");
+    expect(
+      detectRenderCapabilities({
+        search: "?renderer=webgl",
+      }).requestedRenderer,
+    ).toBe("webgl");
   });
 
   test("main incrementally compiles supported resident floors without retaining replacement worlds", () => {

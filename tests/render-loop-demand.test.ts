@@ -8,6 +8,9 @@ describe("demand-driven Three render loop", () => {
     expect(source).toContain("visibilityState: document.visibilityState,");
     expect(source).toContain("syncThreeRenderLoop();");
     expect(source).toContain('document.addEventListener("visibilitychange", syncThreeRenderLoop)');
-    expect(source).toContain("animationFrameId = 0;\n  if (!shouldRunThreeRenderLoop()) return;");
+    expect(source).toContain("renderer.setAnimationLoop(frame);");
+    expect(source).toContain("renderer.setAnimationLoop(null);");
+    expect(source).toContain("if (!shouldRunThreeRenderLoop()) {");
   });
 });
+

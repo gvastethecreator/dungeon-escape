@@ -21,7 +21,7 @@ describe("launch configuration", () => {
       skipRunIntro: true,
       performanceAudit: true,
       visualQa: { state: "portal", seed: "CAMPANA-17" },
-      render: { quality: true, crt: false, safeRender: null },
+      render: { quality: true, crt: false, safeRender: null, renderer: "auto" },
     });
     expect(Object.isFrozen(config)).toBe(true);
     expect(Object.isFrozen(config.visualQa)).toBe(true);
@@ -35,6 +35,15 @@ describe("launch configuration", () => {
     expect(normal.mood).toBe("molten");
     expect(normal.visualQa).toEqual({ state: null, seed: null });
     expect(explicitEmptyMood.mood).toBeNull();
+  });
+
+  test("parses renderer preference and falls unknown values to auto", () => {
+    expect(parseLaunchConfiguration("?renderer=webgpu").render.renderer).toBe("webgpu");
+    expect(parseLaunchConfiguration("?renderer=webgl").render.renderer).toBe("webgl");
+    expect(parseLaunchConfiguration("?renderer=auto").render.renderer).toBe("auto");
+    expect(parseLaunchConfiguration("?renderer=WEBGPU").render.renderer).toBe("webgpu");
+    expect(parseLaunchConfiguration("?renderer=metal").render.renderer).toBe("auto");
+    expect(parseLaunchConfiguration("").render.renderer).toBe("auto");
   });
 
   test("updates only supplied runtime URL state", () => {

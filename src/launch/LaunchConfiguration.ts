@@ -2,11 +2,14 @@ import type { EngineMode } from "../game/EngineMode";
 
 export type VisualQaState = "critical" | "dead" | "portal" | "won";
 export type LaunchQueryFlag = boolean | null;
+/** Immutable renderer preference from `?renderer=`. Unknown values fall to `auto`. */
+export type LaunchRendererPreference = "webgpu" | "webgl" | "auto";
 
 export interface LaunchRenderOverrides {
   readonly quality: LaunchQueryFlag;
   readonly crt: LaunchQueryFlag;
   readonly safeRender: LaunchQueryFlag;
+  readonly renderer: LaunchRendererPreference;
 }
 
 export interface LaunchConfiguration {
@@ -55,6 +58,11 @@ function visualQaState(value: string | null): VisualQaState | null {
     : null;
 }
 
+function rendererPreference(value: string | null): LaunchRendererPreference {
+  if (value === "webgpu" || value === "webgl" || value === "auto") return value;
+  return "auto";
+}
+
 function safeParams(search: string): URLSearchParams {
   try {
     return new URLSearchParams(search.startsWith("?") ? search.slice(1) : search);
@@ -77,6 +85,7 @@ export function parseLaunchConfiguration(search: string): LaunchConfiguration {
     quality: queryFlag(params, "quality"),
     crt: queryFlag(params, "crt"),
     safeRender: queryFlag(params, "safeRender"),
+    renderer: rendererPreference(trimmed(params.get("renderer"))?.toLowerCase() ?? null),
   });
 
   return Object.freeze({

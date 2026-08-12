@@ -459,26 +459,40 @@ const scene = new THREE.Scene();
 
 const camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.08, 120);
 const renderPathCaps = detectRenderCapabilities({ overrides: launchConfig.render });
-function createPlayRenderer(): THREE.WebGLRenderer {
+/** Wall time spent creating/initializing the play renderer backend. */
+let rendererInitDurationMs = 0;
+async function createPlayRenderer(): Promise<THREE.WebGLRenderer> {
+  const initStartedAt = performance.now();
   const common = {
     canvas: elements.scene,
     antialias: false as const,
   };
   try {
-    return new THREE.WebGLRenderer({
+    const created = new THREE.WebGLRenderer({
       ...common,
       // Firefox dual-GPU + high-performance often picks a dead adapter (black canvas).
       powerPreference: renderPathCaps.preferDefaultGpu ? "default" : "high-performance",
     });
+    // WebGL resolves immediately; WGP-08 awaits WebGPURenderer.init() on this path.
+    rendererInitDurationMs = performance.now() - initStartedAt;
+    return created;
   } catch (error) {
     console.warn("Primary WebGL context failed; retrying with defaults", error);
-    return new THREE.WebGLRenderer(common);
+    const created = new THREE.WebGLRenderer(common);
+    rendererInitDurationMs = performance.now() - initStartedAt;
+    return created;
   }
 }
-const renderer = createPlayRenderer();
+const renderer = await createPlayRenderer();
+console.info("[renderer-init]", {
+  durationMs: Math.round(rendererInitDurationMs),
+  requestedRenderer: renderPathCaps.requestedRenderer,
+  backend: "webgl",
+});
 const renderCaps = {
   ...renderPathCaps,
   ...detectRendererCompileCapabilities(renderer),
+  requestedRenderer: renderPathCaps.requestedRenderer,
 };
 // Three.js recommends keeping shader diagnostics in development, but each
 // program info-log read can serialize Chrome's shader compiler. The production
@@ -3057,7 +3071,11 @@ function publishDungeonLoadTrace(snapshot: DungeonLoadTraceSnapshot): void {
   } else {
     delete dataset.warmupWorkMs;
   }
-  console.info("[dungeon-load]", snapshot);
+  console.info("[dungeon-load]", {
+    ...snapshot,
+    rendererInitMs: Math.round(rendererInitDurationMs),
+    requestedRenderer: renderCaps.requestedRenderer,
+  });
 }
 
 function clearRendererWarmupTrace(trace: DungeonLoadTrace): void {
@@ -4812,13 +4830,15 @@ function shouldRunThreeRenderLoop(): boolean {
 function syncThreeRenderLoop(): void {
   const shouldRun = shouldRunThreeRenderLoop();
   if (!shouldRun) {
-    if (animationFrameId) cancelAnimationFrame(animationFrameId);
+    if (animationFrameId) renderer.setAnimationLoop(null);
     animationFrameId = 0;
     return;
   }
   if (animationFrameId) return;
   lastFrameMs = performance.now();
-  animationFrameId = requestAnimationFrame(frame);
+  // Prefer the renderer loop so WebGPU init / XR share one frame scheduler.
+  renderer.setAnimationLoop(frame);
+  animationFrameId = 1;
 }
 
 function getThreeLoopDiagnostics(): { running: boolean; frames: number; renders: number } {
@@ -4830,9 +4850,11 @@ function getThreeLoopDiagnostics(): { running: boolean; frames: number; renders:
 }
 
 function frame(now: number): void {
-  animationFrameId = 0;
-  if (!shouldRunThreeRenderLoop()) return;
-  animationFrameId = requestAnimationFrame(frame);
+  if (!shouldRunThreeRenderLoop()) {
+    renderer.setAnimationLoop(null);
+    animationFrameId = 0;
+    return;
+  }
   threeFrameCount += 1;
   if (launchConfig.performanceAudit || engineMode === "debug") renderer.info.reset();
   const rawFrameGapMs = now - lastFrameMs;
@@ -5213,7 +5235,8 @@ document.addEventListener("visibilitychange", syncThreeRenderLoop);
 window.addEventListener("beforeunload", () => {
   if (appDisposed) return;
   appDisposed = true;
-  cancelAnimationFrame(animationFrameId);
+  renderer.setAnimationLoop(null);
+  animationFrameId = 0;
   localRunSave.flush();
   localRunSave.dispose();
   runIntroDirector.dispose();

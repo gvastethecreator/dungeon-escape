@@ -1,5 +1,6 @@
 import * as THREE from "three";
 
+import type { DungeonRenderer } from "./DungeonRenderer";
 import {
   DEFAULT_DISPLAY_POST_FX_TUNING,
   normalizeDisplayPostFxTuning,
@@ -408,7 +409,7 @@ export class PovPostFx {
   /**
    * Draw scene → RT → fullscreen warp. When disabled, falls back to a normal render.
    */
-  render(renderer: THREE.WebGLRenderer, scene: THREE.Scene, camera: THREE.Camera): void {
+  render(renderer: DungeonRenderer, scene: THREE.Scene, camera: THREE.Camera): void {
     const prevTarget = renderer.getRenderTarget();
     if (!this.enabled) {
       try {
@@ -466,7 +467,7 @@ export class PovPostFx {
    * load cover is still present. Restore the player's configured effect state
    * and discard this synthetic history before the first live frame.
    */
-  warmup(renderer: THREE.WebGLRenderer, scene: THREE.Scene, camera: THREE.Camera): void {
+  warmup(renderer: DungeonRenderer, scene: THREE.Scene, camera: THREE.Camera): void {
     const wasEnabled = this.enabled;
     const wasCrtEnabled = this.crtEnabled;
     try {

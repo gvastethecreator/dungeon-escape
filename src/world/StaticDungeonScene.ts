@@ -22,6 +22,7 @@ import type {
   GridCell,
 } from "../dungeon/types";
 import { AssetLibrary, type WallSpriteTextures } from "./AssetLibrary";
+import { tintAuthoredLightVfxColor } from "./AuthoredLightVfxTint";
 import { createVolumetricBeam } from "./VolumetricBeam";
 import { createFloorCampfire } from "./FloorCampfireFactory";
 import { createWallLantern, createWallTorch } from "./WallTorchFactory";
@@ -3774,8 +3775,7 @@ export class StaticDungeonScene {
     const signalName = /(flame|glow|halo|beam|portal|crystal|light pool)/i;
     const tintMaterial = (material: THREE.Material, color: THREE.Color, strength: number): void => {
       if (material instanceof THREE.ShaderMaterial) {
-        const uniform = material.uniforms.uColor;
-        if (uniform?.value instanceof THREE.Color) uniform.value.lerp(color, strength);
+        tintAuthoredLightVfxColor(material, color, strength);
         return;
       }
       if (
