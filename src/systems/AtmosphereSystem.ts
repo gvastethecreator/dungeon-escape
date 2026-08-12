@@ -4,16 +4,44 @@ import { createSeededRandom } from "../core/random";
 import { FLOOR } from "../dungeon/generateDungeon";
 import { gridToWorld } from "../dungeon/gridCollision";
 import type { DungeonData, GridCell } from "../dungeon/types";
-import type { DungeonMood } from "./DungeonMood";
-import { getDungeonMood } from "./DungeonMood";
-import type { SceneTextureSink } from "./SceneTextureRegistry";
+import type {
+  BiomeParticleGeometryData,
+  BiomeParticleMaterial,
+  SoftGroundFogMaterial,
+} from "./AtmosphereMaterialsShared";
 import {
-  BIOME_PARTICLE_MOTION_ID,
-  BIOME_PARTICLE_SHAPE_ID,
+  biomeParticleHandles,
+  createBiomeParticleAssembly,
+} from "./BiomeParticleMaterial";
+import {
   getBiomeParticleProfile,
   isCeilingPrecipitationLayer,
   type BiomeParticleLayerProfile,
 } from "./BiomeParticleProfile";
+import type { DungeonMood } from "./DungeonMood";
+import { getDungeonMood } from "./DungeonMood";
+import type { SceneTextureSink } from "./SceneTextureRegistry";
+import {
+  createSoftGroundFogMaterial,
+  SOFT_FOG_DENSITY,
+  SOFT_FOG_DEFAULT_WALL_HEIGHT,
+  SOFT_FOG_HEIGHT_FALLOFF_AIR,
+  SOFT_FOG_HEIGHT_FALLOFF_GROUND,
+  SOFT_FOG_LOCAL_HALF,
+  softGroundFogHandles,
+} from "./SoftGroundFogMaterial";
+
+export {
+  SOFT_FOG_DEFAULT_WALL_HEIGHT,
+  SOFT_FOG_DENSITY,
+  SOFT_FOG_DIST_FALLOFF,
+  SOFT_FOG_HEIGHT_FALLOFF,
+  SOFT_FOG_HEIGHT_FALLOFF_AIR,
+  SOFT_FOG_HEIGHT_FALLOFF_GROUND,
+  SOFT_FOG_LOCAL_HALF,
+  SOFT_FOG_MAX_ALPHA,
+  SOFT_FOG_MAX_DIST,
+} from "./SoftGroundFogMaterial";
 
 interface MistBank {
   sprite: THREE.Sprite;
@@ -24,32 +52,18 @@ interface MistBank {
 
 interface SoftGroundFog {
   mesh: THREE.Mesh;
-  material: THREE.ShaderMaterial;
+  material: SoftGroundFogMaterial;
   baseDensity: number;
   mask: THREE.DataTexture;
   worldMin: THREE.Vector2;
   worldSize: THREE.Vector2;
 }
 
-/** Matches DungeonWorld wall/tile height. */
-export const SOFT_FOG_DEFAULT_WALL_HEIGHT = 4.4;
-/** Half-size of the local fog box that follows the player (meters, XZ). */
-export const SOFT_FOG_LOCAL_HALF = 12;
-/** Max ray length inside the volume — avoids hard “map edge” cuts. */
-export const SOFT_FOG_MAX_DIST = 15;
-/**
- * Dual height falloff (ground layer + air layer). Both continuous exponentials:
- * thick near floor, still present at eye level, soft dissolve under ceiling.
- */
-export const SOFT_FOG_HEIGHT_FALLOFF_GROUND = 1.05;
-export const SOFT_FOG_HEIGHT_FALLOFF_AIR = 0.34;
-/** Kept for tests / tuning of “overall” vertical read (air layer). */
-export const SOFT_FOG_HEIGHT_FALLOFF = SOFT_FOG_HEIGHT_FALLOFF_AIR;
-/** Distance falloff γ along the view ray (soft dissolve with range). */
-export const SOFT_FOG_DIST_FALLOFF = 0.07;
-/** Scale on analytical optical depth before Beer–Lambert. */
-export const SOFT_FOG_DENSITY = 0.62;
-export const SOFT_FOG_MAX_ALPHA = 0.26;
+interface MoteCloud {
+  object: THREE.Points | THREE.Sprite;
+  material: BiomeParticleMaterial;
+  count: number;
+}
 
 /**
  * Soft volume haze from mood. Pulls mist toward fog base, then caps Rec.709
@@ -194,439 +208,6 @@ function createFloorMaskTexture(dungeon: DungeonData): THREE.DataTexture {
   return texture;
 }
 
-/**
- * Local wall-height volume that follows the player.
- * Analytical height fog: ρ(y)=ρ0·e^(−βy), integrated along the ray → continuous
- * vertical gradient with no discrete bands or map-edge cliffs.
- */
-const SOFT_FOG_VERTEX = /* glsl */ `
-  varying vec3 vWorldPos;
-  void main() {
-    vec4 world = modelMatrix * vec4(position, 1.0);
-    vWorldPos = world.xyz;
-    gl_Position = projectionMatrix * viewMatrix * world;
-  }
-`;
-
-const SOFT_FOG_FRAGMENT = /* glsl */ `
-  precision mediump float;
-
-  uniform vec3 uColor;
-  uniform float uDensity;
-  uniform float uHeight;
-  uniform float uTime;
-  uniform float uBetaGround;
-  uniform float uBetaAir;
-  uniform float uDistFalloff;
-  uniform float uMaxDist;
-  uniform float uMaxAlpha;
-  uniform float uHalfExtent;
-  uniform sampler2D uFloorMask;
-  uniform vec2 uWorldMin;
-  uniform vec2 uWorldSize;
-  uniform vec2 uBoxCenter;
-
-  varying vec3 vWorldPos;
-
-  float hash21(vec2 p) {
-    return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
-  }
-
-  float valueNoise(vec2 p) {
-    vec2 i = floor(p);
-    vec2 f = fract(p);
-    vec2 u = f * f * (3.0 - 2.0 * f);
-    float a = hash21(i);
-    float b = hash21(i + vec2(1.0, 0.0));
-    float c = hash21(i + vec2(0.0, 1.0));
-    float d = hash21(i + vec2(1.0, 1.0));
-    return mix(mix(a, b, u.x), mix(c, d, u.x), u.y);
-  }
-
-  float fbm(vec2 p) {
-    float v = 0.0;
-    float a = 0.5;
-    mat2 m = mat2(0.8, -0.6, 0.6, 0.8);
-    for (int i = 0; i < 4; i++) {
-      v += a * valueNoise(p);
-      p = m * p * 2.03;
-      a *= 0.5;
-    }
-    return v;
-  }
-
-  float floorMaskAt(vec2 worldXZ) {
-    vec2 uv = (worldXZ - uWorldMin) / uWorldSize;
-    if (uv.x < 0.0 || uv.y < 0.0 || uv.x > 1.0 || uv.y > 1.0) return 0.0;
-    return texture2D(uFloorMask, uv).r;
-  }
-
-  bool rayBox(vec3 ro, vec3 rd, vec3 bmin, vec3 bmax, out float t0, out float t1) {
-    vec3 inv = vec3(
-      abs(rd.x) > 1e-5 ? 1.0 / rd.x : 1e6 * sign(rd.x + 1e-6),
-      abs(rd.y) > 1e-5 ? 1.0 / rd.y : 1e6 * sign(rd.y + 1e-6),
-      abs(rd.z) > 1e-5 ? 1.0 / rd.z : 1e6 * sign(rd.z + 1e-6)
-    );
-    vec3 tbot = (bmin - ro) * inv;
-    vec3 ttop = (bmax - ro) * inv;
-    vec3 tminv = min(tbot, ttop);
-    vec3 tmaxv = max(tbot, ttop);
-    t0 = max(max(tminv.x, tminv.y), tminv.z);
-    t1 = min(min(tmaxv.x, tmaxv.y), tmaxv.z);
-    return t1 > max(t0, 0.0);
-  }
-
-  // Soft oval-ish window (feather starts earlier → no box silhouette).
-  float localWindow(vec2 worldXZ) {
-    vec2 d = (worldXZ - uBoxCenter) / uHalfExtent;
-    float r = length(d);
-    return 1.0 - smoothstep(0.55, 1.0, r);
-  }
-
-  // Integral of A * exp(-C * t) from tEnter over length T.
-  float integrateExp(float A, float C, float tEnter, float T) {
-    float A1 = A * exp(-C * tEnter);
-    if (abs(C) < 1e-4) return A1 * T;
-    return A1 * (1.0 - exp(-C * T)) / C;
-  }
-
-  // Dual-layer height density at a world Y (for soft noise modulation samples).
-  float heightDensity(float y) {
-    float yg = max(y, 0.0);
-    return 0.52 * exp(-uBetaGround * yg) + 0.48 * exp(-uBetaAir * yg);
-  }
-
-  void main() {
-    vec3 ro = cameraPosition;
-    vec3 rd = normalize(vWorldPos - ro);
-
-    vec3 bmin = vec3(uBoxCenter.x - uHalfExtent, 0.0, uBoxCenter.y - uHalfExtent);
-    vec3 bmax = vec3(uBoxCenter.x + uHalfExtent, uHeight, uBoxCenter.y + uHalfExtent);
-
-    float t0;
-    float t1;
-    if (!rayBox(ro, rd, bmin, bmax, t0, t1)) discard;
-    float tEnter = max(t0, 0.0);
-    float tExit = min(min(t1, uMaxDist), tEnter + uMaxDist);
-    if (tExit <= tEnter + 0.02) discard;
-
-    float gamma = uDistFalloff;
-    float y0 = max(ro.y, 0.0);
-    float T = tExit - tEnter;
-
-    // Soft large-scale wisps (view-stable enough to avoid crawling noise).
-    vec2 drift = vec2(uTime * 0.01, -uTime * 0.0075);
-    float n = fbm(ro.xz * 0.038 + rd.xz * 1.25 + drift);
-    float n2 = fbm(ro.xz * 0.09 - rd.xz * 0.6 + drift.yx * 1.3 + 4.0);
-    float wisp = 0.78 + 0.28 * n + 0.12 * n2;
-    float rho0 = uDensity * wisp;
-
-    /*
-     * Dual analytical height fog (continuous, no cliffs):
-     * ground layer: thick low soup   β_g large
-     * air layer:    soft tall haze   β_a small
-     * ρ(t) = Σ w_i · ρ0 · exp(−β_i · y(t)) · exp(−γ · t)
-     */
-    float optical =
-      integrateExp(rho0 * 0.52 * exp(-uBetaGround * y0), uBetaGround * rd.y + gamma, tEnter, T)
-      + integrateExp(rho0 * 0.48 * exp(-uBetaAir * y0), uBetaAir * rd.y + gamma, tEnter, T);
-
-    // Soft mask / window + light height-aware noise along the ray.
-    float maskAcc = 0.0;
-    float winAcc = 0.0;
-    float detailAcc = 0.0;
-    const int SAMPLES = 8;
-    for (int i = 0; i < SAMPLES; i++) {
-      float ft = (float(i) + 0.5) / float(SAMPLES);
-      // Slight ease so samples prefer mid-path (where fog reads best).
-      float u = ft * ft * (3.0 - 2.0 * ft);
-      float tt = tEnter + T * u;
-      vec3 p = ro + rd * tt;
-      maskAcc += floorMaskAt(p.xz);
-      winAcc += localWindow(p.xz);
-      float hd = heightDensity(p.y);
-      float dn = fbm(p.xz * 0.07 + vec2(p.y * 0.2, uTime * 0.02));
-      // Detail stronger near the floor, dies with height (keeps upper fade clean).
-      detailAcc += (0.88 + 0.22 * dn) * mix(1.0, 0.55, clamp(p.y / max(uHeight, 0.001), 0.0, 1.0)) * hd;
-    }
-    float mask = maskAcc / float(SAMPLES);
-    float window = winAcc / float(SAMPLES);
-    float detail = detailAcc / float(SAMPLES);
-    if (mask * window < 0.018) discard;
-
-    // Near-lens soft kill so the player is not inside a fog blob.
-    float nearSoft = smoothstep(0.2, 1.4, tEnter + T * 0.35);
-
-    optical *= mask * window * nearSoft;
-    // Blend analytical body with soft detail (never binary).
-    optical *= mix(0.9, 1.18, clamp(detail, 0.0, 1.5));
-
-    // Looking upward thins a bit more (sells the vertical gradient in silhouette).
-    float up = clamp(rd.y, 0.0, 1.0);
-    optical *= 1.0 - up * 0.22;
-
-    float alpha = 1.0 - exp(-max(optical, 0.0));
-    // Soft film response — long toe, no hard max wall.
-    alpha = uMaxAlpha * (1.0 - exp(-1.35 * alpha));
-
-    float bayer = fract(sin(dot(gl_FragCoord.xy, vec2(12.9898, 78.233))) * 43758.5453);
-    alpha += (bayer - 0.5) * 0.004;
-
-    if (alpha < 0.005) discard;
-
-    // Slightly deepen color with optical depth (haze denser → a touch cooler/darker).
-    vec3 col = mix(uColor * 1.06, uColor * 0.88, clamp(alpha / max(uMaxAlpha, 0.001), 0.0, 1.0));
-    gl_FragColor = vec4(col, alpha);
-  }
-`;
-
-function createSoftGroundFogMaterial(
-  color: THREE.Color,
-  density: number,
-  mask: THREE.DataTexture,
-  worldMin: THREE.Vector2,
-  worldSize: THREE.Vector2,
-  wallHeight: number,
-): THREE.ShaderMaterial {
-  return new THREE.ShaderMaterial({
-    vertexShader: SOFT_FOG_VERTEX,
-    fragmentShader: SOFT_FOG_FRAGMENT,
-    uniforms: {
-      uColor: { value: color },
-      uDensity: { value: density },
-      uHeight: { value: wallHeight },
-      uTime: { value: 0 },
-      uBetaGround: { value: SOFT_FOG_HEIGHT_FALLOFF_GROUND },
-      uBetaAir: { value: SOFT_FOG_HEIGHT_FALLOFF_AIR },
-      uDistFalloff: { value: SOFT_FOG_DIST_FALLOFF },
-      uMaxDist: { value: SOFT_FOG_MAX_DIST },
-      uMaxAlpha: { value: SOFT_FOG_MAX_ALPHA },
-      uHalfExtent: { value: SOFT_FOG_LOCAL_HALF },
-      uFloorMask: { value: mask },
-      uWorldMin: { value: worldMin },
-      uWorldSize: { value: worldSize },
-      uBoxCenter: { value: new THREE.Vector2(0, 0) },
-    },
-    transparent: true,
-    depthWrite: false,
-    // Inside volume; shell would lose to wall depth. Short local range keeps it honest.
-    depthTest: false,
-    side: THREE.BackSide,
-    fog: false,
-    toneMapped: false,
-    blending: THREE.NormalBlending,
-  });
-}
-
-interface MoteCloud {
-  points: THREE.Points;
-  material: THREE.ShaderMaterial;
-  count: number;
-}
-
-function createBiomeParticleMaterial(
-  map: THREE.Texture,
-  layer: BiomeParticleLayerProfile,
-  wallHeight: number,
-): THREE.ShaderMaterial {
-  return new THREE.ShaderMaterial({
-    uniforms: {
-      map: { value: map },
-      uColor: { value: new THREE.Color(layer.color) },
-      uColorAlt: { value: new THREE.Color(layer.colorAlt) },
-      uOpacity: { value: layer.opacity },
-      uTime: { value: 0 },
-      uPixelRatio: {
-        value: typeof window !== "undefined" ? Math.min(window.devicePixelRatio, 1.5) : 1,
-      },
-      uAtten: { value: 350 },
-      uMotion: { value: BIOME_PARTICLE_MOTION_ID[layer.motion] },
-      uShape: { value: BIOME_PARTICLE_SHAPE_ID[layer.shape] },
-      uFlow: { value: new THREE.Vector3(layer.flowX, layer.flowY, layer.flowZ) },
-      uSpeed: { value: layer.speed },
-      uTurbulence: { value: layer.turbulence },
-      uWallHeight: { value: wallHeight },
-      uViewer: { value: new THREE.Vector3() },
-      uWake: { value: layer.wake },
-    },
-    vertexShader: /* glsl */ `
-      attribute float aSize;
-      attribute float aPhase;
-      attribute float aTint;
-      uniform float uTime;
-      uniform float uOpacity;
-      uniform float uPixelRatio;
-      uniform float uAtten;
-      uniform float uMotion;
-      uniform vec3 uFlow;
-      uniform float uSpeed;
-      uniform float uTurbulence;
-      uniform float uWallHeight;
-      uniform vec3 uViewer;
-      uniform float uWake;
-      varying float vAlpha;
-      varying float vTint;
-      varying float vPhase;
-      varying float vDepthFade;
-
-      float hash11(float p) {
-        return fract(sin(p * 127.1) * 43758.5453);
-      }
-
-      void main() {
-        vec3 pos = position;
-        float phase = aPhase * 6.2831853;
-        float t = fract(aPhase + uTime * max(uSpeed, 0.01) * 0.16);
-        float wave = sin(uTime * (0.55 + uSpeed) + phase);
-        float alphaPulse = 0.72 + 0.28 * sin(uTime * (0.8 + uSpeed) + phase * 1.7);
-        float sizePulse = 1.0;
-
-        if (uMotion < 0.5) {
-          pos += uFlow * sin(uTime * 0.18 + phase) * 2.4;
-          pos.x += sin(uTime * 0.42 + phase) * uTurbulence * 0.42;
-          pos.z += cos(uTime * 0.36 + phase * 1.3) * uTurbulence * 0.36;
-          pos.y += wave * uTurbulence * 0.24;
-        } else if (uMotion < 1.5) {
-          pos.y = -0.22 + fract((position.y + 0.22) / (uWallHeight + 0.44) + t) * (uWallHeight + 0.44);
-          pos.x += sin(uTime * 0.8 + phase) * uTurbulence * 0.38 + uFlow.x * t;
-          pos.z += cos(uTime * 0.64 + phase) * uTurbulence * 0.3 + uFlow.z * t;
-        } else if (uMotion < 2.5) {
-          pos.y = -0.22 + (1.0 - fract((position.y + 0.22) / (uWallHeight + 0.44) + t)) * (uWallHeight + 0.44);
-          pos.x += sin(uTime * 0.5 + phase) * uTurbulence * 0.6 + uFlow.x * t;
-          pos.z += cos(uTime * 0.44 + phase * 1.2) * uTurbulence * 0.48 + uFlow.z * t;
-        } else if (uMotion < 3.5) {
-          float radius = 0.18 + hash11(aPhase + 3.7) * (0.38 + uTurbulence * 0.45);
-          pos.x += cos(uTime * uSpeed + phase) * radius;
-          pos.z += sin(uTime * uSpeed * 0.83 + phase) * radius;
-          pos.y += sin(uTime * 0.7 + phase * 1.4) * 0.22;
-        } else if (uMotion < 4.5) {
-          pos.y = 0.12 + (1.0 - fract(position.y / uWallHeight + t * 0.58)) * (uWallHeight * 0.88);
-          pos.x += sin(uTime * 1.1 + phase) * uTurbulence * 0.72;
-          pos.z += cos(uTime * 0.76 + phase * 1.5) * uTurbulence * 0.52;
-          sizePulse = 0.8 + abs(wave) * 0.36;
-        } else if (uMotion < 5.5) {
-          float burst = fract(t * 2.0 + hash11(aPhase + 4.0));
-          vec3 direction = normalize(uFlow + vec3(sin(phase), 0.22, cos(phase)) * 0.28);
-          pos += direction * burst * (0.8 + uTurbulence * 1.7);
-          pos.y += sin(burst * 3.1415926) * 0.24;
-          alphaPulse = 0.7 + 0.3 * sin(burst * 6.2831853 + phase);
-          sizePulse = 0.82 + (1.0 - burst) * 0.28;
-        } else if (uMotion < 6.5) {
-          pos.x += sin(uTime * 0.4 + phase) * uTurbulence * 0.42;
-          pos.z += cos(uTime * 0.37 + phase) * uTurbulence * 0.38;
-          pos.y += sin(uTime * 0.5 + phase * 1.2) * 0.24 + uFlow.y * uTime * 0.08;
-          alphaPulse = 0.38 + 0.62 * pow(0.5 + 0.5 * wave, 2.0);
-          sizePulse = 0.78 + 0.42 * (0.5 + 0.5 * wave);
-        } else if (uMotion < 7.5) {
-          float gate = step(0.48, hash11(floor(uTime * (3.0 + uSpeed * 5.0)) + aPhase * 31.0));
-          pos.x += floor(sin(uTime * 0.34 + phase) * 2.0) * uTurbulence * 0.12;
-          alphaPulse = mix(0.56, 1.0, gate);
-          sizePulse = mix(0.82, 1.18, gate);
-        } else {
-          // Drip: reset near the ceiling, fall fast, fade near the floor.
-          float fall = fract(t * (1.15 + uSpeed * 0.55) + hash11(aPhase + 8.1));
-          float span = uWallHeight * 0.98;
-          pos.y = uWallHeight * 0.97 - fall * span;
-          pos.x += sin(phase) * 0.035 + uFlow.x * fall * 0.2;
-          pos.z += cos(phase * 1.3) * 0.035 + uFlow.z * fall * 0.2;
-          alphaPulse = 0.62 + 0.38 * (1.0 - smoothstep(0.82, 1.0, fall));
-          sizePulse = 0.78 + fall * 0.42;
-        }
-
-        // Signature move: the field parts and curls around the player in a cheap GPU wake.
-        vec2 particleWorldXZ = (modelMatrix * vec4(pos, 1.0)).xz;
-        vec2 delta = particleWorldXZ - uViewer.xz;
-        float distanceToViewer = length(delta);
-        float wake = (1.0 - smoothstep(1.1, 4.8, distanceToViewer)) * uWake * 0.42;
-        vec2 tangent = distanceToViewer > 0.001 ? vec2(-delta.y, delta.x) / distanceToViewer : vec2(0.0);
-        pos.xz += tangent * wake * sin(phase + uTime * 1.3) * 0.32;
-        pos.y += wake * 0.1 * sin(phase * 1.9 + uTime);
-
-        vec4 worldPosition = modelMatrix * vec4(pos, 1.0);
-        vec4 mvPosition = viewMatrix * worldPosition;
-        float depth = max(0.35, -mvPosition.z);
-        gl_PointSize = clamp(aSize * sizePulse * uAtten * uPixelRatio / depth, 1.0, 10.0);
-        gl_Position = projectionMatrix * mvPosition;
-        vAlpha = uOpacity * max(0.56, alphaPulse) * (0.78 + aPhase * 0.22);
-        vTint = aTint;
-        vPhase = phase;
-        vDepthFade = smoothstep(0.35, 0.9, depth) * (1.0 - smoothstep(13.0, 24.0, depth));
-      }
-    `,
-    fragmentShader: /* glsl */ `
-      uniform sampler2D map;
-      uniform vec3 uColor;
-      uniform vec3 uColorAlt;
-      uniform float uShape;
-      varying float vAlpha;
-      varying float vTint;
-      varying float vPhase;
-      varying float vDepthFade;
-
-      void main() {
-        vec2 uv = gl_PointCoord - 0.5;
-        float cs = cos(vPhase);
-        float sn = sin(vPhase);
-        uv = mat2(cs, -sn, sn, cs) * uv;
-        float d = length(uv);
-        float mask = 0.0;
-
-        if (uShape < 0.5) {
-          mask = smoothstep(0.5, 0.08, d);
-        } else if (uShape < 1.5) {
-          mask = smoothstep(0.48, 0.08, length(vec2(uv.x * 3.4, uv.y)));
-        } else if (uShape < 2.5) {
-          float arms = min(abs(uv.x), abs(uv.y));
-          float diagonals = min(abs(uv.x + uv.y), abs(uv.x - uv.y)) * 0.72;
-          float crystal = 1.0 - smoothstep(0.035, 0.075, min(arms, diagonals));
-          mask = crystal * smoothstep(0.37, 0.14, d);
-        } else if (uShape < 3.5) {
-          float roughEdge = 0.36 + sin(atan(uv.y, uv.x) * 5.0 + vPhase) * 0.08;
-          mask = smoothstep(roughEdge + 0.08, roughEdge - 0.08, d);
-        } else if (uShape < 4.5) {
-          mask = smoothstep(0.5, 0.05, length(vec2(uv.x * 0.72, uv.y * 2.6))) * (0.7 + 0.3 * sin(uv.x * 18.0));
-        } else if (uShape < 5.5) {
-          float core = smoothstep(0.23, 0.04, d);
-          float rim = smoothstep(0.42, 0.35, d) * (1.0 - smoothstep(0.31, 0.37, d));
-          mask = max(core, rim * 0.52);
-        } else if (uShape < 6.5) {
-          float diamond = abs(uv.x) * 0.72 + abs(uv.y) * 1.28;
-          mask = 1.0 - smoothstep(0.32, 0.48, diamond);
-        } else if (uShape < 7.5) {
-          float ring = 1.0 - smoothstep(0.035, 0.09, abs(d - 0.32));
-          float glint = smoothstep(0.12, 0.01, length(uv - vec2(-0.13, 0.13)));
-          mask = max(ring * 0.8, glint);
-        } else if (uShape < 8.5) {
-          float box = max(abs(uv.x), abs(uv.y));
-          mask = 1.0 - smoothstep(0.32, 0.48, box);
-        } else if (uShape < 9.5) {
-          // Teardrop bead: fat body, pointed lower tip.
-          vec2 dropUv = vec2(uv.x * 1.85, uv.y * 0.78 + 0.1);
-          float body = smoothstep(0.42, 0.08, length(dropUv));
-          float tip = smoothstep(0.22, 0.02, length(vec2(uv.x * 2.6, uv.y + 0.28)));
-          mask = max(body, tip) * smoothstep(0.5, 0.12, abs(uv.x));
-        } else {
-          // Loose dirt crumb: irregular rock edge.
-          float rough = 0.3 + sin(atan(uv.y, uv.x) * 4.0 + vPhase) * 0.07;
-          mask = smoothstep(rough + 0.07, rough - 0.1, d);
-        }
-
-        vec4 tex = texture2D(map, gl_PointCoord);
-        float a = mask * mix(0.78, 1.0, tex.a) * vAlpha * vDepthFade;
-        if (a < 0.025) discard;
-        vec3 color = mix(uColor, uColorAlt, vTint);
-        gl_FragColor = vec4(color, a);
-      }
-    `,
-    transparent: true,
-    depthWrite: false,
-    depthTest: true,
-    blending: layer.glow ? THREE.AdditiveBlending : THREE.NormalBlending,
-    fog: false,
-    toneMapped: false,
-  });
-}
-
 /** How hard a biome-event pulse ramps ceiling precipitation opacity. */
 export const CEILING_EVENT_OPACITY_BOOST = 2.35;
 /** Extra fall speed while a biome-event pulse is active. */
@@ -639,12 +220,12 @@ export class AtmosphereSystem {
   private readonly dustTexture: THREE.Texture;
   private readonly mistBanks: MistBank[] = [];
   private softGroundFog: SoftGroundFog | null = null;
-  private supportParticles: THREE.Points | null = null;
-  private signatureParticles: THREE.Points | null = null;
-  private ceilingParticles: THREE.Points | null = null;
-  private supportParticleMaterial: THREE.ShaderMaterial | null = null;
-  private signatureParticleMaterial: THREE.ShaderMaterial | null = null;
-  private ceilingParticleMaterial: THREE.ShaderMaterial | null = null;
+  private supportParticles: THREE.Points | THREE.Sprite | null = null;
+  private signatureParticles: THREE.Points | THREE.Sprite | null = null;
+  private ceilingParticles: THREE.Points | THREE.Sprite | null = null;
+  private supportParticleMaterial: BiomeParticleMaterial | null = null;
+  private signatureParticleMaterial: BiomeParticleMaterial | null = null;
+  private ceilingParticleMaterial: BiomeParticleMaterial | null = null;
   private ceilingBaseOpacity = 0;
   private ceilingBaseSpeed = 0;
   /** 0..1 — biome event pulse (dustfall, cinderfall, …) intensifies ceiling fallers. */
@@ -750,9 +331,9 @@ export class AtmosphereSystem {
     const support = this.createMoteCloud(dungeon, floorCells, random, profile.support);
     const signature = this.createMoteCloud(dungeon, floorCells, random, profile.signature);
     const ceiling = this.createMoteCloud(dungeon, floorCells, random, profile.ceiling);
-    this.supportParticles = support.points;
-    this.signatureParticles = signature.points;
-    this.ceilingParticles = ceiling.points;
+    this.supportParticles = support.object;
+    this.signatureParticles = signature.object;
+    this.ceilingParticles = ceiling.object;
     this.supportParticleMaterial = support.material;
     this.signatureParticleMaterial = signature.material;
     this.ceilingParticleMaterial = ceiling.material;
@@ -775,10 +356,8 @@ export class AtmosphereSystem {
         this.softGroundFog.mesh.position.x = viewerPosition.x;
         this.softGroundFog.mesh.position.z = viewerPosition.z;
         this.softGroundFog.mesh.position.y = this.wallHeight * 0.5;
-        this.softGroundFog.material.uniforms.uBoxCenter.value.set(
-          viewerPosition.x,
-          viewerPosition.z,
-        );
+        const fogHandles = softGroundFogHandles(this.softGroundFog.material);
+        fogHandles?.uBoxCenter.value.set(viewerPosition.x, viewerPosition.z);
       }
     }
     const clearFade = 1 - this.fogClearPulse * 0.94;
@@ -789,10 +368,12 @@ export class AtmosphereSystem {
         clearFade;
     }
     if (this.softGroundFog) {
-      this.softGroundFog.material.uniforms.uTime.value = this.elapsed;
-      const pulse = 1 + Math.sin(this.elapsed * 0.17) * 0.03;
-      this.softGroundFog.material.uniforms.uDensity.value =
-        this.softGroundFog.baseDensity * pulse * clearFade;
+      const fogHandles = softGroundFogHandles(this.softGroundFog.material);
+      if (fogHandles) {
+        fogHandles.uTime.value = this.elapsed;
+        const pulse = 1 + Math.sin(this.elapsed * 0.17) * 0.03;
+        fogHandles.uDensity.value = this.softGroundFog.baseDensity * pulse * clearFade;
+      }
     }
     // All flow and the player wake run on the GPU; only tick shared uniforms.
     for (const material of [
@@ -801,8 +382,10 @@ export class AtmosphereSystem {
       this.ceilingParticleMaterial,
     ]) {
       if (!material) continue;
-      material.uniforms.uTime.value = this.elapsed;
-      material.uniforms.uViewer.value.copy(this.viewer);
+      const handles = biomeParticleHandles(material);
+      if (!handles) continue;
+      handles.uTime.value = this.elapsed;
+      handles.uViewer.value.copy(this.viewer);
     }
   }
 
@@ -819,13 +402,15 @@ export class AtmosphereSystem {
 
   private applyCeilingEventPulse(): void {
     if (!this.ceilingParticleMaterial) return;
+    const handles = biomeParticleHandles(this.ceilingParticleMaterial);
+    if (!handles) return;
     const pulse = this.eventPulse;
     const clearFade = 1 - this.fogClearPulse * 0.72;
-    this.ceilingParticleMaterial.uniforms.uOpacity.value = Math.min(
+    handles.uOpacity.value = Math.min(
       1,
       this.ceilingBaseOpacity * (1 + pulse * (CEILING_EVENT_OPACITY_BOOST - 1)) * clearFade,
     );
-    this.ceilingParticleMaterial.uniforms.uSpeed.value =
+    handles.uSpeed.value =
       this.ceilingBaseSpeed * (1 + pulse * (CEILING_EVENT_SPEED_BOOST - 1));
   }
 
@@ -862,14 +447,14 @@ export class AtmosphereSystem {
     const geometry = new THREE.BoxGeometry(side, this.wallHeight, side);
 
     const baseDensity = SOFT_FOG_DENSITY * mood.volumeFogMul;
-    const material = createSoftGroundFogMaterial(
-      fogVolumeColor(mood),
-      baseDensity,
+    const material = createSoftGroundFogMaterial({
+      color: fogVolumeColor(mood),
+      density: baseDensity,
       mask,
       worldMin,
       worldSize,
-      this.wallHeight,
-    );
+      wallHeight: this.wallHeight,
+    });
 
     const mesh = new THREE.Mesh(geometry, material);
     mesh.name = "Soft volumetric ground fog";
@@ -924,18 +509,19 @@ export class AtmosphereSystem {
       phases[index] = random.next();
       tints[index] = Math.pow(random.next(), 1.5);
     }
-    const geometry = new THREE.BufferGeometry();
-    geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
-    geometry.setAttribute("aSize", new THREE.BufferAttribute(sizes, 1));
-    geometry.setAttribute("aPhase", new THREE.BufferAttribute(phases, 1));
-    geometry.setAttribute("aTint", new THREE.BufferAttribute(tints, 1));
-    const material = createBiomeParticleMaterial(this.dustTexture, layer, this.wallHeight);
-    const points = new THREE.Points(geometry, material);
-    points.name = `Biome particles: ${layer.name}`;
-    geometry.computeBoundingSphere();
-    points.frustumCulled = true;
-    points.renderOrder = layer.glow ? 2 : 1;
-    return { points, material, count };
+    const data: BiomeParticleGeometryData = {
+      positions,
+      sizes,
+      phases,
+      tints,
+      count,
+    };
+    const assembly = createBiomeParticleAssembly(
+      { map: this.dustTexture, layer, wallHeight: this.wallHeight },
+      data,
+      `Biome particles: ${layer.name}`,
+    );
+    return { object: assembly.object, material: assembly.material, count: assembly.count };
   }
 
   private clear(): void {
