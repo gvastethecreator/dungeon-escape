@@ -200,6 +200,7 @@ function createPulseRing(index: number): PulseRingSlot {
   const ring = new THREE.Mesh(new THREE.RingGeometry(0.88, 1, 56), material);
   ring.name = "Annihilation expanding kill ring";
   ring.rotation.x = -Math.PI / 2;
+  // Expanding ring is authored at the player; cull would hide the pulse cue.
   ring.frustumCulled = false;
   root.add(ring);
   return { root, ring, active: false, age: 0 };
@@ -333,6 +334,7 @@ export class AnnihilationPulseVfx {
     this.geometry.setAttribute("aSpin", new THREE.BufferAttribute(this.spins, 1));
     this.particles = new THREE.Points(this.geometry, createBurstMaterial());
     this.particles.name = "Biome annihilation enemy particles";
+    // Burst particles spawn at camera-visible kill events.
     this.particles.frustumCulled = false;
     this.particles.visible = true;
 
@@ -349,6 +351,7 @@ export class AnnihilationPulseVfx {
     );
     this.field.name = "Annihilation repel radius";
     this.field.rotation.x = Math.PI / 2;
+    // Repel field is player-centered.
     this.field.frustumCulled = false;
 
     this.fieldCore = new THREE.Mesh(
@@ -365,6 +368,7 @@ export class AnnihilationPulseVfx {
     );
     this.fieldCore.name = "Annihilation pulse inner field";
     this.fieldCore.rotation.x = -Math.PI / 2;
+    // Inner field companion to the player-centered repel disc.
     this.fieldCore.frustumCulled = false;
 
     this.light = new THREE.PointLight(0xff6d91, 0, 10, 2);

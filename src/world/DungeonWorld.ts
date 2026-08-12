@@ -1,6 +1,11 @@
 import * as THREE from "three";
 import type { CreatureVoice, DungeonAudioFrame } from "../audio/GameAudio";
-import { gridToWorld, worldToGridInto, type WorldCollider } from "../dungeon/gridCollision";
+import {
+  gridToWorld,
+  worldToGridInto,
+  type FloorSupportHeightfield,
+  type WorldCollider,
+} from "../dungeon/gridCollision";
 import type { DungeonData, GridCell } from "../dungeon/types";
 import { isPlayerAirborneFromJumpHeight } from "../player/CombatPose";
 import { creatureVoiceForEnemy, projectDungeonAudioFrame } from "./DungeonAudioFrame";
@@ -282,6 +287,8 @@ export class DungeonWorld {
   };
   private lockedExitCooldown = 0;
   private elapsed = 0;
+  private cachedNearestThreat = Number.POSITIVE_INFINITY;
+  private nextNearestThreatSampleAt = Number.NEGATIVE_INFINITY;
   private readonly powers = createRunPowerRuntime();
   private cullBrandVfx: CullBrandVfx | null = null;
   private controlCurseVfx: ControlCurseVfx | null = null;
@@ -461,6 +468,14 @@ export class DungeonWorld {
     return this.staticHandles.solidColliders;
   }
 
+  private get supportHeightfields(): readonly FloorSupportHeightfield[] {
+    return this.staticHandles.supportHeightfields;
+  }
+
+  private get supportTreads(): readonly WorldCollider[] {
+    return this.staticHandles.supportTreads;
+  }
+
   private get portalRoot(): THREE.Group | null {
     return this.staticHandles.portalRoot;
   }
@@ -591,7 +606,13 @@ export class DungeonWorld {
               yieldToMain,
               residentPlan,
             )
-          : this.staticScene.build(dungeon, mood, this.decorDensity, residentPlan);
+          : await this.staticScene.buildWithYield(
+              dungeon,
+              mood,
+              this.decorDensity,
+              yieldToMain,
+              residentPlan,
+            );
       this.borrowStaticHandles(staticHandles, dungeon.floor?.index ?? 0);
     } finally {
       loadTrace?.end("sceneCommit");
@@ -855,7 +876,7 @@ export class DungeonWorld {
       enemiesFrozen || !activeEnemyRuntime
         ? {
             damage: 0,
-            nearestThreat: nearestEnemyDistance(this.enemies, player),
+            nearestThreat: this.nearestThreatDistance(player),
             knockX: 0,
             knockZ: 0,
             knockHits: 0,
@@ -1148,6 +1169,14 @@ export class DungeonWorld {
     };
   }
 
+  private nearestThreatDistance(player: THREE.Vector3): number {
+    if (this.elapsed >= this.nextNearestThreatSampleAt) {
+      this.cachedNearestThreat = nearestEnemyDistance(this.enemies, player);
+      this.nextNearestThreatSampleAt = this.elapsed + 0.15;
+    }
+    return this.cachedNearestThreat;
+  }
+
   private defeatEnemySeat(enemy: EnemyActor): void {
     const runtime = this.activeEnemyRuntime;
     if (!runtime) return;
@@ -1215,7 +1244,7 @@ export class DungeonWorld {
     // Gameplay and decorative state advance only on the active slab. Nearby
     // roots remain visible for stair continuity but are intentionally inert.
     if (runtime) {
-      runtime.hazardTileSystem?.update(delta);
+      runtime.hazardTileSystem?.update(delta, viewer);
       runtime.fixedSceneEffects.update({
         delta,
         elapsed: this.elapsed,
@@ -1442,6 +1471,18 @@ export class DungeonWorld {
 
   getSolidColliders(): WorldCollider[] {
     return this.solidColliders.map((collider) => ({ ...collider }));
+  }
+
+  getSupportHeightfields(): FloorSupportHeightfield[] {
+    return this.supportHeightfields.map((heightfield) => ({
+      width: heightfield.width,
+      height: heightfield.height,
+      floorIndices: heightfield.floorIndices.slice(),
+    }));
+  }
+
+  getSupportTreads(): WorldCollider[] {
+    return this.supportTreads.map((collider) => ({ ...collider }));
   }
 
   /** Switch the minimap pointer only; resident projections are built once. */

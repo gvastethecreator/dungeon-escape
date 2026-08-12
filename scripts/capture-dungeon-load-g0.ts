@@ -41,7 +41,7 @@ export interface DungeonLoadMilestone {
 
 /** The public RDL-01 payload exposed by #scene.dataset.dungeonLoadTrace. */
 export interface DungeonLoadTraceSnapshot {
-  readonly schemaVersion: 1;
+  readonly schemaVersion: 1 | 2;
   readonly loadId: string;
   readonly terminal: DungeonLoadTerminal;
   readonly terminalDetail: string | null;
@@ -55,6 +55,10 @@ export interface DungeonLoadTraceSnapshot {
   readonly atmosphere: DungeonLoadSpan | null;
   readonly editorProjection: DungeonLoadSpan | null;
   readonly warmup: DungeonLoadSpan | null;
+  /** Schema 2: wall wait; equals warmup.durationMs when present. */
+  readonly warmupWaitMs?: number | null;
+  /** Schema 2: measured first-draw / compile work. */
+  readonly warmupWorkMs?: number | null;
   readonly firstUsableFrame: DungeonLoadMilestone | null;
   readonly inputReady: DungeonLoadMilestone | null;
 }
@@ -102,7 +106,8 @@ export function validateDungeonLoadTrace(
   expectedLoadId?: string,
 ): DungeonLoadTraceValidation {
   if (!isRecord(value)) return { ok: false, error: "Trace must be an object." };
-  if (value.schemaVersion !== 1) return { ok: false, error: "Trace schemaVersion must be 1." };
+  if (value.schemaVersion !== 1 && value.schemaVersion !== 2)
+    return { ok: false, error: "Trace schemaVersion must be 1 or 2." };
   if (typeof value.loadId !== "string" || value.loadId.trim() === "")
     return { ok: false, error: "Trace loadId must be non-empty." };
   if (expectedLoadId !== undefined && value.loadId !== expectedLoadId)
@@ -146,6 +151,19 @@ export function validateDungeonLoadTrace(
     const span = value[name] as DungeonLoadSpan | null;
     if (span !== null && value.totalMs < span.endedAtMs)
       return { ok: false, error: `Trace totalMs must include ${name}.endedAtMs.` };
+  }
+
+  if (value.schemaVersion === 2) {
+    if (value.warmupWaitMs !== null && !isNonNegativeFinite(value.warmupWaitMs))
+      return { ok: false, error: "Trace warmupWaitMs must be finite and non-negative or null." };
+    if (value.warmupWorkMs !== null && !isNonNegativeFinite(value.warmupWorkMs))
+      return { ok: false, error: "Trace warmupWorkMs must be finite and non-negative or null." };
+    if (
+      isNonNegativeFinite(value.warmupWaitMs) &&
+      value.warmupWaitMs !== warmup.durationMs
+    ) {
+      return { ok: false, error: "Trace warmupWaitMs must equal warmup.durationMs." };
+    }
   }
 
   return { ok: true, value: value as unknown as DungeonLoadTraceSnapshot };

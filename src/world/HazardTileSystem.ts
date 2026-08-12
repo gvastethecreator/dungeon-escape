@@ -1120,8 +1120,20 @@ export class HazardTileSystem {
     };
   }
 
-  update(delta: number): void {
+  update(delta: number, player?: THREE.Vector3Like): void {
     this.elapsed += Math.max(0, delta);
+    // Keep gameplay sampling independent; distant decorative plates can pause
+    // safely until the player is close enough to observe their animation.
+    const animationRadius = HAZARD_CONTACT_RADIUS * 3;
+    const animationRadiusSq = animationRadius * animationRadius;
+    const hasNearbyVisual =
+      !player ||
+      this.visuals.some((visual) => {
+        const dx = player.x - visual.position.x;
+        const dz = player.z - visual.position.z;
+        return dx * dx + dz * dz <= animationRadiusSq;
+      });
+    if (!hasNearbyVisual) return;
     const frame =
       HAZARD_ANIMATION_FRAMES[Math.floor(this.elapsed * 3.5) % HAZARD_ANIMATION_FRAMES.length]!;
     for (const [kind, material] of this.materials) {
@@ -1131,8 +1143,14 @@ export class HazardTileSystem {
         response.emissiveBase + (Math.sin(this.elapsed * 4.2) * 0.5 + 0.5) * response.emissivePulse;
     }
     if (!this.spikeInstances) return;
+    let spikeMatricesDirty = false;
     for (const visual of this.visuals) {
       if (visual.spikeStart < 0) continue;
+      if (player) {
+        const dx = player.x - visual.position.x;
+        const dz = player.z - visual.position.z;
+        if (dx * dx + dz * dz > animationRadiusSq) continue;
+      }
       const exposure = computeSpikeExposure(this.elapsed, visual.placement.phase);
       for (const [localIndex, layout] of SPIKE_LAYOUT.entries()) {
         const instance = visual.spikeStart + localIndex;
@@ -1153,9 +1171,10 @@ export class HazardTileSystem {
         this.spikeScale.set(layout.scale, heightScale, layout.scale);
         this.spikeMatrix.compose(this.spikePosition, this.spikeQuaternion, this.spikeScale);
         this.spikeInstances.setMatrixAt(instance, this.spikeMatrix);
+        spikeMatricesDirty = true;
       }
     }
-    this.spikeInstances.instanceMatrix.needsUpdate = true;
+    if (spikeMatricesDirty) this.spikeInstances.instanceMatrix.needsUpdate = true;
   }
 
   sample(

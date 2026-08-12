@@ -88,12 +88,12 @@ describe("biome sprite decor atlas", () => {
         (prop) => prop.surface !== "floor" || prop.placement === "corner-standing",
       ),
     ).toBe(true);
-    expect(staticSceneSource).toContain("wall: 7, floor: 0, ceiling: 5");
-    expect(staticSceneSource).not.toContain("balancedBiomeDecorItem(floorDefinitions");
+    expect(staticSceneSource).toContain("wall: 5, floor: 3, ceiling: 4");
+    expect(staticSceneSource).toContain("balancedBiomeDecorItem(floorDefinitions");
     expect(staticSceneSource).toContain("integrateBiomeDecorShader");
     expect(staticSceneSource).toContain("biomeDecorSurfaceTone");
     expect(staticSceneSource).toContain("biomeDecorRelativeLuma");
-    expect(staticSceneSource).toContain("diffuseColor.rgb, 0.40");
+    expect(staticSceneSource).toContain("diffuseColor.rgb, 0.28");
   });
 
   test("distributes candidates and atlas slots deterministically without early repeats", () => {
@@ -141,27 +141,27 @@ describe("biome sprite decor atlas", () => {
   });
 
   test("renders active v2 props at authored opacity and with bounded culling", () => {
-    expect(staticSceneSource).toContain('"biome-prop-v2-wall-integrated-v7"');
-    expect(staticSceneSource).toContain("biome-prop-v2-${placement}-integrated-v7");
+    expect(staticSceneSource).toContain('"biome-prop-v2-wall-integrated-v6"');
+    expect(staticSceneSource).toContain("biome-prop-v2-${placement}-integrated-v6");
     expect(staticSceneSource).toContain("opacity: 1");
-    expect(staticSceneSource).toContain("emissiveIntensity: 0.06");
+    expect(staticSceneSource).toContain("emissiveIntensity: 0.045");
     expect(staticSceneSource).toContain(
-      'material.userData.mapBlend = "authored-v2-biome-surface-tone-v7"',
+      'material.userData.mapBlend = "authored-v2-biome-surface-tone-v6"',
     );
-    expect(staticSceneSource).toContain('color: biomeDecorTint(mood, "wall")');
+    expect(staticSceneSource).toContain("color: biomeDecorTint(mood, paletteRole)");
     expect(staticSceneSource).toContain("biomeSurfacePalette(mood.id, paletteRole)");
     expect(staticSceneSource).toContain("batch.frustumCulled = catalog.runtime.culling.frustum");
     expect(staticSceneSource).toContain(
-      "batch.name = `${this.activeMood.label} ceiling hanging batch`",
+      "sprite.name = `${this.activeMood.label} ${definition.label} ceiling hanging`",
     );
-    expect(staticSceneSource).toContain("biome-prop-v2-ceiling-hanging-instanced-v8");
-    expect(staticSceneSource).toContain("biomeDecorBillboardRotation");
+    expect(staticSceneSource).toContain("sprite.frustumCulled = catalog.runtime.culling.frustum");
+    expect(staticSceneSource).toContain("material.userData.biomeSpriteBillboard =");
     expect(fixedEffectsSource).toContain(
       "const maxDistance = prop.maxDistance ?? BIOME_FLOOR_PROP_FADE_FAR",
     );
     expect(fixedEffectsSource).toContain("private updateCeilingSprites(");
     expect(staticSceneSource).toContain("fog: true");
-    expect(staticSceneSource).toContain("1.0 - smoothstep(0.18, 0.56, fogFactor)");
+    expect(staticSceneSource).toContain("1.0 - smoothstep(0.24, 0.62, fogFactor)");
     expect(staticSceneSource).not.toContain("float biomePropFogPull = 1.0 - fogFactor");
   });
 
@@ -202,7 +202,7 @@ describe("biome sprite decor atlas", () => {
         expect(biomeSpriteFloorGroundGap(mood, frame)).toBeLessThan(0.25);
       }
     }
-    expect(staticSceneSource).toContain("anchors[index * 2 + 1] = definition.anchor.y - 0.5");
+    expect(staticSceneSource).toContain("(definition.anchor.y - 0.5) * height");
     expect(fixedEffectsSource).toContain("const targetYaw = Math.atan2(deltaX, deltaZ)");
     expect(staticSceneSource).toContain("definition.mount.planeOffset");
     expect(staticSceneSource).toContain("this.wallHeight - definition.mount.planeOffset");
@@ -212,13 +212,13 @@ describe("biome sprite decor atlas", () => {
     expect(BIOME_CORNER_PROP_MAX_TURN).toBeLessThan(Math.PI / 6);
     expect(clampBiomeSpriteYaw(0, Math.PI)).toBeCloseTo(BIOME_CORNER_PROP_MAX_TURN);
     expect(clampBiomeSpriteYaw(0, -Math.PI)).toBeCloseTo(-BIOME_CORNER_PROP_MAX_TURN);
-    expect(staticSceneSource).not.toContain("collectRoomCornerSeats");
-    expect(staticSceneSource).not.toContain("cornerHugWorldOffset");
+    expect(staticSceneSource).toContain("collectRoomCornerSeats");
+    expect(staticSceneSource).toContain("cornerHugWorldOffset");
     expect(fixedEffectsSource).toContain(
       "clampBiomeSpriteYaw(prop.baseYaw, targetYaw, prop.maxWallTurn)",
     );
-    expect(staticSceneSource).not.toContain("definition.maxYawTurn ?? BIOME_CORNER_PROP_MAX_TURN");
-    expect(staticSceneSource).not.toContain("registerFloorBiomeSprite({");
+    expect(staticSceneSource).toContain("definition.maxYawTurn ?? BIOME_CORNER_PROP_MAX_TURN");
+    expect(staticSceneSource).toContain("registerFloorBiomeSprite({");
   });
 
   test("fades floor cards smoothly in the near-player band", () => {

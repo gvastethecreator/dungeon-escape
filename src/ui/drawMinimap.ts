@@ -75,7 +75,20 @@ export interface DrawMinimapOptions {
    * Forward maps to canvas (-sin(yaw), -cos(yaw)).
    */
   playerYaw?: number;
+  /** Monotonic exploration revision supplied by the active floor view. */
+  staticLayerKey?: number;
 }
+
+interface MinimapStaticLayer {
+  dungeon: DungeonData;
+  explored: ReadonlySet<string> | undefined;
+  key: number;
+  width: number;
+  height: number;
+  canvas: HTMLCanvasElement;
+}
+
+const staticLayers = new WeakMap<HTMLCanvasElement, MinimapStaticLayer>();
 
 export function drawMinimap(
   canvas: HTMLCanvasElement,
@@ -91,11 +104,13 @@ export function drawMinimap(
   let viewport: MinimapViewport | undefined;
   let explored: ReadonlySet<string> | undefined;
   let playerYaw: number | undefined;
+  let staticLayerKey: number | undefined;
   if (featuresOrOptions && isOptionsBag(featuresOrOptions)) {
     features = featuresOrOptions.features;
     viewport = featuresOrOptions.viewport ?? viewportArg;
     explored = featuresOrOptions.explored ?? exploredArg;
     playerYaw = featuresOrOptions.playerYaw ?? playerYawArg;
+    staticLayerKey = featuresOrOptions.staticLayerKey;
   } else {
     features = featuresOrOptions;
     viewport = viewportArg;
@@ -138,43 +153,33 @@ export function drawMinimap(
   );
   const originX = (cssWidth - dungeon.width * cellSize) / 2;
   const originY = (cssHeight - dungeon.height * cellSize) / 2;
-  const cellCenter = (cell: { x: number; y: number }): [number, number] => [
-    originX + cell.x * cellSize + cellSize / 2,
-    originY + cell.y * cellSize + cellSize / 2,
-  ];
+  const center: [number, number] = [0, 0];
+  const cellCenter = (cell: { x: number; y: number }): [number, number] => {
+    center[0] = originX + cell.x * cellSize + cellSize / 2;
+    center[1] = originY + cell.y * cellSize + cellSize / 2;
+    return center;
+  };
   const isExplored = (x: number, y: number): boolean => !explored || explored.has(cellKey(x, y));
 
-  // Wall silhouettes next to explored floors (only under fog-of-war).
-  if (explored) {
-    context.fillStyle = COLORS.wall;
-    for (const key of explored) {
-      const sep = key.indexOf(",");
-      const x = Number(key.slice(0, sep));
-      const y = Number(key.slice(sep + 1));
-      if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
-      for (let dy = -1; dy <= 1; dy += 1) {
-        for (let dx = -1; dx <= 1; dx += 1) {
-          if (dx === 0 && dy === 0) continue;
-          const wx = x + dx;
-          const wy = y + dy;
-          if (dungeon.grid[wy]?.[wx] !== WALL) continue;
-          const size = Math.ceil(cellSize);
-          context.fillRect(originX + wx * cellSize, originY + wy * cellSize, size, size);
-        }
-      }
-    }
-  }
-
-  for (let y = 0; y < dungeon.height; y += 1) {
-    for (let x = 0; x < dungeon.width; x += 1) {
-      if (dungeon.grid[y]?.[x] !== FLOOR) continue;
-      if (!isExplored(x, y)) continue;
-      const px = originX + x * cellSize;
-      const py = originY + y * cellSize;
-      const size = Math.ceil(cellSize);
-      context.fillStyle = COLORS.floor;
-      context.fillRect(px, py, size, size);
-    }
+  const layerKey = staticLayerKey ?? explored?.size ?? -1;
+  const staticLayer = getStaticLayer(
+    canvas,
+    dungeon,
+    explored,
+    layerKey,
+    width,
+    height,
+    cssWidth,
+    cssHeight,
+    pixelRatio,
+    originX,
+    originY,
+    cellSize,
+  );
+  if (staticLayer) {
+    context.drawImage(staticLayer, 0, 0, cssWidth, cssHeight);
+  } else {
+    drawStaticLayer(context, dungeon, explored, cssWidth, cssHeight, originX, originY, cellSize);
   }
 
   if (features) {
@@ -211,10 +216,93 @@ export function drawMinimap(
   }
 }
 
+function getStaticLayer(
+  canvas: HTMLCanvasElement,
+  dungeon: DungeonData,
+  explored: ReadonlySet<string> | undefined,
+  key: number,
+  width: number,
+  height: number,
+  cssWidth: number,
+  cssHeight: number,
+  pixelRatio: number,
+  originX: number,
+  originY: number,
+  cellSize: number,
+): HTMLCanvasElement | null {
+  if (typeof document === "undefined") return null;
+  const cached = staticLayers.get(canvas);
+  if (
+    cached &&
+    cached.dungeon === dungeon &&
+    cached.explored === explored &&
+    cached.key === key &&
+    cached.width === width &&
+    cached.height === height
+  ) {
+    return cached.canvas;
+  }
+  const layer = document.createElement("canvas");
+  layer.width = width;
+  layer.height = height;
+  const context = layer.getContext("2d");
+  if (!context) return null;
+  context.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
+  drawStaticLayer(context, dungeon, explored, cssWidth, cssHeight, originX, originY, cellSize);
+  staticLayers.set(canvas, { dungeon, explored, key, width, height, canvas: layer });
+  return layer;
+}
+
+function drawStaticLayer(
+  context: CanvasRenderingContext2D,
+  dungeon: DungeonData,
+  explored: ReadonlySet<string> | undefined,
+  cssWidth: number,
+  cssHeight: number,
+  originX: number,
+  originY: number,
+  cellSize: number,
+): void {
+  context.clearRect(0, 0, cssWidth, cssHeight);
+  context.fillStyle = COLORS.field;
+  context.fillRect(0, 0, cssWidth, cssHeight);
+  if (explored) {
+    context.fillStyle = COLORS.wall;
+    for (const key of explored) {
+      const sep = key.indexOf(",");
+      const x = Number(key.slice(0, sep));
+      const y = Number(key.slice(sep + 1));
+      if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
+      for (let dy = -1; dy <= 1; dy += 1) {
+        for (let dx = -1; dx <= 1; dx += 1) {
+          if (dx === 0 && dy === 0) continue;
+          const wx = x + dx;
+          const wy = y + dy;
+          if (dungeon.grid[wy]?.[wx] !== WALL) continue;
+          const size = Math.ceil(cellSize);
+          context.fillRect(originX + wx * cellSize, originY + wy * cellSize, size, size);
+        }
+      }
+    }
+  }
+  for (let y = 0; y < dungeon.height; y += 1) {
+    for (let x = 0; x < dungeon.width; x += 1) {
+      if (dungeon.grid[y]?.[x] !== FLOOR) continue;
+      if (explored && !explored.has(cellKey(x, y))) continue;
+      const px = originX + x * cellSize;
+      const py = originY + y * cellSize;
+      const size = Math.ceil(cellSize);
+      context.fillStyle = COLORS.floor;
+      context.fillRect(px, py, size, size);
+    }
+  }
+}
+
 function isOptionsBag(value: MinimapFeatures | DrawMinimapOptions): value is DrawMinimapOptions {
   return (
     "explored" in value ||
     "playerYaw" in value ||
+    "staticLayerKey" in value ||
     "viewport" in value ||
     ("features" in value && !("doors" in value))
   );

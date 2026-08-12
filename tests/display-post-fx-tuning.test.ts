@@ -5,55 +5,35 @@ import {
   DISPLAY_POST_FX_PRESETS,
   DISPLAY_POST_FX_TUNING_KEY,
   displayPostFxPreset,
-  normalizeDisplayPostFxPresetSnapshot,
   normalizeDisplayPostFxTuning,
   readDisplayPostFxTuning,
   writeDisplayPostFxTuning,
 } from "../src/systems/DisplayPostFxTuning";
 
 describe("display post effect tuning", () => {
-  test("ships bounded presets for the local display lab", () => {
-    expect(DISPLAY_POST_FX_PRESETS).toHaveLength(8);
-    expect(new Set(DISPLAY_POST_FX_PRESETS.map((preset) => preset.id)).size).toBe(8);
+  test("ships bounded CRT presets for the local display lab", () => {
+    expect(DISPLAY_POST_FX_PRESETS).toHaveLength(2);
+    expect(new Set(DISPLAY_POST_FX_PRESETS.map((preset) => preset.id)).size).toBe(2);
     for (const preset of DISPLAY_POST_FX_PRESETS) {
       expect(normalizeDisplayPostFxTuning(preset.tuning)).toEqual(preset.tuning);
-      expect(preset.paletteDitherStrength).toBeGreaterThanOrEqual(0);
-      expect(preset.paletteDitherStrength).toBeLessThanOrEqual(1);
-      expect(preset.tuning.paletteDitherScale).toBeGreaterThanOrEqual(0.25);
-      expect(preset.tuning.paletteShadowGuard).toBeGreaterThanOrEqual(0);
-      expect(preset.tuning.paletteFlatGuard).toBeGreaterThanOrEqual(0);
+      expect(preset.tuning.halation).toBeGreaterThanOrEqual(0);
+      expect(preset.tuning.persistence).toBeGreaterThanOrEqual(0);
+      expect(preset.tuning.scanlines).toBeGreaterThanOrEqual(0);
+      expect(preset.tuning.phosphorMask).toBeGreaterThanOrEqual(0);
     }
-    expect(displayPostFxPreset("pico-arcade")?.tuning.paletteStage).toBe("world");
-    expect(new Set(DISPLAY_POST_FX_PRESETS.map((preset) => preset.paletteEffect))).toEqual(
-      new Set([
-        "off",
-        "pico-8",
-        "commodore-64",
-        "game-boy-olive",
-        "cga-0-high",
-        "ega-16",
-        "zx-spectrum",
-      ]),
-    );
+    expect(displayPostFxPreset("balanced")?.label).toBe("Balanced CRT");
+    expect(displayPostFxPreset("clean")?.label).toBe("Clean CRT");
     expect(displayPostFxPreset("missing")).toBeNull();
   });
 
-  test("clamps imported values and rejects unknown palette identities", () => {
+  test("clamps imported CRT values", () => {
     expect(
-      normalizeDisplayPostFxPresetSnapshot({
-        paletteEffect: "unknown",
-        paletteDitherStrength: 5,
-        tuning: { halation: 8, brightness: 0, curvatureScale: -1 },
-      }),
+      normalizeDisplayPostFxTuning({ halation: 8, brightness: 0, curvatureScale: -1 }),
     ).toEqual({
-      paletteEffect: "off",
-      paletteDitherStrength: 1,
-      tuning: {
-        ...DEFAULT_DISPLAY_POST_FX_TUNING,
-        halation: 0.35,
-        brightness: 0.9,
-        curvatureScale: 0,
-      },
+      ...DEFAULT_DISPLAY_POST_FX_TUNING,
+      halation: 0.35,
+      brightness: 0.9,
+      curvatureScale: 0,
     });
   });
 
@@ -63,7 +43,7 @@ describe("display post effect tuning", () => {
       getItem: (key: string) => values.get(key) ?? null,
       setItem: (key: string, value: string) => void values.set(key, value),
     };
-    const tuning = { ...DEFAULT_DISPLAY_POST_FX_TUNING, paletteStage: "world" as const };
+    const tuning = { ...DEFAULT_DISPLAY_POST_FX_TUNING, scanlines: 0.52 };
     expect(writeDisplayPostFxTuning(tuning, storage)).toBe(true);
     expect(values.has(DISPLAY_POST_FX_TUNING_KEY)).toBe(true);
     expect(readDisplayPostFxTuning(storage)).toEqual(tuning);

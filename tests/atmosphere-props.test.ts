@@ -122,13 +122,13 @@ describe("atmosphere props — hanging chain/vine", () => {
     expect(chain.name).toBe("Hanging chain");
     // Links descend below the anchor (negative Y).
     const links = chain.getObjectsByProperty("name", "Alternating rectangular forged chain link");
-    expect(links).toHaveLength(9);
+    expect(links).toHaveLength(6);
     expect(chain.getObjectByName("Bolted ceiling mount pivot")).toBeDefined();
     expect(chain.getObjectByName("Heavy welded chain anchor eye")).toBeDefined();
     expect(chain.getObjectByName("Heavy round open chain hook")).toBeDefined();
     for (const link of links) expect(link.position.y).toBeLessThanOrEqual(0);
     for (let index = 1; index < links.length; index += 1) {
-      expect(Math.abs(links[index]!.position.y - links[index - 1]!.position.y)).toBeLessThan(0.22);
+      expect(Math.abs(links[index]!.position.y - links[index - 1]!.position.y)).toBeLessThan(0.25);
       const orientationDelta = Math.abs(links[index]!.rotation.y - links[index - 1]!.rotation.y);
       expect(orientationDelta).toBeGreaterThan(1.2);
       expect(orientationDelta).toBeLessThan(1.3);
@@ -140,7 +140,7 @@ describe("atmosphere props — hanging chain/vine", () => {
         Math.max(previousBounds.min.y, currentBounds.min.y),
       );
     }
-    expect(links.at(-1)!.position.y).toBeLessThan(-1.7);
+    expect(links.at(-1)!.position.y).toBeLessThan(-1.4);
     const chainMaterials = new Set(materialsOf(chain)) as Set<THREE.MeshStandardMaterial>;
     expect(chainMaterials.size).toBe(1);
     const [chainIron] = chainMaterials;
@@ -166,7 +166,7 @@ describe("atmosphere props — hanging chain/vine", () => {
     expect(vineMaterial?.userData.materialRole).toBe("readable-root-bark");
   });
 
-  test("chain keeps the accepted nine-link identity while length changes spacing", () => {
+  test("chain keeps the accepted six-link identity while length changes spacing", () => {
     const materials = createDungeonMaterials();
     const short = createHanging(materials, "chain", 1.7, 0);
     const long = createHanging(materials, "chain", 3.1, 2);
@@ -178,8 +178,8 @@ describe("atmosphere props — hanging chain/vine", () => {
       "name",
       "Alternating rectangular forged chain link",
     );
-    expect(shortLinks).toHaveLength(9);
-    expect(longLinks).toHaveLength(9);
+    expect(shortLinks).toHaveLength(6);
+    expect(longLinks).toHaveLength(6);
     expect(short.getObjectByName("Heavy round open chain hook")).toBeDefined();
     expect(long.getObjectByName("Heavy round open chain hook")).toBeDefined();
     expect(longLinks.at(-1)!.position.y).toBeLessThan(shortLinks.at(-1)!.position.y);

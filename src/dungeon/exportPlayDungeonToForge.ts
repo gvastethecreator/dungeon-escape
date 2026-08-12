@@ -1,4 +1,4 @@
-import type { DungeonData } from "./types";
+import type { DungeonData, GridCell } from "./types";
 import { FLOOR as PLAY_FLOOR } from "./generateDungeon";
 
 /** Forge grid constants (must match ForgeProceduralPrimitives). */
@@ -35,6 +35,7 @@ export interface ForgePresentationPayload {
     degree: number;
   }>;
   edges: Array<{ a: number; b: number; isLoop: boolean }>;
+  edgeRoutes: GridCell[][];
   entrance: number;
   boss: number;
   props: [];
@@ -231,6 +232,9 @@ export function exportPlayDungeonToForgePresentation(
       b: edge.right,
       isLoop: edge.kind === "loop",
     })),
+    edgeRoutes: dungeon.edges.map((_, edgeIndex) =>
+      (dungeon.topology?.routes?.[edgeIndex] ?? []).map((cell) => ({ ...cell })),
+    ),
     entrance: dungeon.entranceRoomId,
     boss: dungeon.exitRoomId,
     props: [],

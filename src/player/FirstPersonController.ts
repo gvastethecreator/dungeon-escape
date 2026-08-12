@@ -6,7 +6,9 @@ import {
   gridToWorld,
   moveWithCollision,
   overlapsWorldCollider,
+  sampleFloorSupportHeightfield,
   worldToGridInto,
+  type FloorSupportHeightfield,
   WorldColliderSpatialIndex,
   type VerticalCollisionRange,
   type WorldCollider,
@@ -258,6 +260,13 @@ export class FirstPersonController {
   private readonly blockedCells = new Set<string>();
   private solidColliders: WorldCollider[] = [];
   private solidColliderIndex: WorldColliderSpatialIndex | null = null;
+  private supportHeightfields: FloorSupportHeightfield[] = [];
+  private allSupportTreads: WorldCollider[] = [];
+  /** At most the inbound + outbound flights around the bound slab. */
+  private supportTreads: WorldCollider[] = [];
+  private readonly supportCandidates: number[] = [];
+  private readonly supportSamplePoint = { x: 0, z: 0 };
+  private readonly supportSampleCell: GridCell = { x: 0, y: 0 };
   /**
    * Prop colliders the player has already cleared with their feet while airborne.
    * Kept until the player is grounded and free of that footprint so landing on a
@@ -409,6 +418,7 @@ export class FirstPersonController {
 
   setDungeon(dungeon: DungeonData): void {
     this.dungeon = dungeon;
+    this.refreshSupportTreads();
     const spawn = gridToWorld(dungeon, dungeon.spawn, this.tileSize);
     const exit = gridToWorld(dungeon, dungeon.exit, this.tileSize);
     this.position.set(spawn.x, this.eyeHeight, spawn.z);
@@ -452,6 +462,7 @@ export class FirstPersonController {
    */
   bindDungeon(dungeon: DungeonData): void {
     this.dungeon = dungeon;
+    this.refreshSupportTreads();
     worldToGridInto(this.dungeon, this.position, this.tileSize, this.currentCell);
     this.lastCell.x = this.currentCell.x;
     this.lastCell.y = this.currentCell.y;
@@ -505,9 +516,20 @@ export class FirstPersonController {
     for (const cell of cells) this.blockedCells.add(`${cell.x},${cell.y}`);
   }
 
-  setSolidColliders(colliders: readonly WorldCollider[]): void {
+  setSolidColliders(
+    colliders: readonly WorldCollider[],
+    supportHeightfields: readonly FloorSupportHeightfield[] = [],
+    supportTreads: readonly WorldCollider[] = [],
+  ): void {
     this.solidColliders = colliders.map((collider) => ({ ...collider }));
     this.solidColliderIndex = new WorldColliderSpatialIndex(this.solidColliders, this.tileSize * 2);
+    this.supportHeightfields = supportHeightfields.map((heightfield) => ({
+      width: heightfield.width,
+      height: heightfield.height,
+      floorIndices: heightfield.floorIndices.slice(),
+    }));
+    this.allSupportTreads = supportTreads.map((collider) => ({ ...collider }));
+    this.refreshSupportTreads();
     this.vaultedColliderIds.clear();
     this.activeColliders = [];
   }
@@ -927,25 +949,46 @@ export class FirstPersonController {
    */
   private refreshVerticalSupport(): void {
     const feetY = this.verticalState.y - this.eyeHeight + 0.08;
-    const candidates: number[] = [0];
-    const nearby = this.nearbyColliderIds;
-    if (this.solidColliderIndex) {
-      this.solidColliderIndex.queryAabbIndicesInto(
-        this.position.x - this.radius * 1.2,
-        this.position.x + this.radius * 1.2,
-        this.position.z - this.radius * 1.2,
-        this.position.z + this.radius * 1.2,
-        nearby,
-      );
+    const candidates = this.supportCandidates;
+    candidates.length = 0;
+    if (this.supportHeightfields.length > 0) {
+      // Match the old capsule overlap tolerance while remaining on a tiny,
+      // predictable sample set: centre plus the four nearby sole edges.
+      const sampleRadius = this.radius * 0.72;
+      this.sampleHeightfieldSupport(this.position.x, this.position.z);
+      this.sampleHeightfieldSupport(this.position.x + sampleRadius, this.position.z);
+      this.sampleHeightfieldSupport(this.position.x - sampleRadius, this.position.z);
+      this.sampleHeightfieldSupport(this.position.x, this.position.z + sampleRadius);
+      this.sampleHeightfieldSupport(this.position.x, this.position.z - sampleRadius);
+      for (const collider of this.supportTreads) {
+        if (overlapsWorldCollider(this.position, this.radius * 1.15, collider)) {
+          const top = collider.maxY;
+          if (top !== undefined && Number.isFinite(top)) candidates.push(top);
+        }
+      }
     } else {
-      nearby.length = 0;
-      for (let index = 0; index < this.solidColliders.length; index += 1) nearby.push(index);
-    }
-    for (const index of nearby) {
-      const collider = this.solidColliders[index];
-      if (!collider || collider.maxY === undefined || !Number.isFinite(collider.maxY)) continue;
-      if (!overlapsWorldCollider(this.position, this.radius * 1.15, collider)) continue;
-      candidates.push(collider.maxY);
+      // Compatibility for isolated controller callers that have not migrated
+      // to heightfield support yet.
+      candidates.push(0);
+      const nearby = this.nearbyColliderIds;
+      if (this.solidColliderIndex) {
+        this.solidColliderIndex.queryAabbIndicesInto(
+          this.position.x - this.radius * 1.2,
+          this.position.x + this.radius * 1.2,
+          this.position.z - this.radius * 1.2,
+          this.position.z + this.radius * 1.2,
+          nearby,
+        );
+      } else {
+        nearby.length = 0;
+        for (let index = 0; index < this.solidColliders.length; index += 1) nearby.push(index);
+      }
+      for (const index of nearby) {
+        const collider = this.solidColliders[index];
+        if (!collider || collider.maxY === undefined || !Number.isFinite(collider.maxY)) continue;
+        if (!overlapsWorldCollider(this.position, this.radius * 1.15, collider)) continue;
+        candidates.push(collider.maxY);
+      }
     }
     const supportTop = pickSupportTop(candidates, feetY, STORY_MAX_STEP_UP, STORY_MAX_STEP_UP) ?? 0;
     this.verticalConfig.floorEyeY = supportTop + this.eyeHeight - 0.08;
@@ -956,6 +999,30 @@ export class FirstPersonController {
     this.verticalConfig.ceilingHeight = onFlight
       ? slabY + STORY_HEIGHT * 2
       : closedCeilingY(slabY, STORY_HEIGHT);
+  }
+
+  private sampleHeightfieldSupport(x: number, z: number): void {
+    if (!this.dungeon) return;
+    this.supportSamplePoint.x = x;
+    this.supportSamplePoint.z = z;
+    worldToGridInto(this.dungeon, this.supportSamplePoint, this.tileSize, this.supportSampleCell);
+    for (const heightfield of this.supportHeightfields) {
+      const floorIndex = sampleFloorSupportHeightfield(heightfield, this.supportSampleCell);
+      if (floorIndex !== null) this.supportCandidates.push(floorIndex * STORY_HEIGHT);
+    }
+  }
+
+  private refreshSupportTreads(): void {
+    this.supportTreads.length = 0;
+    if (this.allSupportTreads.length === 0) return;
+    const feetY = this.position.y - this.eyeHeight + 0.08;
+    const slabIndex = Math.max(0, Math.floor((feetY + 0.05) / STORY_HEIGHT));
+    const minY = Math.max(0, (slabIndex - 1) * STORY_HEIGHT) - 0.01;
+    const maxY = (slabIndex + 1) * STORY_HEIGHT + 0.01;
+    for (const collider of this.allSupportTreads) {
+      if ((collider.maxY ?? Number.NEGATIVE_INFINITY) < minY || (collider.minY ?? 0) > maxY) continue;
+      this.supportTreads.push(collider);
+    }
   }
 
   private updateVaultedColliders(feetY: number): void {

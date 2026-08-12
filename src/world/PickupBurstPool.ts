@@ -515,12 +515,14 @@ function createSlot(index: number): PickupBurstSlot {
   const ringGeometry = new THREE.RingGeometry(0.22, 0.34, 32);
   const ring = new THREE.Mesh(ringGeometry, ringMaterial);
   ring.name = "Pickup expanding ring";
+  // Pickup FX is spawned at the loot site near the camera.
   ring.frustumCulled = false;
 
   const echoMaterial = ringMaterial.clone();
   echoMaterial.opacity = 0;
   const echo = new THREE.Mesh(ringGeometry, echoMaterial);
   echo.name = "Pickup secondary echo ring";
+  // Secondary echo shares the pickup burst origin.
   echo.frustumCulled = false;
 
   const positions = new Float32Array(SPARK_COUNT * 3);
@@ -533,6 +535,7 @@ function createSlot(index: number): PickupBurstSlot {
   sparkGeometry.setAttribute("aSeed", new THREE.BufferAttribute(seeds, 1));
   const sparks = new THREE.Points(sparkGeometry, createSparkMaterial());
   sparks.name = "Pickup rising sparks";
+  // Rising sparks are short-lived camera-near VFX.
   sparks.frustumCulled = false;
   sparks.renderOrder = 5;
 

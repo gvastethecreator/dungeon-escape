@@ -24,6 +24,8 @@ interface AudioPositionSource {
   getWorldPosition?: (target: THREE.Vector3) => THREE.Vector3;
 }
 
+const sourcePosition = new THREE.Vector3();
+
 function readWorldPosition(source: AudioPositionSource, target: THREE.Vector3): THREE.Vector3 {
   return source.getWorldPosition?.(target) ?? target.copy(source.position);
 }
@@ -75,7 +77,6 @@ export function projectDungeonAudioFrame(
     moodId: string | null;
   },
 ): DungeonAudioFrame {
-  const sourcePosition = new THREE.Vector3();
   let fireCount = 0;
   for (const fire of sources.fires) {
     if (fire.audio === false) continue;

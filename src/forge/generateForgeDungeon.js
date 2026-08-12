@@ -469,15 +469,40 @@ function tryGenerate(seed, params) {
     const o = offs(w);
     for (let y = Math.min(y0, y1); y <= Math.max(y0, y1); y++) for (const k of o) stamp(x + k, y);
   };
-  const carveManhattan = (from, to, w) => {
+  const appendCardinalLine = (route, from, to) => {
+    if (from.x !== to.x && from.y !== to.y) {
+      throw new Error(`Forge edge route must be cardinal: ${from.x},${from.y} -> ${to.x},${to.y}.`);
+    }
+    let x = from.x,
+      y = from.y;
+    const append = () => {
+      const previous = route[route.length - 1];
+      if (!previous || previous.x !== x || previous.y !== y) route.push({ x, y });
+    };
+    append();
+    const stepX = Math.sign(to.x - from.x),
+      stepY = Math.sign(to.y - from.y);
+    while (x !== to.x || y !== to.y) {
+      x += stepX;
+      y += stepY;
+      append();
+    }
+  };
+  const appendManhattan = (route, from, to, horizontalFirst = true) => {
+    const corner = horizontalFirst ? { x: to.x, y: from.y } : { x: from.x, y: to.y };
+    appendCardinalLine(route, from, corner);
+    appendCardinalLine(route, corner, to);
+  };
+  const carveManhattan = (from, to, w, route) => {
     if (from.x !== to.x) hLine(from.x, to.x, from.y, w);
     if (from.y !== to.y) vLine(from.y, to.y, to.x, w);
+    if (route) appendManhattan(route, from, to, true);
   };
-  const roundedCorridor = (A, B, w, horizontalFirst) => {
+  const roundedCorridor = (A, B, w, horizontalFirst, route) => {
     const dx = B.cx - A.cx,
       dy = B.cy - A.cy;
     if (!dx || !dy) {
-      carveManhattan({ x: A.cx, y: A.cy }, { x: B.cx, y: B.cy }, w);
+      carveManhattan({ x: A.cx, y: A.cy }, { x: B.cx, y: B.cy }, w, route);
       return;
     }
     const sx = Math.sign(dx),
@@ -494,7 +519,7 @@ function tryGenerate(seed, params) {
     const exit = horizontalFirst
       ? { x: B.cx, y: A.cy + sy * turnRadius }
       : { x: A.cx + sx * turnRadius, y: B.cy };
-    carveManhattan({ x: A.cx, y: A.cy }, entry, w);
+    carveManhattan({ x: A.cx, y: A.cy }, entry, w, route);
     let previous = entry;
     for (let step = 1; step <= 8; step++) {
       const angle = startAngle + (sweep * step) / 8;
@@ -502,13 +527,14 @@ function tryGenerate(seed, params) {
         x: Math.round(center.x + Math.cos(angle) * turnRadius),
         y: Math.round(center.y + Math.sin(angle) * turnRadius),
       };
-      carveManhattan(previous, point, w);
+      carveManhattan(previous, point, w, route);
       previous = point;
     }
-    carveManhattan(previous, exit, w);
-    carveManhattan(exit, { x: B.cx, y: B.cy }, w);
+    carveManhattan(previous, exit, w, route);
+    carveManhattan(exit, { x: B.cx, y: B.cy }, w, route);
   };
 
+  const edgeRoutes = [];
   for (const e of edges) {
     const A = rooms[e.a],
       B = rooms[e.b];
@@ -523,28 +549,38 @@ function tryGenerate(seed, params) {
       dy = Math.abs(A.cy - B.cy);
     const ovX = Math.min(A.cx + A.w / 2, B.cx + B.w / 2) - Math.max(A.cx - A.w / 2, B.cx - B.w / 2);
     const ovY = Math.min(A.cy + A.h / 2, B.cy + B.h / 2) - Math.max(A.cy - A.h / 2, B.cy - B.h / 2);
+    const route = [];
     if (ovX >= w + 2 && dy > 0) {
       const x = Math.round(
         (Math.max(A.cx - A.w / 2, B.cx - B.w / 2) + Math.min(A.cx + A.w / 2, B.cx + B.w / 2)) / 2,
       );
       vLine(A.cy, B.cy, x, w);
+      appendManhattan(route, { x: A.cx, y: A.cy }, { x, y: A.cy }, true);
+      appendCardinalLine(route, { x, y: A.cy }, { x, y: B.cy });
+      appendManhattan(route, { x, y: B.cy }, { x: B.cx, y: B.cy }, true);
     } else if (ovY >= w + 2 && dx > 0) {
       const y = Math.round(
         (Math.max(A.cy - A.h / 2, B.cy - B.h / 2) + Math.min(A.cy + A.h / 2, B.cy + B.h / 2)) / 2,
       );
       hLine(A.cx, B.cx, y, w);
+      appendManhattan(route, { x: A.cx, y: A.cy }, { x: A.cx, y }, false);
+      appendCardinalLine(route, { x: A.cx, y }, { x: B.cx, y });
+      appendManhattan(route, { x: B.cx, y }, { x: B.cx, y: B.cy }, false);
     } else {
       const horizontalFirst = rng.chance(0.5);
       if (Math.min(dx, dy) >= 3 && rng.chance(TH.corridorArc ?? 0.34)) {
-        roundedCorridor(A, B, w, horizontalFirst);
+        roundedCorridor(A, B, w, horizontalFirst, route);
       } else if (horizontalFirst) {
         hLine(A.cx, B.cx, A.cy, w);
         vLine(A.cy, B.cy, B.cx, w);
+        appendManhattan(route, { x: A.cx, y: A.cy }, { x: B.cx, y: B.cy }, true);
       } else {
         vLine(A.cy, B.cy, A.cx, w);
         hLine(A.cx, B.cx, B.cy, w);
+        appendManhattan(route, { x: A.cx, y: A.cy }, { x: B.cx, y: B.cy }, false);
       }
     }
+    edgeRoutes.push(route);
   }
 
   const doorwayTopology = {
@@ -556,6 +592,85 @@ function tryGenerate(seed, params) {
     preservedOpenings: new Set(),
   };
   const sealedBoundaryLeaks = sealInvalidForgeRoomOpenings(doorwayTopology);
+
+  // Sealing tangent room cuts can invalidate a centerline that was recorded
+  // while its edge was carved. Repair only those routes against the final
+  // corridor topology, forbidding shortcuts through unrelated rooms.
+  const routeMarks = new Uint32Array(W * H),
+    routePrevious = new Int32Array(W * H),
+    routeQueue = new Int32Array(W * H);
+  let routeEpoch = 0;
+  const edgeRouteCellAllowed = (cell, edge, allowOtherRooms = false) => {
+    if (grid[cell] !== FLOOR) return false;
+    const owner = roomId[cell];
+    return allowOtherRooms || owner < 0 || owner === edge.a || owner === edge.b;
+  };
+  const edgeRouteIsUsable = (edge, route) => {
+    const A = rooms[edge.a],
+      B = rooms[edge.b];
+    if (!route?.length) return false;
+    if (route[0].x !== A.cx || route[0].y !== A.cy) return false;
+    const last = route[route.length - 1];
+    if (last.x !== B.cx || last.y !== B.cy) return false;
+    for (let index = 0; index < route.length; index++) {
+      const cell = route[index],
+        flat = idx(cell.x, cell.y);
+      if (!inB(cell.x, cell.y) || !edgeRouteCellAllowed(flat, edge)) return false;
+      if (index > 0) {
+        const previous = route[index - 1];
+        if (Math.abs(cell.x - previous.x) + Math.abs(cell.y - previous.y) !== 1) return false;
+      }
+    }
+    return true;
+  };
+  const findFinalEdgeRoute = (edge, allowOtherRooms = false) => {
+    const A = rooms[edge.a],
+      B = rooms[edge.b],
+      start = idx(A.cx, A.cy),
+      goal = idx(B.cx, B.cy);
+    routeEpoch++;
+    let head = 0,
+      tail = 0;
+    routeQueue[tail++] = start;
+    routeMarks[start] = routeEpoch;
+    routePrevious[start] = -1;
+    while (head < tail && routeMarks[goal] !== routeEpoch) {
+      const current = routeQueue[head++],
+        x = current % W,
+        y = Math.floor(current / W);
+      for (const [dx, dy] of [
+        [1, 0],
+        [0, 1],
+        [-1, 0],
+        [0, -1],
+      ]) {
+        const nx = x + dx,
+          ny = y + dy;
+        if (!inB(nx, ny)) continue;
+        const next = idx(nx, ny);
+        if (routeMarks[next] === routeEpoch || !edgeRouteCellAllowed(next, edge, allowOtherRooms))
+          continue;
+        routeMarks[next] = routeEpoch;
+        routePrevious[next] = current;
+        routeQueue[tail++] = next;
+      }
+    }
+    if (routeMarks[goal] !== routeEpoch) return [];
+    const route = [];
+    for (let current = goal; current !== -1; current = routePrevious[current]) {
+      route.push({ x: current % W, y: Math.floor(current / W) });
+    }
+    return route.reverse();
+  };
+  edges.forEach((edge, edgeIndex) => {
+    if (!edgeRouteIsUsable(edge, edgeRoutes[edgeIndex])) {
+      const directRoute = findFinalEdgeRoute(edge);
+      // Legacy Forge layouts can have an abstract edge whose original cut was
+      // sealed beside a third room. In that case, show the real walkable route
+      // through the final dungeon instead of restoring the invalid cut.
+      edgeRoutes[edgeIndex] = directRoute.length ? directRoute : findFinalEdgeRoute(edge, true);
+    }
+  });
 
   for (let y = 0; y < H; y++) {
     const row = y * W;
@@ -1169,6 +1284,7 @@ function tryGenerate(seed, params) {
     maxBfs,
     rooms,
     edges,
+    edgeRoutes,
     entrance,
     boss,
     maxDepth,

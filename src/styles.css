@@ -2656,17 +2656,20 @@ kbd {
 .app-shell[data-engine-mode="play"] .options-fx {
   order: 2;
 }
-.app-shell[data-engine-mode="play"] .options-session {
+.app-shell[data-engine-mode="play"] .display-post-fx-launch {
   order: 3;
 }
-.app-shell[data-engine-mode="play"] .mode-switcher {
+.app-shell[data-engine-mode="play"] .options-session {
   order: 4;
 }
-.app-shell[data-engine-mode="play"] .record-panel {
+.app-shell[data-engine-mode="play"] .mode-switcher {
   order: 5;
 }
-.app-shell[data-engine-mode="play"] .options-status {
+.app-shell[data-engine-mode="play"] .record-panel {
   order: 6;
+}
+.app-shell[data-engine-mode="play"] .options-status {
+  order: 7;
 }
 
 .options-session {
@@ -2709,6 +2712,35 @@ kbd {
   background: rgb(201 197 184 / 8%);
   color: inherit;
   font-size: 10px;
+}
+
+.display-post-fx-launch {
+  display: none;
+}
+
+.app-shell[data-local-dev-tools="true"][data-engine-mode="play"] .display-post-fx-launch {
+  display: block;
+  width: 100%;
+  min-height: 42px;
+  padding: 0 12px;
+  border: 1px solid rgb(227 196 125 / 34%);
+  background: rgb(227 196 125 / 7%);
+  color: #e3c47d;
+  font-family: var(--font-pixel);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+}
+
+.display-post-fx-launch:hover,
+.display-post-fx-launch:focus-visible {
+  border-color: rgb(227 196 125 / 68%);
+  background: rgb(227 196 125 / 13%);
+  outline: none;
+}
+
+.display-post-fx-launch kbd {
+  margin-inline-start: 8px;
 }
 
 /* Main menu: quiet secondary exit. */
@@ -2854,7 +2886,7 @@ kbd {
   accent-color: var(--bone);
 }
 
-.options-palette select {
+.options-select select {
   grid-column: 1 / -1;
   width: 100%;
   min-height: 34px;
@@ -2867,7 +2899,7 @@ kbd {
   text-transform: uppercase;
 }
 
-.options-palette select:disabled,
+.options-select select:disabled,
 .options-volume input:disabled {
   cursor: not-allowed;
   opacity: 0.42;
@@ -4906,12 +4938,17 @@ kbd {
   pointer-events: none;
 }
 
-.app-shell[data-local-dev-tools="true"][data-engine-mode="play"] .display-post-fx-layer {
+.app-shell[data-local-dev-tools="true"][data-engine-mode="play"][data-display-lab-open="true"]
+  .display-post-fx-layer {
   display: block;
 }
 
 .display-post-fx-lab {
   pointer-events: none;
+}
+
+.display-post-fx-lab:not([open]) > summary {
+  display: none;
 }
 
 .display-post-fx-lab > summary {

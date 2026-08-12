@@ -35,6 +35,7 @@ describe("classic dungeon topology contract", () => {
     const topology = dungeon.topology;
     expect(topology).toBeDefined();
     expect(topology?.doorways).toHaveLength(dungeon.edges.length * 2);
+    expect(topology?.routes).toHaveLength(dungeon.edges.length);
 
     for (let edgeIndex = 0; edgeIndex < dungeon.edges.length; edgeIndex += 1) {
       const edge = dungeon.edges[edgeIndex];
@@ -50,6 +51,16 @@ describe("classic dungeon topology contract", () => {
         expect(
           dungeon.distances[doorway.cell.y * dungeon.width + doorway.cell.x],
         ).toBeGreaterThanOrEqual(0);
+      }
+      const route = topology?.routes?.[edgeIndex] ?? [];
+      expect(route[0]).toEqual(dungeon.rooms[edge!.left]?.center);
+      expect(route.at(-1)).toEqual(dungeon.rooms[edge!.right]?.center);
+      for (let routeIndex = 0; routeIndex < route.length; routeIndex += 1) {
+        const cell = route[routeIndex]!;
+        expect(dungeon.grid[cell.y]?.[cell.x]).toBe(FLOOR);
+        if (routeIndex === 0) continue;
+        const previous = route[routeIndex - 1]!;
+        expect(Math.abs(cell.x - previous.x) + Math.abs(cell.y - previous.y)).toBe(1);
       }
     }
   });
@@ -81,6 +92,7 @@ describe("classic dungeon topology contract", () => {
 
     expect(first.topologySignature).toBe(second.topologySignature);
     expect(first.topology?.doorways).toEqual(second.topology?.doorways);
+    expect(first.topology?.routes).toEqual(second.topology?.routes);
     expect([...first.topology!.corridors]).toEqual([...second.topology!.corridors]);
     expect([...first.topology!.roomIds]).toEqual([...second.topology!.roomIds]);
   });

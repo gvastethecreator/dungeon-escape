@@ -72,17 +72,37 @@ export interface EnemyPresentationFrame {
   trail: EnemyPresentationTrail | null;
 }
 
+interface EnemyPresentationActorState {
+  x: number;
+  y: number;
+  z: number;
+  yaw: number;
+  roll: number;
+  scaleX: number;
+  scaleY: number;
+  visibility: number;
+}
+
 /** Applies the complete render projection for enemy actors after simulation. */
 export class EnemyPresentation {
   private readonly movingKinds = new Set<EnemyKind>();
+  private readonly dirtyBillboardBatches = new Set<THREE.InstancedMesh>();
+  private readonly dirtyShadowBatches = new Set<THREE.InstancedMesh>();
+  private readonly dirtyVisibilityAttributes = new Set<THREE.InstancedBufferAttribute>();
+  private readonly actorState = new WeakMap<EnemyPresentationActor, EnemyPresentationActorState>();
   private readonly position = new THREE.Vector3();
   private readonly scale = new THREE.Vector3();
   private readonly quaternion = new THREE.Quaternion();
   private readonly euler = new THREE.Euler(0, 0, 0, "YXZ");
   private readonly matrix = new THREE.Matrix4();
   private readonly axisX = new THREE.Vector3(1, 0, 0);
+  private frame = 0;
 
   update(frame: EnemyPresentationFrame): void {
+    this.frame += 1;
+    this.dirtyBillboardBatches.clear();
+    this.dirtyShadowBatches.clear();
+    this.dirtyVisibilityAttributes.clear();
     this.updateAnimationFrames(frame);
 
     for (const actor of frame.actors) {
@@ -98,17 +118,58 @@ export class EnemyPresentation {
       this.quaternion.setFromEuler(this.euler);
       this.scale.set(actor.scaleX, actor.scaleY, 1);
       const visibility = actor.phaseVisibility * actor.spawnReveal;
-      actor.visibilityAttribute.setX(actor.instanceIndex, visibility);
-      actor.batch.setMatrixAt(
-        actor.instanceIndex,
-        this.matrix.compose(actor.position, this.quaternion, this.scale),
-      );
-      this.writeContactShadow(actor, visibility, frame.moodId);
+      const previous = this.actorState.get(actor);
+      const poseChanged =
+        !previous ||
+        previous.x !== actor.position.x ||
+        previous.y !== actor.position.y ||
+        previous.z !== actor.position.z ||
+        previous.yaw !== actor.yaw ||
+        previous.roll !== actor.roll ||
+        previous.scaleX !== actor.scaleX ||
+        previous.scaleY !== actor.scaleY ||
+        previous.visibility !== visibility;
+      if (poseChanged) {
+        actor.visibilityAttribute.setX(actor.instanceIndex, visibility);
+        actor.batch.setMatrixAt(
+          actor.instanceIndex,
+          this.matrix.compose(actor.position, this.quaternion, this.scale),
+        );
+        this.dirtyVisibilityAttributes.add(actor.visibilityAttribute);
+        this.dirtyBillboardBatches.add(actor.batch);
+      }
+      // Contact shadows are purely decorative; amortize stable actors while
+      // immediately updating a changed pose so combat feedback remains exact.
+      if (poseChanged || (this.frame + actor.instanceIndex) % 3 === 0) {
+        this.writeContactShadow(actor, visibility, frame.moodId);
+        this.dirtyShadowBatches.add(actor.shadowBatch);
+      }
+      if (previous) {
+        previous.x = actor.position.x;
+        previous.y = actor.position.y;
+        previous.z = actor.position.z;
+        previous.yaw = actor.yaw;
+        previous.roll = actor.roll;
+        previous.scaleX = actor.scaleX;
+        previous.scaleY = actor.scaleY;
+        previous.visibility = visibility;
+      } else {
+        this.actorState.set(actor, {
+          x: actor.position.x,
+          y: actor.position.y,
+          z: actor.position.z,
+          yaw: actor.yaw,
+          roll: actor.roll,
+          scaleX: actor.scaleX,
+          scaleY: actor.scaleY,
+          visibility,
+        });
+      }
     }
 
-    for (const batch of frame.billboardBatches) batch.instanceMatrix.needsUpdate = true;
-    for (const batch of frame.shadowBatches) batch.instanceMatrix.needsUpdate = true;
-    for (const attribute of frame.visibilityAttributes) attribute.needsUpdate = true;
+    for (const batch of this.dirtyBillboardBatches) batch.instanceMatrix.needsUpdate = true;
+    for (const batch of this.dirtyShadowBatches) batch.instanceMatrix.needsUpdate = true;
+    for (const attribute of this.dirtyVisibilityAttributes) attribute.needsUpdate = true;
     for (const batch of frame.animationBatches.values()) {
       setEnemyFreezeAmount(batch.material, frame.frozen ? 1 : 0);
     }
