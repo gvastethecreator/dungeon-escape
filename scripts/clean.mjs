@@ -10,7 +10,6 @@ const generatedPaths = [
   ".scratch/build",
   ".code-review-graph",
   ".local",
-  ".proof-hud",
   ".wrangler/tmp",
 ];
 
@@ -46,3 +45,10 @@ async function removeScratchResidue(directory) {
 }
 
 await removeScratchResidue(projectPath(".scratch"));
+
+const rootEntries = await readdir(projectRoot, { withFileTypes: true }).catch(() => []);
+for (const entry of rootEntries) {
+  if (!entry.isDirectory() || !entry.name.startsWith(".proof-")) continue;
+  await rm(projectPath(entry.name), { force: true, recursive: true });
+  console.log(`removed ${entry.name}`);
+}

@@ -1,7 +1,9 @@
 node_modules/
 dist/
+assets-source/
+docs/codemap/
 .scratch/
-.proof-hud/
+.proof-*
 .code-review-graph/
 .local/
 .cache/

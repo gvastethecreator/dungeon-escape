@@ -9,6 +9,7 @@ import {
   createLuminousWardRuntimeTexture,
 } from "../src/world/LuminousWardMaterial";
 import { MODEL_PBR_SOURCE_REPEAT_SCALE } from "../src/world/MaterialLibrary";
+import { hasLocalSourceAssets } from "./local-source-assets";
 
 interface MaterialRecord {
   id: string;
@@ -46,24 +47,37 @@ const sha256 = (path: string) =>
     .update(readFileSync(projectPath(path)))
     .digest("hex");
 
-describe("model material texture v2 contract", () => {
-  const manifest = JSON.parse(
-    readFileSync(
-      projectPath(
-        "assets-source",
-        "runtime-metadata",
-        "textures",
-        "model-materials-v2",
-        "manifest.json",
-      ),
-      "utf8",
-    ),
-  ) as MaterialManifest;
-  const runtimeImages = (
-    JSON.parse(
-      readFileSync(projectPath("assets-source", "runtime-optimization-manifest.json"), "utf8"),
-    ) as { images: RuntimeOptimizationEntry[] }
-  ).images;
+const hasMaterialSources = hasLocalSourceAssets(
+  "runtime-metadata",
+  "textures",
+  "model-materials-v2",
+  "manifest.json",
+);
+const manifest = (
+  hasMaterialSources
+    ? JSON.parse(
+        readFileSync(
+          projectPath(
+            "assets-source",
+            "runtime-metadata",
+            "textures",
+            "model-materials-v2",
+            "manifest.json",
+          ),
+          "utf8",
+        ),
+      )
+    : { mapSize: 0, materials: [] }
+) as MaterialManifest;
+const runtimeImages = hasMaterialSources
+  ? (
+      JSON.parse(
+        readFileSync(projectPath("assets-source", "runtime-optimization-manifest.json"), "utf8"),
+      ) as { images: RuntimeOptimizationEntry[] }
+    ).images
+  : [];
+
+describe.skipIf(!hasMaterialSources)("model material texture v2 contract", () => {
 
   test("covers every shared role with an intact authored interior and explicit wrap policy", () => {
     expect(manifest.materials.map(({ id }) => id)).toEqual([

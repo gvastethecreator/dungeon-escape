@@ -13,6 +13,7 @@ import {
   listEnemyAtlasSources,
   type EnemyAtlasFrame,
 } from "../src/world/EnemySpriteAtlas";
+import { hasLocalSourceAssets } from "./local-source-assets";
 
 interface AtlasManifest {
   animation: {
@@ -28,7 +29,9 @@ interface AtlasManifest {
 }
 
 describe("enemy atlas runtime contract", () => {
-  test("runtime frame data matches the shipped manifest", async () => {
+  test.skipIf(!hasLocalSourceAssets("enemies", "v8", "manifest.json"))(
+    "runtime frame data matches the shipped manifest",
+    async () => {
     const manifestFile = Bun.file(
       new URL("../assets-source/enemies/v8/manifest.json", import.meta.url),
     );
@@ -49,7 +52,8 @@ describe("enemy atlas runtime contract", () => {
       expect(animation.frames).toEqual(manifest.frame_layout.rows[kind]);
       expect(manifestAnimation).toMatchObject({ fps: 8, frames: 4, loop: true });
     }
-  });
+  },
+  );
 
   test("four-frame walk loop advances at eight frames per second", () => {
     expect(enemyAnimationFrameIndex("goblin", 0)).toBe(0);

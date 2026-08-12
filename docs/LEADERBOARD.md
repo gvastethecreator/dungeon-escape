@@ -19,7 +19,7 @@
 - A fresh New Game profile starts with a random portrait. The saved avatar remains stable until the player changes it.
 - Legacy rows without a saved portrait still hash the player name to one of **72** grotesque pixel portraits (`src/leaderboard/portraits.ts`).
 - Seed prefix: `portrait-v4:` + lowercased trimmed name, FNV-1a via `hashSeed`, then modulo roster size.
-- Art pack: intentionally crude / acid-humor busts (sources under `assets-source/imagegen/portraits-v2-grotesque/`).
+- Art pack: intentionally crude / acid-humor busts (local sources under `assets-source/imagegen/portraits-v2-grotesque/`).
 - Saved profiles keep the same face across reloads. Runtime assets live under `public/assets/ui/portraits/`.
 - Frame overlays:
   - rank **1** gold

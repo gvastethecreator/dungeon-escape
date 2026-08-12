@@ -26,6 +26,7 @@ import {
   uncannyWallVisualProfile,
   UncannyWallRuntime,
 } from "../src/world/UncannyWallRuntime";
+import { hasLocalSourceAssets } from "./local-source-assets";
 
 const durations = [1200, 180, 240, 220] as const;
 
@@ -136,7 +137,9 @@ describe("uncanny wall runtime", () => {
     resetShaderProgramModeRegistryForTests();
   });
 
-  test("packages four native-resolution loops for every biome", () => {
+  test.skipIf(
+    !hasLocalSourceAssets("runtime-metadata", "sprites", "uncanny-walls", "manifest.json"),
+  )("packages four native-resolution loops for every biome", () => {
     const manifestPath = join(
       process.cwd(),
       "assets-source/runtime-metadata/sprites/uncanny-walls/manifest.json",

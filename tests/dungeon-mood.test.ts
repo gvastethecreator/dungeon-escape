@@ -9,6 +9,7 @@ import {
   parseDungeonMoodId,
   resolveDungeonMood,
 } from "../src/systems/DungeonMood";
+import { hasLocalSourceAssets } from "./local-source-assets";
 import {
   biomeDoorTextureUrl,
   biomeTextureUrl,
@@ -216,13 +217,19 @@ describe("dungeon mood tints", () => {
       expect(biomeDoorTextureUrl(id)).toBe(`/assets/textures/biomes/${id}/door.webp`);
       expect(biomeWallDecorTextureUrl(id)).toBe(`/assets/sprites/biomes/${id}-wall-decor.webp`);
     }
-    expect(existsSync(join(import.meta.dir, "../assets-source/imagegen/biome-doors-v1.png"))).toBe(
-      true,
-    );
-    expect(
-      existsSync(join(import.meta.dir, "../assets-source/imagegen/uncanny-wall-decor-v1.png")),
-    ).toBe(true);
   });
+
+  test.skipIf(!hasLocalSourceAssets("imagegen", "biome-doors-v1.png"))(
+    "keeps ImageGen door and wall-decor masters locally",
+    () => {
+      expect(existsSync(join(import.meta.dir, "../assets-source/imagegen/biome-doors-v1.png"))).toBe(
+        true,
+      );
+      expect(
+        existsSync(join(import.meta.dir, "../assets-source/imagegen/uncanny-wall-decor-v1.png")),
+      ).toBe(true);
+    },
+  );
 
   test("decoration forms change with biome identity", () => {
     expect(getBiomeDecorationProfile("backrooms")).toMatchObject({

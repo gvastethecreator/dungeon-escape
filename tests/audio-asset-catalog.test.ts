@@ -10,6 +10,7 @@ import {
   audioAssetForCue,
   audioAssetForMusic,
   audioAssetForPickup,
+  PICKUP_AUDIO_ASSET_IDS,
   createAudioGroupLevels,
   creatureBaseTakes,
   creatureToneAsset,
@@ -17,6 +18,7 @@ import {
   listAudioAssets,
   type CollectedPickupKind,
 } from "../src/audio/AudioAssetCatalog";
+import { hasLocalSourceAssets } from "./local-source-assets";
 
 const PICKUP_KINDS = [
   "stone",
@@ -29,6 +31,7 @@ const PICKUP_KINDS = [
   "map",
   "mobility",
   "clarity",
+  "hand-torch",
   "swarm-curse",
   "slow-curse",
   "frenzy-curse",
@@ -65,10 +68,13 @@ describe("AudioAssetCatalog", () => {
   test("gives every pickup kind its own sound", () => {
     const ids = PICKUP_KINDS.map((kind) => audioAssetForPickup(kind));
     expect(new Set(ids).size).toBe(PICKUP_KINDS.length);
+    expect(PICKUP_AUDIO_ASSET_IDS).toEqual(ids);
     for (const id of ids) expect(getAudioAsset(id).group).toBe("sfx");
   });
 
-  test("links every personal-library source record to a runtime file", async () => {
+  test.skipIf(!hasLocalSourceAssets("audio", "library-sfx-catalog.json"))(
+    "links every personal-library source record to a runtime file",
+    async () => {
     const manifest = (await Bun.file(
       new URL("../assets-source/audio/library-sfx-catalog.json", import.meta.url),
     ).json()) as {
@@ -86,7 +92,8 @@ describe("AudioAssetCatalog", () => {
       expect(await runtime.exists()).toBe(true);
       expect(runtime.size).toBeGreaterThan(800);
     }
-  });
+  },
+  );
 
   test("covers all creature base takes and biome tone assets", () => {
     for (const voice of CREATURE_VOICES) {

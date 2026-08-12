@@ -7,6 +7,7 @@ import {
 } from "../src/systems/BiomeScreenArt";
 import { listBiomeIds } from "../src/systems/BiomeIdentity";
 import type { PlayerBiomeStars } from "../src/leaderboard/contract";
+import { hasLocalSourceAssets } from "./local-source-assets";
 
 const biomeIds = [...listBiomeIds()];
 
@@ -39,7 +40,9 @@ describe("biome screen art", () => {
     expect(mainScreenBiomeForPlayer("Other player", stars)).toBe("ancient");
   });
 
-  test("keeps the final frontier on Backrooms and separates each enemy trio", async () => {
+  test.skipIf(
+    !hasLocalSourceAssets("imagegen", "biome-screen-art-v2", "biome-screen-art-manifest.json"),
+  )("keeps the final frontier on Backrooms and separates each enemy trio", async () => {
     const playerStars: Record<string, number> = Object.fromEntries(
       biomeIds.map((biomeId) => [BIOME_SCREEN_ART[biomeId].label, 1]),
     );
@@ -99,7 +102,14 @@ describe("biome screen art", () => {
     }
   });
 
-  test("tracks all 121 current enemy references from promoted animation rows", async () => {
+  test.skipIf(
+    !hasLocalSourceAssets(
+      "imagegen",
+      "biome-screen-art-v2",
+      "references",
+      "reference-manifest.json",
+    ),
+  )("tracks all 121 current enemy references from promoted animation rows", async () => {
     const references = JSON.parse(
       await Bun.file(
         new URL(

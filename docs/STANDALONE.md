@@ -20,4 +20,4 @@ When local tools are on, the optional `authority` URL parameter enables a compat
 
 ## Generated and local directories
 
-Git ignores `node_modules`, `dist`, `.scratch`, `.proof-hud`, `.venv-pbr`, coverage output, and local environment files. Development plans and local issue records live under `.scratch/`; broader private notes and reports live under `.local/`.
+Git ignores `node_modules`, `dist`, `assets-source`, `docs/codemap`, `.scratch`, `.proof-*` capture trees, `.venv-pbr`, coverage output, and local environment files. Development plans and local issue records live under `.scratch/`; broader private notes and reports live under `.local/`.

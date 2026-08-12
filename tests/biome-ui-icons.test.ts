@@ -4,6 +4,7 @@ import { join } from "node:path";
 
 import { listBiomeIds } from "../src/systems/BiomeIdentity";
 import { biomeHoverColor, biomeIconSrc, expandBiomeStars } from "../src/systems/BiomeUi";
+import { hasLocalSourceAssets } from "./local-source-assets";
 
 const iconRoot = join(import.meta.dir, "../public/assets/ui/biome-icons");
 
@@ -19,6 +20,11 @@ describe("biome picker icons", () => {
   test("ships black and transparent spritesheets", () => {
     expect(existsSync(join(iconRoot, "biome-icons-sheet-black.webp"))).toBe(true);
     expect(existsSync(join(iconRoot, "biome-icons-sheet.webp"))).toBe(true);
+  });
+
+  test.skipIf(
+    !hasLocalSourceAssets("runtime-metadata", "ui", "biome-icons", "manifest.json"),
+  )("keeps the local biome-icon production manifest", () => {
     expect(
       existsSync(
         join(import.meta.dir, "../assets-source/runtime-metadata/ui/biome-icons/manifest.json"),
