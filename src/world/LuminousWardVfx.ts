@@ -327,6 +327,7 @@ function createWardMoteSpriteMaterial(
 ): PointsNodeMaterial {
   const aPosition = instancedBufferAttribute<"vec3">(positionAttribute, "vec3");
   const aSize = instancedBufferAttribute<"float">(sizeAttribute, "float");
+  const uColor = uniform(new THREE.Color(WARD_COLOR_CORE));
   const material = new PointsNodeMaterial();
   const texel = texture(particleTexture);
   material.name = "Luminous ward floating mote material (TSL sprites)";
@@ -336,9 +337,9 @@ function createWardMoteSpriteMaterial(
   material.sizeAttenuation = true;
   material.toneMapped = false;
   material.alphaTest = 0.02;
-  material.positionNode = aPosition;
+  material.positionNode = aPosition as any;
   material.sizeNode = max(float(0.035), aSize.mul(1.1));
-  material.colorNode = vec4(vec3(WARD_COLOR_CORE).mul(texel.rgb), texel.a);
+  material.colorNode = uColor.mul(texel.rgb);
   material.opacityNode = texel.a.mul(materialOpacity);
   material.userData.luminousWardMotes = true;
   material.userData.shaderProgramMode = "tsl";

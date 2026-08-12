@@ -132,7 +132,10 @@ describe("luminous ward power", () => {
     vfx.update(30, 0.2, { x: 0, y: 1.5, z: 0 }, 1 / 60);
     const motes = vfx.root.getObjectByName("Luminous ward floating motes") as THREE.Sprite;
     const trails = vfx.root.getObjectByName("Luminous ward motion trails") as THREE.Sprite;
-    const shell = vfx.root.getObjectByName("Luminous ward protective shell") as THREE.Mesh;
+    const shell = vfx.root.getObjectByName("Luminous ward protective shell") as THREE.Mesh<
+      THREE.SphereGeometry,
+      MeshBasicNodeMaterial
+    >;
     expect(shell.material).toBeInstanceOf(MeshBasicNodeMaterial);
     expect(shell.material.userData.shaderProgramMode).toBe("tsl");
     expect(motes).toBeInstanceOf(THREE.Sprite);
