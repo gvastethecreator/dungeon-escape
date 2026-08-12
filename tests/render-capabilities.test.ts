@@ -5,6 +5,7 @@ import {
   detectRenderCapabilities,
   detectRendererCompileCapabilities,
   isFirefoxUserAgent,
+  recalibrateRenderCapabilitiesForBackend,
 } from "../src/systems/RenderCapabilities";
 
 describe("render capabilities", () => {
@@ -155,6 +156,29 @@ describe("render capabilities", () => {
         search: "?renderer=webgl",
       }).requestedRenderer,
     ).toBe("webgl");
+  });
+
+  test("WebGPU recalibration tightens CRT budget and disables async warmup (WGP-20)", () => {
+    const base = detectRenderCapabilities({
+      userAgent:
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36",
+      hardwareConcurrency: 16,
+      deviceMemory: 16,
+      search: "",
+    });
+    expect(base.allowAsyncShaderWarmup).toBe(true);
+    expect(base.pixelRatioCap).toBe(1.25);
+
+    const webgpu = recalibrateRenderCapabilitiesForBackend(base, "webgpu");
+    expect(webgpu.resolvedBackend).toBe("webgpu");
+    expect(webgpu.allowAsyncShaderWarmup).toBe(false);
+    expect(webgpu.pixelRatioCap).toBeLessThanOrEqual(1.15);
+    expect(webgpu.adaptiveCrtDisableMs).toBeLessThanOrEqual(32);
+
+    const webgl = recalibrateRenderCapabilitiesForBackend(base, "webgl");
+    expect(webgl.resolvedBackend).toBe("webgl");
+    expect(webgl.allowAsyncShaderWarmup).toBe(true);
+    expect(webgl.pixelRatioCap).toBe(base.pixelRatioCap);
   });
 
   test("main incrementally compiles supported resident floors without retaining replacement worlds", () => {

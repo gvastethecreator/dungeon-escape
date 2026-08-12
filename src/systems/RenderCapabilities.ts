@@ -8,6 +8,8 @@ import type {
   LaunchRenderOverrides,
 } from "../launch/LaunchConfiguration";
 
+export type RenderBackendKind = "webgl" | "webgpu";
+
 export interface RenderCapabilityProfile {
   readonly isFirefox: boolean;
   readonly isLowEnd: boolean;
@@ -27,6 +29,11 @@ export interface RenderCapabilityProfile {
   readonly adaptiveCrtDisableMs: number;
   /** Requested backend from launch configuration (`auto` when unset). */
   readonly requestedRenderer: LaunchRendererPreference;
+  /**
+   * Effective renderer backend after factory resolution.
+   * Populated by `recalibrateRenderCapabilitiesForBackend` (WGP-20).
+   */
+  readonly resolvedBackend?: RenderBackendKind;
 }
 
 export interface RenderCapabilityInput {
@@ -171,5 +178,31 @@ export function detectRenderCapabilities(
     rendererReadyTimeoutMs: shortWarmupDeadline ? 2_500 : 8_000,
     adaptiveCrtDisableMs: treatAsConstrained ? 28 : 36,
     requestedRenderer,
+  };
+}
+
+/**
+ * WGP-20: retune browser-path caps once the factory resolves WebGL vs WebGPU.
+ *
+ * WebGPU has no KHR_parallel_shader_compile warmup path, and the TSL/CRT
+ * composite is slightly heavier on mid-range GPUs — tighten CRT hysteresis and
+ * drop async warmup flags that only apply to WebGL program compilation.
+ */
+export function recalibrateRenderCapabilitiesForBackend(
+  profile: RenderCapabilityProfile,
+  backend: RenderBackendKind,
+): RenderCapabilityProfile {
+  if (backend === "webgl") {
+    return { ...profile, resolvedBackend: "webgl" };
+  }
+
+  return {
+    ...profile,
+    resolvedBackend: "webgpu",
+    allowAsyncShaderWarmup: false,
+    // Slightly tighter CRT auto-disable on WebGPU (history ping-pong + TSL composite).
+    adaptiveCrtDisableMs: Math.min(profile.adaptiveCrtDisableMs, profile.isLowEnd ? 26 : 32),
+    // Prefer a modest pixel-ratio headroom until HITL (WGP-22) widens the cohort.
+    pixelRatioCap: Math.min(profile.pixelRatioCap, profile.isLowEnd ? 1 : 1.15),
   };
 }
