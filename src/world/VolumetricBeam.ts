@@ -4,7 +4,7 @@ import {
   onShaderProgramModeRegistryChange,
   type ShaderProgramMode,
 } from "../systems/ShaderProgramMode";
-import { createVolumetricBeamMaterialTsl } from "./VolumetricBeam.tsl";
+import { requireTslBuilder } from "../systems/TslMaterialModules";
 import type {
   VolumetricBeamMaterial,
   VolumetricBeamOptions,
@@ -498,23 +498,13 @@ export function createVolumetricBeam(
   const sourceRadius = Math.max(0.04, options.topRadius ?? Math.min(bottomRadius * 0.24, 0.28));
   const ambient = options.role === "ambient";
   const objective = !ambient && options.signalStyle === "objective";
-  const profile: VolumetricBeamProfile = ambient
-    ? "ambient"
-    : objective
-      ? "objective"
-      : "signal";
+  const profile: VolumetricBeamProfile = ambient ? "ambient" : objective ? "objective" : "signal";
   const geometry = makeBeamGeometry(sourceRadius, bottomRadius, shaftHeight, profile);
   const material: VolumetricBeamMaterial =
     resolved === "tsl"
-      ? createVolumetricBeamMaterialTsl(
-          color,
-          strength,
-          shaftHeight,
-          sourceRadius,
-          bottomRadius,
-          options,
-          profile,
-        )
+      ? requireTslBuilder<typeof import("./VolumetricBeam.tsl").createVolumetricBeamMaterialTsl>(
+          VOLUMETRIC_BEAM_SHADER_FACTORY_ID,
+        )(color, strength, shaftHeight, sourceRadius, bottomRadius, options, profile)
       : makeBeamMaterialGlsl(color, strength, shaftHeight, sourceRadius, bottomRadius, options);
   const beam = new THREE.Mesh(geometry, material as THREE.Material);
   beam.name = "World-space volumetric light shaft";

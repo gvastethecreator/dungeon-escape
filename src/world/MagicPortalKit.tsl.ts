@@ -3,6 +3,8 @@
  */
 
 import * as THREE from "three";
+import { registerTslBuilder } from "../systems/TslMaterialModules";
+import { MAGIC_PORTAL_SHADER_FACTORY_ID } from "./MagicPortalKit";
 import { MeshBasicNodeMaterial } from "three/webgpu";
 import {
   Fn,
@@ -23,10 +25,7 @@ import {
   vec4,
 } from "three/tsl";
 
-import type {
-  MagicPortalShaderVariant,
-  MagicPortalUniformHandles,
-} from "./MagicPortalKitShared";
+import type { MagicPortalShaderVariant, MagicPortalUniformHandles } from "./MagicPortalKitShared";
 import type { BiomePortalProfile } from "./BiomePortalProfile";
 
 /** Literal copy of MAGIC_PORTAL_APERTURE — avoids circular import with MagicPortalKit.ts. */
@@ -211,7 +210,9 @@ export function createMagicPortalSpiralMaterialTsl(
     const secondary = smoothstep(0.94, 0.995, secondaryWave).mul(0.38);
     const edgeEcho = float(1).sub(smoothstep(0.0, 0.055, apertureEdgeDistance(vUv)));
     const pulse = float(0.84).add(sin(uTime.mul(2.8).sub(radius.mul(4.0))).mul(0.16));
-    const alpha = min(float(1), primary.add(secondary).add(edgeEcho.mul(0.24))).mul(pulse).mul(0.82);
+    const alpha = min(float(1), primary.add(secondary).add(edgeEcho.mul(0.24)))
+      .mul(pulse)
+      .mul(0.82);
     const color = mix(uMagicColor, uBrightColor, primary);
     return vec4(color, alpha);
   })();
@@ -230,3 +231,5 @@ export function createMagicPortalShaderMaterialTsl(
   }
   return createMagicPortalFieldMaterialTsl(profile);
 }
+
+registerTslBuilder(MAGIC_PORTAL_SHADER_FACTORY_ID, createMagicPortalShaderMaterialTsl);

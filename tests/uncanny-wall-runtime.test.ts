@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, test } from "bun:test";
+import { afterEach, beforeAll, describe, expect, test } from "bun:test";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import * as THREE from "three";
@@ -11,6 +11,7 @@ import {
   resetShaderProgramModeRegistryForTests,
   setShaderProgramModeRegistry,
 } from "../src/systems/ShaderProgramMode";
+import { loadTslMaterialModules } from "../src/systems/TslMaterialModules";
 import {
   UNCANNY_WALL_ATLAS_SIZE,
   uncannyWallAnimations,
@@ -32,6 +33,12 @@ const durations = [1200, 180, 240, 220] as const;
 // into later test files would build node materials where GLSL is expected.
 afterEach(() => {
   resetShaderProgramModeRegistryForTests();
+});
+
+// TSL builders live in lazily imported `*.tsl` siblings so the WebGL bundle
+// never pulls in `three/webgpu`; tests must preload them like Play boot does.
+beforeAll(async () => {
+  await loadTslMaterialModules();
 });
 
 describe("uncanny wall runtime", () => {

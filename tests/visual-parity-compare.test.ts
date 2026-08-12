@@ -1,9 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
-import {
-  compareRgbaImages,
-  VISUAL_PARITY_SCENES,
-} from "../src/systems/VisualParityCompare";
+import { compareRgbaImages, VISUAL_PARITY_SCENES } from "../src/systems/VisualParityCompare";
 
 function solid(width: number, height: number, rgba: readonly [number, number, number, number]) {
   const data = new Uint8ClampedArray(width * height * 4);

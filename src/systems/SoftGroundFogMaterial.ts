@@ -5,7 +5,7 @@ import {
   onShaderProgramModeRegistryChange,
   type ShaderProgramMode,
 } from "./ShaderProgramMode";
-import { createSoftGroundFogMaterialTsl } from "./SoftGroundFogMaterial.tsl";
+import { requireTslBuilder } from "./TslMaterialModules";
 import type {
   SoftGroundFogMaterial,
   SoftGroundFogMaterialInput,
@@ -212,14 +212,7 @@ const SOFT_FOG_FRAGMENT = /* glsl */ `
 `;
 
 function createSoftGroundFogMaterialGlsl(input: SoftGroundFogMaterialInput): THREE.ShaderMaterial {
-  const {
-    color,
-    density,
-    mask,
-    worldMin,
-    worldSize,
-    wallHeight,
-  } = input;
+  const { color, density, mask, worldMin, worldSize, wallHeight } = input;
   const material = new THREE.ShaderMaterial({
     vertexShader: SOFT_FOG_VERTEX,
     fragmentShader: SOFT_FOG_FRAGMENT,
@@ -249,7 +242,8 @@ function createSoftGroundFogMaterialGlsl(input: SoftGroundFogMaterialInput): THR
   });
   material.userData.softGroundFog = true;
   material.userData.shaderProgramMode = "glsl";
-  material.userData.softGroundFogHandles = material.uniforms as unknown as SoftGroundFogUniformHandles;
+  material.userData.softGroundFogHandles =
+    material.uniforms as unknown as SoftGroundFogUniformHandles;
   return material;
 }
 
@@ -263,14 +257,15 @@ export function createSoftGroundFogMaterial(
   registry.require(SOFT_GROUND_FOG_SHADER_FACTORY_ID, resolved);
 
   if (resolved === "tsl") {
-    return createSoftGroundFogMaterialTsl(input);
+    const build = requireTslBuilder<
+      typeof import("./SoftGroundFogMaterial.tsl").createSoftGroundFogMaterialTsl
+    >(SOFT_GROUND_FOG_SHADER_FACTORY_ID);
+    return build(input);
   }
   return createSoftGroundFogMaterialGlsl(input);
 }
 
-export function softGroundFogHandles(
-  material: THREE.Material,
-): SoftGroundFogUniformHandles | null {
+export function softGroundFogHandles(material: THREE.Material): SoftGroundFogUniformHandles | null {
   if (material.userData.softGroundFog !== true) return null;
   return (material.userData.softGroundFogHandles ??
     (material as THREE.ShaderMaterial).uniforms) as SoftGroundFogUniformHandles | null;

@@ -11,18 +11,18 @@ import {
 import { getDungeonMood } from "../src/systems/DungeonMood";
 import {
   createEnemyBillboardMaterial,
-  createEnemyBillboardMaterialTsl,
   ENEMY_BILLBOARD_SHADER_FACTORY_ID,
   registerEnemyBillboardShaderFactory,
   setEnemyBillboardFrame,
   setEnemyFreezeAmount,
 } from "../src/world/EnemyBillboardMaterial";
+import { createEnemyBillboardMaterialTsl } from "../src/world/EnemyBillboardMaterial.tsl";
 import {
   createEnemyTrailMaterial,
-  createEnemyTrailMaterialTsl,
   ENEMY_MOTION_TRAIL_SHADER_FACTORY_ID,
   registerEnemyMotionTrailShaderFactory,
 } from "../src/world/EnemyMotionTrailVfx";
+import { createEnemyTrailMaterialTsl } from "../src/world/EnemyMotionTrailVfx.tsl";
 import { ENEMY_ANIMATIONS } from "../src/world/EnemySpriteAtlas";
 
 // The shader program mode registry is process-global; leaking `tsl` mode
@@ -42,7 +42,8 @@ describe("enemy billboard TSL port", () => {
 
     const shader = {
       vertexShader: "#include <common>\n#include <uv_vertex>\n#include <begin_vertex>",
-      fragmentShader: "#include <common>\n#include <alphatest_fragment>\n#include <emissivemap_fragment>",
+      fragmentShader:
+        "#include <common>\n#include <alphatest_fragment>\n#include <emissivemap_fragment>",
       uniforms: {} as Record<string, { value: unknown }>,
     };
     glslMaterial.onBeforeCompile(

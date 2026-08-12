@@ -48,6 +48,7 @@ import {
   createShaderProgramModeRegistry,
   setShaderProgramModeRegistry,
 } from "../systems/ShaderProgramMode";
+import { loadTslMaterialModules } from "../systems/TslMaterialModules";
 import {
   BIOME_PARTICLE_MOTION_ID,
   BIOME_PARTICLE_SHAPE_ID,
@@ -134,6 +135,9 @@ const forgeRendererHandle = await createPlayRendererHandle({
 setShaderProgramModeRegistry(
   createShaderProgramModeRegistry(forgeRendererHandle.isWebGpuRenderer ? "tsl" : "glsl"),
 );
+if (forgeRendererHandle.isWebGpuRenderer) {
+  await loadTslMaterialModules();
+}
 const renderer = forgeRendererHandle.raw;
 const forgeWebGpu = forgeRendererHandle.isWebGpuRenderer === true;
 if (typeof globalThis !== "undefined") {
@@ -833,17 +837,17 @@ const liquidMat = forgeWebGpu
       { uniforms: liquidUniforms },
     )
   : new THREE.ShaderMaterial({
-  transparent: true,
-  depthWrite: false,
-  uniforms: liquidUniforms,
-  vertexShader: `
+      transparent: true,
+      depthWrite: false,
+      uniforms: liquidUniforms,
+      vertexShader: `
     attribute vec2 aE;
     attribute vec4 aM;
     varying vec2 vP, vE;
     varying vec4 vM;
     void main(){ vP = vec2(position.x, position.z); vE = aE; vM = aM;
       gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
-  fragmentShader: `
+      fragmentShader: `
     precision highp float;
     varying vec2 vP, vE;
     varying vec4 vM;
@@ -896,7 +900,7 @@ const liquidMat = forgeWebGpu
       else                 aOut *= (1.0 - 0.55*e);
       gl_FragColor = vec4(col * (0.5 + uGlow), aOut);
     }`,
-});
+    });
 
 /* One shared GPU field. Profiles supply a distinct motion and silhouette per biome. */
 const partUniforms = {
@@ -926,11 +930,11 @@ const partMat = forgeWebGpu
       { uniforms: partUniforms },
     )
   : new THREE.ShaderMaterial({
-  transparent: true,
-  depthWrite: false,
-  blending: THREE.AdditiveBlending,
-  uniforms: partUniforms,
-  vertexShader: `
+      transparent: true,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+      uniforms: partUniforms,
+      vertexShader: `
     attribute float aSeed;
     attribute float aSize;
     attribute float aTint;
@@ -991,7 +995,7 @@ const partMat = forgeWebGpu
       gl_Position = projectionMatrix * modelViewMatrix * vec4(p, 1.0);
       gl_PointSize = clamp(aSize*sizePulse*uZoom, 1.0, 10.0);
     }`,
-  fragmentShader: `
+      fragmentShader: `
     precision mediump float;
     uniform vec3 uColor, uColorAlt;
     uniform float uShape;
@@ -1014,7 +1018,7 @@ const partMat = forgeWebGpu
       if(a<.025) discard;
       gl_FragColor=vec4(mix(uColor,uColorAlt,vTint),a);
     }`,
-});
+    });
 partMat.toneMapped = false;
 if (forgeWebGpu && partMat.color && partUniforms.uColor) {
   // Keep PointsMaterial color loosely synced when theme uniforms change.

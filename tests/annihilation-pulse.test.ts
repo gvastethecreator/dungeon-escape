@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, test } from "bun:test";
+import { afterEach, beforeAll, describe, expect, test } from "bun:test";
 import * as THREE from "three";
 import { PointsNodeMaterial } from "three/webgpu";
 
@@ -20,6 +20,7 @@ import {
   resetShaderProgramModeRegistryForTests,
   setShaderProgramModeRegistry,
 } from "../src/systems/ShaderProgramMode";
+import { loadTslMaterialModules } from "../src/systems/TslMaterialModules";
 import { createDungeonMaterials } from "../src/world/MaterialLibrary";
 import { createAnnihilationPulseRelic } from "../src/world/ItemFactory";
 import {
@@ -33,6 +34,12 @@ import {
 // into later test files would build node materials where GLSL is expected.
 afterEach(() => {
   resetShaderProgramModeRegistryForTests();
+});
+
+// TSL builders live in lazily imported `*.tsl` siblings so the WebGL bundle
+// never pulls in `three/webgpu`; tests must preload them like Play boot does.
+beforeAll(async () => {
+  await loadTslMaterialModules();
 });
 
 describe("annihilation pulse", () => {
@@ -153,12 +160,12 @@ describe("annihilation pulse", () => {
     expect((particles as THREE.Sprite).count).toBe(288);
     expect((particles as THREE.Sprite).material).toBeInstanceOf(PointsNodeMaterial);
     expect((particles as THREE.Sprite).material.userData.particlePrimitive).toBe("sprite");
-    expect(getShaderProgramModeRegistry().supports(ANNIHILATION_BURST_SHADER_FACTORY_ID, "glsl")).toBe(
-      true,
-    );
-    expect(getShaderProgramModeRegistry().supports(ANNIHILATION_BURST_SHADER_FACTORY_ID, "tsl")).toBe(
-      true,
-    );
+    expect(
+      getShaderProgramModeRegistry().supports(ANNIHILATION_BURST_SHADER_FACTORY_ID, "glsl"),
+    ).toBe(true);
+    expect(
+      getShaderProgramModeRegistry().supports(ANNIHILATION_BURST_SHADER_FACTORY_ID, "tsl"),
+    ).toBe(true);
     vfx.dispose();
     resetShaderProgramModeRegistryForTests();
   });

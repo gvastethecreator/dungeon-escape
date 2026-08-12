@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, test } from "bun:test";
+import { afterEach, beforeAll, describe, expect, test } from "bun:test";
 import * as THREE from "three";
 import { PointsNodeMaterial } from "three/webgpu";
 
@@ -8,6 +8,7 @@ import {
   resetShaderProgramModeRegistryForTests,
   setShaderProgramModeRegistry,
 } from "../src/systems/ShaderProgramMode";
+import { loadTslMaterialModules } from "../src/systems/TslMaterialModules";
 import {
   createLuminousWardStone,
   createTimeFreezeRelic,
@@ -28,6 +29,12 @@ import { TimeFreezeVfx } from "../src/world/TimeFreezeVfx";
 // into later test files would build node materials where GLSL is expected.
 afterEach(() => {
   resetShaderProgramModeRegistryForTests();
+});
+
+// TSL builders live in lazily imported `*.tsl` siblings so the WebGL bundle
+// never pulls in `three/webgpu`; tests must preload them like Play boot does.
+beforeAll(async () => {
+  await loadTslMaterialModules();
 });
 
 describe("pickup frame stability", () => {
@@ -168,12 +175,12 @@ describe("pickup frame stability", () => {
     expect((sparks as THREE.Sprite).count).toBe(36);
     expect((sparks as THREE.Sprite).material).toBeInstanceOf(PointsNodeMaterial);
     expect((sparks as THREE.Sprite).material.userData.sparkPrimitive).toBe("sprite");
-    expect(getShaderProgramModeRegistry().supports(PICKUP_BURST_SPARKS_SHADER_FACTORY_ID, "glsl")).toBe(
-      true,
-    );
-    expect(getShaderProgramModeRegistry().supports(PICKUP_BURST_SPARKS_SHADER_FACTORY_ID, "tsl")).toBe(
-      true,
-    );
+    expect(
+      getShaderProgramModeRegistry().supports(PICKUP_BURST_SPARKS_SHADER_FACTORY_ID, "glsl"),
+    ).toBe(true);
+    expect(
+      getShaderProgramModeRegistry().supports(PICKUP_BURST_SPARKS_SHADER_FACTORY_ID, "tsl"),
+    ).toBe(true);
     pool.dispose();
     resetShaderProgramModeRegistryForTests();
   });

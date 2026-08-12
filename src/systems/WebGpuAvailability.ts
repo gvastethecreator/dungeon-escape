@@ -25,8 +25,9 @@ const DEFAULT_TIMEOUT_MS = 1_500;
 
 function defaultEnvironment(): WebGpuProbeEnvironment | null {
   if (typeof navigator === "undefined") return null;
-  const gpu = (navigator as Navigator & { gpu?: { requestAdapter?: () => Promise<unknown | null> } })
-    .gpu;
+  const gpu = (
+    navigator as Navigator & { gpu?: { requestAdapter?: () => Promise<unknown | null> } }
+  ).gpu;
   if (!gpu || typeof gpu.requestAdapter !== "function") {
     return { hasNavigatorGpu: false, requestAdapter: async () => null };
   }
@@ -79,8 +80,7 @@ export async function detectWebGpuAvailability(
       failureReason: null,
     };
   } catch (error) {
-    const timedOut =
-      error instanceof Error && error.message === "webgpu-adapter-timeout";
+    const timedOut = error instanceof Error && error.message === "webgpu-adapter-timeout";
     return {
       hasNavigatorGpu: true,
       hasAdapter: false,

@@ -1,21 +1,5 @@
 import * as THREE from "three";
-import { MeshStandardNodeMaterial } from "three/webgpu";
-import {
-  attribute,
-  clamp,
-  dot,
-  float,
-  materialColor,
-  materialEmissive,
-  materialOpacity,
-  mix,
-  reference,
-  replaceDefaultUV,
-  texture,
-  uv,
-  vec3,
-  vec4,
-} from "three/tsl";
+import type { MeshStandardNodeMaterial } from "three/webgpu";
 import type { SceneTextureSink } from "../systems/SceneTextureRegistry";
 import type { DungeonMood } from "../systems/DungeonMood";
 import {
@@ -23,6 +7,7 @@ import {
   onShaderProgramModeRegistryChange,
   type ShaderProgramMode,
 } from "../systems/ShaderProgramMode";
+import { requireTslBuilder } from "../systems/TslMaterialModules";
 import type { EnemyAnimationDefinition } from "./EnemySpriteAtlas";
 
 export type EnemyBiomeTintSource = Pick<
@@ -43,10 +28,6 @@ const ENEMY_TINT_CHANNEL_FLOOR = 0.68;
 export const ENEMY_BILLBOARD_SHADER_FACTORY_ID = "enemy-billboard";
 
 const ENEMY_BILLBOARD_GLSL_CACHE_KEY = "enemy-billboard-instance-atlas-freeze-v6";
-const ENEMY_BILLBOARD_TSL_CACHE_KEY = "enemy-billboard-instance-atlas-freeze-tsl-v1";
-
-/** Rec.601 luma weights — keep literal; do not use TSL luminance(). */
-const REC601_LUMA = vec3(0.299, 0.587, 0.114);
 
 /** Register (or refresh) dual-mode support on the active shader program registry. */
 export function registerEnemyBillboardShaderFactory(
@@ -110,7 +91,7 @@ export type EnemyBillboardMaterial = (THREE.MeshStandardMaterial | MeshStandardN
   userData: EnemyBillboardUserData;
 };
 
-function applyEnemyBillboardUserData(
+export function applyEnemyBillboardUserData(
   material: EnemyBillboardMaterial,
   mood: EnemyBiomeTintSource,
   palette: EnemyBiomeMaterialPalette,
@@ -126,7 +107,7 @@ function applyEnemyBillboardUserData(
   material.userData.enemyBiomeLightTint = mood.lanternColor;
 }
 
-function enemyBillboardParams(
+export function enemyBillboardParams(
   map: THREE.Texture,
   palette: EnemyBiomeMaterialPalette,
 ): THREE.MeshStandardMaterialParameters {
@@ -211,52 +192,6 @@ export function createEnemyBillboardMaterialGlsl(
 }
 
 /**
- * TSL / WebGPU path: same instance atlas UV, visibility, Rec.601 freeze, and
- * emissive damp via MeshStandardNodeMaterial nodes.
- *
- * `colorNode` replaces diffuseColor, so it starts from `materialColor` (map ×
- * biome palette tint) before freeze desaturation.
- *
- * Requires geometry attributes `aEnemyVisibility` (float) and `aEnemyAtlasFrame` (vec4).
- */
-export function createEnemyBillboardMaterialTsl(
-  map: THREE.Texture,
-  mood: EnemyBiomeTintSource,
-): EnemyBillboardMaterial {
-  const atlasFrame = new THREE.Vector4(0, 0, 1, 1);
-  const freezeAmount = { value: 0 };
-  const palette = resolveEnemyBiomeMaterialPalette(mood);
-  const material = new MeshStandardNodeMaterial(
-    enemyBillboardParams(map, palette),
-  ) as unknown as EnemyBillboardMaterial;
-  applyEnemyBillboardUserData(material, mood, palette, atlasFrame, freezeAmount);
-  material.userData.enemyBillboardShaderMode = "tsl";
-
-  const nodeMaterial = material as unknown as MeshStandardNodeMaterial;
-  const uEnemyFreeze = reference("value", "float", freezeAmount);
-  const atlasFrameAttr = attribute<"vec4">("aEnemyAtlasFrame", "vec4");
-  const visibilityAttr = attribute<"float">("aEnemyVisibility", "float");
-
-  nodeMaterial.contextNode = replaceDefaultUV(() =>
-    atlasFrameAttr.xy.add(uv().mul(atlasFrameAttr.zw)),
-  );
-
-  // materialColor keeps map × biome palette (typed vec3); map alpha is separate.
-  // colorNode replaces diffuseColor, so both must be rebuilt here.
-  const enemyFreeze = clamp(uEnemyFreeze, float(0), float(1));
-  const baseRgb = vec3(materialColor);
-  const enemyGray = dot(baseRgb, REC601_LUMA);
-  const enemyCold = mix(vec3(enemyGray), vec3(0.58, 0.74, 0.86), float(0.22));
-  const frozenRgb = mix(baseRgb, enemyCold, enemyFreeze.mul(0.94));
-  nodeMaterial.colorNode = vec4(frozenRgb, texture(map).a);
-  nodeMaterial.opacityNode = materialOpacity.mul(clamp(visibilityAttr, float(0), float(1)));
-  nodeMaterial.emissiveNode = materialEmissive.mul(float(1).sub(enemyFreeze.mul(0.72)));
-  nodeMaterial.customProgramCacheKey = () => ENEMY_BILLBOARD_TSL_CACHE_KEY;
-  nodeMaterial.needsUpdate = true;
-  return material;
-}
-
-/**
  * Lit enemy atlas billboard. Picks GLSL (default) or TSL from `mode`, falling
  * back to the active ShaderProgramMode registry.
  */
@@ -271,7 +206,10 @@ export function createEnemyBillboardMaterial(
   registry.require(ENEMY_BILLBOARD_SHADER_FACTORY_ID, resolved);
 
   if (resolved === "tsl") {
-    return createEnemyBillboardMaterialTsl(map, mood);
+    const build = requireTslBuilder<
+      typeof import("./EnemyBillboardMaterial.tsl").createEnemyBillboardMaterialTsl
+    >(ENEMY_BILLBOARD_SHADER_FACTORY_ID);
+    return build(map, mood);
   }
   return createEnemyBillboardMaterialGlsl(map, mood);
 }

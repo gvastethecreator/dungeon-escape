@@ -1,26 +1,5 @@
 import * as THREE from "three";
-import { MeshBasicNodeMaterial, PointsNodeMaterial } from "three/webgpu";
-import {
-  Fn,
-  abs,
-  cameraPosition,
-  clamp,
-  dot,
-  float,
-  instancedBufferAttribute,
-  materialOpacity,
-  max,
-  mix,
-  modelWorldMatrix,
-  normalLocal,
-  normalize,
-  positionLocal,
-  pow,
-  sin,
-  texture,
-  uniform,
-  vec4,
-} from "three/tsl";
+import type { MeshBasicNodeMaterial, PointsNodeMaterial } from "three/webgpu";
 import type { SceneTextureSink } from "../systems/SceneTextureRegistry";
 
 import { LUMINOUS_WARD_DURATION_SECONDS } from "../game/LuminousWard";
@@ -29,6 +8,7 @@ import {
   onShaderProgramModeRegistryChange,
   type ShaderProgramMode,
 } from "../systems/ShaderProgramMode";
+import { requireTslBuilder } from "../systems/TslMaterialModules";
 
 export interface LuminousWardViewer {
   x: number;
@@ -41,14 +21,16 @@ export const WARD_PARTICLE_COUNT = 16;
 /** History samples per mote used for the motion trail. */
 export const WARD_TRAIL_SAMPLES = 4;
 /** Soft green core of the ward field. */
-const WARD_COLOR = 0xc7f39a;
-const WARD_COLOR_OUTER = 0x84b75d;
-const WARD_COLOR_CORE = 0xe8ffc8;
+export const WARD_COLOR = 0xc7f39a;
+export const WARD_COLOR_OUTER = 0x84b75d;
+export const WARD_COLOR_CORE = 0xe8ffc8;
 
 /** ShaderProgramMode factory id for the luminous ward shield shell. */
 export const LUMINOUS_WARD_SHIELD_SHADER_FACTORY_ID = "luminous-ward-shield";
 /** ShaderProgramMode factory id for luminous ward mote/trail particles. */
 export const LUMINOUS_WARD_TRAILS_SHADER_FACTORY_ID = "luminous-ward-trails";
+/** TSL builder slot for the floating mote sprites (shares the trails factory). */
+export const LUMINOUS_WARD_MOTES_TSL_BUILDER_ID = "luminous-ward-motes";
 
 /** Register (or refresh) dual-mode support on the active shader program registry. */
 export function registerLuminousWardShaderFactories(
@@ -94,7 +76,7 @@ interface WardMote {
   trailFilled: number;
 }
 
-type WardShieldUniforms = {
+export type WardShieldUniforms = {
   uColor: { value: THREE.Color };
   uRimColor: { value: THREE.Color };
   uOpacity: { value: number };
@@ -102,11 +84,11 @@ type WardShieldUniforms = {
   uTime: { value: number };
 };
 
-type WardShieldMaterial = (THREE.ShaderMaterial | MeshBasicNodeMaterial) & {
+export type WardShieldMaterial = (THREE.ShaderMaterial | MeshBasicNodeMaterial) & {
   uniforms: WardShieldUniforms;
 };
 
-type WardTrailUniforms = {
+export type WardTrailUniforms = {
   map: { value: THREE.Texture };
   uColor: { value: THREE.Color };
   uOpacity: { value: number };
@@ -114,7 +96,7 @@ type WardTrailUniforms = {
   uBaseSize: { value: number };
 };
 
-type WardTrailMaterial = (THREE.ShaderMaterial | PointsNodeMaterial) & {
+export type WardTrailMaterial = (THREE.ShaderMaterial | PointsNodeMaterial) & {
   uniforms: WardTrailUniforms;
 };
 
@@ -279,72 +261,12 @@ function createShieldMaterialGlsl(): WardShieldMaterial {
   return material as WardShieldMaterial;
 }
 
-function createShieldMaterialTsl(): WardShieldMaterial {
-  const uColor = uniform(new THREE.Color(WARD_COLOR));
-  const uRimColor = uniform(new THREE.Color(WARD_COLOR_CORE));
-  const uOpacity = uniform(0);
-  const uPulse = uniform(1);
-  const uTime = uniform(0);
-  const nodeMaterial = new MeshBasicNodeMaterial();
-  nodeMaterial.transparent = true;
-  nodeMaterial.depthWrite = false;
-  nodeMaterial.depthTest = true;
-  nodeMaterial.side = THREE.DoubleSide;
-  nodeMaterial.blending = THREE.AdditiveBlending;
-  nodeMaterial.toneMapped = false;
-  nodeMaterial.fog = false;
-  const sample = Fn(() => {
-    const worldPos = modelWorldMatrix.mul(vec4(positionLocal, 1.0)).xyz;
-    const worldNormal = normalize(modelWorldMatrix.mul(vec4(normalLocal, 0.0)).xyz);
-    const viewDir = normalize(cameraPosition.sub(worldPos));
-    const ndotv = abs(dot(normalize(worldNormal), viewDir));
-    const fresnel = pow(float(1).sub(ndotv), 2.35);
-    const bands = float(0.55).add(sin(worldPos.y.mul(7.5).add(uTime.mul(1.8))).mul(0.45));
-    const hex = float(0.72).add(sin(worldPos.x.add(worldPos.z).mul(4.2).sub(uTime.mul(1.1))).mul(0.28));
-    const shell = fresnel.mul(bands).mul(hex).mul(uPulse);
-    const color = mix(uColor, uRimColor, clamp(fresnel.mul(1.15), 0.0, 1.0));
-    return vec4(color as any, clamp(shell.mul(uOpacity), 0.0, 1.0));
-  })();
-  nodeMaterial.colorNode = sample.rgb as any;
-  nodeMaterial.opacityNode = sample.a as any;
-  nodeMaterial.alphaTest = 0.004;
-  const material = nodeMaterial as WardShieldMaterial;
-  material.uniforms = { uColor, uRimColor, uOpacity, uPulse, uTime } as WardShieldUniforms;
-  material.userData.luminousWardShield = true;
-  material.userData.shaderProgramMode = "tsl";
-  return material;
-}
-
 function createShieldMaterial(mode: ShaderProgramMode): WardShieldMaterial {
-  return mode === "tsl" ? createShieldMaterialTsl() : createShieldMaterialGlsl();
-}
-
-
-function createWardMoteSpriteMaterial(
-  particleTexture: THREE.Texture,
-  positionAttribute: THREE.InstancedBufferAttribute,
-  sizeAttribute: THREE.InstancedBufferAttribute,
-): PointsNodeMaterial {
-  const aPosition = instancedBufferAttribute<"vec3">(positionAttribute, "vec3");
-  const aSize = instancedBufferAttribute<"float">(sizeAttribute, "float");
-  const uColor = uniform(new THREE.Color(WARD_COLOR_CORE));
-  const material = new PointsNodeMaterial();
-  const texel = texture(particleTexture);
-  material.name = "Luminous ward floating mote material (TSL sprites)";
-  material.transparent = true;
-  material.depthWrite = false;
-  material.blending = THREE.AdditiveBlending;
-  material.sizeAttenuation = true;
-  material.toneMapped = false;
-  material.alphaTest = 0.02;
-  material.positionNode = aPosition as any;
-  material.sizeNode = max(float(0.035), aSize.mul(1.1)) as any;
-  material.colorNode = (uColor as any).mul(texel.rgb) as any;
-  material.opacityNode = texel.a.mul(materialOpacity) as any;
-  material.userData.luminousWardMotes = true;
-  material.userData.shaderProgramMode = "tsl";
-  material.userData.particlePrimitive = "sprite";
-  return material;
+  if (mode !== "tsl") return createShieldMaterialGlsl();
+  const build = requireTslBuilder<typeof import("./LuminousWardVfx.tsl").createShieldMaterialTsl>(
+    LUMINOUS_WARD_SHIELD_SHADER_FACTORY_ID,
+  );
+  return build();
 }
 
 function createWardTrailMaterialGlsl(particleTexture: THREE.Texture): WardTrailMaterial {
@@ -395,48 +317,6 @@ function createWardTrailMaterialGlsl(particleTexture: THREE.Texture): WardTrailM
   material.userData.shaderProgramMode = "glsl";
   material.userData.particlePrimitive = "points";
   return material as WardTrailMaterial;
-}
-
-function createWardTrailMaterialTsl(
-  particleTexture: THREE.Texture,
-  positionAttribute: THREE.InstancedBufferAttribute,
-  sizeAttribute: THREE.InstancedBufferAttribute,
-  alphaAttribute: THREE.InstancedBufferAttribute,
-): WardTrailMaterial {
-  const uColor = uniform(new THREE.Color(WARD_COLOR));
-  const uOpacity = uniform(0);
-  const uPixelRatio = uniform(typeof window !== "undefined" ? Math.min(window.devicePixelRatio, 2) : 1);
-  const uBaseSize = uniform(110);
-  const aPosition = instancedBufferAttribute<"vec3">(positionAttribute, "vec3");
-  const aTrailSize = instancedBufferAttribute<"float">(sizeAttribute, "float");
-  const aTrailAlpha = instancedBufferAttribute<"float">(alphaAttribute, "float");
-  const nodeMaterial = new PointsNodeMaterial();
-  const texel = texture(particleTexture);
-  nodeMaterial.name = "Luminous ward motion trail material (TSL sprites)";
-  nodeMaterial.transparent = true;
-  nodeMaterial.depthWrite = false;
-  nodeMaterial.depthTest = true;
-  nodeMaterial.blending = THREE.AdditiveBlending;
-  nodeMaterial.toneMapped = false;
-  nodeMaterial.fog = false;
-  nodeMaterial.sizeAttenuation = true;
-  nodeMaterial.positionNode = aPosition as any;
-  nodeMaterial.sizeNode = max(float(0.018), aTrailSize.mul(0.12).mul(uPixelRatio)) as any;
-  nodeMaterial.colorNode = (uColor as any).mul(texel.rgb) as any;
-  nodeMaterial.opacityNode = texel.a.mul(aTrailAlpha).mul(uOpacity) as any;
-  nodeMaterial.alphaTest = 0.01;
-  const material = nodeMaterial as WardTrailMaterial;
-  material.uniforms = {
-    map: { value: particleTexture },
-    uColor,
-    uOpacity,
-    uPixelRatio,
-    uBaseSize,
-  } as WardTrailUniforms;
-  material.userData.luminousWardTrails = true;
-  material.userData.shaderProgramMode = "tsl";
-  material.userData.particlePrimitive = "sprite";
-  return material;
 }
 
 /**
@@ -597,7 +477,10 @@ export class LuminousWardVfx {
     if (resolved === "tsl") {
       const moteSizeAttribute = new THREE.InstancedBufferAttribute(this.moteSizes, 1);
       moteGeometry.setAttribute("aMoteSize", moteSizeAttribute);
-      const moteMaterial = createWardMoteSpriteMaterial(
+      const buildMotes = requireTslBuilder<
+        typeof import("./LuminousWardVfx.tsl").createWardMoteSpriteMaterial
+      >(LUMINOUS_WARD_MOTES_TSL_BUILDER_ID);
+      const moteMaterial = buildMotes(
         this.particleTexture,
         this.motePositionAttribute as THREE.InstancedBufferAttribute,
         moteSizeAttribute,
@@ -645,7 +528,9 @@ export class LuminousWardVfx {
     trailGeometry.setAttribute("aTrailAlpha", this.trailAlphaAttribute);
     const trailMaterial =
       resolved === "tsl"
-        ? createWardTrailMaterialTsl(
+        ? requireTslBuilder<typeof import("./LuminousWardVfx.tsl").createWardTrailMaterialTsl>(
+            LUMINOUS_WARD_TRAILS_SHADER_FACTORY_ID,
+          )(
             this.particleTexture,
             this.trailPositionAttribute as THREE.InstancedBufferAttribute,
             this.trailSizeAttribute as THREE.InstancedBufferAttribute,

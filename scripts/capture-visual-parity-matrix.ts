@@ -109,8 +109,7 @@ async function captureWithCdp(
     await Bun.sleep(4_000);
     try {
       await send("Runtime.evaluate", {
-        expression:
-          "globalThis.__rendererInfo ? JSON.stringify(globalThis.__rendererInfo) : null",
+        expression: "globalThis.__rendererInfo ? JSON.stringify(globalThis.__rendererInfo) : null",
         returnByValue: true,
       });
     } catch {
@@ -172,7 +171,10 @@ async function main(): Promise<void> {
         ...size,
         capturedAt: new Date().toISOString(),
       };
-      await writeFile(join(outDir, `${backend}-${scene.id}.json`), JSON.stringify(sidecar, null, 2));
+      await writeFile(
+        join(outDir, `${backend}-${scene.id}.json`),
+        JSON.stringify(sidecar, null, 2),
+      );
       manifest.push(sidecar);
     }
   }

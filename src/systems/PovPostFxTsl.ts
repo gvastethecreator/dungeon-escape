@@ -3,6 +3,8 @@
  * WGP-19: CRT history ping-pong for the WebGPU path.
  */
 import * as THREE from "three";
+import { POV_POST_FX_TSL_BUILDER_ID } from "./PovPostFx";
+import { registerTslBuilder } from "./TslMaterialModules";
 import {
   NodeMaterial,
   NodeUpdateType,
@@ -40,10 +42,7 @@ import {
 } from "three/tsl";
 
 import type { DungeonRenderer } from "./DungeonRenderer";
-import {
-  DEFAULT_DISPLAY_POST_FX_TUNING,
-  type DisplayPostFxTuning,
-} from "./DisplayPostFxTuning";
+import { DEFAULT_DISPLAY_POST_FX_TUNING, type DisplayPostFxTuning } from "./DisplayPostFxTuning";
 import {
   POV_CRT_RENDER_SCALE,
   POV_VIGNETTE_INNER_RADIUS,
@@ -200,9 +199,18 @@ function buildCompositeNode(
     const maskG = step(0, uvG.x).mul(step(uvG.x, 1)).mul(step(0, uvG.y)).mul(step(uvG.y, 1));
     const maskB = step(0, uvB.x).mul(step(uvB.x, 1)).mul(step(0, uvB.y)).mul(step(uvB.y, 1));
 
-    const r = inputTexture.sample(clamp(uvR, 0, 1)).r.mul(maskR).toVar();
-    const g = inputTexture.sample(clamp(uvG, 0, 1)).g.mul(maskG).toVar();
-    const b = inputTexture.sample(clamp(uvB, 0, 1)).b.mul(maskB).toVar();
+    const r = inputTexture
+      .sample(clamp(uvR, 0, 1))
+      .r.mul(maskR)
+      .toVar();
+    const g = inputTexture
+      .sample(clamp(uvG, 0, 1))
+      .g.mul(maskG)
+      .toVar();
+    const b = inputTexture
+      .sample(clamp(uvB, 0, 1))
+      .b.mul(maskB)
+      .toVar();
     const fallback = inputTexture.sample(clamp(uvG, 0, 1)).rgb.toVar();
     r.assign(select(maskR.lessThan(0.5), fallback.r, r));
     g.assign(select(maskG.lessThan(0.5), fallback.g, g));
@@ -275,7 +283,9 @@ function buildCompositeNode(
 
     const grainFrame = floor(u.uTime.mul(18));
     const grainCoord = floor(viewportCoordinate.xy);
-    const grainA = fract(sin(dot(grainCoord.add(grainFrame), vec2(12.9898, 78.233))).mul(43758.5453));
+    const grainA = fract(
+      sin(dot(grainCoord.add(grainFrame), vec2(12.9898, 78.233))).mul(43758.5453),
+    );
     const grainB = fract(
       sin(dot(grainCoord.mul(1.37).add(grainFrame.mul(0.71)), vec2(39.346, 11.135))).mul(23421.631),
     );
@@ -388,8 +398,7 @@ class PovCrtHistoryNode extends HistoryTempNode {
 
   setup(builder: any): any {
     this.oldTextureNode.uvNode = this.textureNode.uvNode || uv();
-    const material =
-      this.materialComposed || (this.materialComposed = new NodeMaterial());
+    const material = this.materialComposed || (this.materialComposed = new NodeMaterial());
     material.name = "PovPostFxTsl CRT history";
     material.fragmentNode = buildCompositeNode(
       this.textureNode,
@@ -488,10 +497,7 @@ export class PovPostFxTslPipeline {
   setSize(width: number, height: number): void {
     this.historyWidth = Math.max(1, Math.round(width * POV_CRT_RENDER_SCALE));
     this.historyHeight = Math.max(1, Math.round(height * POV_CRT_RENDER_SCALE));
-    (this.uniforms.uResolution.value as THREE.Vector2).set(
-      this.historyWidth,
-      this.historyHeight,
-    );
+    (this.uniforms.uResolution.value as THREE.Vector2).set(this.historyWidth, this.historyHeight);
     this.historyNode?.setSize(this.historyWidth, this.historyHeight);
   }
 
@@ -517,3 +523,15 @@ export class PovPostFxTslPipeline {
     this.historyNode = null;
   }
 }
+
+export interface PovPostFxTslStage {
+  readonly uniforms: PovPostFxTslUniformState;
+  readonly pipeline: PovPostFxTslPipeline;
+}
+
+export function createPovPostFxTslStage(): PovPostFxTslStage {
+  const uniforms = createPovPostFxTslUniforms();
+  return { uniforms, pipeline: new PovPostFxTslPipeline(uniforms) };
+}
+
+registerTslBuilder(POV_POST_FX_TSL_BUILDER_ID, createPovPostFxTslStage);

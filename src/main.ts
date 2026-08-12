@@ -89,10 +89,7 @@ import {
   readPlayRendererBackendName,
   type PlayRendererHandle,
 } from "./systems/PlayRendererFactory";
-import {
-  resolvePreferWebGpuWhenAuto,
-  WEBGPU_FLIP_POLICY,
-} from "./systems/WebGpuFlipPolicy";
+import { resolvePreferWebGpuWhenAuto, WEBGPU_FLIP_POLICY } from "./systems/WebGpuFlipPolicy";
 import { collectVisibleRenderInventory } from "./systems/RenderInventory";
 import { resolveRenderPixelRatio } from "./systems/RenderScale";
 import {
@@ -100,6 +97,7 @@ import {
   setShaderProgramModeRegistry,
   type ShaderProgramMode,
 } from "./systems/ShaderProgramMode";
+import { loadTslMaterialModules } from "./systems/TslMaterialModules";
 
 /** Play renderer surface used by the host after backend selection. */
 type PlayHostRenderer = DungeonRenderer & {
@@ -125,7 +123,9 @@ type PlayHostRenderer = DungeonRenderer & {
   };
   compileAsync?: (scene: THREE.Object3D, camera: THREE.Camera) => Promise<unknown>;
   properties?: { get(material: THREE.Material): unknown };
-  renderLists?: { get(scene: THREE.Scene, cameraIndex: number): { opaque: unknown[]; transparent: unknown[] } };
+  renderLists?: {
+    get(scene: THREE.Scene, cameraIndex: number): { opaque: unknown[]; transparent: unknown[] };
+  };
   dispose(): void;
 };
 import {
@@ -520,9 +520,7 @@ try {
 }
 const renderer = playRendererHandle.renderer as PlayHostRenderer;
 const webGlRenderer =
-  playRendererHandle.backend === "webgl"
-    ? (playRendererHandle.raw as THREE.WebGLRenderer)
-    : null;
+  playRendererHandle.backend === "webgl" ? (playRendererHandle.raw as THREE.WebGLRenderer) : null;
 const rendererInitDurationMs = playRendererHandle.initDurationMs;
 const shaderProgramMode: ShaderProgramMode = playRendererHandle.isWebGpuRenderer ? "tsl" : "glsl";
 const calibratedRenderPathCaps = recalibrateRenderCapabilitiesForBackend(
@@ -530,6 +528,10 @@ const calibratedRenderPathCaps = recalibrateRenderCapabilitiesForBackend(
   playRendererHandle.backend,
 );
 setShaderProgramModeRegistry(createShaderProgramModeRegistry(shaderProgramMode));
+if (shaderProgramMode === "tsl") {
+  // `three/webgpu` is only pulled in here; the WebGL default never loads it.
+  await loadTslMaterialModules();
+}
 const { registerDungeonSurfaceShaderFactory } = await import("./world/TextureTreatment");
 const { registerNoiseFlameShaderFactory } = await import("./world/ProceduralFlameVfx");
 const { registerVolumetricBeamShaderFactory } = await import("./world/VolumetricBeam");

@@ -1,4 +1,5 @@
-import { describe, expect, test } from "bun:test";
+import { beforeAll, describe, expect, test } from "bun:test";
+import { loadTslMaterialModules } from "../src/systems/TslMaterialModules";
 import * as THREE from "three";
 
 import {
@@ -7,10 +8,7 @@ import {
   POV_CRT_RENDER_SCALE,
   PovPostFx,
 } from "../src/systems/PovPostFx";
-import {
-  createPovPostFxTslUniforms,
-  PovPostFxTslPipeline,
-} from "../src/systems/PovPostFxTsl";
+import { createPovPostFxTslUniforms, PovPostFxTslPipeline } from "../src/systems/PovPostFxTsl";
 
 interface PovPostFxInternals {
   sceneTarget: THREE.WebGLRenderTarget;
@@ -30,6 +28,12 @@ interface PovPostFxTslPipelineInternals {
     ];
   } | null;
 }
+
+// TSL builders live in lazily imported `*.tsl` siblings so the WebGL bundle
+// never pulls in `three/webgpu`; tests must preload them like Play boot does.
+beforeAll(async () => {
+  await loadTslMaterialModules();
+});
 
 describe("POV CRT post effect", () => {
   test("keeps a bounded halation and temporal phosphor stage", () => {
@@ -220,7 +224,7 @@ describe("POV CRT post effect", () => {
     expect(tslSource).toContain("0.299, 0.587, 0.114");
     expect(tslSource).toContain("pincushion");
     expect(tslSource).not.toMatch(/\bbarrelUV\b/);
-    expect(tslSource).not.toContain("from \"three/addons/tsl/display/CRT.js\"");
+    expect(tslSource).not.toContain('from "three/addons/tsl/display/CRT.js"');
     expect(tslSource).not.toMatch(/\bluminance\s*\(/);
     expect(tslSource).toContain("PovCrtHistoryNode");
     expect(tslSource).toContain("passTexture");

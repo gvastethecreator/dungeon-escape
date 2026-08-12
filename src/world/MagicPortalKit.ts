@@ -9,8 +9,8 @@ import {
   onShaderProgramModeRegistryChange,
   type ShaderProgramMode,
 } from "../systems/ShaderProgramMode";
+import { requireTslBuilder } from "../systems/TslMaterialModules";
 import { getBiomePortalProfile, type BiomePortalProfile } from "./BiomePortalProfile";
-import { createMagicPortalShaderMaterialTsl } from "./MagicPortalKit.tsl";
 import type {
   MagicPortalShaderMaterial,
   MagicPortalShaderVariant,
@@ -28,9 +28,7 @@ export type {
 export const MAGIC_PORTAL_SHADER_FACTORY_ID = "magic-portal";
 
 /** Register (or refresh) dual-mode support on the active shader program registry. */
-export function registerMagicPortalShaderFactory(
-  registry = getShaderProgramModeRegistry(),
-): void {
+export function registerMagicPortalShaderFactory(registry = getShaderProgramModeRegistry()): void {
   registry.register({
     id: MAGIC_PORTAL_SHADER_FACTORY_ID,
     supports: ["glsl", "tsl"],
@@ -1140,7 +1138,10 @@ function portalShaderMaterial(
   registry.require(MAGIC_PORTAL_SHADER_FACTORY_ID, resolved);
 
   if (resolved === "tsl") {
-    return createMagicPortalShaderMaterialTsl(profile, variant);
+    const build = requireTslBuilder<
+      typeof import("./MagicPortalKit.tsl").createMagicPortalShaderMaterialTsl
+    >(MAGIC_PORTAL_SHADER_FACTORY_ID);
+    return build(profile, variant);
   }
   return portalShaderMaterialGlsl(
     variant === "field" ? PORTAL_FIELD_FRAGMENT_SHADER : PORTAL_SPIRAL_FRAGMENT_SHADER,

@@ -42,6 +42,7 @@ import {
   createShaderProgramModeRegistry,
   setShaderProgramModeRegistry,
 } from "./systems/ShaderProgramMode";
+import { loadTslMaterialModules } from "./systems/TslMaterialModules";
 import type { DungeonRenderer } from "./systems/DungeonRenderer";
 
 export const MODEL_QA_VIEWS = ["front", "right", "back", "left", "rear-left", "top"] as const;
@@ -999,108 +1000,108 @@ export function startModelLab(loadTimeoutMs = MODEL_QA_LOAD_TIMEOUT_MS): ModelQa
   window.addEventListener("pagehide", pageHideHandler, { once: true });
 
   void (async () => {
-  try {
-    elements = modelLabElements();
-    updateModelLabOverlay(elements, state);
-    playRendererHandle = await createPlayRendererHandle({
-      canvas: elements.canvas,
-      preference: query.renderer,
-      preferDefaultGpu: false,
-    });
-    setShaderProgramModeRegistry(
-      createShaderProgramModeRegistry(playRendererHandle.isWebGpuRenderer ? "tsl" : "glsl"),
-    );
-    renderer = playRendererHandle.renderer as THREE.WebGLRenderer & DungeonRenderer;
-    if ("setPixelRatio" in renderer) renderer.setPixelRatio(1);
-    renderer.outputColorSpace = THREE.SRGBColorSpace;
-    renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure =
-      query.mood === "neutral"
-        ? 1
-        : resolveDungeonExposure(0.5, getDungeonMood(query.mood).exposureBias);
-    (globalThis as { __rendererInfo?: unknown }).__rendererInfo = {
-      app: "model-lab",
-      requested: playRendererHandle.requested,
-      backend: playRendererHandle.backend,
-      backendName: readPlayRendererBackendName(playRendererHandle),
-      isWebGpuRenderer: playRendererHandle.isWebGpuRenderer,
-    };
-
-    const scene = new THREE.Scene();
-    if (query.mood === "neutral") {
-      scene.background = new THREE.Color(0x202326);
-      scene.add(
-        new THREE.HemisphereLight(0xd9e0de, 0x25292b, 1.25),
-        directionalLight(0xffe1bd, 2.35, [4.6, 6.2, 5.1]),
-        directionalLight(0x9cb7c6, 1.25, [-4.4, 2.4, 3.2]),
-        directionalLight(0xc9a77a, 1.45, [-3.5, 4.2, -4.8]),
+    try {
+      elements = modelLabElements();
+      updateModelLabOverlay(elements, state);
+      playRendererHandle = await createPlayRendererHandle({
+        canvas: elements.canvas,
+        preference: query.renderer,
+        preferDefaultGpu: false,
+      });
+      setShaderProgramModeRegistry(
+        createShaderProgramModeRegistry(playRendererHandle.isWebGpuRenderer ? "tsl" : "glsl"),
       );
-    } else {
-      lighting = new LightingRig(scene);
-      lighting.bindEnvironment(renderer);
-      lighting.applyMood(getDungeonMood(query.mood));
-    }
-    const camera = new THREE.PerspectiveCamera(35, 1, 0.01, 100);
-    loadBarrier = createModelQaLoadBarrier(THREE.DefaultLoadingManager, loadTimeoutMs);
-    materials = createDungeonMaterials();
-    if (query.mood !== "neutral") {
-      const mood = getDungeonMood(query.mood);
-      applyMoodToDungeonMaterials(materials, mood.surfaceTint, 0.9 + mood.surfaceStrength * 0.25);
-    }
-    model = createModelQaModel(query.id, materials, query.mood);
-    scene.add(model);
-    state.bounds = getModelQaBounds(model);
-    state.metrics = collectModelQaMetrics(model);
+      if (playRendererHandle.isWebGpuRenderer) await loadTslMaterialModules();
+      renderer = playRendererHandle.renderer as THREE.WebGLRenderer & DungeonRenderer;
+      if ("setPixelRatio" in renderer) renderer.setPixelRatio(1);
+      renderer.outputColorSpace = THREE.SRGBColorSpace;
+      renderer.toneMapping = THREE.ACESFilmicToneMapping;
+      renderer.toneMappingExposure =
+        query.mood === "neutral"
+          ? 1
+          : resolveDungeonExposure(0.5, getDungeonMood(query.mood).exposureBias);
+      (globalThis as { __rendererInfo?: unknown }).__rendererInfo = {
+        app: "model-lab",
+        requested: playRendererHandle.requested,
+        backend: playRendererHandle.backend,
+        backendName: readPlayRendererBackendName(playRendererHandle),
+        isWebGpuRenderer: playRendererHandle.isWebGpuRenderer,
+      };
 
-    const resizeRenderer = (): { width: number; height: number } => {
-      const rect = elements!.canvas.getBoundingClientRect();
-      const width = Math.max(1, Math.floor(rect.width));
-      const height = Math.max(1, Math.floor(rect.height));
-      renderer!.setSize(width, height, false);
-      return { width, height };
-    };
-    const render = (): void => {
-      const { width, height } = resizeRenderer();
-      frameModelQaCamera(camera, state.bounds!, query.view, width / height, query.id);
-      if (lighting) {
-        const viewForward = camera.getWorldDirection(new THREE.Vector3());
-        lighting.update(1, camera.position, null, viewForward);
+      const scene = new THREE.Scene();
+      if (query.mood === "neutral") {
+        scene.background = new THREE.Color(0x202326);
+        scene.add(
+          new THREE.HemisphereLight(0xd9e0de, 0x25292b, 1.25),
+          directionalLight(0xffe1bd, 2.35, [4.6, 6.2, 5.1]),
+          directionalLight(0x9cb7c6, 1.25, [-4.4, 2.4, 3.2]),
+          directionalLight(0xc9a77a, 1.45, [-3.5, 4.2, -4.8]),
+        );
+      } else {
+        lighting = new LightingRig(scene);
+        lighting.bindEnvironment(renderer);
+        lighting.applyMood(getDungeonMood(query.mood));
       }
-      renderer!.render(scene, camera);
-      const drawCalls =
-        (renderer as THREE.WebGLRenderer | null)?.info?.render?.calls ?? null;
-      state.metrics = collectModelQaMetrics(model!, drawCalls);
-    };
+      const camera = new THREE.PerspectiveCamera(35, 1, 0.01, 100);
+      loadBarrier = createModelQaLoadBarrier(THREE.DefaultLoadingManager, loadTimeoutMs);
+      materials = createDungeonMaterials();
+      if (query.mood !== "neutral") {
+        const mood = getDungeonMood(query.mood);
+        applyMoodToDungeonMaterials(materials, mood.surfaceTint, 0.9 + mood.surfaceStrength * 0.25);
+      }
+      model = createModelQaModel(query.id, materials, query.mood);
+      scene.add(model);
+      state.bounds = getModelQaBounds(model);
+      state.metrics = collectModelQaMetrics(model);
 
-    resizeHandler = () => {
-      if (state.ready) render();
-      else resizeRenderer();
-      updateModelLabOverlay(elements!, state);
-    };
-    window.addEventListener("resize", resizeHandler, { passive: true });
-    resizeRenderer();
-    updateModelLabOverlay(elements, state);
-    loadBarrier.seal();
-    void loadBarrier.result.then((loadResult) => {
-      if (state.destroyed || loadResult.status === "cancelled") return;
-      if (loadResult.status === "error") {
-        settleModelQaState(state, "error", loadResult.errors);
+      const resizeRenderer = (): { width: number; height: number } => {
+        const rect = elements!.canvas.getBoundingClientRect();
+        const width = Math.max(1, Math.floor(rect.width));
+        const height = Math.max(1, Math.floor(rect.height));
+        renderer!.setSize(width, height, false);
+        return { width, height };
+      };
+      const render = (): void => {
+        const { width, height } = resizeRenderer();
+        frameModelQaCamera(camera, state.bounds!, query.view, width / height, query.id);
+        if (lighting) {
+          const viewForward = camera.getWorldDirection(new THREE.Vector3());
+          lighting.update(1, camera.position, null, viewForward);
+        }
+        renderer!.render(scene, camera);
+        const drawCalls = (renderer as THREE.WebGLRenderer | null)?.info?.render?.calls ?? null;
+        state.metrics = collectModelQaMetrics(model!, drawCalls);
+      };
+
+      resizeHandler = () => {
+        if (state.ready) render();
+        else resizeRenderer();
         updateModelLabOverlay(elements!, state);
-        return;
-      }
-      try {
-        render();
-        settleModelQaState(state, "ready");
-        updateModelLabOverlay(elements!, state);
-      } catch (error: unknown) {
-        settleModelQaState(state, "error", [errorMessage(error)]);
-        updateModelLabOverlay(elements!, state);
-      }
-    });
-  } catch (error: unknown) {
-    settleModelQaState(state, "error", [errorMessage(error)]);
-    state.destroy();
-  }
+      };
+      window.addEventListener("resize", resizeHandler, { passive: true });
+      resizeRenderer();
+      updateModelLabOverlay(elements, state);
+      loadBarrier.seal();
+      void loadBarrier.result.then((loadResult) => {
+        if (state.destroyed || loadResult.status === "cancelled") return;
+        if (loadResult.status === "error") {
+          settleModelQaState(state, "error", loadResult.errors);
+          updateModelLabOverlay(elements!, state);
+          return;
+        }
+        try {
+          render();
+          settleModelQaState(state, "ready");
+          updateModelLabOverlay(elements!, state);
+        } catch (error: unknown) {
+          settleModelQaState(state, "error", [errorMessage(error)]);
+          updateModelLabOverlay(elements!, state);
+        }
+      });
+    } catch (error: unknown) {
+      settleModelQaState(state, "error", [errorMessage(error)]);
+      state.destroy();
+    }
   })();
 
   return state;
