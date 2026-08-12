@@ -1,5 +1,7 @@
 import * as THREE from "three";
 import type { DungeonMoodId } from "../systems/DungeonMood";
+import { getShaderProgramModeRegistry } from "../systems/ShaderProgramMode";
+import { requireTslBuilder } from "../systems/TslMaterialModules";
 import type { SceneTextureSink } from "../systems/SceneTextureRegistry";
 import type { BiomeLayerTextures, BiomeSurfaceTextures } from "./AssetLibrary";
 import {
@@ -7,6 +9,9 @@ import {
   linkTextureClone,
   unlinkTextureClone,
 } from "./TextureTreatment";
+
+/** TSL builder slot for the node-material flavour of room surfaces. */
+export const ROOM_SURFACE_NODE_MATERIAL_TSL_BUILDER_ID = "room-surface:node-material";
 
 /** Mesh-UV normals with per-cell UV offset for continuous tiling. */
 const NORMAL_SCALE = new THREE.Vector2(0.45, 0.45);
@@ -181,7 +186,7 @@ function makeSurfaceMaterial(
   emissiveIntensity: number,
   roughness: number,
 ): THREE.MeshStandardMaterial {
-  return new THREE.MeshStandardMaterial({
+  const params: THREE.MeshStandardMaterialParameters = {
     map,
     color,
     emissive,
@@ -190,7 +195,15 @@ function makeSurfaceMaterial(
     metalness: 0.04,
     // Stone architecture should stay matte under the scene IBL.
     envMapIntensity: 0.32,
-  });
+  };
+  // WebGPU/TSL mode uses MeshStandardNodeMaterial so node graph properties stick on clone.
+  if (getShaderProgramModeRegistry().mode === "tsl") {
+    const build = requireTslBuilder<
+      typeof import("./RoomSurfaceMaterials.tsl").createRoomSurfaceNodeMaterial
+    >(ROOM_SURFACE_NODE_MATERIAL_TSL_BUILDER_ID);
+    return build(params);
+  }
+  return new THREE.MeshStandardMaterial(params);
 }
 
 export function createRoomSurfaceMaterials(

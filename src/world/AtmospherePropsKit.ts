@@ -1,6 +1,12 @@
 import * as THREE from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
-
+import type { MeshBasicNodeMaterial } from "three/webgpu";
+import {
+  getShaderProgramModeRegistry,
+  onShaderProgramModeRegistryChange,
+  type ShaderProgramMode,
+} from "../systems/ShaderProgramMode";
+import { requireTslBuilder } from "../systems/TslMaterialModules";
 import {
   createImageSculptedHanging,
   createTaperedTubeGeometry,
@@ -38,6 +44,20 @@ function mesh(geometry: THREE.BufferGeometry, material: THREE.Material, name: st
 }
 
 // ─── Cobweb shader ────────────────────────────────────────────────────────────
+
+/** ShaderProgramMode factory id for procedural cobweb silk. */
+export const COBWEB_SILK_SHADER_FACTORY_ID = "cobweb-silk";
+
+/** Register (or refresh) dual-mode support on the active shader program registry. */
+export function registerCobwebSilkShaderFactory(registry = getShaderProgramModeRegistry()): void {
+  registry.register({
+    id: COBWEB_SILK_SHADER_FACTORY_ID,
+    supports: ["glsl", "tsl"],
+  });
+}
+
+registerCobwebSilkShaderFactory();
+onShaderProgramModeRegistryChange(registerCobwebSilkShaderFactory);
 
 const COBWEB_VERTEX = /* glsl */ `
   varying vec2 vUv;
@@ -101,14 +121,35 @@ const COBWEB_FRAGMENT = /* glsl */ `
   }
 `;
 
+export type CobwebMaterial = THREE.ShaderMaterial | MeshBasicNodeMaterial;
+
 /**
  * Shared cobweb material. NormalBlended (webs dull the background, they don't
  * glow), depthWrite off so they don't fight the depth buffer at low opacity,
  * DoubleSide so they read from any approach. `toneMapped: false` keeps the silk
  * color stable under ACES tone mapping.
  */
-function makeCobwebMaterial(color = 0xb8b4a8, strength = 0.22, variant = 0): THREE.ShaderMaterial {
-  return new THREE.ShaderMaterial({
+export function applyCobwebMaterialMetadata(
+  material: CobwebMaterial,
+  mode: ShaderProgramMode,
+  variant: CobwebVariant,
+): CobwebMaterial {
+  material.name =
+    mode === "tsl" ? "Procedural cobweb silk material (TSL)" : "Procedural cobweb silk material";
+  material.userData.cobwebSilk = true;
+  material.userData.shaderProgramMode = mode;
+  material.userData.cobwebVariant = variant;
+  material.userData.sourceTechnique =
+    "procedural corner spokes + concentric sticky arcs + dithered low-opacity silk";
+  return material;
+}
+
+function makeCobwebMaterialGlsl(
+  color = 0xb8b4a8,
+  strength = 0.22,
+  variant: CobwebVariant = 0,
+): THREE.ShaderMaterial {
+  const material = new THREE.ShaderMaterial({
     vertexShader: COBWEB_VERTEX,
     fragmentShader: COBWEB_FRAGMENT,
     uniforms: {
@@ -122,6 +163,26 @@ function makeCobwebMaterial(color = 0xb8b4a8, strength = 0.22, variant = 0): THR
     blending: THREE.NormalBlending,
     toneMapped: false,
   });
+  return applyCobwebMaterialMetadata(material, "glsl", variant) as THREE.ShaderMaterial;
+}
+
+function makeCobwebMaterial(
+  color = 0xb8b4a8,
+  strength = 0.22,
+  variant: CobwebVariant = 0,
+  mode?: ShaderProgramMode,
+): CobwebMaterial {
+  registerCobwebSilkShaderFactory();
+  const registry = getShaderProgramModeRegistry();
+  const resolved = mode ?? registry.mode;
+  registry.require(COBWEB_SILK_SHADER_FACTORY_ID, resolved);
+  if (resolved === "tsl") {
+    const build = requireTslBuilder<
+      typeof import("./AtmospherePropsKit.tsl").makeCobwebMaterialTsl
+    >(COBWEB_SILK_SHADER_FACTORY_ID);
+    return build(color, strength, variant);
+  }
+  return makeCobwebMaterialGlsl(color, strength, variant);
 }
 
 /** Cobweb coverage on the plane, in meters. Sized to span a ~1-tile corner. */
@@ -139,10 +200,11 @@ export function createCobweb(
   variant: CobwebVariant = 0,
   color = 0xb8b4a8,
   strength = 0.22,
+  mode?: ShaderProgramMode,
 ): THREE.Group {
   const root = new THREE.Group();
   root.name = variant === 0 ? "Corner cobweb" : "Wall-ceiling cobweb";
-  const material = makeCobwebMaterial(color, strength, variant);
+  const material = makeCobwebMaterial(color, strength, variant, mode);
   const geometry = createCobwebGeometry(variant);
   const web = new THREE.Mesh(geometry, material);
   web.name = "Procedural cobweb silk";
@@ -156,8 +218,9 @@ export function createCobwebMaterial(
   color = 0xb8b4a8,
   strength = 0.22,
   variant: CobwebVariant = 0,
-): THREE.ShaderMaterial {
-  return makeCobwebMaterial(color, strength, variant);
+  mode?: ShaderProgramMode,
+): CobwebMaterial {
+  return makeCobwebMaterial(color, strength, variant, mode);
 }
 
 /**

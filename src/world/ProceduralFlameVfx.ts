@@ -1,30 +1,30 @@
 import * as THREE from "three";
+import {
+  getShaderProgramModeRegistry,
+  onShaderProgramModeRegistryChange,
+  type ShaderProgramMode,
+} from "../systems/ShaderProgramMode";
+import { requireTslBuilder } from "../systems/TslMaterialModules";
+import type {
+  NoiseFlameAssembly,
+  NoiseFlameEmberUniformHandles,
+  NoiseFlameMaterial,
+  NoiseFlameOptions,
+  NoiseFlamePalette,
+  NoiseFlameUniformHandles,
+} from "./ProceduralFlameVfxShared";
 
-export interface NoiseFlamePalette {
-  outer: number;
-  mid: number;
-  core: number;
-  glow: number;
-}
+export type {
+  NoiseFlameAssembly,
+  NoiseFlameEmberUniformHandles,
+  NoiseFlameMaterial,
+  NoiseFlameOptions,
+  NoiseFlamePalette,
+  NoiseFlameUniformHandles,
+} from "./ProceduralFlameVfxShared";
 
-export interface NoiseFlameOptions {
-  name: string;
-  width: number;
-  height: number;
-  phase: number;
-  palette?: NoiseFlamePalette;
-  opacity?: number;
-  turbulence?: number;
-  lean?: number;
-  intensity?: number;
-  emberCount?: number;
-}
-
-export interface NoiseFlameAssembly {
-  flame: THREE.Mesh<THREE.PlaneGeometry, THREE.ShaderMaterial>;
-  details: THREE.Object3D[];
-  material: THREE.ShaderMaterial;
-}
+/** ShaderProgramMode factory id for procedural noise flames. */
+export const NOISE_FLAME_SHADER_FACTORY_ID = "noise-flame";
 
 export const WARM_NOISE_FLAME_PALETTE: NoiseFlamePalette = {
   outer: 0xff5718,
@@ -39,6 +39,17 @@ export const FROST_NOISE_FLAME_PALETTE: NoiseFlamePalette = {
   core: 0xd8f8ff,
   glow: 0x174da8,
 };
+
+/** Register (or refresh) dual-mode support on the active shader program registry. */
+export function registerNoiseFlameShaderFactory(registry = getShaderProgramModeRegistry()): void {
+  registry.register({
+    id: NOISE_FLAME_SHADER_FACTORY_ID,
+    supports: ["glsl", "tsl"],
+  });
+}
+
+registerNoiseFlameShaderFactory();
+onShaderProgramModeRegistryChange(registerNoiseFlameShaderFactory);
 
 const FLAME_VERTEX_SHADER = /* glsl */ `
   varying vec2 vFlameUv;
@@ -220,7 +231,7 @@ function emberSeed(index: number, phase: number): number {
   );
 }
 
-function createNoiseFlameEmbers(
+function createNoiseFlameEmbersGlsl(
   options: NoiseFlameOptions,
   emberColor: THREE.Color,
 ): THREE.Points<THREE.BufferGeometry, THREE.ShaderMaterial> {
@@ -231,10 +242,9 @@ function createNoiseFlameEmbers(
   for (let index = 0; index < count; index += 1) {
     const seed = emberSeed(index, options.phase);
     const lateral = emberSeed(index + count, options.phase + 0.7);
-    const depth = emberSeed(index + count * 2, options.phase + 1.3);
     seeds[index] = seed;
     positions[index * 3] = (lateral * 2 - 1) * 0.22;
-    positions[index * 3 + 1] = 0.34 + depth * 0.22;
+    positions[index * 3 + 1] = 0.34 + seed * 0.22;
     positions[index * 3 + 2] = (seed * 2 - 1) * 0.06;
     sizes[index] = 0.052 + lateral * 0.042;
   }
@@ -264,16 +274,28 @@ function createNoiseFlameEmbers(
     toneMapped: true,
     fog: true,
   });
+  const emberHandles: NoiseFlameEmberUniformHandles = {
+    uTime: material.uniforms.uTime!,
+    uPhase: material.uniforms.uPhase!,
+    uOpacity: material.uniforms.uOpacity!,
+    uColor: material.uniforms.uColor!,
+  };
+  material.userData.noiseFlameEmber = true;
+  material.userData.noiseFlameEmberHandles = emberHandles;
+  material.userData.shaderProgramMode = "glsl";
+  material.userData.emberPrimitive = "points";
+
   const embers = new THREE.Points(geometry, material);
   embers.name = "Floating flame embers";
   // Embers rise around dynamic fire lights; keep them drawable near the camera.
   embers.frustumCulled = false;
   embers.renderOrder = 5;
   embers.userData.vfxOnly = true;
+  embers.userData.emberPrimitive = "points";
   return embers;
 }
 
-export function createNoiseFlame(options: NoiseFlameOptions): NoiseFlameAssembly {
+function createNoiseFlameGlsl(options: NoiseFlameOptions): NoiseFlameAssembly {
   const palette = options.palette ?? WARM_NOISE_FLAME_PALETTE;
   const baseOpacity = options.opacity ?? 0.9;
   const geometry = createNoiseFlameGeometry();
@@ -303,10 +325,26 @@ export function createNoiseFlame(options: NoiseFlameOptions): NoiseFlameAssembly
     toneMapped: true,
     fog: true,
   });
+  const handles: NoiseFlameUniformHandles = {
+    uTime: material.uniforms.uTime!,
+    uPhase: material.uniforms.uPhase!,
+    uOpacity: material.uniforms.uOpacity!,
+    uTurbulence: material.uniforms.uTurbulence!,
+    uLean: material.uniforms.uLean!,
+    uIntensity: material.uniforms.uIntensity!,
+    uOuterColor: material.uniforms.uOuterColor!,
+    uMidColor: material.uniforms.uMidColor!,
+    uCoreColor: material.uniforms.uCoreColor!,
+    uGlowColor: material.uniforms.uGlowColor!,
+  };
   material.userData.noiseFlame = true;
+  material.userData.noiseFlameHandles = handles;
   material.userData.baseOpacity = baseOpacity;
-  const embers = createNoiseFlameEmbers(options, new THREE.Color(palette.mid));
+  material.userData.shaderProgramMode = "glsl";
+  const embers = createNoiseFlameEmbersGlsl(options, new THREE.Color(palette.mid));
   material.userData.emberMaterial = embers.material;
+  material.userData.emberHandles = embers.material.userData
+    .noiseFlameEmberHandles as NoiseFlameEmberUniformHandles;
   material.userData.sourceTechnique =
     "teardrop + animated noise offset/map + soft tip cap + palette/glow + floating embers";
 
@@ -322,8 +360,35 @@ export function createNoiseFlame(options: NoiseFlameOptions): NoiseFlameAssembly
   return { flame, details, material };
 }
 
-export function isNoiseFlameMaterial(material: THREE.Material): material is THREE.ShaderMaterial {
-  return material instanceof THREE.ShaderMaterial && material.userData.noiseFlame === true;
+export function createNoiseFlame(
+  options: NoiseFlameOptions,
+  mode?: ShaderProgramMode,
+): NoiseFlameAssembly {
+  registerNoiseFlameShaderFactory();
+  const registry = getShaderProgramModeRegistry();
+  const resolved = mode ?? registry.mode;
+  registry.require(NOISE_FLAME_SHADER_FACTORY_ID, resolved);
+
+  if (resolved === "tsl") {
+    const build = requireTslBuilder<typeof import("./ProceduralFlameVfx.tsl").createNoiseFlameTsl>(
+      NOISE_FLAME_SHADER_FACTORY_ID,
+    );
+    return build({
+      options,
+      palette: options.palette ?? WARM_NOISE_FLAME_PALETTE,
+    });
+  }
+  return createNoiseFlameGlsl(options);
+}
+
+function noiseFlameHandles(material: THREE.Material): NoiseFlameUniformHandles | null {
+  if (material.userData.noiseFlame !== true) return null;
+  const handles = material.userData.noiseFlameHandles as NoiseFlameUniformHandles | undefined;
+  return handles ?? null;
+}
+
+export function isNoiseFlameMaterial(material: THREE.Material): material is NoiseFlameMaterial {
+  return material.userData.noiseFlame === true && noiseFlameHandles(material) !== null;
 }
 
 export function setNoiseFlameMoodPalette(
@@ -331,16 +396,17 @@ export function setNoiseFlameMoodPalette(
   outer: THREE.Color,
   core: THREE.Color,
 ): boolean {
-  if (!isNoiseFlameMaterial(material)) return false;
+  const handles = noiseFlameHandles(material);
+  if (!handles) return false;
   const vividOuter = outer.clone().offsetHSL(0, 0.22, 0.07);
   const brightCore = core.clone().offsetHSL(0, 0.1, 0.08).lerp(new THREE.Color(0xffffff), 0.22);
-  (material.uniforms.uOuterColor.value as THREE.Color).copy(vividOuter);
-  (material.uniforms.uMidColor.value as THREE.Color).copy(vividOuter).lerp(brightCore, 0.48);
-  (material.uniforms.uCoreColor.value as THREE.Color).copy(brightCore);
-  (material.uniforms.uGlowColor.value as THREE.Color).copy(vividOuter).multiplyScalar(0.62);
-  const emberMaterial = material.userData.emberMaterial;
-  if (emberMaterial instanceof THREE.ShaderMaterial) {
-    (emberMaterial.uniforms.uColor.value as THREE.Color).copy(vividOuter).lerp(brightCore, 0.22);
+  handles.uOuterColor.value.copy(vividOuter);
+  handles.uMidColor.value.copy(vividOuter).lerp(brightCore, 0.48);
+  handles.uCoreColor.value.copy(brightCore);
+  handles.uGlowColor.value.copy(vividOuter).multiplyScalar(0.62);
+  const emberHandles = material.userData.emberHandles as NoiseFlameEmberUniformHandles | undefined;
+  if (emberHandles) {
+    emberHandles.uColor.value.copy(vividOuter).lerp(brightCore, 0.22);
   }
   return true;
 }
@@ -350,15 +416,16 @@ export function tickNoiseFlame(
   elapsed: number,
   visibility: number,
 ): boolean {
-  if (!isNoiseFlameMaterial(material)) return false;
-  material.uniforms.uTime.value = elapsed;
-  material.uniforms.uOpacity.value =
+  const handles = noiseFlameHandles(material);
+  if (!handles) return false;
+  const opacity =
     (material.userData.baseOpacity as number) * THREE.MathUtils.clamp(visibility, 0, 1);
-  const emberMaterial = material.userData.emberMaterial;
-  if (emberMaterial instanceof THREE.ShaderMaterial) {
-    emberMaterial.uniforms.uTime.value = elapsed;
-    emberMaterial.uniforms.uOpacity.value =
-      (material.userData.baseOpacity as number) * THREE.MathUtils.clamp(visibility, 0, 1);
+  handles.uTime.value = elapsed;
+  handles.uOpacity.value = opacity;
+  const emberHandles = material.userData.emberHandles as NoiseFlameEmberUniformHandles | undefined;
+  if (emberHandles) {
+    emberHandles.uTime.value = elapsed;
+    emberHandles.uOpacity.value = opacity;
   }
   return true;
 }

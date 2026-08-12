@@ -17,7 +17,11 @@ import type {
 } from "./StaticDungeonScene";
 import { computeTorchLod } from "./TorchLod";
 import type { UncannyWallRuntime } from "./UncannyWallRuntime";
-import { tickVolumetricBeamTime } from "./VolumetricBeam";
+import {
+  getVolumetricBeamStrength,
+  setVolumetricBeamStrength,
+  tickVolumetricBeamTime,
+} from "./VolumetricBeam";
 
 export interface FixedSceneEffectsFrame {
   delta: number;
@@ -252,12 +256,12 @@ export class FixedSceneEffects {
       halo.visible = showHalo;
       if (!(halo instanceof THREE.Mesh)) continue;
       const material = halo.material;
-      if (material instanceof THREE.ShaderMaterial && material.uniforms.uStrength) {
-        const baseStrength =
-          (halo.userData.baseStrength as number | undefined) ??
-          (material.uniforms.uStrength.value as number);
+      if (material instanceof THREE.ShaderMaterial && material.userData.volumetricSpace) {
+        const current = getVolumetricBeamStrength(halo);
+        if (current === null) continue;
+        const baseStrength = (halo.userData.baseStrength as number | undefined) ?? current;
         if (halo.userData.baseStrength === undefined) halo.userData.baseStrength = baseStrength;
-        material.uniforms.uStrength.value = baseStrength * fade;
+        setVolumetricBeamStrength(halo, baseStrength * fade);
         tickVolumetricBeamTime(halo, frame.elapsed + effect.phase);
         continue;
       }

@@ -1,13 +1,23 @@
-import { describe, expect, test } from "bun:test";
+import { afterEach, beforeAll, describe, expect, test } from "bun:test";
 import * as THREE from "three";
+import { MeshBasicNodeMaterial } from "three/webgpu";
 
 import {
+  createShaderProgramModeRegistry,
+  getShaderProgramModeRegistry,
+  resetShaderProgramModeRegistryForTests,
+  setShaderProgramModeRegistry,
+} from "../src/systems/ShaderProgramMode";
+import { loadTslMaterialModules } from "../src/systems/TslMaterialModules";
+import {
+  COBWEB_SILK_SHADER_FACTORY_ID,
   createBonePile,
   createCobweb,
   createCobwebGeometry,
   createCobwebMaterial,
   createHanging,
   createRubblePile,
+  registerCobwebSilkShaderFactory,
 } from "../src/world/AtmospherePropsKit";
 import {
   createImageSculptedHanging,
@@ -23,6 +33,18 @@ function materialsOf(root: THREE.Group): THREE.Material[] {
   });
   return out;
 }
+
+// The shader program mode registry is process-global; leaking `tsl` mode
+// into later test files would build node materials where GLSL is expected.
+afterEach(() => {
+  resetShaderProgramModeRegistryForTests();
+});
+
+// TSL builders live in lazily imported `*.tsl` siblings so the WebGL bundle
+// never pulls in `three/webgpu`; tests must preload them like Play boot does.
+beforeAll(async () => {
+  await loadTslMaterialModules();
+});
 
 describe("atmosphere props — cobwebs", () => {
   test("cobweb uses a transparent NormalBlended shader that dulls (depthWrite off)", () => {
@@ -50,8 +72,9 @@ describe("atmosphere props — cobwebs", () => {
     expect(geometry).toBeInstanceOf(THREE.BufferGeometry);
     expect(geometry.getAttribute("position").count).toBe(8);
     expect(material).toBeInstanceOf(THREE.ShaderMaterial);
-    expect(material.uniforms.uColor.value.getHex()).toBe(0x88aa88);
-    expect(material.uniforms.uStrength.value).toBeCloseTo(0.3);
+    const glsl = material as THREE.ShaderMaterial;
+    expect(glsl.uniforms.uColor.value.getHex()).toBe(0x88aa88);
+    expect(glsl.uniforms.uStrength.value).toBeCloseTo(0.3);
     expect(material.blending).toBe(THREE.NormalBlending);
   });
 
@@ -68,6 +91,24 @@ describe("atmosphere props — cobwebs", () => {
       new URL("../src/world/AtmospherePropsKit.ts", import.meta.url),
     ).text();
     expect(source).toContain("instanceMatrix * localPosition");
+  });
+
+  test("TSL cobweb registers dual mode and uses MeshBasicNodeMaterial", () => {
+    resetShaderProgramModeRegistryForTests();
+    setShaderProgramModeRegistry(createShaderProgramModeRegistry("tsl"));
+    registerCobwebSilkShaderFactory();
+
+    const material = createCobwebMaterial(0x88aa88, 0.3, 1);
+    expect(material).toBeInstanceOf(MeshBasicNodeMaterial);
+    expect(material.userData.shaderProgramMode).toBe("tsl");
+    expect(material.userData.cobwebSilk).toBe(true);
+    expect(getShaderProgramModeRegistry().supports(COBWEB_SILK_SHADER_FACTORY_ID, "glsl")).toBe(
+      true,
+    );
+    expect(getShaderProgramModeRegistry().supports(COBWEB_SILK_SHADER_FACTORY_ID, "tsl")).toBe(
+      true,
+    );
+    resetShaderProgramModeRegistryForTests();
   });
 });
 

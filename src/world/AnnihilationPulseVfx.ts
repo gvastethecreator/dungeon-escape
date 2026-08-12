@@ -1,9 +1,15 @@
 import * as THREE from "three";
-
+import type { PointsNodeMaterial } from "three/webgpu";
 import {
   ANNIHILATION_PULSE_RADIUS,
   ANNIHILATION_PULSE_REPEL_RADIUS,
 } from "../game/AnnihilationPulse";
+import {
+  getShaderProgramModeRegistry,
+  onShaderProgramModeRegistryChange,
+  type ShaderProgramMode,
+} from "../systems/ShaderProgramMode";
+import { requireTslBuilder } from "../systems/TslMaterialModules";
 
 export type AnnihilationBurstMaterial =
   | "blood"
@@ -175,6 +181,22 @@ const PULSE_RING_COUNT = 4;
 const PULSE_RING_DURATION = 0.72;
 const MAX_BURST_PARTICLES = 288;
 
+/** ShaderProgramMode factory id for annihilation enemy burst particles. */
+export const ANNIHILATION_BURST_SHADER_FACTORY_ID = "annihilation-burst-particles";
+
+/** Register (or refresh) dual-mode support on the active shader program registry. */
+export function registerAnnihilationBurstShaderFactory(
+  registry = getShaderProgramModeRegistry(),
+): void {
+  registry.register({
+    id: ANNIHILATION_BURST_SHADER_FACTORY_ID,
+    supports: ["glsl", "tsl"],
+  });
+}
+
+registerAnnihilationBurstShaderFactory();
+onShaderProgramModeRegistryChange(registerAnnihilationBurstShaderFactory);
+
 function hash(seed: number): number {
   const value = Math.sin(seed * 12.9898 + 78.233) * 43758.5453;
   return value - Math.floor(value);
@@ -206,8 +228,10 @@ function createPulseRing(index: number): PulseRingSlot {
   return { root, ring, active: false, age: 0 };
 }
 
-function createBurstMaterial(): THREE.ShaderMaterial {
-  return new THREE.ShaderMaterial({
+type AnnihilationBurstParticleMaterial = THREE.ShaderMaterial | PointsNodeMaterial;
+
+function createBurstMaterialGlsl(): THREE.ShaderMaterial {
+  const material = new THREE.ShaderMaterial({
     uniforms: {},
     vertexShader: `
       attribute float aAlpha;
@@ -294,6 +318,24 @@ function createBurstMaterial(): THREE.ShaderMaterial {
     toneMapped: false,
     fog: false,
   });
+  material.userData.shaderProgramMode = "glsl";
+  material.userData.annihilationBurstParticles = true;
+  material.userData.particlePrimitive = "points";
+  return material;
+}
+
+function createBurstParticles(
+  geometry: THREE.BufferGeometry,
+  material: AnnihilationBurstParticleMaterial,
+  mode: ShaderProgramMode,
+): THREE.Points<THREE.BufferGeometry, THREE.ShaderMaterial> | THREE.Sprite {
+  if (mode === "tsl") {
+    const sprite = new THREE.Sprite(material as unknown as THREE.SpriteMaterial);
+    sprite.count = MAX_BURST_PARTICLES;
+    sprite.userData.particlePrimitive = "sprite";
+    return sprite;
+  }
+  return new THREE.Points(geometry, material as THREE.ShaderMaterial);
 }
 
 /** Fixed-budget field, expanding rings, and biome-aware enemy death particles. */
@@ -315,7 +357,9 @@ export class AnnihilationPulseVfx {
   private readonly velocityZ = new Float32Array(MAX_BURST_PARTICLES);
   private readonly particleActive = new Uint8Array(MAX_BURST_PARTICLES);
   private readonly geometry = new THREE.BufferGeometry();
-  private readonly particles: THREE.Points<THREE.BufferGeometry, THREE.ShaderMaterial>;
+  private readonly particles:
+    | THREE.Points<THREE.BufferGeometry, THREE.ShaderMaterial>
+    | THREE.Sprite;
   private readonly field: THREE.Mesh<THREE.TorusGeometry, THREE.MeshBasicMaterial>;
   private readonly fieldCore: THREE.Mesh<THREE.CircleGeometry, THREE.MeshBasicMaterial>;
   private readonly light: THREE.PointLight;
@@ -323,16 +367,59 @@ export class AnnihilationPulseVfx {
   private ringCursor = 0;
   private activeBurstCountValue = 0;
 
-  constructor() {
+  constructor(mode?: ShaderProgramMode) {
+    registerAnnihilationBurstShaderFactory();
+    const registry = getShaderProgramModeRegistry();
+    const resolved = mode ?? registry.mode;
+    registry.require(ANNIHILATION_BURST_SHADER_FACTORY_ID, resolved);
     this.root.name = "Annihilation pulse field and death particles";
+    this.root.userData.shaderProgramMode = resolved;
+    this.root.userData.annihilationBurstFactoryId = ANNIHILATION_BURST_SHADER_FACTORY_ID;
 
-    this.geometry.setAttribute("position", new THREE.BufferAttribute(this.positions, 3));
-    this.geometry.setAttribute("color", new THREE.BufferAttribute(this.colors, 3));
-    this.geometry.setAttribute("aAlpha", new THREE.BufferAttribute(this.alphas, 1));
-    this.geometry.setAttribute("aSize", new THREE.BufferAttribute(this.sizes, 1));
-    this.geometry.setAttribute("aShape", new THREE.BufferAttribute(this.shapes, 1));
-    this.geometry.setAttribute("aSpin", new THREE.BufferAttribute(this.spins, 1));
-    this.particles = new THREE.Points(this.geometry, createBurstMaterial());
+    const positionAttribute =
+      resolved === "tsl"
+        ? new THREE.InstancedBufferAttribute(this.positions, 3)
+        : new THREE.BufferAttribute(this.positions, 3);
+    const colorAttribute =
+      resolved === "tsl"
+        ? new THREE.InstancedBufferAttribute(this.colors, 3)
+        : new THREE.BufferAttribute(this.colors, 3);
+    const alphaAttribute =
+      resolved === "tsl"
+        ? new THREE.InstancedBufferAttribute(this.alphas, 1)
+        : new THREE.BufferAttribute(this.alphas, 1);
+    const sizeAttribute =
+      resolved === "tsl"
+        ? new THREE.InstancedBufferAttribute(this.sizes, 1)
+        : new THREE.BufferAttribute(this.sizes, 1);
+    const shapeAttribute =
+      resolved === "tsl"
+        ? new THREE.InstancedBufferAttribute(this.shapes, 1)
+        : new THREE.BufferAttribute(this.shapes, 1);
+    const spinAttribute =
+      resolved === "tsl"
+        ? new THREE.InstancedBufferAttribute(this.spins, 1)
+        : new THREE.BufferAttribute(this.spins, 1);
+    this.geometry.setAttribute("position", positionAttribute);
+    this.geometry.setAttribute("color", colorAttribute);
+    this.geometry.setAttribute("aAlpha", alphaAttribute);
+    this.geometry.setAttribute("aSize", sizeAttribute);
+    this.geometry.setAttribute("aShape", shapeAttribute);
+    this.geometry.setAttribute("aSpin", spinAttribute);
+    const material =
+      resolved === "tsl"
+        ? requireTslBuilder<typeof import("./AnnihilationPulseVfx.tsl").createBurstMaterialTsl>(
+            ANNIHILATION_BURST_SHADER_FACTORY_ID,
+          )({
+            position: positionAttribute as THREE.InstancedBufferAttribute,
+            color: colorAttribute as THREE.InstancedBufferAttribute,
+            alpha: alphaAttribute as THREE.InstancedBufferAttribute,
+            size: sizeAttribute as THREE.InstancedBufferAttribute,
+            shape: shapeAttribute as THREE.InstancedBufferAttribute,
+            spin: spinAttribute as THREE.InstancedBufferAttribute,
+          })
+        : createBurstMaterialGlsl();
+    this.particles = createBurstParticles(this.geometry, material, resolved);
     this.particles.name = "Biome annihilation enemy particles";
     // Burst particles spawn at camera-visible kill events.
     this.particles.frustumCulled = false;

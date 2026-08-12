@@ -25,6 +25,7 @@ import { listBiomeIds } from "../src/systems/BiomeIdentity";
  * Set env PHOTO_WIDTH and PHOTO_HEIGHT to inspect a responsive viewport.
  * Set env PERF_SECONDS=12 to record live p95/p99/max frame gaps after the shots.
  * Set env PHOTO_BASE_URL to profile a production preview on a different port.
+ * Set env RENDERER=webgl|webgpu|auto to exercise the requested renderer backend.
  */
 
 interface CdpTarget {
@@ -47,6 +48,11 @@ if (!Number.isFinite(CDP_COMMAND_TIMEOUT_MS) || CDP_COMMAND_TIMEOUT_MS < 1000)
 const CRT = (process.env.CRT ?? "").trim().toLowerCase();
 if (CRT && CRT !== "on" && CRT !== "off")
   throw new Error(`CRT must be "on" or "off"; received ${JSON.stringify(CRT)}.`);
+const RENDERER = (process.env.RENDERER ?? "auto").trim().toLowerCase();
+if (RENDERER !== "webgl" && RENDERER !== "webgpu" && RENDERER !== "auto")
+  throw new Error(
+    `RENDERER must be "webgl", "webgpu", or "auto"; received ${JSON.stringify(RENDERER)}.`,
+  );
 const PHOTO_SIMULATION = (process.env.PHOTO_SIMULATION ?? "on").trim().toLowerCase();
 if (PHOTO_SIMULATION !== "on" && PHOTO_SIMULATION !== "off")
   throw new Error(
@@ -416,7 +422,12 @@ async function waitForGameReady(ws: WebSocket, timeoutMs = 25_000): Promise<void
     // Periodic screenshots keep the warmup rAF advancing so warmupWaitMs measures
     // wall wait, not tab starvation (see PERF-31).
     try {
-      await send(ws, "Page.captureScreenshot", { format: "png", fromSurface: true }, "warmup-frame");
+      await send(
+        ws,
+        "Page.captureScreenshot",
+        { format: "png", fromSurface: true },
+        "warmup-frame",
+      );
     } catch {
       /* page may not be ready yet */
     }
@@ -572,12 +583,13 @@ try {
     })()`,
   });
   const moodQuery = moodParam ? `&mood=${encodeURIComponent(moodParam)}` : "";
+  const rendererQuery = `&renderer=${encodeURIComponent(RENDERER)}`;
   // Every photo run is a QA run. The flag keeps the requested campaign seed
   // deterministic while normal New Game continues to generate fresh seeds.
   const qaQuery = `&perfAudit=1${qaState ? `&qaState=${encodeURIComponent(qaState)}` : ""}`;
   await send(ws, "Page.navigate", {
     // skipRunIntro keeps photo capture on the play scene without waiting for map theater.
-    url: `${BASE}/?mode=play&seed=${encodeURIComponent(seed)}&skipRunIntro=1${moodQuery}${qaQuery}`,
+    url: `${BASE}/?mode=play&seed=${encodeURIComponent(seed)}&skipRunIntro=1${moodQuery}${rendererQuery}${qaQuery}`,
   });
   await sleep(1000);
   await waitForAppReady(ws);
@@ -1067,6 +1079,7 @@ try {
         const diag = window.__THREE_GAME_DIAGNOSTICS__;
         const canvas = document.querySelector('#scene');
         return {
+          rendererInfo: globalThis.__rendererInfo ?? null,
           renderer: diag?.getRenderer?.() ?? null,
           audio: diag?.getAudio?.() ?? null,
           runtime: diag?.getState?.() ?? null,
@@ -1080,8 +1093,23 @@ try {
         returnByValue: true,
       },
       "diagnostics",
-    )) as { result?: { value?: unknown } };
+    )) as {
+      result?: {
+        value?: {
+          rendererInfo?: { backend?: string; fellBack?: boolean } | null;
+          [key: string]: unknown;
+        };
+      };
+    };
     diagnosticsValue = diagnosticsResult.result?.value ?? null;
+    if (RENDERER !== "auto") {
+      const rendererInfo = diagnosticsResult.result?.value?.rendererInfo;
+      if (rendererInfo?.backend !== RENDERER || rendererInfo.fellBack === true) {
+        throw new Error(
+          `Requested ${RENDERER} but runtime reported ${JSON.stringify(rendererInfo ?? null)}.`,
+        );
+      }
+    }
   }
   const manifestPath = `${outDir}/capture-manifest.json`;
   await Bun.write(
@@ -1092,6 +1120,7 @@ try {
         seed,
         biome: biomeParam || null,
         mood: moodParam || null,
+        renderer: RENDERER,
         crt: CRT || null,
         photoSimulation: PHOTO_SIMULATION,
         escapeSmoke: escapeSmokeResult,

@@ -1,12 +1,21 @@
 import type { EngineMode } from "../game/EngineMode";
 
 export type VisualQaState = "critical" | "dead" | "portal" | "won";
+export type VisualParitySceneId =
+  | "empty-corridor"
+  | "torch-hall"
+  | "enemy-near"
+  | "portal-ready"
+  | "hazard-floor";
 export type LaunchQueryFlag = boolean | null;
+/** Immutable renderer preference from `?renderer=`. Unknown values fall to `auto`. */
+export type LaunchRendererPreference = "webgpu" | "webgl" | "auto";
 
 export interface LaunchRenderOverrides {
   readonly quality: LaunchQueryFlag;
   readonly crt: LaunchQueryFlag;
   readonly safeRender: LaunchQueryFlag;
+  readonly renderer: LaunchRendererPreference;
 }
 
 export interface LaunchConfiguration {
@@ -16,8 +25,11 @@ export interface LaunchConfiguration {
   readonly skipRunIntro: boolean;
   readonly performanceAudit: boolean;
   readonly visualQa: Readonly<{
+    enabled: boolean;
     state: VisualQaState | null;
     seed: string | null;
+    parityScene: VisualParitySceneId | null;
+    floorIndex: number;
   }>;
   readonly render: Readonly<LaunchRenderOverrides>;
 }
@@ -55,6 +67,26 @@ function visualQaState(value: string | null): VisualQaState | null {
     : null;
 }
 
+function visualParityScene(value: string | null): VisualParitySceneId | null {
+  return value === "empty-corridor" ||
+    value === "torch-hall" ||
+    value === "enemy-near" ||
+    value === "portal-ready" ||
+    value === "hazard-floor"
+    ? value
+    : null;
+}
+
+function visualQaFloorIndex(value: string | null): number {
+  const parsed = Number.parseInt(value ?? "0", 10);
+  return Number.isInteger(parsed) ? Math.max(0, Math.min(3, parsed)) : 0;
+}
+
+function rendererPreference(value: string | null): LaunchRendererPreference {
+  if (value === "webgpu" || value === "webgl" || value === "auto") return value;
+  return "auto";
+}
+
 function safeParams(search: string): URLSearchParams {
   try {
     return new URLSearchParams(search.startsWith("?") ? search.slice(1) : search);
@@ -69,14 +101,20 @@ export function parseLaunchConfiguration(search: string): LaunchConfiguration {
   const moodSource = params.has("mood") ? params.get("mood") : params.get("theme");
   const mood = trimmed(moodSource)?.toLowerCase() ?? null;
   const performanceAudit = params.has("perfAudit");
+  const qaState = performanceAudit ? visualQaState(params.get("qaState")) : null;
+  const parityScene = performanceAudit ? visualParityScene(params.get("parityScene")) : null;
   const visualQa = Object.freeze({
-    state: performanceAudit ? visualQaState(params.get("qaState")) : null,
+    enabled: performanceAudit && (qaState !== null || parityScene !== null),
+    state: qaState,
     seed: performanceAudit && seed ? seed.slice(0, 96) : null,
+    parityScene,
+    floorIndex: performanceAudit ? visualQaFloorIndex(params.get("floor")) : 0,
   });
   const render = Object.freeze({
     quality: queryFlag(params, "quality"),
     crt: queryFlag(params, "crt"),
     safeRender: queryFlag(params, "safeRender"),
+    renderer: rendererPreference(trimmed(params.get("renderer"))?.toLowerCase() ?? null),
   });
 
   return Object.freeze({

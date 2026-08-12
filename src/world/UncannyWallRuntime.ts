@@ -1,6 +1,12 @@
 import * as THREE from "three";
-
+import type { MeshBasicNodeMaterial } from "three/webgpu";
 import type { DungeonMoodId } from "../systems/DungeonMood";
+import {
+  getShaderProgramModeRegistry,
+  onShaderProgramModeRegistryChange,
+  type ShaderProgramMode,
+} from "../systems/ShaderProgramMode";
+import { requireTslBuilder } from "../systems/TslMaterialModules";
 import { biomeSurfacePalette } from "./BiomeSurfacePalettes.generated";
 import type { UncannyWallAnimationDefinition } from "./UncannyWallCatalog.generated";
 
@@ -9,6 +15,20 @@ export const UNCANNY_WALL_HOLD_MAX_SECONDS = 10;
 export const UNCANNY_WALL_FRAME_INTERPOLATION = true;
 export const UNCANNY_WALL_FADE_FAR = 26;
 export const UNCANNY_WALL_FADE_HYSTERESIS = 2.5;
+
+/** ShaderProgramMode factory id for the uncanny wall instanced atlas. */
+export const UNCANNY_WALL_SHADER_FACTORY_ID = "uncanny-wall-atlas";
+
+/** Register (or refresh) dual-mode support on the active shader program registry. */
+export function registerUncannyWallShaderFactory(registry = getShaderProgramModeRegistry()): void {
+  registry.register({
+    id: UNCANNY_WALL_SHADER_FACTORY_ID,
+    supports: ["glsl", "tsl"],
+  });
+}
+
+registerUncannyWallShaderFactory();
+onShaderProgramModeRegistryChange(registerUncannyWallShaderFactory);
 
 export interface UncannyWallPlaybackState {
   readonly seed: number;
@@ -128,7 +148,23 @@ export function sampleUncannyWallPlayback(
   };
 }
 
-function createMaterial(
+export type UncannyWallMaterial = THREE.ShaderMaterial | MeshBasicNodeMaterial;
+
+export function tagMaterial(
+  material: UncannyWallMaterial,
+  visualProfile: UncannyWallVisualProfile,
+  mode: ShaderProgramMode,
+): UncannyWallMaterial {
+  material.userData.sharedDungeonMaterial = false;
+  material.userData.biomeIntegrated = true;
+  material.userData.visualProfile = visualProfile;
+  material.userData.fogAlphaFade = [0.12, 0.48];
+  material.userData.shaderProgramMode = mode;
+  material.userData.uncannyWallAtlas = true;
+  return material;
+}
+
+function createMaterialGlsl(
   texture: THREE.Texture,
   visualProfile: UncannyWallVisualProfile,
 ): THREE.ShaderMaterial {
@@ -233,16 +269,30 @@ function createMaterial(
     polygonOffsetFactor: -2,
     polygonOffsetUnits: -2,
   });
-  material.userData.sharedDungeonMaterial = false;
-  material.userData.biomeIntegrated = true;
-  material.userData.visualProfile = visualProfile;
-  material.userData.fogAlphaFade = [0.12, 0.48];
-  return material;
+  return tagMaterial(material, visualProfile, "glsl") as THREE.ShaderMaterial;
+}
+
+function createMaterial(
+  texture: THREE.Texture,
+  visualProfile: UncannyWallVisualProfile,
+  mode?: ShaderProgramMode,
+): UncannyWallMaterial {
+  registerUncannyWallShaderFactory();
+  const registry = getShaderProgramModeRegistry();
+  const resolved = mode ?? registry.mode;
+  registry.require(UNCANNY_WALL_SHADER_FACTORY_ID, resolved);
+  if (resolved === "tsl") {
+    const build = requireTslBuilder<
+      typeof import("./UncannyWallRuntime.tsl").createUncannyWallMaterialTsl
+    >(UNCANNY_WALL_SHADER_FACTORY_ID);
+    return build(texture, visualProfile);
+  }
+  return createMaterialGlsl(texture, visualProfile);
 }
 
 /** One instanced atlas batch with an independent pause/play clock per wall copy. */
 export class UncannyWallRuntime {
-  readonly mesh: THREE.InstancedMesh<THREE.PlaneGeometry, THREE.ShaderMaterial>;
+  readonly mesh: THREE.InstancedMesh<THREE.PlaneGeometry, UncannyWallMaterial>;
   private readonly placements: readonly UncannyWallPlacement[];
   private readonly states: UncannyWallPlaybackState[];
   private readonly frameA: THREE.InstancedBufferAttribute;
@@ -256,6 +306,7 @@ export class UncannyWallRuntime {
     placements: readonly UncannyWallPlacement[],
     interpolate = UNCANNY_WALL_FRAME_INTERPOLATION,
     visualProfile: UncannyWallVisualProfile = uncannyWallVisualProfile("ancient"),
+    mode?: ShaderProgramMode,
   ) {
     this.placements = placements;
     this.states = placements.map(({ seed }) => createUncannyWallPlayback(seed));
@@ -283,7 +334,7 @@ export class UncannyWallRuntime {
 
     this.mesh = new THREE.InstancedMesh(
       geometry,
-      createMaterial(texture, visualProfile),
+      createMaterial(texture, visualProfile, mode),
       placements.length,
     );
     this.mesh.name = "Uncanny wall animation batch";
@@ -301,6 +352,7 @@ export class UncannyWallRuntime {
       holdRangeSeconds: [UNCANNY_WALL_HOLD_MIN_SECONDS, UNCANNY_WALL_HOLD_MAX_SECONDS],
       visualProfile,
       fogAlphaFade: [0.12, 0.48],
+      shaderProgramMode: mode ?? getShaderProgramModeRegistry().mode,
     };
   }
 

@@ -1,5 +1,6 @@
-import { describe, expect, test } from "bun:test";
+import { afterEach, beforeAll, describe, expect, test } from "bun:test";
 import * as THREE from "three";
+import { MeshBasicNodeMaterial, PointsNodeMaterial } from "three/webgpu";
 
 import {
   activateLuminousWard,
@@ -8,9 +9,35 @@ import {
   LUMINOUS_WARD_REPEL_RADIUS,
   tickLuminousWard,
 } from "../src/game/LuminousWard";
+import {
+  createShaderProgramModeRegistry,
+  getShaderProgramModeRegistry,
+  resetShaderProgramModeRegistryForTests,
+  setShaderProgramModeRegistry,
+} from "../src/systems/ShaderProgramMode";
+import { loadTslMaterialModules } from "../src/systems/TslMaterialModules";
 import { createDungeonMaterials } from "../src/world/MaterialLibrary";
 import { createLuminousWardStone } from "../src/world/ItemFactory";
-import { LuminousWardVfx } from "../src/world/LuminousWardVfx";
+import {
+  LUMINOUS_WARD_SHIELD_SHADER_FACTORY_ID,
+  LUMINOUS_WARD_TRAILS_SHADER_FACTORY_ID,
+  LuminousWardVfx,
+  WARD_PARTICLE_COUNT,
+  WARD_TRAIL_SAMPLES,
+  registerLuminousWardShaderFactories,
+} from "../src/world/LuminousWardVfx";
+
+// The shader program mode registry is process-global; leaking `tsl` mode
+// into later test files would build node materials where GLSL is expected.
+afterEach(() => {
+  resetShaderProgramModeRegistryForTests();
+});
+
+// TSL builders live in lazily imported `*.tsl` siblings so the WebGL bundle
+// never pulls in `three/webgpu`; tests must preload them like Play boot does.
+beforeAll(async () => {
+  await loadTslMaterialModules();
+});
 
 describe("luminous ward power", () => {
   test("holds the safety field for fifteen gameplay seconds", () => {
@@ -107,5 +134,38 @@ describe("luminous ward power", () => {
     vfx.update(0, 2, { x: 0, y: 1.5, z: 0 }, 1 / 60);
     expect(motePositions.version).toBe(clearedVersion);
     vfx.dispose();
+  });
+
+  test("TSL mode uses node shield and sprite-backed ward particles", () => {
+    resetShaderProgramModeRegistryForTests();
+    setShaderProgramModeRegistry(createShaderProgramModeRegistry("tsl"));
+    registerLuminousWardShaderFactories();
+
+    const vfx = new LuminousWardVfx();
+    vfx.update(30, 0.2, { x: 0, y: 1.5, z: 0 }, 1 / 60);
+    const motes = vfx.root.getObjectByName("Luminous ward floating motes") as THREE.Sprite;
+    const trails = vfx.root.getObjectByName("Luminous ward motion trails") as THREE.Sprite;
+    const shell = vfx.root.getObjectByName("Luminous ward protective shell") as THREE.Mesh<
+      THREE.SphereGeometry,
+      MeshBasicNodeMaterial
+    >;
+    expect(shell.material).toBeInstanceOf(MeshBasicNodeMaterial);
+    expect(shell.material.userData.shaderProgramMode).toBe("tsl");
+    expect(motes).toBeInstanceOf(THREE.Sprite);
+    expect(motes.count).toBe(WARD_PARTICLE_COUNT);
+    expect(motes.material).toBeInstanceOf(PointsNodeMaterial);
+    expect(motes.material.userData.particlePrimitive).toBe("sprite");
+    expect(trails).toBeInstanceOf(THREE.Sprite);
+    expect(trails.count).toBe(WARD_PARTICLE_COUNT * WARD_TRAIL_SAMPLES);
+    expect(trails.material).toBeInstanceOf(PointsNodeMaterial);
+    expect(trails.material.userData.particlePrimitive).toBe("sprite");
+    expect(
+      getShaderProgramModeRegistry().supports(LUMINOUS_WARD_SHIELD_SHADER_FACTORY_ID, "tsl"),
+    ).toBe(true);
+    expect(
+      getShaderProgramModeRegistry().supports(LUMINOUS_WARD_TRAILS_SHADER_FACTORY_ID, "tsl"),
+    ).toBe(true);
+    vfx.dispose();
+    resetShaderProgramModeRegistryForTests();
   });
 });

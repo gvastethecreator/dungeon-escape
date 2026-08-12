@@ -1020,7 +1020,8 @@ export class FirstPersonController {
     const minY = Math.max(0, (slabIndex - 1) * STORY_HEIGHT) - 0.01;
     const maxY = (slabIndex + 1) * STORY_HEIGHT + 0.01;
     for (const collider of this.allSupportTreads) {
-      if ((collider.maxY ?? Number.NEGATIVE_INFINITY) < minY || (collider.minY ?? 0) > maxY) continue;
+      if ((collider.maxY ?? Number.NEGATIVE_INFINITY) < minY || (collider.minY ?? 0) > maxY)
+        continue;
       this.supportTreads.push(collider);
     }
   }

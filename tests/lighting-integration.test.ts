@@ -418,7 +418,7 @@ describe("integrated dungeon lighting", () => {
   test("enemy sprites use scene lights, tone mapping, depth and a soft contact mask", () => {
     const mood = getDungeonMood("frost");
     const sprite = createEnemyBillboardMaterial(new THREE.Texture(), mood);
-    expect(sprite.isMeshStandardMaterial).toBe(true);
+    expect((sprite as THREE.MeshStandardMaterial).isMeshStandardMaterial).toBe(true);
     expect(sprite.toneMapped).toBe(true);
     expect(sprite.depthWrite).toBe(true);
     expect(sprite.emissiveIntensity).toBeLessThan(0.2);

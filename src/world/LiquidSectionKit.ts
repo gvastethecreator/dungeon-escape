@@ -1,9 +1,27 @@
 import * as THREE from "three";
-
 import { gridToWorld } from "../dungeon/gridCollision";
 import type { DungeonData, GridCell } from "../dungeon/types";
 import type { SceneTextureSink } from "../systems/SceneTextureRegistry";
+import {
+  getShaderProgramModeRegistry,
+  onShaderProgramModeRegistryChange,
+  type ShaderProgramMode,
+} from "../systems/ShaderProgramMode";
+import { requireTslBuilder } from "../systems/TslMaterialModules";
 import type { DungeonMaterials } from "./MaterialLibrary";
+
+export const LIQUID_SHADER_FACTORY_ID = "liquid-surface";
+
+/** Register (or refresh) dual-mode support on the active shader program registry. */
+export function registerLiquidShaderFactory(registry = getShaderProgramModeRegistry()): void {
+  registry.register({
+    id: LIQUID_SHADER_FACTORY_ID,
+    supports: ["glsl", "tsl"],
+  });
+}
+
+registerLiquidShaderFactory();
+onShaderProgramModeRegistryChange(registerLiquidShaderFactory);
 
 const NEIGHBORS: ReadonlyArray<readonly [number, number]> = [
   [0, -1],
@@ -127,29 +145,12 @@ function createLiquidPattern(kind: LiquidKind): THREE.DataTexture {
   return texture;
 }
 
-export function createLiquidMaterial(
+function applyLiquidMaterialGlsl(
+  material: THREE.MeshStandardMaterial,
   kind: LiquidKind,
-  textureSink?: SceneTextureSink,
-): THREE.MeshStandardMaterial {
+  liquidTime: { value: number },
+): void {
   const lake = kind === "lake";
-  const liquidTime = { value: 0 };
-  const map = createLiquidPattern(kind);
-  textureSink?.register(map);
-  const material = new THREE.MeshStandardMaterial({
-    name: lake ? "Connected frost lake material" : "Connected dark water material",
-    map,
-    color: lake ? 0x60777c : 0x253943,
-    emissive: lake ? 0x12262b : 0x101c22,
-    emissiveIntensity: lake ? 0.38 : 0.24,
-    roughness: lake ? 0.58 : 0.72,
-    metalness: 0,
-    envMapIntensity: lake ? 0.34 : 0.24,
-    transparent: true,
-    opacity: lake ? 0.86 : 0.78,
-    depthWrite: false,
-    side: THREE.DoubleSide,
-  });
-  material.userData.liquidTime = liquidTime;
   material.onBeforeCompile = (shader) => {
     shader.uniforms.uLiquidTime = liquidTime;
     shader.vertexShader = shader.vertexShader
@@ -181,6 +182,49 @@ export function createLiquidMaterial(
       );
   };
   material.customProgramCacheKey = () => `connected-liquid-wave-${kind}-v3`;
+}
+
+export function createLiquidMaterial(
+  kind: LiquidKind,
+  textureSink?: SceneTextureSink,
+  mode?: ShaderProgramMode,
+): THREE.MeshStandardMaterial {
+  registerLiquidShaderFactory();
+  const registry = getShaderProgramModeRegistry();
+  const resolved = mode ?? registry.mode;
+  registry.require(LIQUID_SHADER_FACTORY_ID, resolved);
+
+  const lake = kind === "lake";
+  const liquidTime = { value: 0 };
+  const map = createLiquidPattern(kind);
+  textureSink?.register(map);
+  const common = {
+    name: lake ? "Connected frost lake material" : "Connected dark water material",
+    map,
+    color: lake ? 0x60777c : 0x253943,
+    emissive: lake ? 0x12262b : 0x101c22,
+    emissiveIntensity: lake ? 0.38 : 0.24,
+    roughness: lake ? 0.58 : 0.72,
+    metalness: 0,
+    envMapIntensity: lake ? 0.34 : 0.24,
+    transparent: true,
+    opacity: lake ? 0.86 : 0.78,
+    depthWrite: false,
+    side: THREE.DoubleSide,
+  } as const;
+
+  if (resolved === "tsl") {
+    const build =
+      requireTslBuilder<typeof import("./LiquidSectionKit.tsl").createLiquidMaterialTsl>(
+        LIQUID_SHADER_FACTORY_ID,
+      );
+    return build(common, kind, liquidTime, map);
+  }
+
+  const material = new THREE.MeshStandardMaterial(common);
+  material.userData.liquidTime = liquidTime;
+  material.userData.liquidShaderMode = "glsl";
+  applyLiquidMaterialGlsl(material, kind, liquidTime);
   return material;
 }
 
@@ -346,6 +390,10 @@ export function tickLiquidSections(surfaces: readonly LiquidSurface[], time: num
     updated.add(surface.material);
     const liquidTime = surface.material.userData.liquidTime as { value: number } | undefined;
     if (liquidTime) liquidTime.value = time;
+    const liquidTimeUniform = surface.material.userData.liquidTimeUniform as
+      | { value: number }
+      | undefined;
+    if (liquidTimeUniform) liquidTimeUniform.value = time;
     const speed = surface.kind === "lake" ? 0.004 : 0.012;
     if (surface.material.map) {
       surface.material.map.offset.x = time * speed;

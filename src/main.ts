@@ -80,10 +80,54 @@ import { FrameGapProfiler, type FrameGapSnapshot } from "./systems/FrameGapProfi
 import type { BiomeEventSnapshot } from "./systems/BiomeEventDirector";
 import {
   detectRenderCapabilities,
+  recalibrateRenderCapabilitiesForBackend,
   detectRendererCompileCapabilities,
 } from "./systems/RenderCapabilities";
+import type { DungeonRenderer } from "./systems/DungeonRenderer";
+import {
+  createPlayRendererHandle,
+  readPlayRendererBackendName,
+  type PlayRendererHandle,
+} from "./systems/PlayRendererFactory";
+import { resolvePreferWebGpuWhenAuto, WEBGPU_FLIP_POLICY } from "./systems/WebGpuFlipPolicy";
 import { collectVisibleRenderInventory } from "./systems/RenderInventory";
 import { resolveRenderPixelRatio } from "./systems/RenderScale";
+import {
+  createShaderProgramModeRegistry,
+  setShaderProgramModeRegistry,
+  type ShaderProgramMode,
+} from "./systems/ShaderProgramMode";
+import { loadTslMaterialModules } from "./systems/TslMaterialModules";
+
+/** Play renderer surface used by the host after backend selection. */
+type PlayHostRenderer = DungeonRenderer & {
+  outputColorSpace: string;
+  toneMappingExposure: number;
+  setPixelRatio(value: number): void;
+  setSize(width: number, height: number, updateStyle?: boolean): void;
+  getPixelRatio(): number;
+  shadowMap: { enabled: boolean; type: THREE.ShadowMapType };
+  debug?: { checkShaderErrors: boolean };
+  info: {
+    autoReset: boolean;
+    reset(): void;
+    render: {
+      calls: number;
+      triangles: number;
+      points: number;
+      lines: number;
+      frame: number;
+    };
+    memory: { geometries: number; textures: number };
+    programs: unknown[] | null;
+  };
+  compileAsync?: (scene: THREE.Object3D, camera: THREE.Camera) => Promise<unknown>;
+  properties?: { get(material: THREE.Material): unknown };
+  renderLists?: {
+    get(scene: THREE.Scene, cameraIndex: number): { opaque: unknown[]; transparent: unknown[] };
+  };
+  dispose(): void;
+};
 import {
   computePovFeel,
   decayExhaustionTrauma,
@@ -459,31 +503,110 @@ const scene = new THREE.Scene();
 
 const camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.08, 120);
 const renderPathCaps = detectRenderCapabilities({ overrides: launchConfig.render });
-function createPlayRenderer(): THREE.WebGLRenderer {
-  const common = {
+let playRendererHandle: PlayRendererHandle;
+try {
+  playRendererHandle = await createPlayRendererHandle({
     canvas: elements.scene,
-    antialias: false as const,
-  };
-  try {
-    return new THREE.WebGLRenderer({
-      ...common,
-      // Firefox dual-GPU + high-performance often picks a dead adapter (black canvas).
-      powerPreference: renderPathCaps.preferDefaultGpu ? "default" : "high-performance",
-    });
-  } catch (error) {
-    console.warn("Primary WebGL context failed; retrying with defaults", error);
-    return new THREE.WebGLRenderer(common);
-  }
+    preference: renderPathCaps.requestedRenderer,
+    preferDefaultGpu: renderPathCaps.preferDefaultGpu,
+    preferWebGpuWhenAuto: resolvePreferWebGpuWhenAuto(WEBGPU_FLIP_POLICY),
+  });
+} catch (error) {
+  const message =
+    error instanceof Error ? error.message : "Failed to create the requested renderer.";
+  console.error("[renderer-init]", message);
+  elements.shell.dataset.rendererError = message;
+  throw error;
 }
-const renderer = createPlayRenderer();
+const renderer = playRendererHandle.renderer as PlayHostRenderer;
+const webGlRenderer =
+  playRendererHandle.backend === "webgl" ? (playRendererHandle.raw as THREE.WebGLRenderer) : null;
+const rendererInitDurationMs = playRendererHandle.initDurationMs;
+const shaderProgramMode: ShaderProgramMode = playRendererHandle.isWebGpuRenderer ? "tsl" : "glsl";
+const calibratedRenderPathCaps = recalibrateRenderCapabilitiesForBackend(
+  renderPathCaps,
+  playRendererHandle.backend,
+);
+setShaderProgramModeRegistry(createShaderProgramModeRegistry(shaderProgramMode));
+if (shaderProgramMode === "tsl") {
+  // `three/webgpu` is only pulled in here; the WebGL default never loads it.
+  await loadTslMaterialModules();
+}
+const { registerDungeonSurfaceShaderFactory } = await import("./world/TextureTreatment");
+const { registerNoiseFlameShaderFactory } = await import("./world/ProceduralFlameVfx");
+const { registerVolumetricBeamShaderFactory } = await import("./world/VolumetricBeam");
+const { registerEnemyBillboardShaderFactory } = await import("./world/EnemyBillboardMaterial");
+const { registerEnemyMotionTrailShaderFactory } = await import("./world/EnemyMotionTrailVfx");
+const { registerLiquidShaderFactory } = await import("./world/LiquidSectionKit");
+const { registerCobwebSilkShaderFactory } = await import("./world/AtmospherePropsKit");
+const { registerUncannyWallShaderFactory } = await import("./world/UncannyWallRuntime");
+const { registerAnnihilationBurstShaderFactory } = await import("./world/AnnihilationPulseVfx");
+const { registerPickupBurstSparksShaderFactory } = await import("./world/PickupBurstPool");
+const { registerSoftGroundFogShaderFactory } = await import("./systems/SoftGroundFogMaterial");
+const { registerBiomeParticleShaderFactory } = await import("./systems/BiomeParticleMaterial");
+const { registerLuminousWardShaderFactories } = await import("./world/LuminousWardVfx");
+const { registerBiomeDecorShaderFactories } = await import("./world/BiomeDecorMaterial");
+registerDungeonSurfaceShaderFactory();
+registerNoiseFlameShaderFactory();
+registerVolumetricBeamShaderFactory();
+registerEnemyBillboardShaderFactory();
+registerEnemyMotionTrailShaderFactory();
+registerLiquidShaderFactory();
+registerCobwebSilkShaderFactory();
+registerUncannyWallShaderFactory();
+registerAnnihilationBurstShaderFactory();
+registerPickupBurstSparksShaderFactory();
+registerSoftGroundFogShaderFactory();
+registerBiomeParticleShaderFactory();
+registerLuminousWardShaderFactories();
+registerBiomeDecorShaderFactories();
+console.info("[renderer-init]", {
+  durationMs: Math.round(rendererInitDurationMs),
+  requestedRenderer: calibratedRenderPathCaps.requestedRenderer,
+  backend: playRendererHandle.backend,
+  backendName: readPlayRendererBackendName(playRendererHandle),
+  fellBack: playRendererHandle.fellBack,
+  fallbackReason: playRendererHandle.fallbackReason,
+  shaderProgramMode,
+  capabilityPath: calibratedRenderPathCaps.telemetryPath,
+  pixelRatioCap: calibratedRenderPathCaps.pixelRatioCap,
+  adaptiveCrtDisableMs: calibratedRenderPathCaps.adaptiveCrtDisableMs,
+});
+if (typeof globalThis !== "undefined") {
+  (globalThis as { __rendererInfo?: unknown }).__rendererInfo = {
+    app: "play",
+    requested: playRendererHandle.requested,
+    backend: playRendererHandle.backend,
+    backendName: readPlayRendererBackendName(playRendererHandle),
+    fellBack: playRendererHandle.fellBack,
+    fallbackReason: playRendererHandle.fallbackReason,
+    isWebGpuRenderer: playRendererHandle.isWebGpuRenderer,
+    shaderProgramMode,
+    capabilityPath: calibratedRenderPathCaps.telemetryPath,
+    resolvedBackend: calibratedRenderPathCaps.resolvedBackend,
+    pixelRatioCap: calibratedRenderPathCaps.pixelRatioCap,
+    adaptiveCrtDisableMs: calibratedRenderPathCaps.adaptiveCrtDisableMs,
+    allowAsyncShaderWarmup: calibratedRenderPathCaps.allowAsyncShaderWarmup,
+    webgpuFlip: WEBGPU_FLIP_POLICY,
+  };
+}
 const renderCaps = {
-  ...renderPathCaps,
-  ...detectRendererCompileCapabilities(renderer),
+  ...calibratedRenderPathCaps,
+  ...(webGlRenderer
+    ? detectRendererCompileCapabilities(webGlRenderer)
+    : {
+        hasCompileAsync: false,
+        hasParallelShaderCompile: false,
+        canCompileAsync: false,
+      }),
+  requestedRenderer: calibratedRenderPathCaps.requestedRenderer,
 };
 // Three.js recommends keeping shader diagnostics in development, but each
 // program info-log read can serialize Chrome's shader compiler. The production
 // runtime is covered by browser smokes, so avoid that cold-start stall there.
-if (import.meta.env.PROD) renderer.debug.checkShaderErrors = false;
+if (import.meta.env.PROD && renderer.debug) {
+  renderer.debug.checkShaderErrors = false;
+}
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.18;
@@ -517,10 +640,15 @@ const playRuntime = new PlayRuntime(world);
 const dungeonLoadTraces = new DungeonLoadTraceController();
 // Fog column shares WorldMetrics with the architecture stack.
 const atmosphere = new AtmosphereSystem(scene, TILE_SIZE, WORLD_WALL_HEIGHT, textureRegistry);
-const povPost = new PovPostFx();
+const povPost = new PovPostFx({
+  programMode: playRendererHandle.isWebGpuRenderer ? "tsl" : "glsl",
+});
 povPost.setDisplayTuning(displayPostFxTuning);
 // CRT history + multi-sample composite is the usual Firefox stutter source.
 povPost.setCrtEnabled(renderCaps.enableCrtByDefault);
+if (playRendererHandle.isWebGpuRenderer) {
+  console.info("[renderer] WebGPU path: PovPostFx TSL RenderPipeline enabled.");
+}
 const povFeel = new PovFeelState();
 const audio = new GameAudio();
 audio.setMusicVolume(userSettings.musicVolume);
@@ -577,6 +705,10 @@ const minimapLayout = createMinimapLayoutScheduler({
 });
 let smoothedFrameMs = 16.67;
 const frameGapProfiler = new FrameGapProfiler();
+if (typeof globalThis !== "undefined") {
+  (globalThis as { __frameGapSnapshot?: () => FrameGapSnapshot }).__frameGapSnapshot = () =>
+    frameGapProfiler.snapshot();
+}
 let profileWarmupUntil = Number.POSITIVE_INFINITY;
 let profileSimulationActive = false;
 let lastPerformancePublish = 0;
@@ -1809,6 +1941,9 @@ function markRendererWarmupReady(
   }
   if (inputEnabled) markDungeonLoadInputReady(trace);
   elements.shell.dataset.renderPath = renderCaps.telemetryPath;
+  elements.shell.dataset.rendererBackend = playRendererHandle.backend;
+  elements.shell.dataset.shaderProgramMode = shaderProgramMode;
+  elements.shell.dataset.webgpuFlipCohort = WEBGPU_FLIP_POLICY.cohort;
   if (localDevTools && readyMs !== undefined) {
     setStatus(`${readyMessage} Renderer ready in ${readyMs}ms.`);
   } else if (engineMode === "play") {
@@ -1845,7 +1980,9 @@ async function compileRendererWarmupBatches(): Promise<number> {
 
       const batchStartedAt = performance.now();
       let batchComplete = false;
-      const compile = renderer.compileAsync(scene, camera);
+      const compileAsync = webGlRenderer?.compileAsync?.bind(webGlRenderer);
+      if (!compileAsync) break;
+      const compile = compileAsync(scene, camera);
       await Promise.race([
         compile.then(() => {
           batchComplete = true;
@@ -1913,8 +2050,8 @@ function startRendererWarmup(
           povPost.warmup(renderer, scene, camera);
           warmupWorkMs += performance.now() - postFxStartedAt;
         } else {
-          // Firefox, safe-render, and unsupported WebGL retain the established
-          // single live draw path.
+          // Firefox, safe-render, WebGPU, and unsupported WebGL retain a single
+          // live draw path (PovPostFx no-ops to a direct render when disabled).
           const drawStartedAt = performance.now();
           povPost.render(renderer, scene, camera);
           warmupWorkMs += performance.now() - drawStartedAt;
@@ -2892,7 +3029,7 @@ function showEndOverlay(mode: "dead" | "won"): void {
     elements.endOverlay.hidden = true;
     return;
   }
-  if (!launchConfig.visualQa.state) recordPlayerRunCompleted();
+  if (!launchConfig.visualQa.enabled) recordPlayerRunCompleted();
   const activeMood = dungeon ? resolveActiveMood(dungeon) : null;
   const endingBiomeId = activeMood?.id ?? "ancient";
   elements.endArt.src = biomeScreenArtSrc(endingBiomeId, "ending");
@@ -3057,7 +3194,13 @@ function publishDungeonLoadTrace(snapshot: DungeonLoadTraceSnapshot): void {
   } else {
     delete dataset.warmupWorkMs;
   }
-  console.info("[dungeon-load]", snapshot);
+  console.info("[dungeon-load]", {
+    ...snapshot,
+    rendererInitMs: Math.round(rendererInitDurationMs),
+    requestedRenderer: renderCaps.requestedRenderer,
+    backend: playRendererHandle.backend,
+    backendName: readPlayRendererBackendName(playRendererHandle),
+  });
 }
 
 function clearRendererWarmupTrace(trace: DungeonLoadTrace): void {
@@ -3304,6 +3447,7 @@ async function buildDungeon(
     persistBuild?: boolean;
     restore?: RunResumeActivationPlan;
     params?: Readonly<DungeonParams>;
+    activeFloor?: number;
   } = {},
   trace?: DungeonLoadTrace,
 ): Promise<DungeonRuntimeState> {
@@ -3324,7 +3468,10 @@ async function buildDungeon(
     loadTrace.begin("generation");
     try {
       const rootSeed = options.restore?.generation.seed ?? normalizedSeed;
-      const activeFloor = Math.max(0, options.restore?.generation.activeFloor ?? 0);
+      const activeFloor = Math.max(
+        0,
+        options.restore?.generation.activeFloor ?? options.activeFloor ?? 0,
+      );
       if (runSource === "campaign" && requestedCampaignMood) {
         const floorCount = biomeCampaignFloorCount(requestedCampaignMood);
         const result = generateDungeonBuild({
@@ -3764,6 +3911,7 @@ function countSceneMaterials(now = performance.now()): number {
 
 /** Aggregate live material-to-program ownership for opt-in performance audits. */
 function collectRendererProgramProfiles(): readonly RendererProgramProfile[] {
+  if (!webGlRenderer?.properties) return [];
   type Program = {
     id: number;
     name?: string;
@@ -3803,7 +3951,7 @@ function collectRendererProgramProfiles(): readonly RendererProgramProfile[] {
         ? [candidate.material]
         : [];
     for (const material of materials) {
-      const program = (renderer.properties.get(material) as { currentProgram?: Program })
+      const program = (webGlRenderer.properties.get(material) as { currentProgram?: Program })
         .currentProgram;
       if (!program) continue;
       const profile = ensure(program);
@@ -3848,12 +3996,26 @@ function collectRendererProgramProfiles(): readonly RendererProgramProfile[] {
 
 /** Read the completed main-scene render list without traversing hidden slabs. */
 function collectRendererRenderList(): RendererRenderListProfile {
-  const renderList = renderer.renderLists.get(scene, 0);
+  if (!webGlRenderer?.renderLists || !webGlRenderer.properties) {
+    return {
+      opaque: 0,
+      transmissive: 0,
+      transparent: 0,
+      items: 0,
+      profiles: [],
+    };
+  }
+  const renderList = webGlRenderer.renderLists.get(scene, 0) as {
+    opaque: Array<{ object: THREE.Object3D; material: THREE.Material }>;
+    transmissive: Array<{ object: THREE.Object3D; material: THREE.Material }>;
+    transparent: Array<{ object: THREE.Object3D; material: THREE.Material }>;
+  };
   const items = [...renderList.opaque, ...renderList.transmissive, ...renderList.transparent];
   const profiles = new Map<string, RendererRenderItemProfile>();
   for (const item of items) {
-    const program = (renderer.properties.get(item.material) as { currentProgram?: { id: number } })
-      .currentProgram;
+    const program = (
+      webGlRenderer.properties.get(item.material) as { currentProgram?: { id: number } }
+    ).currentProgram;
     const objectName = item.object.name || item.object.type;
     const key = `${objectName}|${item.object.type}|${item.material.type}|${program?.id ?? "none"}`;
     let profile = profiles.get(key);
@@ -4773,6 +4935,7 @@ window.__BLACK_FLAG_DUNGEON_ENGINE__ = api;
 window.__BLACK_FLAG_PROTOTYPE__ = api;
 window.__THREE_GAME_DIAGNOSTICS__ = {
   getState: getRuntimeState,
+  getDungeon: () => dungeon,
   getResidentFloorCount: () => campaignFloorSet?.count ?? 1,
   getRenderer: getRendererDiagnostics,
   getScene: () => scene,
@@ -4780,6 +4943,10 @@ window.__THREE_GAME_DIAGNOSTICS__ = {
   getController: () => controller,
   getAudio: () => audio.getLoadDiagnostics(),
   getLoop: getThreeLoopDiagnostics,
+  resetFrameGaps(warmupMs = 0) {
+    frameGapProfiler.reset();
+    profileWarmupUntil = performance.now() + THREE.MathUtils.clamp(warmupMs, 0, 30_000);
+  },
 };
 
 // Three r185+ Timer API is absent from the pinned renderer; use a local delta clock.
@@ -4812,13 +4979,15 @@ function shouldRunThreeRenderLoop(): boolean {
 function syncThreeRenderLoop(): void {
   const shouldRun = shouldRunThreeRenderLoop();
   if (!shouldRun) {
-    if (animationFrameId) cancelAnimationFrame(animationFrameId);
+    if (animationFrameId) renderer.setAnimationLoop(null);
     animationFrameId = 0;
     return;
   }
   if (animationFrameId) return;
   lastFrameMs = performance.now();
-  animationFrameId = requestAnimationFrame(frame);
+  // Prefer the renderer loop so WebGPU init / XR share one frame scheduler.
+  renderer.setAnimationLoop(frame);
+  animationFrameId = 1;
 }
 
 function getThreeLoopDiagnostics(): { running: boolean; frames: number; renders: number } {
@@ -4830,9 +4999,11 @@ function getThreeLoopDiagnostics(): { running: boolean; frames: number; renders:
 }
 
 function frame(now: number): void {
-  animationFrameId = 0;
-  if (!shouldRunThreeRenderLoop()) return;
-  animationFrameId = requestAnimationFrame(frame);
+  if (!shouldRunThreeRenderLoop()) {
+    renderer.setAnimationLoop(null);
+    animationFrameId = 0;
+    return;
+  }
   threeFrameCount += 1;
   if (launchConfig.performanceAudit || engineMode === "debug") renderer.info.reset();
   const rawFrameGapMs = now - lastFrameMs;
@@ -5130,7 +5301,13 @@ function frame(now: number): void {
     cameraShakeEuler.z += shake.roll;
     camera.quaternion.setFromEuler(cameraShakeEuler);
   }
-  povPost.setEnabled(engineMode === "play");
+  // Three's WebGPU RenderPipeline has a large steady-state cost even for the
+  // CRT-off composite. The native renderer already applies tone/color output,
+  // so keep the default WebGPU path direct and reserve the pipeline for the
+  // explicitly enabled CRT presentation.
+  povPost.setEnabled(
+    engineMode === "play" && (!playRendererHandle.isWebGpuRenderer || povPost.isCrtEnabled()),
+  );
   // Auto-drop CRT when the frame budget is missed (Firefox especially). Manual
   // toggle wins so players can force CRT back on after recovery.
   if (engineMode === "play") {
@@ -5213,7 +5390,8 @@ document.addEventListener("visibilitychange", syncThreeRenderLoop);
 window.addEventListener("beforeunload", () => {
   if (appDisposed) return;
   appDisposed = true;
-  cancelAnimationFrame(animationFrameId);
+  renderer.setAnimationLoop(null);
+  animationFrameId = 0;
   localRunSave.flush();
   localRunSave.dispose();
   runIntroDirector.dispose();
@@ -5230,7 +5408,7 @@ window.addEventListener("beforeunload", () => {
   textureRegistry.clear();
   povPost.dispose();
   lighting.dispose();
-  renderer.dispose();
+  playRendererHandle.dispose();
 });
 function setBootProgress(progress: number, message: string): void {
   const pct = Math.max(0, Math.min(1, progress));
@@ -5340,7 +5518,8 @@ audio.setMusicMuted(readStoredMusicMuted());
 syncMusicToggleUi();
 // Welcome owns the first choice. New Game starts play; Custom Run opens Creation.
 const visualQaState = launchConfig.visualQa.state;
-setBootProgress(0.28, visualQaState ? "Forging the QA map…" : "Opening the hall…");
+const visualQaEnabled = launchConfig.visualQa.enabled;
+setBootProgress(0.28, visualQaEnabled ? "Forging the QA map…" : "Opening the hall…");
 // The welcome screen does not need either WebGL world. Keep the runtime canvas
 // empty and the Forge iframe unmounted until the player chooses a real route.
 setEditorSurface("runtime");
@@ -5359,25 +5538,36 @@ if (canContinueLocalRun(localContinue)) {
 } else {
   setContinueCandidate(null, "");
 }
-if (visualQaState) {
+if (visualQaEnabled) {
   // Deterministic visual-QA URLs intentionally own a live world at boot.
   setBootProgress(0.55, "Warming the renderer…");
   void (async () => {
-    await buildDungeon(urlSeed, { persistBuild: false });
+    forcedPlayMoodId = parseDungeonMoodId(launchConfig.mood);
+    setRunSource("campaign", false);
+    await buildDungeon(urlSeed, {
+      persistBuild: false,
+      activeFloor: launchConfig.visualQa.floorIndex,
+    });
     runHasStarted = false;
     setWelcomeOpen(false);
     setEngineMode("play", { hydrate: false, persist: false });
-    const qaState = playRuntime.loadFixture(visualQaState);
-    lastPortalBanner = qaState.quest.portalOpen;
-    questHudStonesFound = -1;
-    questHudPortalOpen = false;
-    updateResolve();
-    elements.shell.dataset.resolve = String(qaState.resolve);
-    elements.shell.dataset.relic = String(qaState.quest.portalOpen);
-    elements.shell.dataset.stones = String(qaState.quest.stonesFound);
-    syncQuestHud();
-    if (qaState.runMode !== "playing") showEndOverlay(qaState.runMode);
-    setStatus(`Visual QA state · ${visualQaState}`);
+    if (visualQaState) {
+      const qaState = playRuntime.loadFixture(visualQaState);
+      lastPortalBanner = qaState.quest.portalOpen;
+      questHudStonesFound = -1;
+      questHudPortalOpen = false;
+      updateResolve();
+      elements.shell.dataset.resolve = String(qaState.resolve);
+      elements.shell.dataset.relic = String(qaState.quest.portalOpen);
+      elements.shell.dataset.stones = String(qaState.quest.stonesFound);
+      syncQuestHud();
+      if (qaState.runMode !== "playing") showEndOverlay(qaState.runMode);
+    }
+    setStatus(
+      launchConfig.visualQa.parityScene
+        ? `Visual parity scene · ${launchConfig.visualQa.parityScene}`
+        : `Visual QA state · ${visualQaState}`,
+    );
     setBootProgress(0.8, "Loading type…");
     await Promise.all([
       document.fonts.ready.catch(() => undefined),

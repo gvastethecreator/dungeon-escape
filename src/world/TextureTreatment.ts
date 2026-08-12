@@ -1,9 +1,36 @@
 import * as THREE from "three";
+import type { MeshStandardNodeMaterial } from "three/webgpu";
+import {
+  getShaderProgramModeRegistry,
+  onShaderProgramModeRegistryChange,
+  type ShaderProgramMode,
+} from "../systems/ShaderProgramMode";
+import { requireTslBuilder } from "../systems/TslMaterialModules";
 
 export type SeamMode = "none" | "mirror" | "edge-blend";
 
 /** One texture repeat spans about 1.6 world cells, avoiding a stamped tile grid. */
 export const DUNGEON_SURFACE_WORLD_UV_SCALE = 0.62;
+
+/** ShaderProgramMode factory id for the dungeon surface treatment. */
+export const DUNGEON_SURFACE_SHADER_FACTORY_ID = "dungeon-surface";
+
+const DUNGEON_SURFACE_GLSL_CACHE_KEY = "dungeon-surface-v4";
+
+export type DungeonSurfaceMaterial = THREE.MeshStandardMaterial | MeshStandardNodeMaterial;
+
+/** Register (or refresh) dual-mode support on the active shader program registry. */
+export function registerDungeonSurfaceShaderFactory(
+  registry = getShaderProgramModeRegistry(),
+): void {
+  registry.register({
+    id: DUNGEON_SURFACE_SHADER_FACTORY_ID,
+    supports: ["glsl", "tsl"],
+  });
+}
+
+registerDungeonSurfaceShaderFactory();
+onShaderProgramModeRegistryChange(registerDungeonSurfaceShaderFactory);
 
 interface LinkedTextureState {
   linked: Set<THREE.Texture>;
@@ -452,20 +479,23 @@ function refreshDerivedNormalMap(albedo: THREE.Texture): void {
  *
  * Requires geometry attribute `aTileUvOffset` (InstancedBufferAttribute, vec2).
  */
-export function enableInstanceTileUvOffset(material: THREE.MeshStandardMaterial): void {
-  enableDungeonSurfaceShader(material);
+export function enableInstanceTileUvOffset(
+  material: DungeonSurfaceMaterial,
+  mode?: ShaderProgramMode,
+): void {
+  enableDungeonSurfaceShader(material, mode);
 }
 
 /**
- * Full dungeon surface shader: per-instance tile UV offset + world-space macro
- * luminance variation (breaks mechanical tiling) + damp grime band where walls
- * meet the floor. Cheap FBM, no extra textures or draw calls.
+ * GLSL onBeforeCompile path (WebGL default): per-instance tile UV offset +
+ * world-space FBM macro variation + damp floor grime on vertical surfaces.
  *
  * Requires geometry attribute `aTileUvOffset` (InstancedBufferAttribute, vec2).
  */
-export function enableDungeonSurfaceShader(material: THREE.MeshStandardMaterial): void {
+export function enableDungeonSurfaceShaderGlsl(material: THREE.MeshStandardMaterial): void {
   if (material.userData.dungeonSurfaceShader) return;
   material.userData.dungeonSurfaceShader = true;
+  material.userData.dungeonSurfaceShaderMode = "glsl";
   material.onBeforeCompile = (shader) => {
     shader.vertexShader = shader.vertexShader
       .replace(
@@ -574,13 +604,47 @@ float bfFbm( vec2 p ) {
 `,
       );
   };
-  material.customProgramCacheKey = () => "dungeon-surface-v4";
+  material.customProgramCacheKey = () => DUNGEON_SURFACE_GLSL_CACHE_KEY;
   material.needsUpdate = true;
+}
+
+/**
+ * Full dungeon surface shader: per-instance tile UV offset + world-space macro
+ * luminance variation (breaks mechanical tiling) + damp grime band where walls
+ * meet the floor. Cheap FBM, no extra textures or draw calls.
+ *
+ * Picks GLSL (default) or TSL from `mode`, falling back to the active
+ * ShaderProgramMode registry.
+ *
+ * Requires geometry attribute `aTileUvOffset` (InstancedBufferAttribute, vec2).
+ */
+export function enableDungeonSurfaceShader(
+  material: DungeonSurfaceMaterial,
+  mode?: ShaderProgramMode,
+): void {
+  registerDungeonSurfaceShaderFactory();
+  const registry = getShaderProgramModeRegistry();
+  const resolved = mode ?? registry.mode;
+  registry.require(DUNGEON_SURFACE_SHADER_FACTORY_ID, resolved);
+
+  if (resolved === "tsl") {
+    const nodeMaterial =
+      "isMeshStandardNodeMaterial" in material && material.isMeshStandardNodeMaterial
+        ? material
+        : (material as unknown as MeshStandardNodeMaterial);
+    const enableTsl = requireTslBuilder<
+      typeof import("./TextureTreatment.tsl").enableDungeonSurfaceShaderTsl
+    >(DUNGEON_SURFACE_SHADER_FACTORY_ID);
+    enableTsl(nodeMaterial);
+    return;
+  }
+
+  enableDungeonSurfaceShaderGlsl(material as THREE.MeshStandardMaterial);
 }
 
 /** @deprecated */
 export function enableFusedSurfaceMaps(
-  material: THREE.MeshStandardMaterial,
+  material: DungeonSurfaceMaterial,
   _surface: "floor" | "wall" | "ceiling",
   _worldUnitsPerTile: number,
 ): void {
@@ -589,7 +653,7 @@ export function enableFusedSurfaceMaps(
 
 /** @deprecated */
 export function enableWorldSpaceMapUv(
-  material: THREE.MeshStandardMaterial,
+  material: DungeonSurfaceMaterial,
   _axes: "xz" | "xy" | "zy",
   _worldUnitsPerTile: number,
   _themeOffset: readonly [number, number] = [0, 0],

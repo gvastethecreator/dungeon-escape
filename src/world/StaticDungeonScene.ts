@@ -21,7 +21,14 @@ import type {
   ForgePropMetadata,
   GridCell,
 } from "../dungeon/types";
-import { AssetLibrary, type WallSpriteTextures } from "./AssetLibrary";
+import { AssetLibrary } from "./AssetLibrary";
+import {
+  createBiomeFloorSpriteMaterial,
+  createBiomeWallDecalMaterial,
+  createWallSpriteMaterial,
+  type BiomeDecorMaterial,
+} from "./BiomeDecorMaterial";
+import { tintAuthoredLightVfxColor } from "./AuthoredLightVfxTint";
 import { createVolumetricBeam } from "./VolumetricBeam";
 import { createFloorCampfire } from "./FloorCampfireFactory";
 import { createWallLantern, createWallTorch } from "./WallTorchFactory";
@@ -154,10 +161,6 @@ import {
   balancedBiomeDecorItem,
   selectFairBiomeDecorPlacements,
 } from "./BiomeSpriteDecorDistribution";
-import {
-  biomeSurfacePalette,
-  type BiomeSurfacePaletteRole,
-} from "./BiomeSurfacePalettes.generated";
 import { buildStairFlight, DUNGEON_STAIR_STEP_COUNT, worldTreadColliders } from "./StaircaseKit";
 import { floorSlabY } from "./StoryMetrics";
 import { hasTaggedOwnedMaterialTextures, ThreeResourceDisposer } from "./ThreeResourceDisposer";
@@ -257,7 +260,7 @@ export interface StaticFireEffect {
 
 export interface StaticFloorBiomeSprite {
   mesh: THREE.Mesh;
-  material: THREE.MeshStandardMaterial;
+  material: BiomeDecorMaterial;
   baseOpacity: number;
   x: number;
   z: number;
@@ -271,7 +274,7 @@ export interface StaticFloorBiomeSprite {
 
 export interface StaticCeilingBiomeSprite {
   mesh: THREE.Mesh;
-  material: THREE.MeshStandardMaterial;
+  material: BiomeDecorMaterial;
   baseOpacity: number;
   x: number;
   z: number;
@@ -424,8 +427,8 @@ export class StaticDungeonScene {
   private torchFloorPoolTexture: THREE.Texture | null = null;
   private staticContactShadowTexture: THREE.Texture | null = null;
   private readonly buildRoots: THREE.Object3D[] = [];
-  private readonly biomeWallDecalMaterials = new Map<string, THREE.MeshStandardMaterial>();
-  private readonly biomeFloorSpriteMaterials = new Map<string, THREE.MeshStandardMaterial>();
+  private readonly biomeWallDecalMaterials = new Map<string, BiomeDecorMaterial>();
+  private readonly biomeFloorSpriteMaterials = new Map<string, BiomeDecorMaterial>();
   private readonly staticContactShadowPlacements: Array<{
     x: number;
     z: number;
@@ -1402,7 +1405,11 @@ export class StaticDungeonScene {
     const runtimes = [...this.residentFloorsByIndex.values()].sort(
       (left, right) => left.floorIndex - right.floorIndex,
     );
-    this.handles.doors.splice(0, this.handles.doors.length, ...runtimes.flatMap((floor) => floor.doors));
+    this.handles.doors.splice(
+      0,
+      this.handles.doors.length,
+      ...runtimes.flatMap((floor) => floor.doors),
+    );
     this.handles.pickups.splice(
       0,
       this.handles.pickups.length,
@@ -2451,7 +2458,10 @@ export class StaticDungeonScene {
         this.activeMood,
         wallSpriteRoughness,
       );
-      for (const [chunkKey, chunkEntries] of groupBySpatialChunk(artEntries, (entry) => entry.cell)) {
+      for (const [chunkKey, chunkEntries] of groupBySpatialChunk(
+        artEntries,
+        (entry) => entry.cell,
+      )) {
         const batch = new THREE.InstancedMesh(artGeometry, material, chunkEntries.length);
         batch.name = `Room wall artwork ${mapIndex + 1} chunk ${chunkKey}`;
         batch.castShadow = false;
@@ -2479,11 +2489,7 @@ export class StaticDungeonScene {
         (entry) => entry.cell,
       )) {
         for (const [partIndex, part] of templateBatches.entries()) {
-          const batch = new THREE.InstancedMesh(
-            part.geometry,
-            part.material,
-            chunkEntries.length,
-          );
+          const batch = new THREE.InstancedMesh(part.geometry, part.material, chunkEntries.length);
           batch.name = `Classic ${groupKey} chunk ${chunkKey} batch ${partIndex + 1}`;
           batch.castShadow = part.castShadow;
           batch.receiveShadow = part.receiveShadow;
@@ -2821,7 +2827,9 @@ export class StaticDungeonScene {
         x: prop.x,
         y: prop.y,
       }))) {
-        const instanceMatrices = chunkInstances.map((prop) => this.forgePropRootMatrix(dungeon, prop));
+        const instanceMatrices = chunkInstances.map((prop) =>
+          this.forgePropRootMatrix(dungeon, prop),
+        );
         for (const part of template.batches) {
           const batch = new THREE.InstancedMesh(
             part.geometry,
@@ -3774,8 +3782,7 @@ export class StaticDungeonScene {
     const signalName = /(flame|glow|halo|beam|portal|crystal|light pool)/i;
     const tintMaterial = (material: THREE.Material, color: THREE.Color, strength: number): void => {
       if (material instanceof THREE.ShaderMaterial) {
-        const uniform = material.uniforms.uColor;
-        if (uniform?.value instanceof THREE.Color) uniform.value.lerp(color, strength);
+        tintAuthoredLightVfxColor(material, color, strength);
         return;
       }
       if (
@@ -3994,7 +4001,11 @@ export class StaticDungeonScene {
             this.tileSize,
             BIOME_WALL_DECAL_OFFSET,
           );
-          this.tempPosition.set(p.x + offset.x, 1.75 + ((index + frame) % 3) * 0.12, p.z + offset.z);
+          this.tempPosition.set(
+            p.x + offset.x,
+            1.75 + ((index + frame) % 3) * 0.12,
+            p.z + offset.z,
+          );
           this.tempEuler.set(0, facingRotation(seat.intoDx, seat.intoDy), 0, "YXZ");
           this.tempQuaternion.setFromEuler(this.tempEuler);
           const spriteScale = 0.9 + random.next() * 0.2;
@@ -4545,10 +4556,7 @@ export class StaticDungeonScene {
     this.stats.props += added;
   }
 
-  private getBiomeWallDecalMaterial(
-    texture: THREE.Texture,
-    alphaTest: number,
-  ): THREE.MeshStandardMaterial {
+  private getBiomeWallDecalMaterial(texture: THREE.Texture, alphaTest: number): BiomeDecorMaterial {
     const key = `${this.activeMood.id}:v2-wall:${alphaTest}`;
     const cached = this.biomeWallDecalMaterials.get(key);
     if (cached) return cached;
@@ -4562,7 +4570,7 @@ export class StaticDungeonScene {
     texture: THREE.Texture,
     placement: BiomeSpritePlacement | BiomeSpriteDecorPlacement,
     alphaTest: number,
-  ): THREE.MeshStandardMaterial {
+  ): BiomeDecorMaterial {
     const key = `${this.activeMood.id}:v2:${placement}:${alphaTest}`;
     const cached = this.biomeFloorSpriteMaterials.get(key);
     if (cached) return cached;
@@ -5047,51 +5055,51 @@ export class StaticDungeonScene {
     const stoneRooms = stonePlacements.map((placement) => placement.room);
     if (includeStonePickups)
       stonePlacements.forEach((placement) => {
-      const { stoneId } = placement;
-      const stone = createMagicStone(stoneId, this.materials, this.stoneTextures.get(stoneId));
-      preparePickupOpacity(stone.root);
-      stone.root.userData.floorIndex = runtime.floorIndex;
-      stone.root.userData.catalogKey = `floor:${runtime.floorIndex}:stone:${stoneId}`;
-      const p = gridToWorld(dungeon, placement.cell, this.tileSize);
-      stone.root.position.set(p.x + placement.offsetX, 0, p.z + placement.offsetZ);
-      const pickup: StaticPickupActor = {
-        floorIndex: runtime.floorIndex,
-        id: `floor:${runtime.floorIndex}:stone:${stoneId}`,
-        kind: "stone",
-        stoneId,
-        object: stone.root,
-        collected: false,
-        collectTime: 0,
-        collectOriginX: stone.root.position.x,
-        collectOriginY: 0,
-        collectOriginZ: stone.root.position.z,
-        available: true,
-        revealTime: 1,
-        baseY: 0,
-        baseScale: new THREE.Vector3(1, 1, 1),
-        autoCollect: false,
-        stoneSignal: {
-          light: stone.light,
-          glow: stone.glow,
-          crown: stone.crown,
-          crystalAssembly: stone.crystalAssembly,
-          effectColor: stone.effectColor,
-          baseLightIntensity: stone.baseLightIntensity,
-          baseGlowOpacity: stone.baseGlowOpacity,
-        },
-      };
-      runtime.registerPickup(pickup);
-      this.pickups.push(pickup);
-      const beam = createVolumetricBeam(stone.effectColor, 3.8, 0.5, 0.095, {
-        signalStyle: "objective",
-        topRadius: 0.1,
-      });
-      beam.position.set(stone.root.position.x, this.wallHeight - 0.03, stone.root.position.z);
-      beam.name = `${stoneId} magic stone beacon`;
-      this.registerStoneBeam(beam);
-      // PointLight stays parented to the pickup so its world position follows the stone.
-      this.add(stone.root, beam);
-      this.stats.beams += 1;
+        const { stoneId } = placement;
+        const stone = createMagicStone(stoneId, this.materials, this.stoneTextures.get(stoneId));
+        preparePickupOpacity(stone.root);
+        stone.root.userData.floorIndex = runtime.floorIndex;
+        stone.root.userData.catalogKey = `floor:${runtime.floorIndex}:stone:${stoneId}`;
+        const p = gridToWorld(dungeon, placement.cell, this.tileSize);
+        stone.root.position.set(p.x + placement.offsetX, 0, p.z + placement.offsetZ);
+        const pickup: StaticPickupActor = {
+          floorIndex: runtime.floorIndex,
+          id: `floor:${runtime.floorIndex}:stone:${stoneId}`,
+          kind: "stone",
+          stoneId,
+          object: stone.root,
+          collected: false,
+          collectTime: 0,
+          collectOriginX: stone.root.position.x,
+          collectOriginY: 0,
+          collectOriginZ: stone.root.position.z,
+          available: true,
+          revealTime: 1,
+          baseY: 0,
+          baseScale: new THREE.Vector3(1, 1, 1),
+          autoCollect: false,
+          stoneSignal: {
+            light: stone.light,
+            glow: stone.glow,
+            crown: stone.crown,
+            crystalAssembly: stone.crystalAssembly,
+            effectColor: stone.effectColor,
+            baseLightIntensity: stone.baseLightIntensity,
+            baseGlowOpacity: stone.baseGlowOpacity,
+          },
+        };
+        runtime.registerPickup(pickup);
+        this.pickups.push(pickup);
+        const beam = createVolumetricBeam(stone.effectColor, 3.8, 0.5, 0.095, {
+          signalStyle: "objective",
+          topRadius: 0.1,
+        });
+        beam.position.set(stone.root.position.x, this.wallHeight - 0.03, stone.root.position.z);
+        beam.name = `${stoneId} magic stone beacon`;
+        this.registerStoneBeam(beam);
+        // PointLight stays parented to the pickup so its world position follows the stone.
+        this.add(stone.root, beam);
+        this.stats.beams += 1;
       });
 
     const stoneRoomSet = new Set(stoneRooms);
@@ -5839,69 +5847,6 @@ function createFloorTileGeometry(footprint: number): THREE.BoxGeometry {
   return new THREE.BoxGeometry(footprint, 0.1, footprint);
 }
 
-function createWallSpriteMaterial(
-  textures: WallSpriteTextures,
-  mood: DungeonMood,
-  roughness: number,
-  opacity = 1,
-): THREE.MeshStandardMaterial {
-  const material = new THREE.MeshStandardMaterial({
-    map: textures.albedo,
-    normalMap: textures.normal,
-    roughnessMap: textures.rough,
-    color: new THREE.Color(mood.surfaceTint).lerp(new THREE.Color(0xffffff), 0.72),
-    transparent: true,
-    opacity: Math.min(opacity, 0.9),
-    alphaTest: opacity < 1 ? 0.16 : 0.1,
-    depthWrite: false,
-    side: THREE.DoubleSide,
-    roughness: THREE.MathUtils.clamp(roughness, 0.78, 1),
-    metalness: 0,
-    envMapIntensity: THREE.MathUtils.clamp(mood.environmentIntensity * 1.1, 0.08, 0.32),
-    fog: true,
-    polygonOffset: true,
-    polygonOffsetFactor: -2,
-    polygonOffsetUnits: -2,
-  });
-  // Keep the sprite planar. Depth remains available for later parallax work.
-  material.normalScale.set(0.24, 0.24);
-  material.onBeforeCompile = muteBiomePropShader;
-  material.customProgramCacheKey = () => "environment-sprite-muted-fog-v4";
-  material.userData.depthTexture = textures.depth;
-  material.userData.wallSpritePbr = true;
-  material.userData.environmentSpriteTreatment = "muted-biome-fog-v4";
-  return material;
-}
-
-/**
- * Mute bright atlas cells, then dissolve wall sprites into FogExp2 so distant
- * alpha-tested silhouettes do not punch through the exploration fog wall.
- */
-function muteBiomePropShader(shader: { fragmentShader: string }): void {
-  const mapChunk = "#include <map_fragment>";
-  if (shader.fragmentShader.includes(mapChunk)) {
-    shader.fragmentShader = shader.fragmentShader.replace(
-      mapChunk,
-      `${mapChunk}
-      float biomePropLuma = dot(diffuseColor.rgb, vec3(0.299, 0.587, 0.114));
-      diffuseColor.rgb = mix(vec3(biomePropLuma), diffuseColor.rgb, 0.38);
-      diffuseColor.rgb *= 0.78;`,
-    );
-  }
-  const fogChunk = "#include <fog_fragment>";
-  if (!shader.fragmentShader.includes(fogChunk)) return;
-  // After stock fog, pull remaining color into the fog and soft-kill alpha so
-  // hard alphaTest edges do not read as floating wall stickers at range.
-  shader.fragmentShader = shader.fragmentShader.replace(
-    fogChunk,
-    `${fogChunk}
-  #ifdef USE_FOG
-    float biomePropFogVisibility = 1.0 - smoothstep(0.24, 0.62, fogFactor);
-    gl_FragColor.a *= biomePropFogVisibility;
-  #endif`,
-  );
-}
-
 /** Remap a plane's local UVs into one slot of the shared v2 biome atlas. */
 function applyBiomeDecorAtlasUv(geometry: THREE.BufferGeometry, slot: number): void {
   const uv = geometry.getAttribute("uv");
@@ -5919,10 +5864,6 @@ function applyBiomeDecorAtlasUv(geometry: THREE.BufferGeometry, slot: number): v
   uv.needsUpdate = true;
 }
 
-function biomeDecorTint(mood: DungeonMood, surface: BiomeSurfacePaletteRole): THREE.Color {
-  return new THREE.Color(biomeSurfacePalette(mood.id, surface).propTint);
-}
-
 /** Distinct, restrained hanging motion for every biome without per-frame allocation. */
 function biomeDecorMotion(
   mood: DungeonMood,
@@ -5938,125 +5879,6 @@ function biomeDecorMotion(
     speed: 0.42 + (biomeHash % 7) * 0.055,
     amplitude: 0.006 + (biomeHash % 4) * 0.002,
   };
-}
-
-/** Pull authored sprite color and value toward the extracted surface palette. */
-function integrateBiomeDecorShader(shader: { fragmentShader: string }): void {
-  const mapChunk = "#include <map_fragment>";
-  if (shader.fragmentShader.includes(mapChunk)) {
-    shader.fragmentShader = shader.fragmentShader.replace(
-      mapChunk,
-      `${mapChunk}
-      float biomeDecorLuma = dot(diffuseColor.rgb, vec3(0.2126, 0.7152, 0.0722));
-      float biomeDecorTintLuma = max(dot(diffuse, vec3(0.2126, 0.7152, 0.0722)), 0.001);
-      float biomeDecorRelativeLuma = clamp(biomeDecorLuma / biomeDecorTintLuma, 0.0, 1.0);
-      float biomeDecorSurfaceValue = mix(0.32, 0.82, smoothstep(0.08, 0.92, biomeDecorRelativeLuma));
-      vec3 biomeDecorSurfaceTone = diffuse * biomeDecorSurfaceValue;
-      diffuseColor.rgb = mix(biomeDecorSurfaceTone, diffuseColor.rgb, 0.28);
-      diffuseColor.rgb *= 0.86;`,
-    );
-  }
-  const fogChunk = "#include <fog_fragment>";
-  if (shader.fragmentShader.includes(fogChunk)) {
-    shader.fragmentShader = shader.fragmentShader.replace(
-      fogChunk,
-      `${fogChunk}
-  #ifdef USE_FOG
-    float biomeDecorFogVisibility = 1.0 - smoothstep(0.24, 0.62, fogFactor);
-    gl_FragColor.a *= biomeDecorFogVisibility;
-  #endif`,
-    );
-  }
-}
-
-/** Lit wall decal material. The shared flag keeps rebuilds from disposing cached maps. */
-function createBiomeWallDecalMaterial(
-  texture: THREE.Texture,
-  mood: DungeonMood,
-  alphaTest: number,
-): THREE.MeshStandardMaterial {
-  const palette = biomeSurfacePalette(mood.id, "wall");
-  const material = new THREE.MeshStandardMaterial({
-    map: texture,
-    color: biomeDecorTint(mood, "wall"),
-    emissive: new THREE.Color(palette.base),
-    emissiveMap: texture,
-    emissiveIntensity: 0.045,
-    transparent: true,
-    opacity: 1,
-    alphaTest,
-    depthWrite: false,
-    depthTest: true,
-    polygonOffset: true,
-    polygonOffsetFactor: -2,
-    polygonOffsetUnits: -2,
-    side: THREE.DoubleSide,
-    roughness: 0.92,
-    metalness: 0,
-    envMapIntensity: THREE.MathUtils.clamp(mood.environmentIntensity, 0.08, 0.28),
-    fog: true,
-  });
-  material.toneMapped = true;
-  material.onBeforeCompile = integrateBiomeDecorShader;
-  material.customProgramCacheKey = () => "biome-prop-v2-wall-integrated-v6";
-  material.userData.sharedDungeonMaterial = true;
-  material.userData.biomeSpriteWallDecal = true;
-  material.userData.authoredColorWeight = 0.28;
-  material.userData.brightness = 0.86;
-  material.userData.mapBlend = "authored-v2-biome-surface-tone-v6";
-  material.userData.biomeMood = mood.id;
-  material.userData.biomeSurfacePalette = palette;
-  material.userData.biomeSurfacePaletteRole = "wall";
-  material.userData.visibilityBoost = 0.06;
-  return material;
-}
-
-/** Lit floor sprite plane; its orientation depends on the authored placement. */
-function createBiomeFloorSpriteMaterial(
-  texture: THREE.Texture,
-  mood: DungeonMood,
-  placement: BiomeSpritePlacement | BiomeSpriteDecorPlacement,
-  alphaTest: number,
-): THREE.MeshStandardMaterial {
-  const isFloorDecal = placement === "floor-decal";
-  const paletteRole: BiomeSurfacePaletteRole =
-    placement === "ceiling-hanging" ? "ceiling" : "floor";
-  const palette = biomeSurfacePalette(mood.id, paletteRole);
-  const material = new THREE.MeshStandardMaterial({
-    map: texture,
-    color: biomeDecorTint(mood, paletteRole),
-    emissive: new THREE.Color(palette.base),
-    emissiveMap: texture,
-    emissiveIntensity: 0.045,
-    transparent: true,
-    opacity: 1,
-    alphaTest,
-    depthWrite: false,
-    depthTest: true,
-    polygonOffset: isFloorDecal,
-    polygonOffsetFactor: isFloorDecal ? -3 : 0,
-    polygonOffsetUnits: isFloorDecal ? -3 : 0,
-    side: THREE.DoubleSide,
-    roughness: isFloorDecal ? 1 : 0.98,
-    metalness: 0,
-    envMapIntensity: THREE.MathUtils.clamp(mood.environmentIntensity * 0.8, 0.06, 0.22),
-    fog: true,
-  });
-  material.toneMapped = true;
-  material.onBeforeCompile = integrateBiomeDecorShader;
-  material.customProgramCacheKey = () => `biome-prop-v2-${placement}-integrated-v6`;
-  material.userData.sharedDungeonMaterial = true;
-  material.userData.biomeSpritePlacement = placement;
-  material.userData.biomeSpriteBillboard =
-    placement === "floor-decal" ? "floor-fixed" : "yaw-to-player";
-  material.userData.authoredColorWeight = 0.28;
-  material.userData.brightness = 0.86;
-  material.userData.mapBlend = "authored-v2-biome-surface-tone-v6";
-  material.userData.biomeMood = mood.id;
-  material.userData.biomeSurfacePalette = palette;
-  material.userData.biomeSurfacePaletteRole = paletteRole;
-  material.userData.visibilityBoost = 0.06;
-  return material;
 }
 
 /** Attach per-instance UV offsets (geometry must not be shared across meshes). */

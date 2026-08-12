@@ -20,8 +20,14 @@ describe("launch configuration", () => {
       authorityBaseUrl: "http://localhost:8787",
       skipRunIntro: true,
       performanceAudit: true,
-      visualQa: { state: "portal", seed: "CAMPANA-17" },
-      render: { quality: true, crt: false, safeRender: null },
+      visualQa: {
+        enabled: true,
+        state: "portal",
+        seed: "CAMPANA-17",
+        parityScene: null,
+        floorIndex: 0,
+      },
+      render: { quality: true, crt: false, safeRender: null, renderer: "auto" },
     });
     expect(Object.isFrozen(config)).toBe(true);
     expect(Object.isFrozen(config.visualQa)).toBe(true);
@@ -33,8 +39,38 @@ describe("launch configuration", () => {
     const explicitEmptyMood = parseLaunchConfiguration("?mood=&theme=frost");
 
     expect(normal.mood).toBe("molten");
-    expect(normal.visualQa).toEqual({ state: null, seed: null });
+    expect(normal.visualQa).toEqual({
+      enabled: false,
+      state: null,
+      seed: null,
+      parityScene: null,
+      floorIndex: 0,
+    });
     expect(explicitEmptyMood.mood).toBeNull();
+  });
+
+  test("gates deterministic parity scenes and floors behind perfAudit", () => {
+    expect(
+      parseLaunchConfiguration("?perfAudit=1&seed=WGP02&parityScene=torch-hall&floor=2").visualQa,
+    ).toEqual({
+      enabled: true,
+      state: null,
+      seed: "WGP02",
+      parityScene: "torch-hall",
+      floorIndex: 2,
+    });
+    expect(parseLaunchConfiguration("?parityScene=torch-hall&floor=2").visualQa.enabled).toBe(
+      false,
+    );
+  });
+
+  test("parses renderer preference and falls unknown values to auto", () => {
+    expect(parseLaunchConfiguration("?renderer=webgpu").render.renderer).toBe("webgpu");
+    expect(parseLaunchConfiguration("?renderer=webgl").render.renderer).toBe("webgl");
+    expect(parseLaunchConfiguration("?renderer=auto").render.renderer).toBe("auto");
+    expect(parseLaunchConfiguration("?renderer=WEBGPU").render.renderer).toBe("webgpu");
+    expect(parseLaunchConfiguration("?renderer=metal").render.renderer).toBe("auto");
+    expect(parseLaunchConfiguration("").render.renderer).toBe("auto");
   });
 
   test("updates only supplied runtime URL state", () => {
