@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import * as THREE from "three";
+import { MeshBasicNodeMaterial, PointsNodeMaterial } from "three/webgpu";
 
 import { generateDungeon } from "../src/dungeon/generateDungeon";
 import {
@@ -13,8 +14,25 @@ import {
   SOFT_FOG_MAX_ALPHA,
   SOFT_FOG_MAX_DIST,
 } from "../src/systems/AtmosphereSystem";
+import type { BiomeParticleUniformHandles, SoftGroundFogUniformHandles } from "../src/systems/AtmosphereMaterialsShared";
+import {
+  biomeParticleHandles,
+  BIOME_PARTICLE_SHADER_FACTORY_ID,
+  registerBiomeParticleShaderFactory,
+} from "../src/systems/BiomeParticleMaterial";
 import { getBiomeParticleProfile } from "../src/systems/BiomeParticleProfile";
 import { getDungeonMood } from "../src/systems/DungeonMood";
+import {
+  createShaderProgramModeRegistry,
+  getShaderProgramModeRegistry,
+  resetShaderProgramModeRegistryForTests,
+  setShaderProgramModeRegistry,
+} from "../src/systems/ShaderProgramMode";
+import {
+  registerSoftGroundFogShaderFactory,
+  softGroundFogHandles,
+  SOFT_GROUND_FOG_SHADER_FACTORY_ID,
+} from "../src/systems/SoftGroundFogMaterial";
 
 function dualHeightDensity(y: number): number {
   return (
@@ -270,5 +288,55 @@ describe("soft ground fog", () => {
     expect((signature.material as any).uniforms.uViewer.value.z).toBeCloseTo(-3.6);
 
     atmosphere.dispose();
+  });
+
+  test("TSL mode builds MeshBasicNodeMaterial fog and sprite biome particles", () => {
+    resetShaderProgramModeRegistryForTests();
+    setShaderProgramModeRegistry(createShaderProgramModeRegistry("tsl"));
+    registerSoftGroundFogShaderFactory();
+    registerBiomeParticleShaderFactory();
+
+    const scene = new THREE.Scene();
+    const atmosphere = new AtmosphereSystem(scene, 2.4, SOFT_FOG_DEFAULT_WALL_HEIGHT);
+    atmosphere.setDungeon(generateDungeon("FOG-TSL", { roomTarget: 10 }), getDungeonMood("ash"));
+
+    const mesh = scene.getObjectByName("Soft volumetric ground fog") as THREE.Mesh;
+    expect(mesh.material).toBeInstanceOf(MeshBasicNodeMaterial);
+    expect((mesh.material as MeshBasicNodeMaterial).userData.shaderProgramMode).toBe("tsl");
+    expect((mesh.material as MeshBasicNodeMaterial).colorNode).toBeTruthy();
+
+    const profile = getBiomeParticleProfile("ash");
+    const support = scene.getObjectByName(
+      `Biome particles: ${profile.support.name}`,
+    ) as THREE.Sprite;
+    expect(support).toBeInstanceOf(THREE.Sprite);
+    expect(support.userData.particlePrimitive).toBe("sprite");
+    expect(support.count).toBeGreaterThanOrEqual(profile.support.minCount);
+    expect(support.material).toBeInstanceOf(PointsNodeMaterial);
+    expect((support.material as PointsNodeMaterial).userData.shaderProgramMode).toBe("tsl");
+
+    atmosphere.update(0.5, { x: 2, y: 1.6, z: -1 });
+    const fogUniforms = (mesh.material as any).uniforms as SoftGroundFogUniformHandles;
+    expect(fogUniforms.uTime.value).toBeGreaterThan(0);
+    expect(fogUniforms.uBoxCenter.value.x).toBeCloseTo(2);
+
+    const particleUniforms = (support.material as any).uniforms as BiomeParticleUniformHandles;
+    expect(particleUniforms.uTime.value).toBeGreaterThan(0);
+    expect(particleUniforms.uViewer.value.z).toBe(-1);
+
+    atmosphere.dispose();
+    resetShaderProgramModeRegistryForTests();
+  });
+
+  test("factory ids register glsl and tsl support", () => {
+    resetShaderProgramModeRegistryForTests();
+    registerSoftGroundFogShaderFactory();
+    registerBiomeParticleShaderFactory();
+    const registry = getShaderProgramModeRegistry();
+    expect(registry.supports(SOFT_GROUND_FOG_SHADER_FACTORY_ID, "glsl")).toBe(true);
+    expect(registry.supports(SOFT_GROUND_FOG_SHADER_FACTORY_ID, "tsl")).toBe(true);
+    expect(registry.supports(BIOME_PARTICLE_SHADER_FACTORY_ID, "glsl")).toBe(true);
+    expect(registry.supports(BIOME_PARTICLE_SHADER_FACTORY_ID, "tsl")).toBe(true);
+    resetShaderProgramModeRegistryForTests();
   });
 });
