@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { afterEach, describe, expect, test } from "bun:test";
 import * as THREE from "three";
 import { MeshStandardNodeMaterial } from "three/webgpu";
 
@@ -27,6 +27,12 @@ import {
   dungeonFloorUvOffset,
   dungeonWallUvOffset,
 } from "../src/world/StaticDungeonScene";
+
+// The shader program mode registry is process-global; leaking `tsl` mode
+// into later test files would build node materials where GLSL is expected.
+afterEach(() => {
+  resetShaderProgramModeRegistryForTests();
+});
 
 describe("texture seam treatment", () => {
   test("edge-blend forces opposite borders toward the same colors", () => {

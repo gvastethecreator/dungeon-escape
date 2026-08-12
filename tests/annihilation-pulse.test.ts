@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { afterEach, describe, expect, test } from "bun:test";
 import * as THREE from "three";
 import { PointsNodeMaterial } from "three/webgpu";
 
@@ -28,6 +28,12 @@ import {
   getAnnihilationBurstProfile,
   registerAnnihilationBurstShaderFactory,
 } from "../src/world/AnnihilationPulseVfx";
+
+// The shader program mode registry is process-global; leaking `tsl` mode
+// into later test files would build node materials where GLSL is expected.
+afterEach(() => {
+  resetShaderProgramModeRegistryForTests();
+});
 
 describe("annihilation pulse", () => {
   test("fires on a stable interval and expires at its declared duration", () => {

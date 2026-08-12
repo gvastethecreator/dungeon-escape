@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { afterEach, describe, expect, test } from "bun:test";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import * as THREE from "three";
@@ -27,6 +27,12 @@ import {
 } from "../src/world/UncannyWallRuntime";
 
 const durations = [1200, 180, 240, 220] as const;
+
+// The shader program mode registry is process-global; leaking `tsl` mode
+// into later test files would build node materials where GLSL is expected.
+afterEach(() => {
+  resetShaderProgramModeRegistryForTests();
+});
 
 describe("uncanny wall runtime", () => {
   test("holds frame zero for an independent deterministic 1..10 seconds", () => {
