@@ -153,22 +153,23 @@ describe("biome magic portal assemblies", () => {
       expect(bounds!.max.y - bounds!.min.y).toBeGreaterThan((bounds!.max.x - bounds!.min.x) * 2);
 
       for (const material of [portal.interior.vortex.material, portal.interior.spiral.material]) {
-        expect(material.uniforms.uTime?.value).toBe(0);
-        const deepColor = material.uniforms.uDeepColor?.value;
-        const magicColor = material.uniforms.uMagicColor?.value;
-        const brightColor = material.uniforms.uBrightColor?.value;
+        const glsl = material as THREE.ShaderMaterial;
+        expect(glsl.uniforms.uTime?.value).toBe(0);
+        const deepColor = glsl.uniforms.uDeepColor?.value;
+        const magicColor = glsl.uniforms.uMagicColor?.value;
+        const brightColor = glsl.uniforms.uBrightColor?.value;
         expect(deepColor).toBeInstanceOf(THREE.Color);
         expect(magicColor).toBeInstanceOf(THREE.Color);
         expect(brightColor).toBeInstanceOf(THREE.Color);
         expect((deepColor as THREE.Color).getHex()).toBe(profile.deepColor);
         expect((magicColor as THREE.Color).getHex()).toBe(profile.magicColor);
         expect((brightColor as THREE.Color).getHex()).toBe(profile.brightColor);
-        expect(material.uniforms.uPrimaryArms?.value).toBe(profile.primaryArms);
-        expect(material.uniforms.uSecondaryArms?.value).toBe(profile.secondaryArms);
-        expect(material.uniforms.uRadialFrequency?.value).toBe(profile.radialFrequency);
-        expect(material.uniforms.uFlowSpeed?.value).toBe(profile.flowSpeed);
-        expect(material.uniforms.uCounterSpeed?.value).toBe(profile.counterSpeed);
-        expect(material.uniforms.uSpiralSharpness?.value).toBe(profile.spiralSharpness);
+        expect(glsl.uniforms.uPrimaryArms?.value).toBe(profile.primaryArms);
+        expect(glsl.uniforms.uSecondaryArms?.value).toBe(profile.secondaryArms);
+        expect(glsl.uniforms.uRadialFrequency?.value).toBe(profile.radialFrequency);
+        expect(glsl.uniforms.uFlowSpeed?.value).toBe(profile.flowSpeed);
+        expect(glsl.uniforms.uCounterSpeed?.value).toBe(profile.counterSpeed);
+        expect(glsl.uniforms.uSpiralSharpness?.value).toBe(profile.spiralSharpness);
       }
 
       const frameMaterials = collectStandardMaterials(portal.frame);

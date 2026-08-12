@@ -32,6 +32,17 @@ import { createImageSculptedAmbient } from "./world/AtmospherePropsKit";
 import { createImageSculptedSpikePlate } from "./world/HazardTileSystem";
 import { LightingRig } from "./systems/LightingRig";
 import { resolveDungeonExposure } from "./systems/LightTuning";
+import { parseLaunchConfiguration } from "./launch/LaunchConfiguration";
+import {
+  createPlayRendererHandle,
+  readPlayRendererBackendName,
+  type PlayRendererHandle,
+} from "./systems/PlayRendererFactory";
+import {
+  createShaderProgramModeRegistry,
+  setShaderProgramModeRegistry,
+} from "./systems/ShaderProgramMode";
+import type { DungeonRenderer } from "./systems/DungeonRenderer";
 
 export const MODEL_QA_VIEWS = ["front", "right", "back", "left", "rear-left", "top"] as const;
 export type ModelQaView = (typeof MODEL_QA_VIEWS)[number];
@@ -500,6 +511,8 @@ export interface ModelQaQuery {
   id: ModelQaModelId;
   view: ModelQaView;
   mood: DungeonMoodId | "neutral";
+  /** Launch renderer preference (`auto` | `webgl` | `webgpu`). */
+  renderer: "auto" | "webgl" | "webgpu";
   errors: string[];
 }
 
@@ -573,6 +586,7 @@ export function parseModelQaQuery(search: string): ModelQaQuery {
   const view = isModelQaView(requestedView) ? requestedView : "front";
   const parsedMood = parseDungeonMoodId(requestedMood);
   const mood = requestedMood === "neutral" ? "neutral" : (parsedMood ?? "neutral");
+  const renderer = parseLaunchConfiguration(search).render.renderer;
 
   if (requestedId && id !== requestedId)
     errors.push(`Unknown model “${requestedId}”; using ${DEFAULT_MODEL_QA_ID}.`);
@@ -581,7 +595,7 @@ export function parseModelQaQuery(search: string): ModelQaQuery {
   if (requestedMood && requestedMood !== "neutral" && !parsedMood)
     errors.push(`Unknown mood “${requestedMood}”; using neutral lighting.`);
 
-  return { id, view, mood, errors };
+  return { id, view, mood, renderer, errors };
 }
 
 export function createModelQaState(query: ModelQaQuery): ModelQaState {
@@ -949,7 +963,8 @@ export function startModelLab(loadTimeoutMs = MODEL_QA_LOAD_TIMEOUT_MS): ModelQa
   const query = parseModelQaQuery(window.location.search);
   const state = createModelQaState(query);
   let elements: ModelLabElements | null = null;
-  let renderer: THREE.WebGLRenderer | null = null;
+  let renderer: (THREE.WebGLRenderer & DungeonRenderer) | null = null;
+  let playRendererHandle: PlayRendererHandle | null = null;
   let model: THREE.Group | null = null;
   let materials: DungeonMaterials | null = null;
   let lighting: LightingRig | null = null;
@@ -965,7 +980,11 @@ export function startModelLab(loadTimeoutMs = MODEL_QA_LOAD_TIMEOUT_MS): ModelQa
     () => model?.removeFromParent(),
     () => lighting?.dispose(),
     () => disposeModelQaResources(model, materials),
-    () => renderer?.dispose(),
+    () => {
+      playRendererHandle?.dispose();
+      playRendererHandle = null;
+      renderer = null;
+    },
   ]);
 
   state.destroy = () => {
@@ -979,21 +998,33 @@ export function startModelLab(loadTimeoutMs = MODEL_QA_LOAD_TIMEOUT_MS): ModelQa
   window.__MODEL_QA__ = state;
   window.addEventListener("pagehide", pageHideHandler, { once: true });
 
+  void (async () => {
   try {
     elements = modelLabElements();
     updateModelLabOverlay(elements, state);
-    renderer = new THREE.WebGLRenderer({
+    playRendererHandle = await createPlayRendererHandle({
       canvas: elements.canvas,
-      antialias: true,
-      powerPreference: "high-performance",
+      preference: query.renderer,
+      preferDefaultGpu: false,
     });
-    renderer.setPixelRatio(1);
+    setShaderProgramModeRegistry(
+      createShaderProgramModeRegistry(playRendererHandle.isWebGpuRenderer ? "tsl" : "glsl"),
+    );
+    renderer = playRendererHandle.renderer as THREE.WebGLRenderer & DungeonRenderer;
+    if ("setPixelRatio" in renderer) renderer.setPixelRatio(1);
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     renderer.toneMappingExposure =
       query.mood === "neutral"
         ? 1
         : resolveDungeonExposure(0.5, getDungeonMood(query.mood).exposureBias);
+    (globalThis as { __rendererInfo?: unknown }).__rendererInfo = {
+      app: "model-lab",
+      requested: playRendererHandle.requested,
+      backend: playRendererHandle.backend,
+      backendName: readPlayRendererBackendName(playRendererHandle),
+      isWebGpuRenderer: playRendererHandle.isWebGpuRenderer,
+    };
 
     const scene = new THREE.Scene();
     if (query.mood === "neutral") {
@@ -1036,7 +1067,9 @@ export function startModelLab(loadTimeoutMs = MODEL_QA_LOAD_TIMEOUT_MS): ModelQa
         lighting.update(1, camera.position, null, viewForward);
       }
       renderer!.render(scene, camera);
-      state.metrics = collectModelQaMetrics(model!, renderer!.info.render.calls);
+      const drawCalls =
+        (renderer as THREE.WebGLRenderer | null)?.info?.render?.calls ?? null;
+      state.metrics = collectModelQaMetrics(model!, drawCalls);
     };
 
     resizeHandler = () => {
@@ -1068,6 +1101,7 @@ export function startModelLab(loadTimeoutMs = MODEL_QA_LOAD_TIMEOUT_MS): ModelQa
     settleModelQaState(state, "error", [errorMessage(error)]);
     state.destroy();
   }
+  })();
 
   return state;
 }

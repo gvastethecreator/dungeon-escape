@@ -523,9 +523,15 @@ setShaderProgramModeRegistry(createShaderProgramModeRegistry(shaderProgramMode))
 const { registerDungeonSurfaceShaderFactory } = await import("./world/TextureTreatment");
 const { registerNoiseFlameShaderFactory } = await import("./world/ProceduralFlameVfx");
 const { registerVolumetricBeamShaderFactory } = await import("./world/VolumetricBeam");
+const { registerEnemyBillboardShaderFactory } = await import("./world/EnemyBillboardMaterial");
+const { registerEnemyMotionTrailShaderFactory } = await import("./world/EnemyMotionTrailVfx");
+const { registerLiquidShaderFactory } = await import("./world/LiquidSectionKit");
 registerDungeonSurfaceShaderFactory();
 registerNoiseFlameShaderFactory();
 registerVolumetricBeamShaderFactory();
+registerEnemyBillboardShaderFactory();
+registerEnemyMotionTrailShaderFactory();
+registerLiquidShaderFactory();
 console.info("[renderer-init]", {
   durationMs: Math.round(rendererInitDurationMs),
   requestedRenderer: renderPathCaps.requestedRenderer,
@@ -661,6 +667,10 @@ const minimapLayout = createMinimapLayoutScheduler({
 });
 let smoothedFrameMs = 16.67;
 const frameGapProfiler = new FrameGapProfiler();
+if (typeof globalThis !== "undefined") {
+  (globalThis as { __frameGapSnapshot?: () => FrameGapSnapshot }).__frameGapSnapshot = () =>
+    frameGapProfiler.snapshot();
+}
 let profileWarmupUntil = Number.POSITIVE_INFINITY;
 let profileSimulationActive = false;
 let lastPerformancePublish = 0;

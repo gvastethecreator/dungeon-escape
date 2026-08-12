@@ -91,6 +91,7 @@ describe("model QA lab", () => {
       id: "crypt-stone",
       view: "top",
       mood: "neutral",
+      renderer: "auto",
       errors: [],
     });
 

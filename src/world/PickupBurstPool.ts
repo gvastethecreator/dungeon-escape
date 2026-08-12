@@ -1,4 +1,29 @@
 import * as THREE from "three";
+import { PointsNodeMaterial } from "three/webgpu";
+import {
+  Fn,
+  abs,
+  clamp,
+  float,
+  instancedBufferAttribute,
+  length,
+  max,
+  mix,
+  select,
+  sin,
+  smoothstep,
+  uniform,
+  uv,
+  vec2,
+  vec3,
+  vec4,
+} from "three/tsl";
+
+import {
+  getShaderProgramModeRegistry,
+  onShaderProgramModeRegistryChange,
+  type ShaderProgramMode,
+} from "../systems/ShaderProgramMode";
 
 export type PickupBurstKind =
   | "stone"
@@ -65,7 +90,8 @@ interface PickupBurstSlot {
   root: THREE.Group;
   ring: THREE.Mesh<THREE.RingGeometry, THREE.MeshBasicMaterial>;
   echo: THREE.Mesh<THREE.RingGeometry, THREE.MeshBasicMaterial>;
-  sparks: THREE.Points<THREE.BufferGeometry, THREE.ShaderMaterial>;
+  sparks: THREE.Points | THREE.Sprite;
+  sparkPositionAttribute: THREE.BufferAttribute | THREE.InstancedBufferAttribute;
   active: boolean;
   age: number;
   originY: number;
@@ -367,8 +393,38 @@ const SPARK_SHAPE_ID: Readonly<Record<PickupSparkShape, number>> = {
 const SPARK_COUNT = 36;
 const SPARK_CORE_LIGHT = new THREE.Color(0xffffff);
 
-function createSparkMaterial(): THREE.ShaderMaterial {
-  return new THREE.ShaderMaterial({
+/** ShaderProgramMode factory id for pickup burst spark particles. */
+export const PICKUP_BURST_SPARKS_SHADER_FACTORY_ID = "pickup-burst-sparks";
+
+/** Register (or refresh) dual-mode support on the active shader program registry. */
+export function registerPickupBurstSparksShaderFactory(
+  registry = getShaderProgramModeRegistry(),
+): void {
+  registry.register({
+    id: PICKUP_BURST_SPARKS_SHADER_FACTORY_ID,
+    supports: ["glsl", "tsl"],
+  });
+}
+
+registerPickupBurstSparksShaderFactory();
+onShaderProgramModeRegistryChange(registerPickupBurstSparksShaderFactory);
+
+type PickupSparkUniforms = {
+  uColor: { value: THREE.Color };
+  uCoreColor: { value: THREE.Color };
+  uOpacity: { value: number };
+  uPointSize: { value: number };
+  uShape: { value: number };
+  uTime: { value: number };
+  uIntensity: { value: number };
+};
+
+type PickupSparkMaterial = (THREE.ShaderMaterial | PointsNodeMaterial) & {
+  uniforms: PickupSparkUniforms;
+};
+
+function createSparkMaterialGlsl(): PickupSparkMaterial {
+  const material = new THREE.ShaderMaterial({
     uniforms: THREE.UniformsUtils.merge([
       THREE.UniformsLib.fog,
       {
@@ -496,9 +552,129 @@ function createSparkMaterial(): THREE.ShaderMaterial {
     toneMapped: true,
     fog: true,
   });
+  material.userData.shaderProgramMode = "glsl";
+  material.userData.pickupBurstSparks = true;
+  material.userData.sparkPrimitive = "points";
+  return material as PickupSparkMaterial;
 }
 
-function createSlot(index: number): PickupBurstSlot {
+function createSparkMaterialTsl(
+  positionAttribute: THREE.InstancedBufferAttribute,
+  seedAttribute: THREE.InstancedBufferAttribute,
+): PickupSparkMaterial {
+  const uColor = uniform(new THREE.Color(BURST_COLORS.stone));
+  const uCoreColor = uniform(new THREE.Color(0xffffff));
+  const uOpacity = uniform(0);
+  const uPointSize = uniform(BURST_PROFILES.stone.pointSize);
+  const uShape = uniform(SPARK_SHAPE_ID.diamond);
+  const uTime = uniform(0);
+  const uIntensity = uniform(1.18);
+  const aPosition = instancedBufferAttribute<"vec3">(positionAttribute, "vec3");
+  const aSeed = instancedBufferAttribute<"float">(seedAttribute, "float");
+
+  const material = new PointsNodeMaterial();
+  material.name = "Pickup spark burst material (TSL sprites)";
+  material.transparent = true;
+  material.depthWrite = false;
+  material.depthTest = true;
+  material.blending = THREE.AdditiveBlending;
+  material.toneMapped = true;
+  material.fog = true;
+  material.sizeAttenuation = true;
+  material.positionNode = aPosition as any;
+  material.sizeNode = max(
+    float(0.018),
+    (uPointSize as any).mul(float(0.58).add((aSeed as any).mul(0.22))).mul(float(1.0).sub((uOpacity as any).mul(0.04))),
+  );
+
+  const sample = Fn(() => {
+    const local = uv().sub(vec2(0.5));
+    const angle = aSeed.mul(6.2831853);
+    const pulse = float(0.84).add(
+      sin(uTime.mul(float(1.2).add(aSeed.mul(0.8))).add(angle)).mul(0.16),
+    );
+    const d = length(local);
+    const diamond = float(1).sub(smoothstep(0.24, 0.48, abs(local.x).add(abs(local.y))));
+    const orb = max(smoothstep(0.38, 0.06, d), float(1).sub(smoothstep(0.035, 0.085, abs(d.sub(0.31)))));
+    const splinter = smoothstep(0.48, 0.08, length(vec2(local.x.mul(3.8), local.y.mul(0.78))));
+    const rune = max(
+      float(1).sub(smoothstep(0.025, 0.065, abs(max(abs(local.x), abs(local.y)).sub(0.29)))),
+      float(1).sub(smoothstep(0.025, 0.065, abs(local.x.add(local.y.mul(0.42))))),
+    );
+    const flame = smoothstep(
+      0.42,
+      0.08,
+      length(vec2(local.x.mul(float(1.55).add(max(local.y, float(0)))), local.y.mul(0.86).add(0.08))),
+    );
+    const voidRing = max(
+      float(1).sub(smoothstep(0.035, 0.085, abs(d.sub(0.31)))),
+      smoothstep(0.14, 0.05, d).mul(0.42),
+    );
+    const shaped = select(
+      uShape.lessThan(0.5),
+      diamond,
+      select(
+        uShape.lessThan(3.5),
+        orb,
+        select(
+          uShape.lessThan(5.5),
+          splinter,
+          select(uShape.lessThan(7.5), rune, select(uShape.lessThan(9.5), flame, voidRing)),
+        ),
+      ),
+    );
+    const edge = smoothstep(0.0, 0.16, shaped);
+    const core = float(1).sub(smoothstep(0.2, 0.02, d)).mul(edge);
+    const halo = float(1).sub(smoothstep(0.5, 0.12, d)).mul(edge);
+    const color = mix(uColor, uCoreColor, core.mul(0.82))
+      .add(uCoreColor.mul(halo).mul(float(0.08).add(pulse.mul(0.12))))
+      .mul(uIntensity);
+    const alpha = edge.mul(uOpacity).mul(float(0.84).add(pulse.mul(0.16)));
+    return vec4(vec3(color), clamp(alpha, 0.0, 1.0));
+  })();
+  material.colorNode = sample.rgb;
+  material.opacityNode = sample.a;
+  material.alphaTest = 0.015;
+  const typed = material as unknown as PickupSparkMaterial;
+  typed.uniforms = {
+    uColor,
+    uCoreColor,
+    uOpacity,
+    uPointSize,
+    uShape,
+    uTime,
+    uIntensity,
+  } as PickupSparkUniforms;
+  typed.userData.shaderProgramMode = "tsl";
+  typed.userData.pickupBurstSparks = true;
+  typed.userData.sparkPrimitive = "sprite";
+  return typed;
+}
+
+function createSparkObject(
+  positionAttribute: THREE.BufferAttribute | THREE.InstancedBufferAttribute,
+  seedAttribute: THREE.BufferAttribute | THREE.InstancedBufferAttribute,
+  mode: ShaderProgramMode,
+): THREE.Points | THREE.Sprite {
+  if (mode === "tsl") {
+    const material = createSparkMaterialTsl(
+      positionAttribute as THREE.InstancedBufferAttribute,
+      seedAttribute as THREE.InstancedBufferAttribute,
+    );
+    const sprite = new THREE.Sprite(material as unknown as THREE.SpriteMaterial);
+    sprite.name = "Pickup rising sparks";
+    sprite.count = SPARK_COUNT;
+    sprite.userData.sparkPrimitive = "sprite";
+    return sprite;
+  }
+
+  const sparkGeometry = new THREE.BufferGeometry();
+  sparkGeometry.setAttribute("position", positionAttribute);
+  sparkGeometry.setAttribute("aSeed", seedAttribute);
+  return new THREE.Points(sparkGeometry, createSparkMaterialGlsl());
+}
+
+function createSlot(index: number, mode: ShaderProgramMode): PickupBurstSlot {
   const root = new THREE.Group();
   root.name = `Pooled pickup burst ${index + 1}`;
   root.visible = false;
@@ -531,9 +707,17 @@ function createSlot(index: number): PickupBurstSlot {
     seeds[particle] = (particle * 0.6180339887 + index * 0.137) % 1;
   }
   const sparkGeometry = new THREE.BufferGeometry();
-  sparkGeometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
-  sparkGeometry.setAttribute("aSeed", new THREE.BufferAttribute(seeds, 1));
-  const sparks = new THREE.Points(sparkGeometry, createSparkMaterial());
+  const positionAttribute =
+    mode === "tsl"
+      ? new THREE.InstancedBufferAttribute(positions, 3)
+      : new THREE.BufferAttribute(positions, 3);
+  const seedAttribute =
+    mode === "tsl"
+      ? new THREE.InstancedBufferAttribute(seeds, 1)
+      : new THREE.BufferAttribute(seeds, 1);
+  sparkGeometry.setAttribute("position", positionAttribute);
+  sparkGeometry.setAttribute("aSeed", seedAttribute);
+  const sparks = createSparkObject(positionAttribute, seedAttribute, mode);
   sparks.name = "Pickup rising sparks";
   // Rising sparks are short-lived camera-near VFX.
   sparks.frustumCulled = false;
@@ -545,6 +729,7 @@ function createSlot(index: number): PickupBurstSlot {
     ring,
     echo,
     sparks,
+    sparkPositionAttribute: positionAttribute,
     active: false,
     age: 0,
     originY: 0,
@@ -553,7 +738,7 @@ function createSlot(index: number): PickupBurstSlot {
 }
 
 function writeSparkPositions(slot: PickupBurstSlot, progress: number): void {
-  const attr = slot.sparks.geometry.getAttribute("position") as THREE.BufferAttribute;
+  const attr = slot.sparkPositionAttribute;
   const motion = slot.profile.motion;
   for (let particle = 0; particle < attr.count; particle += 1) {
     const seed = (particle * 0.6180339887) % 1;
@@ -660,9 +845,17 @@ export class PickupBurstPool {
   readonly root = new THREE.Group();
   private readonly slots: PickupBurstSlot[];
 
-  constructor(capacity = 4) {
+  constructor(capacity = 4, mode?: ShaderProgramMode) {
+    registerPickupBurstSparksShaderFactory();
+    const registry = getShaderProgramModeRegistry();
+    const resolved = mode ?? registry.mode;
+    registry.require(PICKUP_BURST_SPARKS_SHADER_FACTORY_ID, resolved);
     this.root.name = "Pickup burst pool";
-    this.slots = Array.from({ length: Math.max(1, capacity) }, (_, index) => createSlot(index));
+    this.root.userData.shaderProgramMode = resolved;
+    this.root.userData.pickupBurstSparksFactoryId = PICKUP_BURST_SPARKS_SHADER_FACTORY_ID;
+    this.slots = Array.from({ length: Math.max(1, capacity) }, (_, index) =>
+      createSlot(index, resolved),
+    );
     this.root.add(...this.slots.map((slot) => slot.root));
   }
 
@@ -696,13 +889,14 @@ export class PickupBurstPool {
     slot.echo.rotation.set(-Math.PI / 2 + profile.echoTilt, 0, Math.PI / 4);
     slot.echo.scale.setScalar(profile.ringStart * 0.72);
 
-    slot.sparks.material.uniforms.uColor.value.setHex(color);
-    slot.sparks.material.uniforms.uCoreColor.value.setHex(color).lerp(SPARK_CORE_LIGHT, 0.72);
-    slot.sparks.material.uniforms.uOpacity.value = profile.sparkPeakOpacity;
-    slot.sparks.material.uniforms.uPointSize.value = profile.pointSize;
-    slot.sparks.material.uniforms.uShape.value = SPARK_SHAPE_ID[profile.shape];
-    slot.sparks.material.uniforms.uTime.value = 0;
-    slot.sparks.material.uniforms.uIntensity.value = 1.18;
+    const uniforms = (slot.sparks.material as PickupSparkMaterial).uniforms;
+    uniforms.uColor.value.setHex(color);
+    uniforms.uCoreColor.value.setHex(color).lerp(SPARK_CORE_LIGHT, 0.72);
+    uniforms.uOpacity.value = profile.sparkPeakOpacity;
+    uniforms.uPointSize.value = profile.pointSize;
+    uniforms.uShape.value = SPARK_SHAPE_ID[profile.shape];
+    uniforms.uTime.value = 0;
+    uniforms.uIntensity.value = 1.18;
     writeSparkPositions(slot, 0);
   }
 
@@ -733,10 +927,10 @@ export class PickupBurstPool {
       slot.echo.material.opacity =
         Math.sin(echoProgress * Math.PI) * profile.echoPeakOpacity * (1 - progress * 0.35);
 
-      slot.sparks.material.uniforms.uOpacity.value =
-        Math.pow(1 - progress, 0.82) * profile.sparkPeakOpacity;
-      slot.sparks.material.uniforms.uPointSize.value = profile.pointSize * (1 - progress * 0.22);
-      slot.sparks.material.uniforms.uTime.value = slot.age;
+      const uniforms = (slot.sparks.material as PickupSparkMaterial).uniforms;
+      uniforms.uOpacity.value = Math.pow(1 - progress, 0.82) * profile.sparkPeakOpacity;
+      uniforms.uPointSize.value = profile.pointSize * (1 - progress * 0.22);
+      uniforms.uTime.value = slot.age;
       writeSparkPositions(slot, progress);
 
       if (progress < 1) continue;
@@ -752,7 +946,7 @@ export class PickupBurstPool {
       slot.root.scale.setScalar(0.001);
       slot.ring.material.opacity = 0;
       slot.echo.material.opacity = 0;
-      slot.sparks.material.uniforms.uOpacity.value = 0;
+      (slot.sparks.material as PickupSparkMaterial).uniforms.uOpacity.value = 0;
       slot.root.visible = visible;
     }
   }
@@ -762,8 +956,13 @@ export class PickupBurstPool {
       slot.ring.geometry.dispose();
       slot.ring.material.dispose();
       slot.echo.material.dispose();
-      slot.sparks.geometry.dispose();
-      slot.sparks.material.dispose();
+      if (slot.sparks instanceof THREE.Points) slot.sparks.geometry.dispose();
+      const sparkMaterial = slot.sparks.material;
+      if (Array.isArray(sparkMaterial)) {
+        for (const entry of sparkMaterial) entry.dispose();
+      } else {
+        sparkMaterial.dispose();
+      }
     }
     this.root.clear();
   }

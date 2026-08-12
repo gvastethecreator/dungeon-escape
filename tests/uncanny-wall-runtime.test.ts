@@ -69,10 +69,11 @@ describe("uncanny wall runtime", () => {
     expect(runtime.mesh.count).toBe(2);
     expect(visibility.getX(0)).toBe(1);
     expect(visibility.getX(1)).toBe(0);
-    expect(runtime.mesh.material.fragmentShader).toContain("smoothstep");
-    expect(runtime.mesh.material.fragmentShader).toContain("mix(first, second");
-    expect(runtime.mesh.material.fragmentShader).toContain("uncannySurfaceTint");
-    expect(runtime.mesh.material.fragmentShader).toContain("uncannyFogVisibility");
+    const glsl = runtime.mesh.material as THREE.ShaderMaterial;
+    expect(glsl.fragmentShader).toContain("smoothstep");
+    expect(glsl.fragmentShader).toContain("mix(first, second");
+    expect(glsl.fragmentShader).toContain("uncannySurfaceTint");
+    expect(glsl.fragmentShader).toContain("uncannyFogVisibility");
     expect(runtime.mesh.material.userData).toMatchObject({
       biomeIntegrated: true,
       fogAlphaFade: [0.12, 0.48],
