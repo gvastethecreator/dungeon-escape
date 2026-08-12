@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import * as THREE from "three";
+import { PointsNodeMaterial } from "three/webgpu";
 
 import {
   activateAnnihilationPulse,
@@ -13,11 +14,19 @@ import {
   isAnnihilationPulseActive,
   tickAnnihilationPulse,
 } from "../src/game/AnnihilationPulse";
+import {
+  createShaderProgramModeRegistry,
+  getShaderProgramModeRegistry,
+  resetShaderProgramModeRegistryForTests,
+  setShaderProgramModeRegistry,
+} from "../src/systems/ShaderProgramMode";
 import { createDungeonMaterials } from "../src/world/MaterialLibrary";
 import { createAnnihilationPulseRelic } from "../src/world/ItemFactory";
 import {
+  ANNIHILATION_BURST_SHADER_FACTORY_ID,
   AnnihilationPulseVfx,
   getAnnihilationBurstProfile,
+  registerAnnihilationBurstShaderFactory,
 } from "../src/world/AnnihilationPulseVfx";
 
 describe("annihilation pulse", () => {
@@ -123,5 +132,28 @@ describe("annihilation pulse", () => {
     vfx.update(4, 1, { x: 1, y: 1, z: -2 }, 1, "frost");
     expect(vfx.activeBurstCount).toBe(0);
     vfx.dispose();
+  });
+
+  test("TSL VFX uses sprite death particles and registers dual-mode factory", () => {
+    resetShaderProgramModeRegistryForTests();
+    setShaderProgramModeRegistry(createShaderProgramModeRegistry("tsl"));
+    registerAnnihilationBurstShaderFactory();
+
+    const vfx = new AnnihilationPulseVfx();
+    vfx.triggerEnemyBurst({ x: 1, y: 1, z: -2 }, "frost", 7);
+    vfx.update(4, 0.1, { x: 1, y: 1, z: -2 }, 0.1, "frost");
+    const particles = vfx.root.getObjectByName("Biome annihilation enemy particles");
+    expect(particles).toBeInstanceOf(THREE.Sprite);
+    expect((particles as THREE.Sprite).count).toBe(288);
+    expect((particles as THREE.Sprite).material).toBeInstanceOf(PointsNodeMaterial);
+    expect((particles as THREE.Sprite).material.userData.particlePrimitive).toBe("sprite");
+    expect(getShaderProgramModeRegistry().supports(ANNIHILATION_BURST_SHADER_FACTORY_ID, "glsl")).toBe(
+      true,
+    );
+    expect(getShaderProgramModeRegistry().supports(ANNIHILATION_BURST_SHADER_FACTORY_ID, "tsl")).toBe(
+      true,
+    );
+    vfx.dispose();
+    resetShaderProgramModeRegistryForTests();
   });
 });
