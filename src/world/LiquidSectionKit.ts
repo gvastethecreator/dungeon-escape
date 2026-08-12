@@ -1,17 +1,4 @@
 import * as THREE from "three";
-import { MeshStandardNodeMaterial } from "three/webgpu";
-import {
-  Fn,
-  float,
-  materialColor,
-  positionGeometry,
-  sin,
-  texture,
-  uniform,
-  uv,
-  vec3,
-} from "three/tsl";
-
 import { gridToWorld } from "../dungeon/gridCollision";
 import type { DungeonData, GridCell } from "../dungeon/types";
 import type { SceneTextureSink } from "../systems/SceneTextureRegistry";
@@ -20,14 +7,13 @@ import {
   onShaderProgramModeRegistryChange,
   type ShaderProgramMode,
 } from "../systems/ShaderProgramMode";
+import { requireTslBuilder } from "../systems/TslMaterialModules";
 import type { DungeonMaterials } from "./MaterialLibrary";
 
 export const LIQUID_SHADER_FACTORY_ID = "liquid-surface";
 
 /** Register (or refresh) dual-mode support on the active shader program registry. */
-export function registerLiquidShaderFactory(
-  registry = getShaderProgramModeRegistry(),
-): void {
+export function registerLiquidShaderFactory(registry = getShaderProgramModeRegistry()): void {
   registry.register({
     id: LIQUID_SHADER_FACTORY_ID,
     supports: ["glsl", "tsl"],
@@ -198,35 +184,6 @@ function applyLiquidMaterialGlsl(
   material.customProgramCacheKey = () => `connected-liquid-wave-${kind}-v3`;
 }
 
-const liquidTimeUniformType = uniform(0);
-
-function applyLiquidMaterialTsl(
-  material: MeshStandardNodeMaterial,
-  kind: LiquidKind,
-  liquidTimeUniform: typeof liquidTimeUniformType,
-  map: THREE.Texture,
-): void {
-  const lake = kind === "lake";
-  const waveAmplitude = float(lake ? 0.006 : 0.01);
-  const rippleStrength = float(lake ? 0.035 : 0.075);
-
-  material.positionNode = Fn(() => {
-    const wave = sin(positionGeometry.x.mul(1.65).add(liquidTimeUniform.mul(1.15))).add(
-      sin(positionGeometry.z.mul(2.2).sub(liquidTimeUniform.mul(0.82))),
-    );
-    return positionGeometry.add(vec3(0, wave.mul(waveAmplitude), 0));
-  })();
-
-  const liquidUv = uv();
-  const ripple = sin(liquidUv.x.mul(7.4).add(liquidTimeUniform.mul(0.95))).mul(
-    sin(liquidUv.y.mul(9.1).sub(liquidTimeUniform.mul(0.72))),
-  );
-  material.colorNode = texture(map, liquidUv)
-    .rgb.mul(materialColor)
-    .mul(float(0.91).add(ripple.mul(rippleStrength)));
-  material.customProgramCacheKey = () => `connected-liquid-wave-${kind}-tsl-v1`;
-}
-
 export function createLiquidMaterial(
   kind: LiquidKind,
   textureSink?: SceneTextureSink,
@@ -257,13 +214,11 @@ export function createLiquidMaterial(
   } as const;
 
   if (resolved === "tsl") {
-    const material = new MeshStandardNodeMaterial(common);
-    const uLiquidTime = uniform(0);
-    material.userData.liquidTime = liquidTime;
-    material.userData.liquidTimeUniform = uLiquidTime;
-    material.userData.liquidShaderMode = "tsl";
-    applyLiquidMaterialTsl(material, kind, uLiquidTime, map);
-    return material as unknown as THREE.MeshStandardMaterial;
+    const build =
+      requireTslBuilder<typeof import("./LiquidSectionKit.tsl").createLiquidMaterialTsl>(
+        LIQUID_SHADER_FACTORY_ID,
+      );
+    return build(common, kind, liquidTime, map);
   }
 
   const material = new THREE.MeshStandardMaterial(common);

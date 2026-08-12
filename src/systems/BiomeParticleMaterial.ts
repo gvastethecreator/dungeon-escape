@@ -10,6 +10,7 @@ import {
   onShaderProgramModeRegistryChange,
   type ShaderProgramMode,
 } from "./ShaderProgramMode";
+import { requireTslBuilder } from "./TslMaterialModules";
 import type {
   BiomeParticleAssembly,
   BiomeParticleGeometryData,
@@ -17,10 +18,6 @@ import type {
   BiomeParticleMaterialInput,
   BiomeParticleUniformHandles,
 } from "./AtmosphereMaterialsShared";
-import {
-  createBiomeParticleAssemblyTsl,
-  createBiomeParticleAssemblyTslWithData,
-} from "./BiomeParticleMaterial.tsl";
 
 export type {
   BiomeParticleAssembly,
@@ -32,6 +29,8 @@ export type {
 
 /** ShaderProgramMode factory id for biome atmosphere particles. */
 export const BIOME_PARTICLE_SHADER_FACTORY_ID = "biome-particle";
+/** Second builder slot: full sprite assembly (geometry data + object). */
+export const BIOME_PARTICLE_ASSEMBLY_TSL_BUILDER_ID = "biome-particle:assembly";
 
 /** Register (or refresh) dual-mode support on the active shader program registry. */
 export function registerBiomeParticleShaderFactory(
@@ -270,7 +269,10 @@ export function createBiomeParticleMaterial(
   registry.require(BIOME_PARTICLE_SHADER_FACTORY_ID, resolved);
 
   if (resolved === "tsl") {
-    return createBiomeParticleAssemblyTsl(input).material;
+    const build = requireTslBuilder<
+      typeof import("./BiomeParticleMaterial.tsl").createBiomeParticleAssemblyTsl
+    >(BIOME_PARTICLE_SHADER_FACTORY_ID);
+    return build(input).material;
   }
   return createBiomeParticleMaterialGlsl(input);
 }
@@ -297,7 +299,10 @@ export function createBiomeParticleAssembly(
   registry.require(BIOME_PARTICLE_SHADER_FACTORY_ID, resolved);
 
   if (resolved === "tsl") {
-    return createBiomeParticleAssemblyTslWithData(input, data, name);
+    const build = requireTslBuilder<
+      typeof import("./BiomeParticleMaterial.tsl").createBiomeParticleAssemblyTslWithData
+    >(BIOME_PARTICLE_ASSEMBLY_TSL_BUILDER_ID);
+    return build(input, data, name);
   }
 
   const material = createBiomeParticleMaterialGlsl(input);
@@ -309,9 +314,7 @@ export function createBiomeParticleAssembly(
   return { object: points, material, primitive: "points", count: data.count };
 }
 
-export function biomeParticleHandles(
-  material: THREE.Material,
-): BiomeParticleUniformHandles | null {
+export function biomeParticleHandles(material: THREE.Material): BiomeParticleUniformHandles | null {
   if (material.userData.biomeParticle !== true) return null;
   return (material.userData.biomeParticleHandles ??
     (material as THREE.ShaderMaterial).uniforms) as BiomeParticleUniformHandles | null;

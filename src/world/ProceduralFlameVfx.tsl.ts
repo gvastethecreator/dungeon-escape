@@ -5,6 +5,8 @@
  */
 
 import * as THREE from "three";
+import { registerTslBuilder } from "../systems/TslMaterialModules";
+import { NOISE_FLAME_SHADER_FACTORY_ID } from "./ProceduralFlameVfx";
 import { MeshBasicNodeMaterial, PointsNodeMaterial } from "three/webgpu";
 import {
   Fn,
@@ -120,10 +122,18 @@ function createNoiseFlameEmbersTsl(
 
   const emberMotion = Fn(() => {
     const cycle = fract(
-      uTime.mul(float(0.18).add(aSeed.mul(0.07))).add(aSeed.mul(1.73)).add(uPhase.mul(0.11)),
+      uTime
+        .mul(float(0.18).add(aSeed.mul(0.07)))
+        .add(aSeed.mul(1.73))
+        .add(uPhase.mul(0.11)),
     );
     const rise = cycle.mul(float(0.42).add(aSeed.mul(0.2)));
-    const drift = sin(uTime.mul(float(1.05).add(aSeed.mul(0.9))).add(aSeed.mul(19.0)).add(uPhase))
+    const drift = sin(
+      uTime
+        .mul(float(1.05).add(aSeed.mul(0.9)))
+        .add(aSeed.mul(19.0))
+        .add(uPhase),
+    )
       .mul(float(0.035).add(aSeed.mul(0.035)))
       .mul(float(0.35).add(cycle));
     const emberPosition = vec3(aBasePosition).toVar();
@@ -134,9 +144,7 @@ function createNoiseFlameEmbersTsl(
         .mul(float(0.018).add(aSeed.mul(0.022)))
         .mul(cycle),
     );
-    const emberLife = smoothstep(0.0, 0.08, cycle).mul(
-      float(1).sub(smoothstep(0.72, 1.0, cycle)),
-    );
+    const emberLife = smoothstep(0.0, 0.08, cycle).mul(float(1).sub(smoothstep(0.72, 1.0, cycle)));
     return vec4(emberPosition, emberLife);
   });
 
@@ -222,7 +230,11 @@ export function createNoiseFlameTsl(input: CreateNoiseFlameTslInput): NoiseFlame
 
     const broadNoise = flameFbm(vec2(y.mul(2.7).sub(clock.mul(0.72)), uPhase.mul(0.37)));
     const curl = broadNoise.sub(0.5).mul(0.5).mul(upper).mul(uTurbulence).toVar();
-    curl.addAssign(sin(y.mul(7.2).sub(clock.mul(2.1)).add(uPhase)).mul(0.075).mul(upper));
+    curl.addAssign(
+      sin(y.mul(7.2).sub(clock.mul(2.1)).add(uPhase))
+        .mul(0.075)
+        .mul(upper),
+    );
     curl.addAssign(uLean.mul(y).mul(y));
     const warpedX = x.sub(curl);
 
@@ -265,9 +277,7 @@ export function createNoiseFlameTsl(input: CreateNoiseFlameTslInput): NoiseFlame
     const midMask = smoothstep(0.075, 0.19, flameShape).mul(
       float(1).sub(smoothstep(0.82, 1.02, y)),
     );
-    const coreMask = smoothstep(0.21, 0.39, flameShape).mul(
-      float(1).sub(smoothstep(0.62, 0.9, y)),
-    );
+    const coreMask = smoothstep(0.21, 0.39, flameShape).mul(float(1).sub(smoothstep(0.62, 0.9, y)));
 
     const color = mix(uGlowColor, uOuterColor, outerMask).toVar();
     color.assign(mix(color, uMidColor, midMask));
@@ -314,11 +324,11 @@ export function createNoiseFlameTsl(input: CreateNoiseFlameTslInput): NoiseFlame
   material.userData.sourceTechnique =
     "teardrop + animated noise offset/map + soft tip cap + palette/glow + floating embers (TSL sprites)";
 
-  const { embers, material: emberMaterial, handles: emberHandles } = createNoiseFlameEmbersTsl(
-    options,
-    new THREE.Color(palette.mid),
-    baseOpacity,
-  );
+  const {
+    embers,
+    material: emberMaterial,
+    handles: emberHandles,
+  } = createNoiseFlameEmbersTsl(options, new THREE.Color(palette.mid), baseOpacity);
   material.userData.emberMaterial = emberMaterial;
   material.userData.emberHandles = emberHandles;
 
@@ -337,3 +347,5 @@ export function createNoiseFlameTsl(input: CreateNoiseFlameTslInput): NoiseFlame
     material: material as NoiseFlameAssembly["material"],
   };
 }
+
+registerTslBuilder(NOISE_FLAME_SHADER_FACTORY_ID, createNoiseFlameTsl);

@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, test } from "bun:test";
+import { afterEach, beforeAll, describe, expect, test } from "bun:test";
 import * as THREE from "three";
 import { MeshStandardNodeMaterial } from "three/webgpu";
 
@@ -8,6 +8,7 @@ import {
   resetShaderProgramModeRegistryForTests,
   setShaderProgramModeRegistry,
 } from "../src/systems/ShaderProgramMode";
+import { loadTslMaterialModules } from "../src/systems/TslMaterialModules";
 import {
   BIOME_INTEGRATED_DECOR_SHADER_FACTORY_ID,
   BIOME_MUTED_PROP_SHADER_FACTORY_ID,
@@ -31,6 +32,12 @@ function stubWallTextures(): {
 // into later test files would build node materials where GLSL is expected.
 afterEach(() => {
   resetShaderProgramModeRegistryForTests();
+});
+
+// TSL builders live in lazily imported `*.tsl` siblings so the WebGL bundle
+// never pulls in `three/webgpu`; tests must preload them like Play boot does.
+beforeAll(async () => {
+  await loadTslMaterialModules();
 });
 
 describe("biome decor dual-mode materials (WGP-16)", () => {

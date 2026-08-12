@@ -9,10 +9,7 @@ import type {
   BiomeParticleMaterial,
   SoftGroundFogMaterial,
 } from "./AtmosphereMaterialsShared";
-import {
-  biomeParticleHandles,
-  createBiomeParticleAssembly,
-} from "./BiomeParticleMaterial";
+import { biomeParticleHandles, createBiomeParticleAssembly } from "./BiomeParticleMaterial";
 import {
   getBiomeParticleProfile,
   isCeilingPrecipitationLayer,
@@ -410,8 +407,7 @@ export class AtmosphereSystem {
       1,
       this.ceilingBaseOpacity * (1 + pulse * (CEILING_EVENT_OPACITY_BOOST - 1)) * clearFade,
     );
-    handles.uSpeed.value =
-      this.ceilingBaseSpeed * (1 + pulse * (CEILING_EVENT_SPEED_BOOST - 1));
+    handles.uSpeed.value = this.ceilingBaseSpeed * (1 + pulse * (CEILING_EVENT_SPEED_BOOST - 1));
   }
 
   private applyFogClearPulse(): void {

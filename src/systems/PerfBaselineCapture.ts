@@ -84,9 +84,7 @@ export function evaluatePerfGoNoGo(
 
   const p95 = ratio("frameP95Ms");
   if (p95 !== null && p95 > thresholds.maxFrameP95Ratio) {
-    reasons.push(
-      `frameP95Ms ratio ${p95.toFixed(3)} exceeds ${thresholds.maxFrameP95Ratio}`,
-    );
+    reasons.push(`frameP95Ms ratio ${p95.toFixed(3)} exceeds ${thresholds.maxFrameP95Ratio}`);
   }
   const ready = ratio("rendererReadyMs");
   if (ready !== null && ready > thresholds.maxRendererReadyRatio) {
@@ -96,9 +94,7 @@ export function evaluatePerfGoNoGo(
   }
   const draws = ratio("drawCalls");
   if (draws !== null && draws > thresholds.maxDrawCallRatio) {
-    reasons.push(
-      `drawCalls ratio ${draws.toFixed(3)} exceeds ${thresholds.maxDrawCallRatio}`,
-    );
+    reasons.push(`drawCalls ratio ${draws.toFixed(3)} exceeds ${thresholds.maxDrawCallRatio}`);
   }
   return { pass: reasons.length === 0, reasons };
 }

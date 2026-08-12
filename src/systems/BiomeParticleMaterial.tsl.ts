@@ -29,10 +29,7 @@ import {
   vec4,
 } from "three/tsl";
 
-import {
-  BIOME_PARTICLE_MOTION_ID,
-  BIOME_PARTICLE_SHAPE_ID,
-} from "./BiomeParticleProfile";
+import { BIOME_PARTICLE_MOTION_ID, BIOME_PARTICLE_SHAPE_ID } from "./BiomeParticleProfile";
 import type {
   BiomeParticleAssembly,
   BiomeParticleGeometryData,
@@ -40,6 +37,11 @@ import type {
   BiomeParticleMaterialInput,
   BiomeParticleUniformHandles,
 } from "./AtmosphereMaterialsShared";
+import {
+  BIOME_PARTICLE_ASSEMBLY_TSL_BUILDER_ID,
+  BIOME_PARTICLE_SHADER_FACTORY_ID,
+} from "./BiomeParticleMaterial";
+import { registerTslBuilder } from "./TslMaterialModules";
 
 function createMaterialTsl(input: BiomeParticleMaterialInput): PointsNodeMaterial {
   const { map, layer, wallHeight } = input;
@@ -96,9 +98,9 @@ function createMaterialTsl(input: BiomeParticleMaterialInput): PointsNodeMateria
 }
 
 /** Material-only path for createBiomeParticleMaterial(tsl). */
-export function createBiomeParticleAssemblyTsl(
-  input: BiomeParticleMaterialInput,
-): { material: BiomeParticleMaterial } {
+export function createBiomeParticleAssemblyTsl(input: BiomeParticleMaterialInput): {
+  material: BiomeParticleMaterial;
+} {
   const material = createMaterialTsl(input);
   material.colorNode = Fn(() => vec4(0.5, 0.5, 0.5, 0.01))();
   return { material };
@@ -147,7 +149,12 @@ export function createBiomeParticleAssemblyTslWithData(
   })();
 
   material.sizeNode = Fn(() => {
-    return float(0.014).add(aSize.mul(0.04).mul(uPixelRatio).mul(float(120).div(uAtten.add(40))));
+    return float(0.014).add(
+      aSize
+        .mul(0.04)
+        .mul(uPixelRatio)
+        .mul(float(120).div(uAtten.add(40))),
+    );
   })();
 
   material.colorNode = Fn(() => {
@@ -188,3 +195,6 @@ export function createBiomeParticleAssemblyTslWithData(
     count: data.count,
   };
 }
+
+registerTslBuilder(BIOME_PARTICLE_SHADER_FACTORY_ID, createBiomeParticleAssemblyTsl);
+registerTslBuilder(BIOME_PARTICLE_ASSEMBLY_TSL_BUILDER_ID, createBiomeParticleAssemblyTslWithData);

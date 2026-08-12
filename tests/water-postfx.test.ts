@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, test } from "bun:test";
+import { afterEach, beforeAll, describe, expect, test } from "bun:test";
 import * as THREE from "three";
 import { MeshStandardNodeMaterial } from "three/webgpu";
 import { POV_VIGNETTE_INNER_RADIUS, POV_VIGNETTE_STRENGTH } from "../src/systems/PovPostFx";
@@ -7,6 +7,7 @@ import {
   resetShaderProgramModeRegistryForTests,
   setShaderProgramModeRegistry,
 } from "../src/systems/ShaderProgramMode";
+import { loadTslMaterialModules } from "../src/systems/TslMaterialModules";
 
 import {
   createLiquidMaterial,
@@ -18,6 +19,12 @@ import {
 // into later test files would build node materials where GLSL is expected.
 afterEach(() => {
   resetShaderProgramModeRegistryForTests();
+});
+
+// TSL builders live in lazily imported `*.tsl` siblings so the WebGL bundle
+// never pulls in `three/webgpu`; tests must preload them like Play boot does.
+beforeAll(async () => {
+  await loadTslMaterialModules();
 });
 
 describe("water and post-process finish", () => {
