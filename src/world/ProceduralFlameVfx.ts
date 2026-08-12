@@ -161,6 +161,7 @@ const EMBER_VERTEX_SHADER = /* glsl */ `
   uniform float uTime;
   uniform float uPhase;
   uniform float uOpacity;
+  uniform vec2 uWind;
   attribute float aSeed;
   attribute float aSize;
   varying float vEmberLife;
@@ -173,9 +174,9 @@ const EMBER_VERTEX_SHADER = /* glsl */ `
       (0.035 + aSeed * 0.035) * (0.35 + cycle);
     vec3 emberPosition = position;
     emberPosition.y += rise;
-    emberPosition.x += drift + sin(cycle * 5.8 + aSeed * 11.0) * 0.018;
+    emberPosition.x += drift + sin(cycle * 5.8 + aSeed * 11.0) * 0.018 + uWind.x * (0.55 + cycle);
     emberPosition.z += cos(uTime * 0.84 + aSeed * 13.0 + uPhase) *
-      (0.018 + aSeed * 0.022) * cycle;
+      (0.018 + aSeed * 0.022) * cycle + uWind.y * (0.55 + cycle);
     vEmberLife = smoothstep(0.0, 0.08, cycle) * (1.0 - smoothstep(0.72, 1.0, cycle));
 
     vec4 mvPosition = modelViewMatrix * vec4(emberPosition, 1.0);
@@ -264,6 +265,7 @@ function createNoiseFlameEmbersGlsl(
         uPhase: { value: options.phase },
         uOpacity: { value: options.opacity ?? 0.9 },
         uColor: { value: emberColor.clone() },
+        uWind: { value: new THREE.Vector2(0, 0) },
       },
     ]),
     vertexShader: EMBER_VERTEX_SHADER,
@@ -279,6 +281,7 @@ function createNoiseFlameEmbersGlsl(
     uPhase: material.uniforms.uPhase!,
     uOpacity: material.uniforms.uOpacity!,
     uColor: material.uniforms.uColor!,
+    uWind: material.uniforms.uWind!,
   };
   material.userData.noiseFlameEmber = true;
   material.userData.noiseFlameEmberHandles = emberHandles;
@@ -409,6 +412,34 @@ export function setNoiseFlameMoodPalette(
     emberHandles.uColor.value.copy(vividOuter).lerp(brightCore, 0.22);
   }
   return true;
+}
+
+/** Lateral shader lean for the teardrop card (positive tips the tongue to +X). */
+export function setNoiseFlameLean(material: THREE.Material, lean: number): boolean {
+  const handles = noiseFlameHandles(material);
+  if (!handles) return false;
+  handles.uLean.value = THREE.MathUtils.clamp(lean, -1.5, 1.5);
+  return true;
+}
+
+/** Extra ember drift in local flame space (x lateral, y depth/forward). */
+export function setNoiseFlameWind(material: THREE.Material, windX: number, windZ: number): boolean {
+  const emberHandles = material.userData.emberHandles as NoiseFlameEmberUniformHandles | undefined;
+  if (!emberHandles?.uWind) return false;
+  const x = THREE.MathUtils.clamp(windX, -0.45, 0.45);
+  const y = THREE.MathUtils.clamp(windZ, -0.45, 0.45);
+  const value = emberHandles.uWind.value as THREE.Vector2 | { x: number; y: number } | undefined;
+  if (!value) return false;
+  if (typeof (value as THREE.Vector2).set === "function") {
+    (value as THREE.Vector2).set(x, y);
+    return true;
+  }
+  if ("x" in value && "y" in value) {
+    value.x = x;
+    value.y = y;
+    return true;
+  }
+  return false;
 }
 
 export function tickNoiseFlame(

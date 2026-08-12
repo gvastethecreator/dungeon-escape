@@ -20,7 +20,7 @@ describe("DungeonAudioFrame", () => {
           baseY: 0.4,
         },
       ],
-      stones: [
+      pickups: [
         {
           kind: "stone",
           collected: false,
@@ -56,6 +56,7 @@ describe("DungeonAudioFrame", () => {
     expect(frame.fires[0]!.y).toBeCloseTo(0.4, 5);
     expect(frame.magicStones).toHaveLength(1);
     expect(frame.magicStones[0]!.id).toBe("stone-ember");
+    expect(frame.pickupKinds).toEqual(["stone", "resolve"]);
     expect(frame.enemies).toHaveLength(1);
     expect(frame.enemies[0]!.voice).toBe("spider");
     expect(frame.portal?.id).toBe("exit-portal");
@@ -75,7 +76,7 @@ describe("DungeonAudioFrame", () => {
     const frame = createEmptyDungeonAudioFrame();
     projectDungeonAudioFrame(frame, {
       fires: [{ root: fireRoot, baseY: 0.4 }],
-      stones: [{ kind: "stone", collected: false, stoneId: "ember", object: stone }],
+      pickups: [{ kind: "stone", collected: false, stoneId: "ember", object: stone }],
       enemies: [],
       portal: null,
       moodId: "ash",

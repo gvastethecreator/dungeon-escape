@@ -21,6 +21,7 @@ import {
 import { activateFogClear, isFogClearActive, tickFogClear } from "./FogClear";
 import { activateFrenzyCurse, isFrenzyCurseActive, tickFrenzyCurse } from "./FrenzyCurse";
 import { activateGloomCurse, isGloomCurseActive, tickGloomCurse } from "./GloomCurse";
+import { activateHandTorch, isHandTorchActive, tickHandTorch } from "./HandTorch";
 import { activateLuminousWard, isLuminousWardActive, tickLuminousWard } from "./LuminousWard";
 import { activateMirrorCurse, isMirrorCurseActive, tickMirrorCurse } from "./MirrorCurse";
 import { activateMobilityBoost, isMobilityBoostActive, tickMobilityBoost } from "./MobilityBoost";
@@ -52,6 +53,7 @@ export interface RunPowerRuntimeState {
   luminousWardSeconds: number;
   mobilityBoostSeconds: number;
   fogClearSeconds: number;
+  handTorchSeconds: number;
   slowCurseSeconds: number;
   frenzyCurseSeconds: number;
   gloomCurseSeconds: number;
@@ -71,6 +73,7 @@ export interface RunPowerRuntimeProgress {
   mapRevealed?: boolean;
   mobilityBoostRemaining?: number;
   fogClearRemaining?: number;
+  handTorchRemaining?: number;
   slowCurseRemaining?: number;
   frenzyCurseRemaining?: number;
   gloomCurseRemaining?: number;
@@ -92,6 +95,7 @@ export function createRunPowerRuntime(): RunPowerRuntimeState {
     luminousWardSeconds: 0,
     mobilityBoostSeconds: 0,
     fogClearSeconds: 0,
+    handTorchSeconds: 0,
     slowCurseSeconds: 0,
     frenzyCurseSeconds: 0,
     gloomCurseSeconds: 0,
@@ -114,6 +118,7 @@ export function resetRunPowerRuntime(
   state.luminousWardSeconds = 0;
   state.mobilityBoostSeconds = 0;
   state.fogClearSeconds = 0;
+  state.handTorchSeconds = 0;
   state.slowCurseSeconds = 0;
   state.frenzyCurseSeconds = 0;
   state.gloomCurseSeconds = 0;
@@ -135,6 +140,7 @@ export function tickRunPowerRuntime(
   state.luminousWardSeconds = tickLuminousWard(state.luminousWardSeconds, delta);
   state.mobilityBoostSeconds = tickMobilityBoost(state.mobilityBoostSeconds, delta);
   state.fogClearSeconds = tickFogClear(state.fogClearSeconds, delta);
+  state.handTorchSeconds = tickHandTorch(state.handTorchSeconds, delta);
   state.slowCurseSeconds = tickSlowCurse(state.slowCurseSeconds, delta);
   state.frenzyCurseSeconds = tickFrenzyCurse(state.frenzyCurseSeconds, delta);
   state.gloomCurseSeconds = tickGloomCurse(state.gloomCurseSeconds, delta);
@@ -156,6 +162,7 @@ export function restoreRunPowerRuntime(
   state.mapRevealed = progress.mapRevealed === true;
   state.mobilityBoostSeconds = Math.max(0, progress.mobilityBoostRemaining ?? 0);
   state.fogClearSeconds = Math.max(0, progress.fogClearRemaining ?? 0);
+  state.handTorchSeconds = Math.max(0, progress.handTorchRemaining ?? 0);
   state.slowCurseSeconds = Math.max(0, progress.slowCurseRemaining ?? 0);
   state.frenzyCurseSeconds = Math.max(0, progress.frenzyCurseRemaining ?? 0);
   state.gloomCurseSeconds = Math.max(0, progress.gloomCurseRemaining ?? 0);
@@ -241,6 +248,15 @@ export function isMobilityBoostOn(state: RunPowerRuntimeState): boolean {
 
 export function isFogClearOn(state: RunPowerRuntimeState): boolean {
   return isFogClearActive(state.fogClearSeconds);
+}
+
+export function isHandTorchOn(state: RunPowerRuntimeState): boolean {
+  return isHandTorchActive(state.handTorchSeconds);
+}
+
+/** Refresh a full 15s hand-torch window from a wall sconce grab. */
+export function equipHandTorchFromWall(state: RunPowerRuntimeState): void {
+  state.handTorchSeconds = activateHandTorch();
 }
 
 export function isSlowCurseOn(state: RunPowerRuntimeState): boolean {

@@ -44,6 +44,7 @@ describe("PlayStatusHud", () => {
       cullBrand: fakeChip(),
       fogClear: fakeChip(),
       mobility: fakeChip(),
+      handTorch: fakeChip(),
       slowCurse: fakeChip(),
       frenzyCurse: fakeChip(),
       gloomCurse: fakeChip(),

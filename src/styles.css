@@ -2645,21 +2645,25 @@ kbd {
 
 /*
  * Play pause stack (player first):
- * title → resume → settings → leave/restart → (dev) modes → tools → status
+ * title → commands (resume / settings / leave) → settings pane → (dev) tools
  */
+.app-shell:not([data-engine-mode="play"]) .pause-only {
+  display: none !important;
+}
+
 .app-shell[data-engine-mode="play"] .options-header {
   order: 0;
 }
-.app-shell[data-engine-mode="play"] #options-resume {
+.app-shell[data-engine-mode="play"] .pause-commands {
   order: 1;
 }
-.app-shell[data-engine-mode="play"] .options-fx {
+.app-shell[data-engine-mode="play"] #options-settings-back {
   order: 2;
 }
-.app-shell[data-engine-mode="play"] .display-post-fx-launch {
+.app-shell[data-engine-mode="play"] .options-fx {
   order: 3;
 }
-.app-shell[data-engine-mode="play"] .options-session {
+.app-shell[data-engine-mode="play"] .display-post-fx-launch {
   order: 4;
 }
 .app-shell[data-engine-mode="play"] .mode-switcher {
@@ -2670,6 +2674,21 @@ kbd {
 }
 .app-shell[data-engine-mode="play"] .options-status {
   order: 7;
+}
+
+.app-shell[data-engine-mode="play"][data-pause-pane="menu"] .options-fx,
+.app-shell[data-engine-mode="play"][data-pause-pane="menu"] #options-settings-back,
+.app-shell[data-engine-mode="play"][data-pause-pane="menu"] .mode-switcher,
+.app-shell[data-engine-mode="play"][data-pause-pane="menu"] .record-panel,
+.app-shell[data-local-dev-tools="true"][data-engine-mode="play"][data-pause-pane="menu"]
+  .display-post-fx-launch {
+  display: none;
+}
+
+.app-shell[data-engine-mode="play"][data-pause-pane="settings"] .pause-commands,
+.app-shell[data-engine-mode="play"][data-pause-pane="settings"] .options-kicker,
+.app-shell[data-engine-mode="play"][data-pause-pane="settings"] .options-ledger {
+  display: none;
 }
 
 .options-session {
@@ -3397,6 +3416,9 @@ kbd {
 .pickup-feedback[data-kind="annihilation-pulse"] strong {
   color: #ffb0bd;
 }
+.pickup-feedback[data-kind="hand-torch"] strong {
+  color: #f0c48a;
+}
 .pickup-feedback[data-kind="clarity"] strong {
   color: #d2eefc;
 }
@@ -3687,6 +3709,24 @@ kbd {
 @keyframes mobility-status-pulse {
   50% {
     filter: brightness(1.32);
+  }
+}
+
+.hand-torch-status {
+  border-right-color: rgb(232 156 74 / 84%);
+  background: linear-gradient(90deg, transparent, rgb(28 14 6 / 90%) 26%);
+  color: #f0c48a;
+  text-shadow: 0 0 10px rgb(232 140 60 / 55%);
+}
+
+.hand-torch-status[data-urgent] {
+  border-right-color: #ffd6a0;
+  animation: hand-torch-status-pulse 480ms steps(2, end) infinite;
+}
+
+@keyframes hand-torch-status-pulse {
+  50% {
+    filter: brightness(1.34);
   }
 }
 
@@ -4768,166 +4808,411 @@ kbd {
   }
 }
 
-/* —— Pause + next round: one material language for the gate and its ledger —— */
-.options-backdrop {
+/* —— Play pause: command overlay over the frozen dungeon, not a settings card —— */
+.app-shell[data-engine-mode="play"] .options-backdrop {
   background:
-    radial-gradient(circle at 52% 36%, rgb(132 62 32 / 18%), transparent 44%),
-    linear-gradient(90deg, rgb(3 4 5 / 72%), rgb(3 4 5 / 42%) 52%, rgb(3 4 5 / 72%));
-  backdrop-filter: blur(3px) saturate(0.82);
+    radial-gradient(
+      circle at 50% 42%,
+      rgb(18 12 8 / 28%) 0%,
+      rgb(3 4 5 / 62%) 58%,
+      rgb(2 3 3 / 82%) 100%
+    ),
+    linear-gradient(180deg, rgb(3 4 5 / 18%), rgb(3 4 5 / 55%));
+  backdrop-filter: blur(2px) saturate(0.72);
 }
 
-.options-card {
-  width: min(500px, calc(100vw - 32px));
-  max-height: min(90dvh, 780px);
+.app-shell[data-engine-mode="play"] .options-card {
+  width: min(26rem, calc(100vw - 32px));
+  max-height: min(92dvh, 840px);
   gap: 18px;
-  padding: clamp(24px, 4vw, 34px) clamp(22px, 4vw, 36px) 24px;
-  border: 1px solid rgb(227 196 125 / 28%);
-  border-radius: 2px;
-  background:
-    linear-gradient(135deg, rgb(27 22 19 / 93%), rgb(8 9 10 / 91%)),
-    radial-gradient(circle at 18% 0%, rgb(151 78 38 / 16%), transparent 52%);
-  box-shadow:
-    0 28px 80px rgb(0 0 0 / 68%),
-    0 0 0 1px rgb(0 0 0 / 28%),
-    inset 0 1px rgb(255 235 190 / 8%),
-    inset 0 -24px 48px rgb(0 0 0 / 18%);
-  backdrop-filter: blur(12px) saturate(0.84);
+  padding: clamp(20px, 4vh, 36px) clamp(16px, 4vw, 28px) 20px;
+  overflow: visible;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
+  scrollbar-gutter: auto;
 }
 
-.options-header {
-  padding: 0 0 2px;
+.app-shell[data-engine-mode="play"][data-pause-pane="settings"] .options-card {
+  overflow: auto;
+  scrollbar-gutter: stable;
 }
 
-.options-header small {
-  display: none;
+.app-shell[data-engine-mode="play"] .options-header {
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  padding: 0 0 8px;
+  text-align: center;
 }
 
-.options-header strong {
+.app-shell[data-engine-mode="play"] .options-kicker {
   margin: 0;
-  color: #e3c47d;
-  font-family: var(--font-gothic-compact);
-  font-size: clamp(36px, 6vw, 48px);
+  color: #c68b58;
+  font-family: var(--font-pixel);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+}
+
+.app-shell[data-engine-mode="play"] .options-header strong {
+  margin: 0;
+  color: transparent;
+  font-family: var(--font-gothic);
+  font-size: clamp(44px, 8vw, 72px);
   font-weight: 400;
-  letter-spacing: 0.035em;
-  line-height: 0.94;
-  text-shadow: 0 2px 0 rgb(0 0 0 / 68%);
+  letter-spacing: 0.02em;
+  line-height: 0.92;
+  text-shadow: none;
+  background-image: linear-gradient(
+    105deg,
+    #6e5220 0%,
+    #c9a04a 22%,
+    #f0d59a 48%,
+    #e3c47d 68%,
+    #a07828 100%
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  filter: drop-shadow(0 2px 0 rgb(0 0 0 / 62%));
 }
 
-#options-resume,
-.options-primary {
+.app-shell[data-engine-mode="play"] .options-ledger {
+  margin: 4px 0 0;
+  color: var(--bone-dim);
+  font-family: var(--font-pixel);
+  font-size: 11px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.app-shell[data-engine-mode="play"] .pause-commands {
   display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+  width: 100%;
+}
+
+.app-shell[data-engine-mode="play"] .options-session {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 6px 0 0;
+  padding: 10px 0 0;
+  border: 0;
+  border-top: 1px solid rgb(201 197 184 / 14%);
+}
+
+.app-shell[data-engine-mode="play"] .pause-command,
+.app-shell[data-engine-mode="play"] #options-resume,
+.app-shell[data-engine-mode="play"] .options-primary,
+.app-shell[data-engine-mode="play"] .options-session button {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr) auto;
   align-items: center;
-  justify-content: space-between;
-  min-height: 64px;
-  padding: 0 18px;
-  border: 1px solid rgb(239 215 151 / 62%);
+  gap: 10px;
+  width: 100%;
+  min-height: 56px;
+  margin: 0;
+  padding: 10px 14px;
+  border: 1px solid transparent;
   border-radius: 1px;
-  background: linear-gradient(105deg, #f0d99b 0%, #d3a94d 58%, #a86d2d 100%);
-  color: #1a130b;
-  box-shadow:
-    0 10px 24px rgb(0 0 0 / 28%),
-    inset 0 1px rgb(255 248 220 / 68%);
+  background: transparent;
+  box-shadow: none;
+  color: var(--bone-dim);
+  font-family: var(--font-pixel);
   font-size: 15px;
-  letter-spacing: 0.16em;
+  font-weight: 600;
+  letter-spacing: 0.14em;
   text-align: left;
+  filter: none;
+  cursor: pointer;
+  transition:
+    color 140ms ease,
+    background-color 140ms ease,
+    border-color 140ms ease,
+    box-shadow 140ms ease,
+    transform 140ms ease;
 }
 
-#options-resume:hover,
-.options-primary:hover {
-  background: linear-gradient(105deg, #fff1bd 0%, #e5bf65 58%, #c78336 100%);
-  color: #1a130b;
-  filter: brightness(1.03);
+.app-shell[data-engine-mode="play"] .pause-command--primary,
+.app-shell[data-engine-mode="play"] #options-resume {
+  min-height: 62px;
+  color: var(--bone);
 }
 
-#options-resume kbd,
-.options-primary kbd {
-  margin-left: 14px;
-  border-color: rgb(26 19 11 / 28%);
-  background: rgb(26 19 11 / 12%);
-  color: #1a130b;
+.app-shell[data-engine-mode="play"] .pause-command--secondary,
+.app-shell[data-engine-mode="play"] .pause-command--danger,
+.app-shell[data-engine-mode="play"] #options-home {
+  min-height: 48px;
 }
 
-.options-fx {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+.app-shell[data-engine-mode="play"] #options-home {
+  color: var(--bone-dim);
+}
+
+.app-shell[data-engine-mode="play"] .pause-command__mark {
+  color: #d49a61;
+  font-size: 10px;
+  opacity: 0;
+  transform: translateX(-6px) scale(0.75);
+  transition:
+    opacity 140ms ease,
+    transform 140ms ease;
+}
+
+.app-shell[data-engine-mode="play"] .pause-command__copy {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.app-shell[data-engine-mode="play"] .pause-command__copy strong {
+  color: inherit;
+  font-family: var(--font-pixel);
+  font-size: clamp(14px, 1.8vw, 18px);
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  line-height: 1;
+}
+
+.app-shell[data-engine-mode="play"] .pause-command--secondary .pause-command__copy strong,
+.app-shell[data-engine-mode="play"] .pause-command--danger .pause-command__copy strong {
+  font-size: 12px;
+}
+
+.app-shell[data-engine-mode="play"] .pause-command__copy small {
+  color: rgb(201 197 184 / 58%);
+  font-family: var(--font-pixel);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  line-height: 1.2;
+  text-transform: none;
+}
+
+.app-shell[data-engine-mode="play"] .pause-command kbd,
+.app-shell[data-engine-mode="play"] #options-resume kbd,
+.app-shell[data-engine-mode="play"] .options-session button kbd {
+  margin: 0;
+  border-color: rgb(201 197 184 / 22%);
+  background: rgb(0 0 0 / 28%);
+  color: inherit;
+  font-size: 10px;
+}
+
+.app-shell[data-engine-mode="play"] .pause-command:hover,
+.app-shell[data-engine-mode="play"] .pause-command:focus-visible,
+.app-shell[data-engine-mode="play"] #options-resume:hover,
+.app-shell[data-engine-mode="play"] #options-resume:focus-visible,
+.app-shell[data-engine-mode="play"] #options-home:hover,
+.app-shell[data-engine-mode="play"] #options-home:focus-visible,
+.app-shell[data-engine-mode="play"] .options-session button:hover,
+.app-shell[data-engine-mode="play"] .options-session button:focus-visible {
+  border-color: rgb(227 196 125 / 46%);
+  background: linear-gradient(90deg, rgb(104 53 28 / 34%), rgb(9 10 11 / 30%)), rgb(7 8 9 / 36%);
+  box-shadow:
+    0 7px 18px rgb(0 0 0 / 24%),
+    inset 0 1px rgb(255 235 190 / 7%);
+  color: #f0d59a;
+  outline: none;
+  transform: translateX(5px);
+}
+
+.app-shell[data-engine-mode="play"] .pause-command:hover .pause-command__mark,
+.app-shell[data-engine-mode="play"] .pause-command:focus-visible .pause-command__mark {
+  opacity: 1;
+  transform: translateX(0) scale(1);
+}
+
+.app-shell[data-engine-mode="play"] .pause-command:active,
+.app-shell[data-engine-mode="play"] #options-resume:active {
+  transform: translateX(5px) scale(0.96);
+}
+
+.app-shell[data-engine-mode="play"] .pause-command--danger,
+.app-shell[data-engine-mode="play"] #options-restart {
+  color: rgb(190 150 150);
+}
+
+.app-shell[data-engine-mode="play"] .pause-command--danger:hover,
+.app-shell[data-engine-mode="play"] .pause-command--danger:focus-visible,
+.app-shell[data-engine-mode="play"] #options-restart:hover,
+.app-shell[data-engine-mode="play"] #options-restart:focus-visible {
+  border-color: rgb(180 90 90 / 55%);
+  background: rgb(80 28 28 / 42%);
+  color: #f0d0d0;
+}
+
+.app-shell[data-engine-mode="play"] .pause-settings-back {
+  justify-self: start;
+  min-height: 36px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ash);
+  font-family: var(--font-pixel);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  cursor: pointer;
+}
+
+.app-shell[data-engine-mode="play"] .pause-settings-back:hover,
+.app-shell[data-engine-mode="play"] .pause-settings-back:focus-visible {
+  color: #f0d59a;
+  outline: none;
+}
+
+.app-shell[data-engine-mode="play"] .pause-settings-back kbd {
+  margin-left: 8px;
+  border-color: rgb(201 197 184 / 22%);
+  background: rgb(0 0 0 / 28%);
+  color: inherit;
+}
+
+.app-shell[data-engine-mode="play"] .options-fx {
+  grid-template-columns: 1fr;
   gap: 8px;
   padding: 0;
   border: 0;
 }
 
-.options-fx legend {
-  display: flex;
-  grid-column: 1 / -1;
-  align-items: center;
-  gap: 10px;
-  width: 100%;
-  padding: 0 0 9px;
-  border-bottom: 1px solid rgb(201 197 184 / 16%);
-  color: #c68b58;
-}
-
-.options-fx legend::after {
-  flex: 1;
+.app-shell[data-engine-mode="play"] .options-fx legend {
+  position: absolute;
+  width: 1px;
   height: 1px;
-  background: rgb(201 197 184 / 12%);
-  content: "";
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
 }
 
-.options-toggle {
-  min-height: 44px;
-  padding: 0 12px;
+.app-shell[data-engine-mode="play"] .options-toggle {
+  min-height: 48px;
+  padding: 0 14px;
   border: 1px solid rgb(201 197 184 / 16%);
   border-radius: 1px;
   background: rgb(5 6 7 / 36%);
 }
 
-.options-toggle:hover,
-.options-toggle.is-active {
+.app-shell[data-engine-mode="play"] .options-toggle:hover,
+.app-shell[data-engine-mode="play"] .options-toggle.is-active {
   border-color: rgb(227 196 125 / 38%);
   background: linear-gradient(90deg, rgb(104 53 28 / 26%), rgb(7 8 9 / 30%));
 }
 
-.options-toggle.is-active .options-toggle__value {
+.app-shell[data-engine-mode="play"] .options-toggle.is-active .options-toggle__value {
   border-color: rgb(227 196 125 / 54%);
   background: rgb(227 196 125 / 14%);
   color: #e3c47d;
 }
 
-.options-volume-grid {
-  grid-column: 1 / -1;
+.app-shell[data-engine-mode="play"] .options-volume-grid {
   gap: 8px;
   padding: 2px 0;
 }
 
-.options-volume {
+.app-shell[data-engine-mode="play"] .options-volume {
   padding: 9px 12px;
   border: 1px solid rgb(201 197 184 / 12%);
   background: rgb(0 0 0 / 18%);
 }
 
-.options-session {
-  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-  gap: 8px;
-  padding: 16px 0 0;
-  border-top: 1px solid rgb(201 197 184 / 16%);
-}
-
-.options-session button {
-  min-height: 42px;
-  border-color: rgb(201 197 184 / 18%);
-  background: rgb(5 6 7 / 26%);
-}
-
-#options-home {
-  color: var(--bone);
-}
-
-#options-restart {
-  border-color: rgb(145 73 62 / 42%);
-}
-
-.options-status {
+.app-shell[data-engine-mode="play"] .options-status {
   padding-top: 12px;
   border-top: 1px solid rgb(201 197 184 / 12%);
+}
+
+.app-shell[data-engine-mode="play"] .options-menu:not([hidden]) .options-backdrop {
+  animation: pause-veil-in 240ms ease-out both;
+}
+
+.app-shell[data-engine-mode="play"] .options-menu:not([hidden]) .options-card {
+  animation: pause-card-in 280ms ease-out both;
+}
+
+.app-shell[data-engine-mode="play"] .options-menu:not([hidden]) .pause-command:nth-child(1) {
+  animation: pause-command-in 320ms ease-out both;
+  animation-delay: 40ms;
+}
+
+.app-shell[data-engine-mode="play"] .options-menu:not([hidden]) .pause-command:nth-child(2) {
+  animation: pause-command-in 320ms ease-out both;
+  animation-delay: 110ms;
+}
+
+.app-shell[data-engine-mode="play"] .options-menu:not([hidden]) .options-session {
+  animation: pause-command-in 320ms ease-out both;
+  animation-delay: 180ms;
+}
+
+@keyframes pause-veil-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes pause-card-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes pause-command-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (max-height: 520px) {
+  .app-shell[data-engine-mode="play"] .pause-command__copy small {
+    display: none;
+  }
+
+  .app-shell[data-engine-mode="play"] .pause-command,
+  .app-shell[data-engine-mode="play"] #options-resume,
+  .app-shell[data-engine-mode="play"] .pause-command--primary {
+    min-height: 44px;
+    padding-top: 8px;
+    padding-bottom: 8px;
+  }
+
+  .app-shell[data-engine-mode="play"] .options-header strong {
+    font-size: clamp(32px, 10vh, 48px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-shell[data-engine-mode="play"] .options-menu:not([hidden]) .options-backdrop,
+  .app-shell[data-engine-mode="play"] .options-menu:not([hidden]) .options-card,
+  .app-shell[data-engine-mode="play"] .options-menu:not([hidden]) .pause-command,
+  .app-shell[data-engine-mode="play"] .options-menu:not([hidden]) .options-session {
+    animation: none;
+  }
+
+  .app-shell[data-engine-mode="play"] .pause-command,
+  .app-shell[data-engine-mode="play"] #options-resume,
+  .app-shell[data-engine-mode="play"] .options-session button {
+    transition: none;
+  }
 }
 
 .display-post-fx-layer {

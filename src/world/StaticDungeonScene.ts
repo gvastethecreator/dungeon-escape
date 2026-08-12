@@ -149,7 +149,12 @@ import { selectDistributedTorchIndices } from "./TorchDistribution";
 import { createLiquidSectionKit, type LiquidSectionKit } from "./LiquidSectionKit";
 import { createSpecialRoomSignals } from "./SpecialRoomSignalKit";
 import { getBiomeDecorationProfile } from "./BiomeDecorationProfile";
-import { BIOME_CORNER_PROP_MAX_TURN, type BiomeSpritePlacement } from "./BiomeSpriteDecorKit";
+import {
+  BIOME_CORNER_PROP_MAX_TURN,
+  BIOME_CORRIDOR_HANGER_MAX_TURN,
+  BIOME_EDGE_PROP_MAX_TURN,
+  type BiomeSpritePlacement,
+} from "./BiomeSpriteDecorKit";
 import { biomeSpriteDecorCatalog } from "./BiomeSpriteDecorCatalogs.generated";
 import {
   biomeSpriteDecorAtlasFrame,
@@ -254,6 +259,10 @@ export interface StaticFireEffect {
   phase: number;
   losOpen: boolean;
   losAge: number;
+  /** Wall torch/lantern sconces the player can F-take into hand. */
+  takeable?: boolean;
+  /** True after the sconce flame was grabbed; stays extinguished. */
+  taken?: boolean;
   runtimeFixture?: RuntimeWallFireFixtureHandle;
   audio?: boolean;
 }
@@ -279,6 +288,8 @@ export interface StaticCeilingBiomeSprite {
   x: number;
   z: number;
   baseYaw: number;
+  /** When set, yaw toward the player stays inside this masonry-safe window. */
+  maxWallTurn?: number;
   maxDistance: number;
   hysteresis: number;
   sharedMaterial?: boolean;
@@ -3234,7 +3245,7 @@ export class StaticDungeonScene {
     const target =
       floorPlan?.light.mode === "classic"
         ? floorPlan.light.torchTarget
-        : Math.max(6, Math.round((8 + dungeon.rooms.length * 0.45) * this.decorDensity));
+        : Math.max(10, Math.round((12 + dungeon.rooms.length * 0.7) * this.decorDensity));
     const torches: typeof candidates = [];
     for (const candidate of candidates) {
       if (
@@ -3250,7 +3261,7 @@ export class StaticDungeonScene {
             Math.max(
               Math.abs(placed.wall.x - candidate.wall.x),
               Math.abs(placed.wall.y - candidate.wall.y),
-            ) < 4,
+            ) < 3,
         )
       )
         continue;
@@ -3273,7 +3284,7 @@ export class StaticDungeonScene {
     const rooms = dungeon.rooms.filter(
       (room) => room.role === "room" && !this.isObjectiveClearanceCell(room.center),
     );
-    const campfireCount = Math.min(6, Math.round(rooms.length * 0.34 * this.decorDensity));
+    const campfireCount = Math.min(8, Math.round(rooms.length * 0.48 * this.decorDensity));
     let placedCampfires = 0;
     for (let index = 0; index < campfireCount; index += 1) {
       const room = rooms[(index * 3 + 1) % Math.max(1, rooms.length)];
@@ -3298,7 +3309,7 @@ export class StaticDungeonScene {
 
     const farRooms = [...rooms]
       .sort((a, b) => roomDistance(dungeon, b) - roomDistance(dungeon, a))
-      .slice(1, 3);
+      .slice(1, 4);
     let placedBraziers = 0;
     farRooms.forEach((room, index) => {
       const p = gridToWorld(dungeon, room.center, this.tileSize);
@@ -3521,7 +3532,11 @@ export class StaticDungeonScene {
         phase,
         losOpen: true,
         losAge: deterministicLosAge(phase),
+        // Lit wall sconces are grab targets; empty mounts stay decor-only.
+        takeable: lit,
+        taken: false,
       };
+      torch.root.userData.wallTorchTakeable = lit;
       this.registerFireEffect(effect);
       this.pendingWallFireFixtures.push({
         fixture: { kind: fixtureKind, root: torch.root },
@@ -4349,8 +4364,7 @@ export class StaticDungeonScene {
       this.tempScale.set(scale, scale, scale);
       this.tempMatrix.compose(this.tempPosition, this.tempQuaternion, this.tempScale);
       // Five quads per definition are cheaper as one instanced draw than as
-      // sparse spatial chunks. Their combined geometry is negligible, and the
-      // batch still receives one conservative world-space bounding volume.
+      // sparse spatial chunks. Their combined geometry is negligible.
       const key = `${definition.slot}`;
       const batch = wallBatches.get(key) ?? { definition, matrices: [] };
       batch.matrices.push(this.tempMatrix.clone());
@@ -4376,7 +4390,11 @@ export class StaticDungeonScene {
       batch.renderOrder = 5;
       batch.castShadow = false;
       batch.receiveShadow = true;
-      batch.frustumCulled = catalog.runtime.culling.frustum;
+      // Each instance is spread across the whole floor. Three.js culls an
+      // InstancedMesh as one object, which made every wall copy disappear when
+      // the shared batch volume fell outside the active view. Ten tiny batches
+      // are cheaper and more reliable to keep visible than to split per room.
+      batch.frustumCulled = false;
       const metadata = {
         biome: this.activeMood.id,
         id: definition.id,
@@ -4395,8 +4413,6 @@ export class StaticDungeonScene {
       matrices.forEach((matrix, index) => batch.setMatrixAt(index, matrix));
       batch.instanceMatrix.setUsage(THREE.StaticDrawUsage);
       batch.instanceMatrix.needsUpdate = true;
-      batch.computeBoundingBox();
-      batch.computeBoundingSphere();
       this.add(batch);
       added += matrices.length;
     }
@@ -4430,9 +4446,13 @@ export class StaticDungeonScene {
       const sprite = new THREE.Mesh(geometry, material);
       const edgeSeat = corner ?? wallSeat;
       const baseYaw = edgeSeat ? facingRotation(edgeSeat.intoDx, edgeSeat.intoDy) : 0;
-      const maxWallTurn =
-        runtimePlacement === "corner-standing"
-          ? (definition.maxYawTurn ?? BIOME_CORNER_PROP_MAX_TURN)
+      // Seat geometry owns the turn limit: corners get the open quadrant, wall-edge
+      // cards stay grounded. Catalog placement alone is not enough after the audit
+      // rewrites every floor prop to corner-standing.
+      const maxWallTurn = isCorner
+        ? (definition.maxYawTurn ?? BIOME_CORNER_PROP_MAX_TURN)
+        : wallSeat
+          ? (definition.maxYawTurn ?? BIOME_EDGE_PROP_MAX_TURN)
           : undefined;
       if (isCorner) {
         const offset = cornerHugWorldOffset(corner, this.tileSize, BIOME_CORNER_PROP_INSET);
@@ -4494,7 +4514,7 @@ export class StaticDungeonScene {
       addFloorSprite(placement.cell, placement.definition, undefined, placement.wallSeat);
     }
 
-    for (const { cell, definition } of ceilingPlacements) {
+    for (const { cell, definition, corridor } of ceilingPlacements) {
       const p = gridToWorld(dungeon, cell, this.tileSize);
       const scale = profile.wallDecorScale * (0.96 + random.next() * 0.08);
       const width = definition.worldSize.width * scale;
@@ -4512,9 +4532,13 @@ export class StaticDungeonScene {
         catalog.runtime.occlusion.alphaTest,
       );
       const motion = biomeDecorMotion(this.activeMood, definition.slot, cell);
+      const corridorFacing = corridor ? corridorHangerFacing(dungeon, cell) : null;
+      const baseYaw = corridorFacing?.baseYaw ?? 0;
+      const maxWallTurn = corridorFacing?.maxWallTurn;
       const sprite = new THREE.Mesh(geometry, material);
       sprite.position.set(p.x, this.wallHeight - definition.mount.planeOffset, p.z);
       sprite.rotation.order = "YXZ";
+      sprite.rotation.y = baseYaw;
       sprite.name = `${this.activeMood.label} ${definition.label} ceiling hanging`;
       sprite.castShadow = false;
       sprite.receiveShadow = true;
@@ -4533,6 +4557,7 @@ export class StaticDungeonScene {
         occlusion: catalog.runtime.occlusion,
         animated: true,
         animation: "biome-sway",
+        ...(maxWallTurn !== undefined ? { maxWallTurn } : {}),
       };
       sprite.userData.biomeSpriteDecor = metadata;
       sprite.userData.biomeSpriteProp = metadata;
@@ -4542,13 +4567,15 @@ export class StaticDungeonScene {
         baseOpacity: material.opacity,
         x: sprite.position.x,
         z: sprite.position.z,
-        baseYaw: 0,
+        baseYaw,
+        ...(maxWallTurn !== undefined ? { maxWallTurn } : {}),
         maxDistance: catalog.runtime.culling.maxDistance.ceiling,
         hysteresis: catalog.runtime.culling.hysteresis,
         sharedMaterial: true,
         animationPhase: motion.phase,
         animationSpeed: motion.speed,
-        swayAmplitude: motion.amplitude,
+        // Corridor hangers keep a quieter sway so the card stays off masonry.
+        swayAmplitude: corridorFacing ? motion.amplitude * 0.45 : motion.amplitude,
       });
       this.add(sprite);
       added += 1;
@@ -5607,6 +5634,29 @@ const CARDINAL_NEIGHBORS: ReadonlyArray<readonly [number, number]> = [
 const BIOME_WALL_DECAL_OFFSET = 0.026;
 const BIOME_CORNER_PROP_INSET = 0.66;
 const BIOME_FLOOR_PROP_WALL_INSET = 0.58;
+
+/**
+ * Aim a corridor ceiling hanger along the open hall axis and clamp yaw so the
+ * animated card cannot spin into the flanking walls.
+ */
+function corridorHangerFacing(
+  dungeon: DungeonData,
+  cell: GridCell,
+): { baseYaw: number; maxWallTurn: number } | null {
+  const open: Array<readonly [number, number]> = [];
+  for (const [dx, dy] of CARDINAL_NEIGHBORS) {
+    if (dungeon.grid[cell.y + dy]?.[cell.x + dx] !== WALL) open.push([dx, dy]);
+  }
+  if (open.length === 0) return null;
+  const primary = open[0]!;
+  const opposite = open.find(([dx, dy]) => dx === -primary[0] && dy === -primary[1]);
+  // Straight corridor: face down the hall. Junctions still prefer an open axis.
+  const along = opposite ?? primary;
+  return {
+    baseYaw: facingRotation(along[0], along[1]),
+    maxWallTurn: BIOME_CORRIDOR_HANGER_MAX_TURN,
+  };
+}
 
 /** Corridor cells usable by scenery. Unlike pickup seats, Forge corridor tiles
  * are intentionally allowed; door mouths, stairs, spawn and exit remain clear. */

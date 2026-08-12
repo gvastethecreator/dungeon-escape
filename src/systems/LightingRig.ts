@@ -51,12 +51,26 @@ export class LightingRig {
     PLAYER_LANTERN_TUNING.range,
     PLAYER_LANTERN_TUNING.decay,
   );
+  private readonly playerBeam = new THREE.SpotLight(
+    PLAYER_LANTERN_TUNING.color,
+    PLAYER_LANTERN_TUNING.forwardIntensity,
+    PLAYER_LANTERN_TUNING.forwardRange,
+    PLAYER_LANTERN_TUNING.forwardAngle,
+    PLAYER_LANTERN_TUNING.forwardPenumbra,
+    PLAYER_LANTERN_TUNING.decay,
+  );
+  private readonly playerBeamTarget = new THREE.Object3D();
   private readonly target = new THREE.Vector3();
+  private readonly beamOrigin = new THREE.Vector3();
+  private readonly beamAim = new THREE.Vector3();
+  private readonly forwardScratch = new THREE.Vector3(0, 0, -1);
   private mood = DEFAULT_MOOD;
   private baseFogDensity =
     DEFAULT_MOOD.fogDensity * DEFAULT_MOOD.fogMul * INTERIOR_LIGHT_TUNING.fogScale;
   private basePlayerLightIntensity =
     PLAYER_LANTERN_TUNING.intensity * DEFAULT_MOOD.playerLightScale;
+  private basePlayerBeamIntensity =
+    PLAYER_LANTERN_TUNING.forwardIntensity * DEFAULT_MOOD.playerLightScale;
   private envBound = false;
   private readonly fogScratch = new THREE.Color();
   private readonly mistScratch = new THREE.Color();
@@ -68,9 +82,21 @@ export class LightingRig {
     this.key.position.set(-6, 10, 4);
     this.rim.position.set(8, 5, -9);
     this.playerFill.name = "Player radial exploration lantern";
+    this.playerBeam.name = "Player forward exploration beam";
+    this.playerBeamTarget.name = "Player forward exploration beam target";
     // Dynamic shadow maps on the player light cause interaction stutter.
     this.playerFill.castShadow = false;
-    scene.add(this.hemisphere, this.key, this.rim, this.materialFill, this.playerFill);
+    this.playerBeam.castShadow = false;
+    this.playerBeam.target = this.playerBeamTarget;
+    scene.add(
+      this.hemisphere,
+      this.key,
+      this.rim,
+      this.materialFill,
+      this.playerFill,
+      this.playerBeam,
+      this.playerBeamTarget,
+    );
   }
 
   /**
@@ -120,9 +146,13 @@ export class LightingRig {
     this.rim.intensity = mood.rimIntensity * mood.rimScale * INTERIOR_LIGHT_TUNING.rimScale;
     this.materialFill.intensity =
       MATERIAL_FILL_TUNING.intensity * mood.bounceScale * INTERIOR_LIGHT_TUNING.bounceScale;
-    this.playerFill.color.setHex(resolvePlayerLanternColor(mood.lanternColor));
+    const lanternColor = resolvePlayerLanternColor(mood.lanternColor);
+    this.playerFill.color.setHex(lanternColor);
+    this.playerBeam.color.setHex(lanternColor);
     this.basePlayerLightIntensity = PLAYER_LANTERN_TUNING.intensity * mood.playerLightScale;
+    this.basePlayerBeamIntensity = PLAYER_LANTERN_TUNING.forwardIntensity * mood.playerLightScale;
     this.playerFill.intensity = this.basePlayerLightIntensity;
+    this.playerBeam.intensity = this.basePlayerBeamIntensity;
     if (this.scene.environment) {
       this.scene.environmentIntensity =
         mood.environmentIntensity * mood.iblScale * INTERIOR_LIGHT_TUNING.iblScale;
@@ -143,6 +173,14 @@ export class LightingRig {
 
   getLanternBaseIntensity(): number {
     return this.basePlayerLightIntensity;
+  }
+
+  getLanternBeamIntensity(): number {
+    return this.playerBeam.intensity;
+  }
+
+  getLanternBeamBaseIntensity(): number {
+    return this.basePlayerBeamIntensity;
   }
 
   /** Effective hemisphere intensity after mood bounce scale (tests / diagnostics). */
@@ -181,11 +219,28 @@ export class LightingRig {
     lanternIntensityMultiplier = 1,
   ): void {
     this.target.copy(player);
+    this.forwardScratch.set(0, 0, -1);
     if (viewForward) {
-      this.target.addScaledVector(viewForward, -PLAYER_LANTERN_TUNING.backwardOffset);
+      this.forwardScratch.copy(viewForward);
+      this.forwardScratch.y = 0;
+      if (this.forwardScratch.lengthSq() > 1e-6) this.forwardScratch.normalize();
+      else this.forwardScratch.set(0, 0, -1);
+      this.target.addScaledVector(this.forwardScratch, -PLAYER_LANTERN_TUNING.backwardOffset);
     }
     this.target.y += 0.82;
     this.playerFill.position.lerp(this.target, 1 - Math.exp(-10 * delta));
+
+    this.beamOrigin.copy(player);
+    this.beamOrigin.y += 0.72;
+    if (viewForward) {
+      this.beamOrigin.addScaledVector(this.forwardScratch, PLAYER_LANTERN_TUNING.forwardOffset);
+    }
+    this.beamAim.copy(this.beamOrigin).addScaledVector(this.forwardScratch, 8);
+    this.beamAim.y -= 0.35;
+    this.playerBeam.position.lerp(this.beamOrigin, 1 - Math.exp(-12 * delta));
+    this.playerBeamTarget.position.lerp(this.beamAim, 1 - Math.exp(-12 * delta));
+    this.playerBeamTarget.updateMatrixWorld();
+
     const threat = nearestThreat !== null && nearestThreat < 6 ? 1 - nearestThreat / 6 : 0;
     // Threat closes the fog slightly and boosts the lantern — readable panic, not a full blackout.
     // Multipliers below 1 come from the temporary clarity pickup (fog clear).
@@ -197,17 +252,32 @@ export class LightingRig {
       1.7,
       delta,
     );
-    const lanternMul = THREE.MathUtils.clamp(lanternIntensityMultiplier, 0.2, 1.4);
+    const lanternMul = THREE.MathUtils.clamp(lanternIntensityMultiplier, 0.05, 1.75);
+    const threatBoost = threat * PLAYER_LANTERN_TUNING.threatBoost;
     this.playerFill.intensity = THREE.MathUtils.damp(
       this.playerFill.intensity,
-      (this.basePlayerLightIntensity + threat * PLAYER_LANTERN_TUNING.threatBoost) * lanternMul,
+      (this.basePlayerLightIntensity + threatBoost * 0.45) * lanternMul,
+      3.2,
+      delta,
+    );
+    this.playerBeam.intensity = THREE.MathUtils.damp(
+      this.playerBeam.intensity,
+      (this.basePlayerBeamIntensity + threatBoost) * lanternMul,
       3.2,
       delta,
     );
   }
 
   dispose(): void {
-    this.scene.remove(this.hemisphere, this.key, this.rim, this.materialFill, this.playerFill);
+    this.scene.remove(
+      this.hemisphere,
+      this.key,
+      this.rim,
+      this.materialFill,
+      this.playerFill,
+      this.playerBeam,
+      this.playerBeamTarget,
+    );
     if (this.scene.environment) {
       this.scene.environment.dispose();
       this.scene.environment = null;

@@ -29,6 +29,7 @@ import { shouldRunGameRenderLoop } from "./editor/EditorRuntimePolicy";
 import { type EngineMode, isEngineMode } from "./game/EngineMode";
 import { MOBILITY_BOOST_FOOTSTEP_GAIN } from "./game/MobilityBoost";
 import { GLOOM_CURSE_FOG_MULTIPLIER, GLOOM_CURSE_LANTERN_MULTIPLIER } from "./game/GloomCurse";
+import { handTorchFogMultiplier, handTorchLanternMultiplier } from "./game/HandTorch";
 import { createBrowserForgeFramePort, ForgeFrameClient } from "./forge/ForgeFrameClient";
 import { projectLocomotionMods } from "./player/ControlModsProjection";
 import {
@@ -53,6 +54,7 @@ import { LightingRig } from "./systems/LightingRig";
 import { resolveExplorationFogMultiplier } from "./systems/ExplorationFog";
 import { SceneTextureRegistry } from "./systems/SceneTextureRegistry";
 import { resolveDungeonExposure } from "./systems/LightTuning";
+import { createFirstPersonTorch } from "./player/FirstPersonTorch";
 import { PovPostFx } from "./systems/PovPostFx";
 import {
   DEFAULT_DISPLAY_POST_FX_TUNING,
@@ -121,7 +123,6 @@ type PlayHostRenderer = DungeonRenderer & {
     memory: { geometries: number; textures: number };
     programs: unknown[] | null;
   };
-  compileAsync?: (scene: THREE.Object3D, camera: THREE.Camera) => Promise<unknown>;
   properties?: { get(material: THREE.Material): unknown };
   renderLists?: {
     get(scene: THREE.Scene, cameraIndex: number): { opaque: unknown[]; transparent: unknown[] };
@@ -317,6 +318,8 @@ const elements = {
   fogClearValue: requireElement<HTMLTimeElement>("#fog-clear-value"),
   mobilityStatus: requireElement<HTMLElement>("#mobility-status"),
   mobilityValue: requireElement<HTMLTimeElement>("#mobility-value"),
+  handTorchStatus: requireElement<HTMLElement>("#hand-torch-status"),
+  handTorchValue: requireElement<HTMLTimeElement>("#hand-torch-value"),
   slowCurseStatus: requireElement<HTMLElement>("#slow-curse-status"),
   slowCurseValue: requireElement<HTMLTimeElement>("#slow-curse-value"),
   frenzyCurseStatus: requireElement<HTMLElement>("#frenzy-curse-status"),
@@ -377,7 +380,11 @@ const elements = {
   optionsMenu: requireElement<HTMLElement>("#options-menu"),
   optionsCard: requireElement<HTMLElement>("#options-card"),
   optionsTitle: requireElement<HTMLElement>("#options-title"),
+  optionsKicker: requireElement<HTMLElement>("#options-kicker"),
+  optionsLedger: requireElement<HTMLElement>("#options-ledger"),
   optionsResume: requireElement<HTMLButtonElement>("#options-resume"),
+  optionsSettings: requireElement<HTMLButtonElement>("#options-settings"),
+  optionsSettingsBack: requireElement<HTMLButtonElement>("#options-settings-back"),
   optionsRestart: requireElement<HTMLButtonElement>("#options-restart"),
   optionsHome: requireElement<HTMLButtonElement>("#options-home"),
   recordPanel: requireElement<HTMLDetailsElement>(".record-panel"),
@@ -502,7 +509,9 @@ applyLocalDevToolsChrome();
 const scene = new THREE.Scene();
 
 const camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.08, 120);
-const renderPathCaps = detectRenderCapabilities({ overrides: launchConfig.render });
+const renderPathCaps = detectRenderCapabilities({
+  overrides: launchConfig.render,
+});
 let playRendererHandle: PlayRendererHandle;
 try {
   playRendererHandle = await createPlayRendererHandle({
@@ -672,8 +681,14 @@ let lastRunTimerSecond = -1;
 let lastHazardKind: HazardSurfaceEffect["kind"] | undefined;
 const playStatusHud = new PlayStatusHud({
   shell: elements.shell,
-  timeFreeze: { root: elements.timeFreezeStatus, value: elements.timeFreezeValue },
-  luminousWard: { root: elements.luminousWardStatus, value: elements.luminousWardValue },
+  timeFreeze: {
+    root: elements.timeFreezeStatus,
+    value: elements.timeFreezeValue,
+  },
+  luminousWard: {
+    root: elements.luminousWardStatus,
+    value: elements.luminousWardValue,
+  },
   annihilationPulse: {
     root: elements.annihilationPulseStatus,
     value: elements.annihilationPulseValue,
@@ -681,10 +696,20 @@ const playStatusHud = new PlayStatusHud({
   cullBrand: { root: elements.cullBrandStatus, value: elements.cullBrandValue },
   fogClear: { root: elements.fogClearStatus, value: elements.fogClearValue },
   mobility: { root: elements.mobilityStatus, value: elements.mobilityValue },
+  handTorch: { root: elements.handTorchStatus, value: elements.handTorchValue },
   slowCurse: { root: elements.slowCurseStatus, value: elements.slowCurseValue },
-  frenzyCurse: { root: elements.frenzyCurseStatus, value: elements.frenzyCurseValue },
-  gloomCurse: { root: elements.gloomCurseStatus, value: elements.gloomCurseValue },
-  mirrorCurse: { root: elements.mirrorCurseStatus, value: elements.mirrorCurseValue },
+  frenzyCurse: {
+    root: elements.frenzyCurseStatus,
+    value: elements.frenzyCurseValue,
+  },
+  gloomCurse: {
+    root: elements.gloomCurseStatus,
+    value: elements.gloomCurseValue,
+  },
+  mirrorCurse: {
+    root: elements.mirrorCurseStatus,
+    value: elements.mirrorCurseValue,
+  },
   spinCurse: { root: elements.spinCurseStatus, value: elements.spinCurseValue },
   swarmRoot: elements.swarmCurseStatus,
   phoenixRoot: elements.phoenixStatus,
@@ -873,6 +898,11 @@ const controller = new FirstPersonController(camera, elements.scene, {
     }
   },
 });
+
+/** Authored wall-torch sculpt adapted as a right-hand FP viewmodel. */
+const handTorch = createFirstPersonTorch();
+handTorch.attach(camera, scene);
+handTorch.setVisible(false);
 
 const editorView = new LazyDungeonEditorView(elements.editorMap, {
   onSelectSpawn: selectEditorSpawn,
@@ -1099,7 +1129,10 @@ function syncWelcomeSaveSummary(
 function setContinueCandidate(
   state: DungeonDomainState | null,
   status: string,
-  recovery: { readonly resume: LocalRunResumeState; readonly runSource: RunSource } | null = null,
+  recovery: {
+    readonly resume: LocalRunResumeState;
+    readonly runSource: RunSource;
+  } | null = null,
   presentation: ContinuePresentation = {},
 ): void {
   continueDomainState = canContinueDomainRun(state) ? state : null;
@@ -1281,7 +1314,10 @@ function showBiomePicker(): void {
   // Warm the Forge iframe while the player picks a biome so New Game does not
   // stall on a cold WebGL load under the black curtain.
   if (!launchConfig.skipRunIntro) {
-    void forgeFrameClient.ensureLoaded({ timeoutMs: 8_000, presentation: true });
+    void forgeFrameClient.ensureLoaded({
+      timeoutMs: 8_000,
+      presentation: true,
+    });
   }
   window.requestAnimationFrame(() => elements.biomePickerBack.focus());
 }
@@ -1592,7 +1628,11 @@ const runIntroDirector = new RunIntroDirector({
   },
   enterTheater() {
     if (engineMode === "play") {
-      setEngineMode("editor", { hydrate: false, persist: false, loadEditor: false });
+      setEngineMode("editor", {
+        hydrate: false,
+        persist: false,
+        loadEditor: false,
+      });
     }
     setIntroTheaterRevealed(false);
     setRunIntroActive(true, COPY.status.forgingMap);
@@ -1828,7 +1868,11 @@ function prepareLeaderboardSubmission(
 ): void {
   const durationMs = Math.max(1_000, Math.round(runSeconds * 1000));
   const difficultyValue = getEnemyDensity();
-  const score = computeLeaderboardScore({ durationMs, difficultyValue, roomCount });
+  const score = computeLeaderboardScore({
+    durationMs,
+    difficultyValue,
+    roomCount,
+  });
   elements.endScore.textContent = score.toLocaleString("en-US");
   // Custom Run / Forge / Map Tools: show the local score, never open Hall submit.
   if (!isLeaderboardEligible(runSource) || Boolean(dungeon?.forge)) {
@@ -1899,6 +1943,7 @@ function beginRendererWarmup(): number {
   // A queued frame may be superseded before it starts. The replacement owns a
   // clean sentinel and the stale frame exits on its sequence guard.
   world.setPickupEffectsWarmupVisible(false);
+  handTorch.setWarmupVisible(false);
   return renderWarmupSequence;
 }
 
@@ -1953,59 +1998,6 @@ function markRendererWarmupReady(
   }
 }
 
-const ASYNC_SHADER_WARMUP_BUDGET_MS = 2_000;
-
-function residentFloorWarmupRoots(): THREE.Object3D[] {
-  const roots: THREE.Object3D[] = [];
-  scene.traverse((object) => {
-    if (/^Dungeon resident floor \d+$/.test(object.name)) roots.push(object);
-  });
-  return roots;
-}
-
-async function compileRendererWarmupBatches(): Promise<number> {
-  const roots = residentFloorWarmupRoots();
-  const batches = roots.length > 0 ? roots : [null];
-  const originalVisibility = new Map(roots.map((root) => [root, root.visible] as const));
-  const warmupStartedAt = performance.now();
-  let workMs = 0;
-
-  try {
-    for (const root of batches) {
-      const remainingMs = ASYNC_SHADER_WARMUP_BUDGET_MS - (performance.now() - warmupStartedAt);
-      if (remainingMs <= 0) break;
-      if (root) {
-        for (const candidate of roots) candidate.visible = candidate === root;
-      }
-
-      const batchStartedAt = performance.now();
-      let batchComplete = false;
-      const compileAsync = webGlRenderer?.compileAsync?.bind(webGlRenderer);
-      if (!compileAsync) break;
-      const compile = compileAsync(scene, camera);
-      await Promise.race([
-        compile.then(() => {
-          batchComplete = true;
-        }),
-        waitMs(remainingMs),
-      ]);
-      workMs += performance.now() - batchStartedAt;
-
-      if (!batchComplete) {
-        // The browser can finish this program in parallel after the cover drops.
-        // Do not retain a replaced world's roots just to wait for it.
-        void compile.catch((error: unknown) => console.warn("Async shader warmup failed", error));
-        break;
-      }
-      await waitAnimationFrames(1);
-    }
-  } finally {
-    for (const [root, visible] of originalVisibility) root.visible = visible;
-  }
-
-  return workMs;
-}
-
 function startRendererWarmup(
   sequence: number,
   readyMessage: string,
@@ -2022,50 +2014,41 @@ function startRendererWarmup(
     return;
   }
   if (localDevTools) setStatus("Preparing renderer...");
-  // Never leave the load cover waiting forever if rAF is delayed or the first
-  // draw stalls. Parents (intro / rebuild cover) wait on renderWarmupReady.
-  const failsafe = window.setTimeout(() => {
-    markRendererWarmupReady(sequence, "timeout", readyMessage, undefined, undefined, trace);
-  }, 4_000);
   // Warm only the live graph. Forcing every dormant pickup effect into this
   // path made large resident stacks decode and upload unrelated variants before
   // the player could move.
-  window.requestAnimationFrame(() => {
+  let warmupStarted = false;
+  let warmupFallback = 0;
+  const runWarmup = (): void => {
+    if (warmupStarted) return;
+    warmupStarted = true;
+    window.clearTimeout(warmupFallback);
     void (async () => {
       if (!isCurrentRendererWarmup(sequence, trace)) {
-        window.clearTimeout(failsafe);
         finishDungeonLoadTrace(trace, "superseded");
         return;
       }
       let warmupError: unknown = null;
       let warmupWorkMs = 0;
       try {
-        if (renderCaps.allowAsyncShaderWarmup && renderCaps.canCompileAsync) {
-          // Compile one resident floor at a time and yield while the cover is up.
-          // Do not reveal dormant pickup variants: their program handles may
-          // outlive a replaced world.
-          warmupWorkMs += await compileRendererWarmupBatches();
-          if (!isCurrentRendererWarmup(sequence, trace) || renderWarmupReady) return;
-          const postFxStartedAt = performance.now();
-          povPost.warmup(renderer, scene, camera);
-          warmupWorkMs += performance.now() - postFxStartedAt;
-        } else {
-          // Firefox, safe-render, WebGPU, and unsupported WebGL retain a single
-          // live draw path (PovPostFx no-ops to a direct render when disabled).
-          const drawStartedAt = performance.now();
-          povPost.render(renderer, scene, camera);
-          warmupWorkMs += performance.now() - drawStartedAt;
-        }
+        // Draw the exact first playable frame once under the cover. Compiling
+        // the complete resident scene initialized hundreds of unrelated
+        // materials and made cold starts substantially slower.
+        world.prepareVisibleZone(camera.position);
+        world.setPickupEffectsWarmupVisible(true);
+        handTorch.setWarmupVisible(true);
+        const drawStartedAt = performance.now();
+        povPost.render(renderer, scene, camera);
+        warmupWorkMs += performance.now() - drawStartedAt;
         trace?.markFirstUsableFrame();
       } catch (error) {
         warmupError = error;
       }
       try {
         world.setPickupEffectsWarmupVisible(false);
+        handTorch.setWarmupVisible(false);
       } catch (error) {
         if (warmupError === null) warmupError = error;
-      } finally {
-        window.clearTimeout(failsafe);
       }
 
       if (!isCurrentRendererWarmup(sequence, trace) || renderWarmupReady) return;
@@ -2085,7 +2068,12 @@ function startRendererWarmup(
         trace,
       );
     })();
-  });
+  };
+  // Background tabs and software-rendered CI can delay rAF for several
+  // seconds. Run the same guarded path from a short timer instead of falsely
+  // declaring the renderer timed out while no work has started.
+  warmupFallback = window.setTimeout(runWarmup, 250);
+  window.requestAnimationFrame(runWarmup);
 }
 
 function clearObjectiveBannerTimers(): void {
@@ -2193,6 +2181,32 @@ function applyPersistedRunSession(plan: RunResumeActivationPlan): void {
   else showEndOverlay(state.runMode);
 }
 
+function syncPauseLedger(): void {
+  const quest = playRuntime.state().quest;
+  const clock = formatRunClock(Math.floor(playRuntime.runSeconds()));
+  elements.optionsLedger.textContent = COPY.pause.ledger(
+    clock,
+    quest.stonesFound,
+    quest.stonesTotal,
+  );
+  elements.optionsKicker.textContent = dungeon
+    ? resolveActiveMood(dungeon).label
+    : COPY.pause.kicker;
+}
+
+function setPausePane(pane: "menu" | "settings", restoreFocus = true): void {
+  elements.shell.dataset.pausePane = pane;
+  elements.optionsSettings.setAttribute("aria-expanded", String(pane === "settings"));
+  if (engineMode !== "play") return;
+  if (pane === "settings") {
+    elements.optionsTitle.textContent = COPY.pause.settings;
+    if (restoreFocus) elements.optionsSettingsBack.focus();
+    return;
+  }
+  if (optionsOpen) elements.optionsTitle.textContent = COPY.pause.title;
+  if (restoreFocus && optionsOpen) elements.optionsSettings.focus();
+}
+
 function setOptionsOpen(
   open: boolean,
   source: "manual" | "pointer-unlock" | "escape" = "manual",
@@ -2203,6 +2217,7 @@ function setOptionsOpen(
     // Creation/Debug always show the docked tools shell.
     optionsOpen = false;
     suppressPauseOnPointerUnlock = false;
+    setPausePane("menu", false);
     elements.shell.classList.remove("options-open");
     elements.optionsMenu.hidden = false;
     elements.optionsCard.setAttribute("role", "region");
@@ -2224,8 +2239,10 @@ function setOptionsOpen(
   elements.optionsMenu.hidden = !open;
   elements.optionsCard.setAttribute("role", "dialog");
   elements.optionsCard.setAttribute("aria-modal", "true");
-  elements.optionsTitle.textContent = open ? "Paused" : "Play";
+  setPausePane("menu", false);
+  elements.optionsTitle.textContent = open ? COPY.pause.title : "Play";
   if (open) {
+    syncPauseLedger();
     controller.setEnabled(false);
     controller.releasePointerLock();
     audio.setPaused(true);
@@ -2420,6 +2437,7 @@ function syncPlayStatusHud(
     cullBrand?: number;
     fogClear?: number;
     mobility?: number;
+    handTorch?: number;
     phoenixCharges?: number;
     slow?: number;
     frenzy?: number;
@@ -2436,6 +2454,7 @@ function syncPlayStatusHud(
     cullBrand: remaining.cullBrand ?? world.cullBrandRemaining,
     fogClear: remaining.fogClear ?? world.fogClearRemaining,
     mobility: remaining.mobility ?? world.mobilityBoostRemaining,
+    handTorch: remaining.handTorch ?? world.handTorchRemaining,
     phoenixCharges: remaining.phoenixCharges ?? world.phoenixChargeCount,
     slow: remaining.slow ?? world.slowCurseRemaining,
     frenzy: remaining.frenzy ?? world.frenzyCurseRemaining,
@@ -2568,6 +2587,7 @@ function applyAtmosphereFromParams(): void {
 function applyDungeonMood(nextDungeon: DungeonData): ReturnType<typeof resolveDungeonMood> {
   const mood = resolveActiveMood(nextDungeon);
   lighting.applyMood(mood);
+  handTorch.setMood(mood);
   return mood;
 }
 
@@ -2642,9 +2662,14 @@ function unlockAudioFromGesture(): void {
   if (!audio.isUnlocked || !audio.isReady) void audio.unlock();
 }
 
-document.addEventListener("pointerdown", unlockAudioFromGesture, { capture: true });
+document.addEventListener("pointerdown", unlockAudioFromGesture, {
+  capture: true,
+});
 document.addEventListener("keydown", unlockAudioFromGesture, { capture: true });
-document.addEventListener("touchstart", unlockAudioFromGesture, { capture: true, passive: true });
+document.addEventListener("touchstart", unlockAudioFromGesture, {
+  capture: true,
+  passive: true,
+});
 
 let lastUiHoverAt = 0;
 let lastUiHoverTarget: UiSoundTarget | null = null;
@@ -2820,7 +2845,11 @@ function showPickupFeedback(
       { opacity: 1, transform: "translate(-50%, 0) scale(1.04)", offset: 0.12 },
       { opacity: 1, transform: "translate(-50%, 0) scale(1)", offset: 0.22 },
       { opacity: 1, transform: "translate(-50%, -6px) scale(1)", offset: 0.72 },
-      { opacity: 0, transform: "translate(-50%, -18px) scale(0.98)", offset: 1 },
+      {
+        opacity: 0,
+        transform: "translate(-50%, -18px) scale(0.98)",
+        offset: 1,
+      },
     ],
     {
       duration: REDUCED_MOTION_QUERY.matches ? 1 : 1200,
@@ -3332,7 +3361,13 @@ async function activateDungeon(
   lastHazardKind = undefined;
   activeHazardKind = null;
   hazardHitBoost = 0;
-  syncHazardStatus({ kind: null, label: "", damage: 0, movementScale: 1, traction: 1 });
+  syncHazardStatus({
+    kind: null,
+    label: "",
+    damage: 0,
+    movementScale: 1,
+    traction: 1,
+  });
   elements.damage.dataset.kind = "enemy";
   elements.healthOrb.dataset.damageKind = "enemy";
   lastRunTimerSecond = -1;
@@ -3532,7 +3567,10 @@ function setEditorSurface(
     button.setAttribute("aria-selected", String(active));
   });
   if (nextSurface === "forge" && engineMode !== "play") {
-    void forgeFrameClient.ensureLoaded({ presentation: isRunIntroActive(), timeoutMs: 8_000 });
+    void forgeFrameClient.ensureLoaded({
+      presentation: isRunIntroActive(),
+      timeoutMs: 8_000,
+    });
   }
   const visible = nextSurface === "forge" && (engineMode === "editor" || isRunIntroActive());
   forgeFrameClient.setVisible(visible);
@@ -3604,7 +3642,11 @@ function selectEditorSpawn(cell: { x: number; y: number }): void {
   dungeon = setDungeonSpawn(dungeon, cell);
   const mood = applyDungeonMood(dungeon);
   applyAtmosphereFromParams();
-  const state = playRuntime.load({ dungeon, mood, persisted: playRuntime.snapshot() });
+  const state = playRuntime.load({
+    dungeon,
+    mood,
+    persisted: playRuntime.snapshot(),
+  });
   textureRegistry.setSmoothing(userSettings.textureSmoothing);
   playStatusHud.reset();
   lastRunTimerSecond = -1;
@@ -3944,7 +3986,9 @@ function collectRendererProgramProfiles(): readonly RendererProgramProfile[] {
   };
   for (const program of renderer.info.programs ?? []) ensure(program as Program);
   scene.traverse((object) => {
-    const candidate = object as THREE.Object3D & { material?: THREE.Material | THREE.Material[] };
+    const candidate = object as THREE.Object3D & {
+      material?: THREE.Material | THREE.Material[];
+    };
     const materials = Array.isArray(candidate.material)
       ? candidate.material
       : candidate.material
@@ -4014,7 +4058,9 @@ function collectRendererRenderList(): RendererRenderListProfile {
   const profiles = new Map<string, RendererRenderItemProfile>();
   for (const item of items) {
     const program = (
-      webGlRenderer.properties.get(item.material) as { currentProgram?: { id: number } }
+      webGlRenderer.properties.get(item.material) as {
+        currentProgram?: { id: number };
+      }
     ).currentProgram;
     const objectName = item.object.name || item.object.type;
     const key = `${objectName}|${item.object.type}|${item.material.type}|${program?.id ?? "none"}`;
@@ -4090,8 +4136,10 @@ function publishPerformanceDiagnostics(now: number): void {
   dataset.renderDpr = renderer.getPixelRatio().toFixed(2);
   dataset.worldLights = String(world.stats.lights);
   dataset.residentFloorCount = String(campaignFloorSet?.count ?? dungeon?.floor?.count ?? 1);
-  if (launchConfig.performanceAudit) {
+  const inventoryLoadId = dataset.dungeonLoadId ?? "no-load";
+  if (launchConfig.performanceAudit && dataset.renderInventoryLoadId !== inventoryLoadId) {
     dataset.renderInventory = JSON.stringify(collectVisibleRenderInventory(scene, camera));
+    dataset.renderInventoryLoadId = inventoryLoadId;
   }
   lastPerformancePublish = now;
 }
@@ -4230,7 +4278,10 @@ function scheduleEditorRegeneration(): void {
   if (!localDevTools || engineMode === "play") return;
   void audio.unlock();
   window.clearTimeout(regenerateTimer);
-  const params = setGenerationParams({ ...generationParams, profile: "custom" });
+  const params = setGenerationParams({
+    ...generationParams,
+    profile: "custom",
+  });
   setEditorSurfaceStatus("runtime", "PLAY MAP · UPDATING", "updating");
   regenerateTimer = window.setTimeout(() => {
     elements.profileSelect.value = "custom";
@@ -4347,7 +4398,10 @@ elements.runNew.addEventListener("click", () => {
     if (!(await beginAuthorityRunTransition())) return;
     const seed = elements.seed.value.trim() || makeSeed();
     try {
-      const created = await authority.createRun({ seed, label: `dungeon-${seed.slice(0, 12)}` });
+      const created = await authority.createRun({
+        seed,
+        label: `dungeon-${seed.slice(0, 12)}`,
+      });
       bindAuthorityRunTransition(created.run.id);
       elements.seed.value = created.run.seed;
       await buildDungeon(created.run.seed);
@@ -4504,6 +4558,12 @@ elements.welcomeCustom.addEventListener("click", () => {
   })();
 });
 elements.optionsResume.addEventListener("click", resumePlay);
+elements.optionsSettings.addEventListener("click", () => {
+  setPausePane("settings");
+});
+elements.optionsSettingsBack.addEventListener("click", () => {
+  setPausePane("menu");
+});
 elements.optionsRestart.addEventListener("click", () => {
   restartCurrentMap();
 });
@@ -4826,6 +4886,10 @@ document.addEventListener("keydown", (event) => {
         optionsOpenByPointerUnlock = false;
         return;
       }
+      if (elements.shell.dataset.pausePane === "settings") {
+        setPausePane("menu");
+        return;
+      }
       resumePlay();
       // Escape often cannot re-lock; leave a clear click-to-continue cue.
       if (!controller.getState().locked && !touchSessionActive) {
@@ -4990,7 +5054,11 @@ function syncThreeRenderLoop(): void {
   animationFrameId = 1;
 }
 
-function getThreeLoopDiagnostics(): { running: boolean; frames: number; renders: number } {
+function getThreeLoopDiagnostics(): {
+  running: boolean;
+  frames: number;
+  renders: number;
+} {
   return {
     running: animationFrameId !== 0 && shouldRunThreeRenderLoop(),
     frames: threeFrameCount,
@@ -5106,6 +5174,7 @@ function frame(now: number): void {
         cullBrand: worldUpdate.cullBrandRemaining,
         fogClear: worldUpdate.fogClearRemaining,
         mobility: worldUpdate.mobilityBoostRemaining,
+        handTorch: worldUpdate.handTorchRemaining,
         phoenixCharges: worldUpdate.phoenixCharges,
         slow: worldUpdate.slowCurseRemaining,
         frenzy: worldUpdate.frenzyCurseRemaining,
@@ -5135,7 +5204,10 @@ function frame(now: number): void {
       const interactionPrompt = worldUpdate.interactionPrompt;
       elements.interactionPrompt.hidden = interactionPrompt === null;
       if (interactionPrompt) {
-        const label = COPY.interaction.openChest;
+        const label =
+          interactionPrompt === "take-torch"
+            ? COPY.interaction.takeTorch
+            : COPY.interaction.openChest;
         const text = elements.interactionPrompt.querySelector("span");
         if (text) text.textContent = label;
         elements.interactionPrompt.setAttribute("aria-label", label.toLowerCase());
@@ -5270,6 +5342,9 @@ function frame(now: number): void {
     explorationFogMul *= GLOOM_CURSE_FOG_MULTIPLIER;
     lanternMul = GLOOM_CURSE_LANTERN_MULTIPLIER;
   }
+  const handTorchFuel = world.handTorchRemaining;
+  lanternMul *= handTorchLanternMultiplier(handTorchFuel);
+  explorationFogMul *= handTorchFogMultiplier(handTorchFuel);
   lighting.update(
     delta,
     playerPosition,
@@ -5278,6 +5353,25 @@ function frame(now: number): void {
     explorationFogMul,
     lanternMul,
   );
+  const showHandTorch =
+    simulationActive && playRuntime.state().runMode === "playing" && handTorchFuel > 0;
+  handTorch.setVisible(showHandTorch);
+  if (showHandTorch) {
+    const fuelFade = Math.min(1, handTorchFuel / 1.2);
+    handTorch.update(
+      delta,
+      now * 0.001,
+      {
+        moving: player.moving,
+        sprinting: player.sprinting,
+        stridePhase: player.stridePhase,
+        grounded: player.grounded,
+        velocityX: player.velocityX,
+        velocityZ: player.velocityZ,
+      },
+      lanternMul * fuelFade,
+    );
+  }
 
   // POV: close enemies shake a little; hits keep the lens unstable for a few seconds.
   const maxSpeed = PLAYER_MOVE_SPEED * PLAYER_SPRINT_MULT;

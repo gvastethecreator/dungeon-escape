@@ -61,6 +61,8 @@ describe("pause options behavior", () => {
       handler.indexOf('event.target.closest("input, textarea, select")'),
     );
     expect(handler).toContain("if (optionsOpen) {");
+    expect(handler).toContain('dataset.pausePane === "settings"');
+    expect(handler).toContain('setPausePane("menu")');
     expect(handler).toContain("if (elements.displayPostFxLab.open) {");
     expect(handler).toContain("setDisplayPostFxLabOpen(false);");
     expect(handler).toContain("resumePlay();");

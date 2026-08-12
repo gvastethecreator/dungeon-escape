@@ -18,6 +18,7 @@ export interface PlayStatusHudPorts {
   cullBrand: PlayStatusChipElements;
   fogClear: PlayStatusChipElements;
   mobility: PlayStatusChipElements;
+  handTorch: PlayStatusChipElements;
   slowCurse: PlayStatusChipElements;
   frenzyCurse: PlayStatusChipElements;
   gloomCurse: PlayStatusChipElements;
@@ -36,6 +37,7 @@ export interface PlayStatusSnapshot {
   cullBrand?: number;
   fogClear?: number;
   mobility?: number;
+  handTorch?: number;
   phoenixCharges?: number;
   slow?: number;
   frenzy?: number;
@@ -52,6 +54,7 @@ export class PlayStatusHud {
   private readonly cullBrand: TimedStatusChip;
   private readonly fogClear: TimedStatusChip;
   private readonly mobility: TimedStatusChip;
+  private readonly handTorch: TimedStatusChip;
   private readonly slowCurse: TimedStatusChip;
   private readonly frenzyCurse: TimedStatusChip;
   private readonly gloomCurse: TimedStatusChip;
@@ -97,6 +100,12 @@ export class PlayStatusHud {
       shellDatasetKey: "mobilityBoost",
       ariaRemaining: "wayfinder remaining",
     });
+    this.handTorch = new TimedStatusChip({
+      elements: ports.handTorch,
+      shell,
+      shellDatasetKey: "handTorch",
+      ariaRemaining: "torch remaining",
+    });
     this.slowCurse = new TimedStatusChip({
       elements: ports.slowCurse,
       shell,
@@ -136,6 +145,7 @@ export class PlayStatusHud {
     this.cullBrand.reset();
     this.fogClear.reset();
     this.mobility.reset();
+    this.handTorch.reset();
     this.slowCurse.reset();
     this.frenzyCurse.reset();
     this.gloomCurse.reset();
@@ -158,6 +168,7 @@ export class PlayStatusHud {
       this.applyFogClearSideEffect(snapshot.fogClear > 0);
     }
     if (snapshot.mobility !== undefined) this.mobility.sync(snapshot.mobility);
+    if (snapshot.handTorch !== undefined) this.handTorch.sync(snapshot.handTorch);
     if (snapshot.phoenixCharges !== undefined) this.syncPhoenix(snapshot.phoenixCharges);
     if (snapshot.slow !== undefined) this.slowCurse.sync(snapshot.slow);
     if (snapshot.frenzy !== undefined) this.frenzyCurse.sync(snapshot.frenzy);

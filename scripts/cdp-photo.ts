@@ -159,6 +159,10 @@ const captureRecords: Array<{
   target?: string;
   status?: string;
   animationSample?: { frameA: number; frameB: number; blend: number };
+  interactionSample?: {
+    frameGaps: { samples: number; p95: number; p99: number; max: number; over25: number };
+    audio: { decodedAssets: number; decodedMilliseconds: number; queuedAssets: number };
+  };
 }> = [];
 
 function send(
@@ -936,10 +940,18 @@ try {
       throw new Error(`${label}: invalid camera X offset ${JSON.stringify(rawDx)}.`);
     if (!Number.isFinite(dz))
       throw new Error(`${label}: invalid camera Z offset ${JSON.stringify(rawDz)}.`);
-    if (captureMode && captureMode !== "animate")
+    if (captureMode && captureMode !== "animate" && captureMode !== "profile")
       throw new Error(
-        `${label}: capture mode must be "animate"; received ${JSON.stringify(captureMode)}.`,
+        `${label}: capture mode must be "animate" or "profile"; received ${JSON.stringify(captureMode)}.`,
       );
+    if (captureMode === "profile") {
+      await send(
+        ws,
+        "Runtime.evaluate",
+        { expression: "window.__THREE_GAME_DIAGNOSTICS__.resetFrameGaps(0)" },
+        `${label}-profile-reset`,
+      );
+    }
     const status = await teleport(
       name,
       dx,
@@ -955,13 +967,45 @@ try {
       captureMode === "animate"
         ? await waitForInstanceAnimation(name, parsedInstanceIndex ?? 0)
         : undefined;
-    await sleep(animationSample ? 40 : 900);
+    await sleep(animationSample ? 40 : captureMode === "profile" ? 1_400 : 900);
     await capture(label);
     const record = captureRecords.at(-1);
     if (record) {
       record.target = name;
       record.status = status;
       record.animationSample = animationSample;
+      if (captureMode === "profile") {
+        const interaction = (await send(
+          ws,
+          "Runtime.evaluate",
+          {
+            expression: `(() => {
+              const diag = window.__THREE_GAME_DIAGNOSTICS__;
+              return { frameGaps: diag.getRenderer().frameGaps, audio: diag.getAudio() };
+            })()`,
+            returnByValue: true,
+          },
+          `${label}-profile-read`,
+        )) as {
+          result?: {
+            value?: {
+              frameGaps: {
+                samples: number;
+                p95: number;
+                p99: number;
+                max: number;
+                over25: number;
+              };
+              audio: {
+                decodedAssets: number;
+                decodedMilliseconds: number;
+                queuedAssets: number;
+              };
+            };
+          };
+        };
+        record.interactionSample = interaction.result?.value;
+      }
     }
   }
 
@@ -973,7 +1017,9 @@ try {
         expression: `(() => {
         const diag = window.__THREE_GAME_DIAGNOSTICS__;
         const prompt = document.querySelector('#interaction-prompt');
-        if (!diag || !(prompt instanceof HTMLElement)) return 'MISSING_DIAGNOSTICS';
+        if (!diag || !(prompt instanceof HTMLElement)) return { status: 'MISSING_DIAGNOSTICS' };
+        const renderer = diag.getRenderer();
+        const audio = diag.getAudio();
         prompt.dispatchEvent(new PointerEvent('pointerdown', {
           bubbles: true,
           cancelable: true,
@@ -985,14 +1031,28 @@ try {
         ctrl.setVirtualAction('forward', true);
         ctrl.setVirtualAction('sprint', true);
         ctrl.setVirtualAction('turnRight', true);
-        return 'STARTED';
+        return {
+          status: 'STARTED',
+          renderer,
+          audio,
+        };
       })()`,
         returnByValue: true,
       },
       "performance-start",
-    )) as { result?: { value?: string } };
-    if (started.result?.value !== "STARTED")
-      throw new Error(`Performance audit could not start (${started.result?.value ?? "unknown"}).`);
+    )) as {
+      result?: {
+        value?: {
+          status?: string;
+          renderer?: { programs?: number; programProfiles?: unknown[] };
+          audio?: { decodedAssets?: number; decodedMilliseconds?: number; queuedAssets?: number };
+        };
+      };
+    };
+    if (started.result?.value?.status !== "STARTED")
+      throw new Error(
+        `Performance audit could not start (${started.result?.value?.status ?? "unknown"}).`,
+      );
 
     // The runtime resets its ring when simulation starts and ignores its first
     // 1.8 seconds. Keep that warmup outside the requested measurement window.
@@ -1010,6 +1070,7 @@ try {
         const scene = document.querySelector('#scene');
         return {
           renderer: diag.getRenderer(),
+          audio: diag.getAudio(),
           runtime: diag.getState(),
           dataset: scene instanceof HTMLElement ? { ...scene.dataset } : {},
           url: location.href,
@@ -1022,6 +1083,7 @@ try {
       result?: {
         value?: {
           renderer?: { frameGaps?: { samples?: number; p95?: number; p99?: number; max?: number } };
+          audio?: { decodedAssets?: number; decodedMilliseconds?: number; queuedAssets?: number };
           runtime?: unknown;
           dataset?: Record<string, string>;
           url?: string;
@@ -1050,6 +1112,7 @@ try {
           qaState: qaState || null,
           crt: CRT || null,
           requestedSeconds: PERF_SECONDS,
+          start: started.result?.value,
           ...audit,
         },
         null,

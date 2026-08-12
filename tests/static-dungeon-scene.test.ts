@@ -1198,6 +1198,11 @@ describe("StaticDungeonScene", () => {
       expect(biomeSpriteNodes.some((object) => object.name.includes("wall-mounted batch"))).toBe(
         true,
       );
+      expect(
+        biomeSpriteNodes
+          .filter((object) => object.name.includes("wall-mounted batch"))
+          .every((object) => object.frustumCulled === false),
+      ).toBe(true);
       expect(staticScene.stats).toMatchObject({
         floorTiles: 564,
         wallTiles: 459,

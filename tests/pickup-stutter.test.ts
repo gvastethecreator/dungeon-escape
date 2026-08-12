@@ -87,6 +87,17 @@ describe("pickup frame stability", () => {
     expect(pool.activeCount).toBe(0);
   });
 
+  test("can warm the pooled burst without triggering an active pickup", () => {
+    const pool = new PickupBurstPool(3, "glsl");
+    pool.setWarmupVisible(true, { x: 2, y: 0.4, z: -3 });
+    expect(pool.activeCount).toBe(0);
+    expect(pool.root.children.every((slot) => slot.visible)).toBe(true);
+    expect(pool.root.children.every((slot) => slot.scale.x === 0.001)).toBe(true);
+    pool.setWarmupVisible(false, { x: 2, y: 0.4, z: -3 });
+    expect(pool.root.children.every((slot) => !slot.visible)).toBe(true);
+    pool.dispose();
+  });
+
   test("gives power, utility, and curse pickups different pooled choreography", () => {
     const pool = new PickupBurstPool(8);
     const kinds = [

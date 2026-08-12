@@ -222,6 +222,36 @@ describe("FirstPersonController stair traversal", () => {
     expect(rebound).toBe(true);
     expect(peakY).toBeGreaterThan(STORY_HEIGHT + eyeHeight - 0.2);
     expect(controller.position.y).toBeGreaterThan(STORY_HEIGHT + eyeHeight - 0.2);
+
+    expect(
+      controller.restorePose({
+        x: origin.x + direction.x * (STORY_FLIGHT_LENGTH + 0.25),
+        y: STORY_HEIGHT + eyeHeight - 0.08,
+        z: origin.z + direction.z * (STORY_FLIGHT_LENGTH + 0.25),
+        yaw: Math.atan2(direction.x, direction.z),
+        pitch: 0,
+        distanceTravelled: 0,
+      }),
+    ).toBe(true);
+    controller.setVirtualAction("forward", true);
+    let lowY = controller.position.y;
+    for (let frame = 0; frame < 720; frame += 1) {
+      controller.update(1 / 60);
+      lowY = Math.min(lowY, controller.position.y);
+      const nextIndex = activeFloorFromSupportY(
+        Math.max(0, controller.position.y - eyeHeight),
+        stack.floors.length,
+      );
+      if (nextIndex !== (active.floor?.index ?? 0)) {
+        active = stack.floors[nextIndex]!;
+        controller.bindDungeon(active);
+      }
+      if (controller.position.y < eyeHeight + 0.1) break;
+    }
+    controller.setVirtualAction("forward", false);
+
+    expect(lowY).toBeLessThan(eyeHeight + 0.1);
+    expect(active.floor?.index).toBe(0);
     controller.dispose();
   });
 });

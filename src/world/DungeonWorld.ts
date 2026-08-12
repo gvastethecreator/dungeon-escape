@@ -15,6 +15,7 @@ import {
   horizontalDistance,
   shouldOpenChest,
 } from "./InteractionReach";
+import { canTakeWallTorch, extinguishTakenWallTorch, shouldTakeWallTorch } from "./WallTorchTake";
 import { DOOR_DEFAULT_OPEN_DISTANCE, resolveDoorTargetOpen } from "./DoorOpenPolicy";
 import { updateDoorLeafPresentation } from "./DoorLeafPresentation";
 import { beginChestRewardReveal, updateChestPresentation } from "./ChestPresentation";
@@ -81,11 +82,13 @@ import { clampPhoenixCharges, hasPhoenixCharge } from "../game/PhoenixEgg";
 import {
   applyPickupToRunPowers,
   createRunPowerRuntime,
+  equipHandTorchFromWall,
   isAnnihilationPulseOn,
   isCullBrandOn,
   isFogClearOn,
   isFrenzyCurseOn,
   isGloomCurseOn,
+  isHandTorchOn,
   isLuminousWardOn,
   isMirrorCurseOn,
   isMobilityBoostOn,
@@ -133,7 +136,7 @@ export interface WorldUpdate {
   collectedStoneIds: readonly StoneId[];
   /** Position is kept for the presentation layer that plays the collection source. */
   collectedPickup: {
-    kind: StaticPickupKind;
+    kind: StaticPickupKind | "hand-torch";
     position: { x: number; y: number; z: number };
   } | null;
   /** Remaining gameplay seconds in the active time-freeze field. */
@@ -148,6 +151,8 @@ export interface WorldUpdate {
   mobilityBoostRemaining: number;
   /** Temporary fog-clear / clarity window (seconds). */
   fogClearRemaining: number;
+  /** Equipped wall-torch fuel remaining (seconds). */
+  handTorchRemaining: number;
   /** Timed player slowdown curse. */
   slowCurseRemaining: number;
   /** Timed enemy frenzy curse. */
@@ -188,7 +193,7 @@ export interface WorldUpdate {
     position: { x: number; y: number; z: number };
   } | null;
   chestSound: { position: { x: number; y: number; z: number } } | null;
-  interactionPrompt: "open-chest" | null;
+  interactionPrompt: "open-chest" | "take-torch" | null;
   /** @deprecated Walkable stairs no longer emit transitions. Always null. */
   floorTransition: {
     direction: "up" | "down";
@@ -284,6 +289,7 @@ export class DungeonWorld {
     enemies: [],
     portal: null,
     moodId: null,
+    pickupKinds: [],
   };
   private lockedExitCooldown = 0;
   private elapsed = 0;
@@ -625,7 +631,10 @@ export class DungeonWorld {
     mood: DungeonMood,
     stack?: readonly DungeonData[],
     loadTrace?: DungeonLoadPhaseObserver,
-  ): { residentFloors: readonly DungeonData[]; residentPlan: ResidentDungeonPlan } {
+  ): {
+    residentFloors: readonly DungeonData[];
+    residentPlan: ResidentDungeonPlan;
+  } {
     this.dungeon = dungeon;
     this.activeMood = mood;
     // Skip a second egg if the player already carries a phoenix charge.
@@ -1015,6 +1024,8 @@ export class DungeonWorld {
 
     let nearestChest: StaticChestActor | null = null;
     let nearestChestDistance = Number.POSITIVE_INFINITY;
+    let nearestTorch: StaticFireEffect | null = null;
+    let nearestTorchDistance = Number.POSITIVE_INFINITY;
     if (activeFloorRuntime) {
       for (const chest of activeFloorRuntime.chests) {
         const chestPosition = this.worldPositionOf(chest.root);
@@ -1029,8 +1040,22 @@ export class DungeonWorld {
         }
         updateChestPresentation(chest, delta);
       }
+      for (const fire of activeFloorRuntime.fires) {
+        if (!fire.takeable || fire.taken) continue;
+        const torchPosition = this.worldPositionOf(fire.root);
+        const distance = horizontalDistance(torchPosition, player);
+        const verticalDelta = player.y - torchPosition.y;
+        if (canTakeWallTorch(distance, fire, verticalDelta) && distance < nearestTorchDistance) {
+          nearestTorch = fire;
+          nearestTorchDistance = distance;
+        }
+      }
     }
-    if (nearestChest) {
+    // Prefer the nearer interactable; equal distance favors the chest.
+    const preferChest =
+      nearestChest !== null &&
+      (nearestTorch === null || nearestChestDistance <= nearestTorchDistance);
+    if (preferChest && nearestChest) {
       interactionPrompt = "open-chest";
       if (shouldOpenChest(interactPressed, mouseForwardHeld)) {
         nearestChest.opened = true;
@@ -1042,6 +1067,22 @@ export class DungeonWorld {
             x: chestPosition.x,
             y: chestPosition.y + 0.72,
             z: chestPosition.z,
+          },
+        };
+        interactionPrompt = null;
+      }
+    } else if (nearestTorch) {
+      interactionPrompt = "take-torch";
+      if (shouldTakeWallTorch(interactPressed)) {
+        extinguishTakenWallTorch(nearestTorch);
+        equipHandTorchFromWall(this.powers);
+        const torchPosition = this.worldPositionOf(nearestTorch.root);
+        collectedPickup = {
+          kind: "hand-torch",
+          position: {
+            x: torchPosition.x,
+            y: torchPosition.y + 1.1,
+            z: torchPosition.z,
           },
         };
         interactionPrompt = null;
@@ -1140,6 +1181,7 @@ export class DungeonWorld {
       mapRevealed: this.powers.mapRevealed,
       mobilityBoostRemaining: this.powers.mobilityBoostSeconds,
       fogClearRemaining: this.powers.fogClearSeconds,
+      handTorchRemaining: this.powers.handTorchSeconds,
       slowCurseRemaining: this.powers.slowCurseSeconds,
       frenzyCurseRemaining: this.powers.frenzyCurseSeconds,
       gloomCurseRemaining: this.powers.gloomCurseSeconds,
@@ -1265,6 +1307,27 @@ export class DungeonWorld {
     }
   }
 
+  /** Apply distance/billboard visibility before shader warmup sees the scene. */
+  prepareVisibleZone(viewerPosition: THREE.Vector3Like): void {
+    const runtime = this.activeFloorRuntime;
+    if (!runtime) return;
+    runtime.fixedSceneEffects.update({
+      delta: 0,
+      elapsed: this.elapsed,
+      viewerPosition,
+      dungeon: this.dungeon,
+      tileSize: this.tileSize,
+      floorSprites: runtime.floorBiomeSprites,
+      ceilingSprites: runtime.ceilingBiomeSprites,
+      uncannyWallRuntime: runtime.uncannyWallRuntime,
+      fires: runtime.fires,
+      portalBeam: this.portalBeam,
+      stoneBeams: runtime.stoneBeams,
+      ambientBeams: runtime.ambientBeams,
+      liquidSurfaces: runtime.liquidKit?.surfaces ?? null,
+    });
+  }
+
   setPickupEffectsWarmupVisible(visible: boolean): void {
     this.pickupBurstPool?.setWarmupVisible(visible, this.pickupBurstWarmupPosition);
     this.timeFreezeVfx?.setWarmupVisible(visible);
@@ -1365,6 +1428,14 @@ export class DungeonWorld {
 
   get isFogClearActive(): boolean {
     return isFogClearOn(this.powers);
+  }
+
+  get handTorchRemaining(): number {
+    return this.powers.handTorchSeconds;
+  }
+
+  get isHandTorchActive(): boolean {
+    return isHandTorchOn(this.powers);
   }
 
   get slowCurseRemaining(): number {
@@ -1568,7 +1639,7 @@ export class DungeonWorld {
     const portalPosition = this.portalRoot ? this.worldPositionOf(this.portalRoot) : null;
     return projectDungeonAudioFrame(this.audioFrame, {
       fires: this.fireEffects,
-      stones: this.activeFloorRuntime?.pickups ?? [],
+      pickups: this.activeFloorRuntime?.pickups ?? [],
       enemies: this.enemies,
       enemyWorldYOffset: this.activeEnemyRuntime?.floorSlabY ?? 0,
       portal: portalPosition

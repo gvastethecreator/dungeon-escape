@@ -18,6 +18,7 @@ export interface SessionWorldUpdate {
     | "map"
     | "mobility"
     | "clarity"
+    | "hand-torch"
     | "swarm-curse"
     | "slow-curse"
     | "frenzy-curse"
@@ -70,6 +71,7 @@ export interface RunSessionEffects {
     mapReveal?: boolean;
     mobilityBoost?: boolean;
     fogClear?: boolean;
+    handTorch?: boolean;
     swarmCurse?: boolean;
     slowCurse?: boolean;
     frenzyCurse?: boolean;

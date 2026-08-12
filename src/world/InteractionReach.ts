@@ -95,7 +95,7 @@ export function canInteractWithChest(
 }
 
 /**
- * Chest open intent: explicit interact (E / UI) or hold-click auto-open.
+ * Chest open intent: explicit interact (F / UI) or hold-click auto-open.
  * Stairs must not use mouseForwardHeld.
  */
 export function shouldOpenChest(interactPressed: boolean, mouseForwardHeld: boolean): boolean {

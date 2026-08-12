@@ -21,6 +21,11 @@ describe("PickupFeedback", () => {
       kickerKey: "itemFound",
       restoreResolve: false,
     });
+    expect(projectPickupFeedback({ handTorch: true })).toEqual({
+      kind: "hand-torch",
+      kickerKey: "itemFound",
+      restoreResolve: false,
+    });
     expect(projectPickupFeedback({ annihilationPulse: true })).toEqual({
       kind: "annihilation-pulse",
       kickerKey: "itemFound",

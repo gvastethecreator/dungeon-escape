@@ -29,7 +29,7 @@
         <p id="boot-status" class="boot-screen__status">Awakening the dungeon…</p>
       </div>
     </div>
-    <main class="app-shell">
+    <main class="app-shell" data-pause-pane="menu">
       <canvas id="scene" tabindex="0" aria-label="First-person grimdark dungeon"></canvas>
       <div class="view-falloff" aria-hidden="true"></div>
       <div id="scene-fade" class="scene-fade" hidden aria-hidden="true">
@@ -459,6 +459,26 @@
             </span>
           </div>
           <div
+            id="hand-torch-status"
+            class="status-chip hand-torch-status"
+            role="status"
+            aria-live="polite"
+            hidden
+          >
+            <img
+              class="status-chip__icon"
+              src="/assets/ui/pickup-icons/luminous-ward.webp"
+              alt=""
+              width="40"
+              height="40"
+              decoding="async"
+            />
+            <span class="status-chip__copy">
+              <span class="status-chip__label hand-torch-status__label">TORCH</span>
+              <time id="hand-torch-value" class="status-chip__value" datetime="PT0S">15.0s</time>
+            </span>
+          </div>
+          <div
             id="slow-curse-status"
             class="status-chip curse-status curse-status--slow"
             role="status"
@@ -688,28 +708,80 @@
         aria-label="Open chest"
         hidden
       >
-        <kbd>E</kbd><span>OPEN CHEST</span>
+        <kbd>F</kbd><span>OPEN CHEST</span>
       </button>
 
-      <!-- ESC options / editor chrome -->
-      <section id="options-menu" class="options-menu" aria-label="Options and settings" hidden>
+      <!-- ESC pause overlay / editor chrome -->
+      <section id="options-menu" class="options-menu" aria-label="Pause menu" hidden>
         <div class="options-backdrop" data-options-dismiss tabindex="-1" aria-hidden="true"></div>
         <div
           id="options-card"
           class="options-card"
           role="region"
           aria-labelledby="options-title"
-          data-ui-profile="workspace"
+          data-ui-profile="pause"
         >
           <header class="options-header">
-            <div>
-              <strong id="options-title">Paused</strong>
-            </div>
+            <p id="options-kicker" class="options-kicker pause-only">The dungeon waits</p>
+            <strong id="options-title">Paused</strong>
+            <p id="options-ledger" class="options-ledger pause-only"></p>
           </header>
 
-          <!-- Primary play action: full-width resume (hidden in Creation/Debug). -->
-          <button id="options-resume" class="options-primary" type="button">
-            RESUME <kbd>ESC</kbd>
+          <nav class="pause-commands pause-only" aria-label="Pause">
+            <button
+              id="options-resume"
+              class="options-primary pause-command pause-command--primary"
+              type="button"
+            >
+              <span class="pause-command__mark" aria-hidden="true">◆</span>
+              <span class="pause-command__copy">
+                <strong>RESUME</strong>
+                <small>Return to the dungeon</small>
+              </span>
+              <kbd>ESC</kbd>
+            </button>
+            <button
+              id="options-settings"
+              class="pause-command"
+              type="button"
+              aria-expanded="false"
+              aria-controls="pause-settings"
+            >
+              <span class="pause-command__mark" aria-hidden="true">◆</span>
+              <span class="pause-command__copy">
+                <strong>SETTINGS</strong>
+                <small>Audio, display, and feel</small>
+              </span>
+            </button>
+            <div class="options-session" role="group" aria-label="Run actions">
+              <button
+                id="options-home"
+                class="pause-command pause-command--secondary"
+                type="button"
+                title="Return to the main menu"
+              >
+                <span class="pause-command__mark" aria-hidden="true">◆</span>
+                <span class="pause-command__copy">
+                  <strong>MAIN MENU</strong>
+                </span>
+              </button>
+              <button
+                id="options-restart"
+                class="pause-command pause-command--danger"
+                type="button"
+                title="Restart this map · key R"
+              >
+                <span class="pause-command__mark" aria-hidden="true">◆</span>
+                <span class="pause-command__copy">
+                  <strong>RESTART MAP</strong>
+                </span>
+                <kbd>R</kbd>
+              </button>
+            </div>
+          </nav>
+
+          <button id="options-settings-back" class="pause-settings-back pause-only" type="button">
+            BACK <kbd>ESC</kbd>
           </button>
 
           <!-- Engine modes: Creation/Debug for tools; hidden in public play pause. -->
@@ -733,7 +805,7 @@
             <button type="button" data-engine-mode="play" title="Play · key 3">PLAY</button>
           </nav>
 
-          <fieldset class="options-fx">
+          <fieldset id="pause-settings" class="options-fx">
             <legend>SETTINGS</legend>
             <button
               id="audio-toggle"
@@ -923,16 +995,6 @@
           >
             OPEN CRT LAB <kbd>L</kbd>
           </button>
-
-          <!-- Play pause only: leave run, then restart (secondary / destructive). -->
-          <nav class="options-session" aria-label="Run actions">
-            <button id="options-home" type="button" title="Return to the main menu">
-              MAIN MENU
-            </button>
-            <button id="options-restart" type="button" title="Restart this map · key R">
-              RESTART MAP <kbd>R</kbd>
-            </button>
-          </nav>
 
           <!-- Map Tools + Server Runs: shown only in local dev (see LocalDevTools). -->
           <details class="record-panel" data-local-dev-only="true">
@@ -1336,7 +1398,7 @@
             PAUSE
           </button>
           <button type="button" data-move="turnRight" aria-label="Turn right">↷</button>
-          <button type="button" data-move="interact" aria-label="Interact">E</button>
+          <button type="button" data-move="interact" aria-label="Interact">F</button>
           <button type="button" data-move="jump" aria-label="Jump">SPACE</button>
           <button type="button" data-move="sprint" aria-label="Run: hold to sprint">RUN</button>
         </div>

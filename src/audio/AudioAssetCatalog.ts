@@ -66,6 +66,7 @@ export type CollectedPickupKind =
   | "map"
   | "mobility"
   | "clarity"
+  | "hand-torch"
   | "swarm-curse"
   | "slow-curse"
   | "frenzy-curse"
@@ -286,6 +287,8 @@ const AUDIO_ASSETS: Readonly<Record<AudioAssetId, AudioAssetDefinition>> = {
   "pickup-map-v2": pickupAsset("pickup-map-v2.opus", 0.66),
   "pickup-mobility-v2": pickupAsset("pickup-mobility-v2.opus", 0.72),
   "pickup-clarity-v2": pickupAsset("pickup-clarity-v2.opus", 0.7),
+  /** Wall-torch grab — reuses the crackle bed as a short take cue. */
+  "pickup-hand-torch-v2": pickupAsset("torch-crackle.opus", 0.62),
   "pickup-swarm-curse-v2": pickupAsset("pickup-swarm-curse-v2.opus", 0.7),
   "pickup-slow-curse-v2": pickupAsset("pickup-slow-curse-v2.opus", 0.72),
   "pickup-frenzy-curse-v2": pickupAsset("pickup-frenzy-curse-v2.opus", 0.75),
@@ -432,6 +435,7 @@ const PICKUP_ASSETS: Readonly<Record<CollectedPickupKind, AudioAssetId>> = {
   map: "pickup-map-v2",
   mobility: "pickup-mobility-v2",
   clarity: "pickup-clarity-v2",
+  "hand-torch": "pickup-hand-torch-v2",
   "swarm-curse": "pickup-swarm-curse-v2",
   "slow-curse": "pickup-slow-curse-v2",
   "frenzy-curse": "pickup-frenzy-curse-v2",
@@ -439,6 +443,11 @@ const PICKUP_ASSETS: Readonly<Record<CollectedPickupKind, AudioAssetId>> = {
   "mirror-curse": "pickup-mirror-curse-v2",
   "spin-curse": "pickup-spin-curse-v2",
 };
+
+/** Canonical resident pickup cues, ordered for background prefetch. */
+export const PICKUP_AUDIO_ASSET_IDS: readonly AudioAssetId[] = Object.freeze(
+  Object.values(PICKUP_ASSETS),
+);
 
 const CUE_ASSETS: Readonly<Record<Exclude<AudioCue, "step" | "pickup">, AudioAssetId>> = {
   ui: "ui-click",

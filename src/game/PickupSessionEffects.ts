@@ -56,6 +56,11 @@ const PICKUP_SESSION_EFFECTS: Readonly<Partial<Record<SessionPickupKind, PickupS
     flash: "event",
     sessionChanged: true,
   },
+  "hand-torch": {
+    status: COPY.status.handTorch,
+    pickup: { label: COPY.pickup.handTorch, handTorch: true },
+    flash: "event",
+  },
   "swarm-curse": {
     status: COPY.status.swarmCurse,
     pickup: { label: COPY.pickup.swarmCurse, swarmCurse: true },

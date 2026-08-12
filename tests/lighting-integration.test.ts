@@ -53,11 +53,35 @@ describe("integrated dungeon lighting", () => {
     expect(PLAYER_LANTERN_TUNING.decay).toBeLessThanOrEqual(2.05);
     expect(PLAYER_LANTERN_TUNING.backwardOffset).toBeGreaterThanOrEqual(0.75);
     expect(PLAYER_LANTERN_TUNING.backwardOffset).toBeLessThanOrEqual(1);
+    expect(PLAYER_LANTERN_TUNING.forwardIntensity).toBeGreaterThanOrEqual(90);
+    expect(PLAYER_LANTERN_TUNING.forwardRange).toBeGreaterThan(PLAYER_LANTERN_TUNING.range);
+    expect(PLAYER_LANTERN_TUNING.forwardAngle).toBeGreaterThan(0.5);
+    expect(PLAYER_LANTERN_TUNING.forwardAngle).toBeLessThan(1.1);
     const nearResponse = PLAYER_LANTERN_TUNING.intensity / Math.pow(2, PLAYER_LANTERN_TUNING.decay);
     const farResponse = PLAYER_LANTERN_TUNING.intensity / Math.pow(12, PLAYER_LANTERN_TUNING.decay);
     expect(nearResponse).toBeGreaterThanOrEqual(28);
     expect(farResponse).toBeLessThanOrEqual(0.85);
     expect(nearResponse / farResponse).toBeGreaterThan(32);
+  });
+
+  test("player forward beam aims ahead of the view instead of only filling the body", () => {
+    const scene = new THREE.Scene();
+    const rig = new LightingRig(scene);
+    const player = new THREE.Vector3(2, 1.62, 4);
+    const forward = new THREE.Vector3(0, 0, -1);
+    for (let frame = 0; frame < 20; frame += 1) {
+      rig.update(1 / 30, player, null, forward);
+    }
+    expect(rig.getLanternBeamBaseIntensity()).toBeCloseTo(
+      PLAYER_LANTERN_TUNING.forwardIntensity * getDungeonMood("ash").playerLightScale,
+      5,
+    );
+    expect(rig.getLanternBeamIntensity()).toBeGreaterThan(PLAYER_LANTERN_TUNING.intensity * 0.35);
+    const beam = scene.getObjectByName("Player forward exploration beam") as THREE.SpotLight;
+    expect(beam).toBeInstanceOf(THREE.SpotLight);
+    expect(beam.position.z).toBeLessThan(player.z);
+    expect(beam.target.position.z).toBeLessThan(beam.position.z);
+    rig.dispose();
   });
 
   test("player lantern stays behind the view to cap close-wall highlights", () => {

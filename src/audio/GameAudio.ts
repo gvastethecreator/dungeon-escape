@@ -61,6 +61,8 @@ export interface DungeonAudioFrame {
   portal: AudioAnchor | null;
   /** Active dungeon biome; drives creature tone skins. */
   moodId: string | null;
+  /** Distinct uncollected cues on the active floor, in stable world order. */
+  pickupKinds: CollectedPickupKind[];
 }
 
 export interface CollectedPickupAudio {
@@ -110,7 +112,6 @@ const PLAY_AUDIO_PREFETCH_ASSETS: readonly AudioAssetId[] = [
   "door-open",
   "door-close",
   "damage",
-  "pickup-stone",
   "enemy-growl",
   "enemy-attack",
   "torch-crackle",
@@ -264,6 +265,7 @@ export class GameAudio {
     enemies: [],
     portal: null,
     moodId: null,
+    pickupKinds: [],
   };
   private listener: AudioPosition = { x: 0, y: 0, z: 0 };
   private readonly creatureTakes = new CreatureTakeSelector();
@@ -651,7 +653,8 @@ export class GameAudio {
       if (index >= 0) voiceMask |= 1 << index;
     }
     const ambience = audioAssetForBiomeAmbience(this.frame.moodId);
-    const routeKey = `${ambience}:${tone}:${voiceMask}`;
+    const pickupRoute = this.frame.pickupKinds.join(",");
+    const routeKey = `${ambience}:${tone}:${voiceMask}:${pickupRoute}`;
     if (routeKey === this.prefetchedRouteKey) return;
     const orderedEnemies = [...this.frame.enemies].sort((left, right) => {
       const leftDistance =
@@ -666,7 +669,10 @@ export class GameAudio {
     });
     const voices = [...new Set(orderedEnemies.map((enemy) => enemy.voice))];
     this.prefetchedRouteKey = routeKey;
-    const ids: AudioAssetId[] = [...PLAY_AUDIO_PREFETCH_ASSETS];
+    const ids: AudioAssetId[] = [
+      ...PLAY_AUDIO_PREFETCH_ASSETS,
+      ...this.frame.pickupKinds.map(audioAssetForPickup),
+    ];
     for (const voice of voices) {
       ids.push(...creatureBaseTakes(voice, "voice"), ...creatureBaseTakes(voice, "attack"));
       if (tone !== "base") {

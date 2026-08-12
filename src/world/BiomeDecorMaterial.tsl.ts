@@ -25,6 +25,7 @@ import {
   BIOME_INTEGRATED_DECOR_FLOOR_TSL_BUILDER_ID,
   BIOME_INTEGRATED_DECOR_SHADER_FACTORY_ID,
   BIOME_MUTED_PROP_SHADER_FACTORY_ID,
+  BIOME_WALL_DECOR_EMISSIVE_INTENSITY,
 } from "./BiomeDecorMaterial";
 import type { BiomeSpriteDecorPlacement } from "./BiomeSpriteDecorContract";
 import type { BiomeSpritePlacement } from "./BiomeSpriteDecorKit";
@@ -114,9 +115,9 @@ export function createBiomeWallDecalMaterialTsl(
   const material = new MeshStandardNodeMaterial({
     map: texture,
     color: biomeDecorTint(mood, "wall"),
-    emissive: new THREE.Color(palette.base),
+    emissive: new THREE.Color(0xffffff),
     emissiveMap: texture,
-    emissiveIntensity: 0.045,
+    emissiveIntensity: BIOME_WALL_DECOR_EMISSIVE_INTENSITY,
     transparent: true,
     opacity: 1,
     alphaTest,
@@ -142,7 +143,7 @@ export function createBiomeWallDecalMaterialTsl(
   material.userData.biomeMood = mood.id;
   material.userData.biomeSurfacePalette = palette;
   material.userData.biomeSurfacePaletteRole = "wall";
-  material.userData.visibilityBoost = 0.06;
+  material.userData.visibilityBoost = BIOME_WALL_DECOR_EMISSIVE_INTENSITY;
   material.userData.shaderProgramMode = "tsl";
   material.needsUpdate = true;
   return material;

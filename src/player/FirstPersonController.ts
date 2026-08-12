@@ -53,7 +53,16 @@ export type PlayerAction =
   | "jump"
   | "turnLeft"
   | "turnRight"
+  | "snapTurnLeft"
+  | "snapTurnRight"
   | "interact";
+
+/** Discrete keyboard Q/E facing change (radians). */
+const SNAP_TURN_YAW = Math.PI / 2;
+/** Look damp response while easing a Q/E quarter-turn (~0.35s settle). */
+const SNAP_TURN_LOOK_RESPONSE = 9;
+/** Clear snap easing once remaining yaw error is this small (radians). */
+const SNAP_TURN_SETTLE_EPSILON = 0.012;
 
 const KEY_ACTIONS: Readonly<Record<string, PlayerAction>> = {
   KeyW: "forward",
@@ -67,7 +76,9 @@ const KEY_ACTIONS: Readonly<Record<string, PlayerAction>> = {
   ShiftLeft: "sprint",
   ShiftRight: "sprint",
   Space: "jump",
-  KeyE: "interact",
+  KeyQ: "snapTurnLeft",
+  KeyE: "snapTurnRight",
+  KeyF: "interact",
 };
 const MAX_LOOK_PITCH = 1.18;
 const MOBILITY_STAMINA_CONFIG = Object.freeze({
@@ -88,6 +99,9 @@ export interface ControllerState {
   cell: GridCell | null;
   distanceTravelled: number;
   speed: number;
+  /** World-space horizontal walk velocity (m/s). */
+  velocityX: number;
+  velocityZ: number;
   moving: boolean;
   sprinting: boolean;
   /** 0..1 sprint stamina remaining. */
@@ -292,6 +306,8 @@ export class FirstPersonController {
   private lookPitch = 0;
   private targetYaw = 0;
   private targetPitch = 0;
+  /** When > 0, yaw uses this damp response instead of mouse look response. */
+  private snapTurnLookResponse = 0;
   private stridePhase = 0;
   private strideDistance = 0;
   private elapsed = 0;
@@ -347,6 +363,8 @@ export class FirstPersonController {
     cell: null,
     distanceTravelled: 0,
     speed: 0,
+    velocityX: 0,
+    velocityZ: 0,
     moving: false,
     sprinting: false,
     stamina: 1,
@@ -521,7 +539,22 @@ export class FirstPersonController {
     supportHeightfields: readonly FloorSupportHeightfield[] = [],
     supportTreads: readonly WorldCollider[] = [],
   ): void {
-    this.solidColliders = colliders.map((collider) => ({ ...collider }));
+    const colliderKey = (collider: WorldCollider): string =>
+      [
+        collider.minX,
+        collider.maxX,
+        collider.minY ?? "",
+        collider.maxY ?? "",
+        collider.minZ,
+        collider.maxZ,
+      ].join("|");
+    const supportTreadKeys = new Set(supportTreads.map(colliderKey));
+    // Authored stair treads are sampled as walkable height supports. Keeping
+    // the same boxes in horizontal collision makes their risers one-way: the
+    // step-up path can climb them, but the top riser blocks the return trip.
+    this.solidColliders = colliders
+      .filter((collider) => !supportTreadKeys.has(colliderKey(collider)))
+      .map((collider) => ({ ...collider }));
     this.solidColliderIndex = new WorldColliderSpatialIndex(this.solidColliders, this.tileSize * 2);
     this.supportHeightfields = supportHeightfields.map((heightfield) => ({
       width: heightfield.width,
@@ -545,6 +578,7 @@ export class FirstPersonController {
       this.lookInput.clear();
       this.targetYaw = this.lookYaw;
       this.targetPitch = this.lookPitch;
+      this.snapTurnLookResponse = 0;
     }
   }
 
@@ -702,11 +736,38 @@ export class FirstPersonController {
     if (turnDirection !== 0) {
       this.targetYaw -= turnDirection * delta * 1.9 * lookSign;
     }
+    const snapTurnDirection =
+      Number(this.consumePressed("snapTurnRight")) - Number(this.consumePressed("snapTurnLeft"));
+    if (snapTurnDirection !== 0) {
+      const snap = snapTurnDirection * SNAP_TURN_YAW * lookSign;
+      this.targetYaw -= snap;
+      if (this.reducedMotionQuery.matches) {
+        this.lookYaw -= snap;
+        this.snapTurnLookResponse = 0;
+      } else {
+        // Animate the camera through the quarter-turn instead of hard-cutting yaw.
+        this.snapTurnLookResponse = SNAP_TURN_LOOK_RESPONSE;
+      }
+    }
     if (Math.abs(this.yawBias) > 1e-6) {
       this.targetYaw += this.yawBias * delta;
     }
 
-    this.lookYaw = dampAngle(this.lookYaw, this.targetYaw, this.lookResponse * 0.72, delta);
+    const yawResponse =
+      this.snapTurnLookResponse > 0 ? this.snapTurnLookResponse : this.lookResponse * 0.72;
+    this.lookYaw = dampAngle(this.lookYaw, this.targetYaw, yawResponse, delta);
+    if (this.snapTurnLookResponse > 0) {
+      const remaining = Math.abs(
+        Math.atan2(
+          Math.sin(this.targetYaw - this.lookYaw),
+          Math.cos(this.targetYaw - this.lookYaw),
+        ),
+      );
+      if (remaining <= SNAP_TURN_SETTLE_EPSILON) {
+        this.lookYaw = this.targetYaw;
+        this.snapTurnLookResponse = 0;
+      }
+    }
     this.lookPitch = THREE.MathUtils.damp(
       this.lookPitch,
       this.targetPitch,
@@ -896,6 +957,8 @@ export class FirstPersonController {
     s.cell = this.dungeon ? this.currentCell : null;
     s.distanceTravelled = this.distanceTravelled;
     s.speed = this.velocity.length();
+    s.velocityX = this.velocity.x;
+    s.velocityZ = this.velocity.y;
     s.moving = this.velocity.lengthSq() > 0.0025;
     s.sprinting =
       this.isActionActive("sprint") &&
@@ -1099,12 +1162,13 @@ export class FirstPersonController {
     this.lookInput.clear();
     this.targetYaw = this.lookYaw;
     this.targetPitch = this.lookPitch;
+    this.snapTurnLookResponse = 0;
     if (!this.locked) this.mouseForwardHeld = false;
     if (this.locked) this.domElement.focus();
     this.onLockChange(
       this.locked,
       this.locked
-        ? "Pointer active. WASD or hold click moves. Right-click or SPACE jumps. SHIFT sprints. E interacts."
+        ? "Pointer active. WASD or hold click moves. Right-click or SPACE jumps. SHIFT sprints. Q/E snap 90°. F interacts."
         : "Pointer released. The run is paused.",
     );
   };
@@ -1121,6 +1185,7 @@ export class FirstPersonController {
     this.lookInput.clear();
     this.targetYaw = this.lookYaw;
     this.targetPitch = this.lookPitch;
+    this.snapTurnLookResponse = 0;
   };
   private readonly handleVisibilityChange = (): void => {
     if (document.hidden) this.handleBlur();

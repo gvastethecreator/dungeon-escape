@@ -11,6 +11,7 @@ import type {
   DungeonAudioFrame,
   EnemyAudioAnchor,
 } from "../audio/GameAudio";
+import type { CollectedPickupKind } from "../audio/AudioAssetCatalog";
 import type { EnemyKind } from "./EnemyArchetypes";
 import { ENEMY_ARCHETYPES } from "./EnemyArchetypes";
 
@@ -37,8 +38,9 @@ export interface AudioFireSource {
 }
 
 export interface AudioStoneSource {
-  kind: string;
+  kind: CollectedPickupKind;
   collected: boolean;
+  available?: boolean;
   stoneId?: string | null;
   object: AudioPositionSource;
 }
@@ -62,6 +64,7 @@ export function createEmptyDungeonAudioFrame(): DungeonAudioFrame {
     enemies: [],
     portal: null,
     moodId: null,
+    pickupKinds: [],
   };
 }
 
@@ -69,7 +72,7 @@ export function projectDungeonAudioFrame(
   frame: DungeonAudioFrame,
   sources: {
     fires: readonly AudioFireSource[];
-    stones: readonly AudioStoneSource[];
+    pickups: readonly AudioStoneSource[];
     enemies: readonly AudioEnemySource[];
     /** Enemy roots are floor-local. The world supplies the active slab offset. */
     enemyWorldYOffset?: number;
@@ -97,7 +100,17 @@ export function projectDungeonAudioFrame(
   frame.fires.length = fireCount;
 
   let stoneCount = 0;
-  for (const pickup of sources.stones) {
+  let pickupKindCount = 0;
+  for (const pickup of sources.pickups) {
+    if (!pickup.collected && pickup.available !== false) {
+      let duplicate = false;
+      for (let index = 0; index < pickupKindCount; index += 1) {
+        if (frame.pickupKinds[index] !== pickup.kind) continue;
+        duplicate = true;
+        break;
+      }
+      if (!duplicate) frame.pickupKinds[pickupKindCount++] = pickup.kind;
+    }
     if (pickup.kind !== "stone" || pickup.collected || !pickup.stoneId) continue;
     const anchor =
       frame.magicStones[stoneCount] ??
@@ -115,6 +128,7 @@ export function projectDungeonAudioFrame(
     frame.magicStones[stoneCount++] = anchor;
   }
   frame.magicStones.length = stoneCount;
+  frame.pickupKinds.length = pickupKindCount;
 
   let enemyCount = 0;
   for (const enemy of sources.enemies) {

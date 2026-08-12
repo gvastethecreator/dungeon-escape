@@ -318,8 +318,9 @@ describe("Play HUD structure (Ash Binding)", () => {
       Bun.file(new URL("../src/styles/editor.css", import.meta.url)).text(),
       Bun.file(new URL("../src/ui/copy.ts", import.meta.url)).text(),
     ]);
-    const session = host.match(/<nav class="options-session"[\s\S]*?<\/nav>/)?.[0] ?? "";
+    const session = host.match(/<div class="options-session"[\s\S]*?<\/div>/)?.[0] ?? "";
     const resumeIndex = host.indexOf('id="options-resume"');
+    const settingsIndex = host.indexOf('id="options-settings"');
     const sessionIndex = host.indexOf('class="options-session"');
     const modeIndex = host.indexOf('class="mode-switcher"');
     const fxIndex = host.indexOf('class="options-fx"');
@@ -331,23 +332,30 @@ describe("Play HUD structure (Ash Binding)", () => {
     expect(session).toContain('id="options-home"');
     expect(session).toContain("MAIN MENU");
     expect(resumeIndex).toBeGreaterThan(-1);
-    // DOM order for play: resume → settings → session exits (home, then restart).
-    expect(fxIndex).toBeGreaterThan(resumeIndex);
-    expect(sessionIndex).toBeGreaterThan(fxIndex);
+    expect(settingsIndex).toBeGreaterThan(resumeIndex);
+    // Command overlay first: resume → settings → leave/restart. Settings pane follows.
+    expect(sessionIndex).toBeGreaterThan(settingsIndex);
     expect(homeIndex).toBeGreaterThan(sessionIndex);
     expect(restartIndex).toBeGreaterThan(homeIndex);
+    expect(fxIndex).toBeGreaterThan(restartIndex);
     expect(modeIndex).toBeGreaterThan(-1);
+    expect(host).toContain('class="pause-commands pause-only"');
+    expect(host).toContain('id="options-settings-back"');
+    expect(host).toContain('data-pause-pane="menu"');
 
     expect(css).toContain('.app-shell[data-engine-mode="play"] .options-session');
+    expect(css).toContain('.app-shell[data-engine-mode="play"] .pause-commands');
     expect(css).toMatch(
-      /\.app-shell\[data-engine-mode="play"\] #options-resume\s*\{[^}]*order:\s*1;/s,
+      /\.app-shell\[data-engine-mode="play"\] \.pause-commands\s*\{[^}]*order:\s*1;/s,
     );
     expect(css).toMatch(
-      /\.app-shell\[data-engine-mode="play"\] \.options-fx\s*\{[^}]*order:\s*2;/s,
+      /\.app-shell\[data-engine-mode="play"\] #options-settings-back\s*\{[^}]*order:\s*2;/s,
     );
     expect(css).toMatch(
-      /\.app-shell\[data-engine-mode="play"\] \.options-session\s*\{[^}]*order:\s*3;/s,
+      /\.app-shell\[data-engine-mode="play"\] \.options-fx\s*\{[^}]*order:\s*3;/s,
     );
+    expect(css).toContain('[data-pause-pane="menu"]');
+    expect(css).toContain('[data-pause-pane="settings"]');
     expect(css).toContain(
       '.app-shell[data-local-dev-tools="false"][data-engine-mode="play"] .mode-switcher',
     );
@@ -362,8 +370,12 @@ describe("Play HUD structure (Ash Binding)", () => {
 
     expect(source).toContain("function restartCurrentMap(): void");
     expect(source).toContain("function returnToMainScreen(): void");
+    expect(source).toContain("function setPausePane(");
+    expect(source).toContain("function syncPauseLedger(");
     expect(source).toContain('elements.optionsRestart.addEventListener("click"');
     expect(source).toContain('elements.optionsHome.addEventListener("click"');
+    expect(source).toContain('elements.optionsSettings.addEventListener("click"');
+    expect(source).toContain('elements.optionsSettingsBack.addEventListener("click"');
     expect(source).toContain('elements.endHome.addEventListener("click"');
     expect(source).toContain("isPlayerFacingStatus");
     expect(source).toContain("COPY.pause.restarted");

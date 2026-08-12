@@ -346,8 +346,8 @@ function planLightFixtures(
   }
 
   const torchTarget = Math.max(
-    6,
-    Math.round((8 + dungeon.rooms.length * 0.45) * Math.max(0, decorDensity)),
+    10,
+    Math.round((12 + dungeon.rooms.length * 0.7) * Math.max(0, decorDensity)),
   );
   const fixtures: ResidentDungeonLightFixturePlan[] = candidates.map((candidate, index) => ({
     kind: "classic-torch",
@@ -359,7 +359,7 @@ function planLightFixtures(
   }));
 
   const rooms = dungeon.rooms.filter((room) => room.role === "room");
-  const floorFireTarget = Math.min(6, Math.round(rooms.length * 0.34 * Math.max(0, decorDensity)));
+  const floorFireTarget = Math.min(8, Math.round(rooms.length * 0.48 * Math.max(0, decorDensity)));
   for (let index = 0; index < floorFireTarget; index += 1) {
     const room = rooms[(index * 3 + 1) % Math.max(1, rooms.length)];
     if (!room) continue;
@@ -376,7 +376,7 @@ function planLightFixtures(
 
   const farRooms = [...rooms]
     .sort((left, right) => roomDistance(dungeon, right) - roomDistance(dungeon, left))
-    .slice(1, 3);
+    .slice(1, 4);
   for (const [index, room] of farRooms.entries()) {
     fixtures.push({
       kind: "classic-brazier",
