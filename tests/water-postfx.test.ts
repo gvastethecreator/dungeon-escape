@@ -45,7 +45,8 @@ describe("water and post-process finish", () => {
   test("the existing POV pass carries bounded subtle grain", async () => {
     const source = await Bun.file(new URL("../src/systems/PovPostFx.ts", import.meta.url)).text();
     expect(source).toContain("grain * uGrain * grainResponse");
-    expect(source).toContain("THREE.MathUtils.clamp(grain, 0, 0.014)");
+    expect(source).toContain("grain * this.displayTuning.grainScale");
+    expect(source).toContain("0.014");
     expect(source).toContain("floor(uTime * 18.0)");
     expect(source).toContain("grainResponse");
   });
