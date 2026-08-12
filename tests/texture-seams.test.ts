@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, test } from "bun:test";
+import { afterEach, beforeAll, describe, expect, test } from "bun:test";
 import * as THREE from "three";
 import { MeshStandardNodeMaterial } from "three/webgpu";
 
@@ -8,12 +8,12 @@ import {
   resetShaderProgramModeRegistryForTests,
   setShaderProgramModeRegistry,
 } from "../src/systems/ShaderProgramMode";
+import { loadTslMaterialModules } from "../src/systems/TslMaterialModules";
 import {
   edgeBlendSeamlessRgba,
   DUNGEON_SURFACE_SHADER_FACTORY_ID,
   DUNGEON_SURFACE_WORLD_UV_SCALE,
   enableDungeonSurfaceShader,
-  enableDungeonSurfaceShaderTsl,
   liftTextureLuminanceRgba,
   liftTextureRoughnessRgba,
   normalMapRgbaFromAlbedo,
@@ -21,6 +21,7 @@ import {
   registerTextureSource,
   textureEdgeMismatchRgba,
 } from "../src/world/TextureTreatment";
+import { enableDungeonSurfaceShaderTsl } from "../src/world/TextureTreatment.tsl";
 import {
   DUNGEON_SURFACE_TILE_SCALE,
   dungeonCeilingUvOffset,
@@ -32,6 +33,12 @@ import {
 // into later test files would build node materials where GLSL is expected.
 afterEach(() => {
   resetShaderProgramModeRegistryForTests();
+});
+
+// TSL builders live in lazily imported `*.tsl` siblings so the WebGL bundle
+// never pulls in `three/webgpu`; tests must preload them like Play boot does.
+beforeAll(async () => {
+  await loadTslMaterialModules();
 });
 
 describe("texture seam treatment", () => {

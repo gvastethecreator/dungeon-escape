@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, test } from "bun:test";
+import { afterEach, beforeAll, describe, expect, test } from "bun:test";
 import * as THREE from "three";
 import { MeshBasicNodeMaterial, PointsNodeMaterial } from "three/webgpu";
 
@@ -15,6 +15,7 @@ import {
   resetShaderProgramModeRegistryForTests,
   setShaderProgramModeRegistry,
 } from "../src/systems/ShaderProgramMode";
+import { loadTslMaterialModules } from "../src/systems/TslMaterialModules";
 import { createDungeonMaterials } from "../src/world/MaterialLibrary";
 import { createLuminousWardStone } from "../src/world/ItemFactory";
 import {
@@ -30,6 +31,12 @@ import {
 // into later test files would build node materials where GLSL is expected.
 afterEach(() => {
   resetShaderProgramModeRegistryForTests();
+});
+
+// TSL builders live in lazily imported `*.tsl` siblings so the WebGL bundle
+// never pulls in `three/webgpu`; tests must preload them like Play boot does.
+beforeAll(async () => {
+  await loadTslMaterialModules();
 });
 
 describe("luminous ward power", () => {
@@ -152,14 +159,13 @@ describe("luminous ward power", () => {
     expect(trails.count).toBe(WARD_PARTICLE_COUNT * WARD_TRAIL_SAMPLES);
     expect(trails.material).toBeInstanceOf(PointsNodeMaterial);
     expect(trails.material.userData.particlePrimitive).toBe("sprite");
-    expect(getShaderProgramModeRegistry().supports(LUMINOUS_WARD_SHIELD_SHADER_FACTORY_ID, "tsl")).toBe(
-      true,
-    );
-    expect(getShaderProgramModeRegistry().supports(LUMINOUS_WARD_TRAILS_SHADER_FACTORY_ID, "tsl")).toBe(
-      true,
-    );
+    expect(
+      getShaderProgramModeRegistry().supports(LUMINOUS_WARD_SHIELD_SHADER_FACTORY_ID, "tsl"),
+    ).toBe(true);
+    expect(
+      getShaderProgramModeRegistry().supports(LUMINOUS_WARD_TRAILS_SHADER_FACTORY_ID, "tsl"),
+    ).toBe(true);
     vfx.dispose();
     resetShaderProgramModeRegistryForTests();
   });
-
 });

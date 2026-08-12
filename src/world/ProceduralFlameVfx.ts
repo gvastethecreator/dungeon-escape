@@ -4,7 +4,7 @@ import {
   onShaderProgramModeRegistryChange,
   type ShaderProgramMode,
 } from "../systems/ShaderProgramMode";
-import { createNoiseFlameTsl } from "./ProceduralFlameVfx.tsl";
+import { requireTslBuilder } from "../systems/TslMaterialModules";
 import type {
   NoiseFlameAssembly,
   NoiseFlameEmberUniformHandles,
@@ -41,9 +41,7 @@ export const FROST_NOISE_FLAME_PALETTE: NoiseFlamePalette = {
 };
 
 /** Register (or refresh) dual-mode support on the active shader program registry. */
-export function registerNoiseFlameShaderFactory(
-  registry = getShaderProgramModeRegistry(),
-): void {
+export function registerNoiseFlameShaderFactory(registry = getShaderProgramModeRegistry()): void {
   registry.register({
     id: NOISE_FLAME_SHADER_FACTORY_ID,
     supports: ["glsl", "tsl"],
@@ -372,7 +370,10 @@ export function createNoiseFlame(
   registry.require(NOISE_FLAME_SHADER_FACTORY_ID, resolved);
 
   if (resolved === "tsl") {
-    return createNoiseFlameTsl({
+    const build = requireTslBuilder<typeof import("./ProceduralFlameVfx.tsl").createNoiseFlameTsl>(
+      NOISE_FLAME_SHADER_FACTORY_ID,
+    );
+    return build({
       options,
       palette: options.palette ?? WARM_NOISE_FLAME_PALETTE,
     });

@@ -11,11 +11,8 @@ import {
   POV_VIGNETTE_INNER_RADIUS,
   POV_VIGNETTE_STRENGTH,
 } from "./PovPostFxShared";
-import {
-  createPovPostFxTslUniforms,
-  PovPostFxTslPipeline,
-  type PovPostFxTslUniformState,
-} from "./PovPostFxTsl";
+import type { PovPostFxTslPipeline, PovPostFxTslUniformState } from "./PovPostFxTsl";
+import { requireTslBuilder } from "./TslMaterialModules";
 
 export {
   POV_CRT_HALATION_STRENGTH,
@@ -27,6 +24,9 @@ export {
 
 /** GLSL ShaderMaterial path (WebGL) or TSL RenderPipeline path (WebGPU / WGP-18). */
 export type PovPostFxProgramMode = "glsl" | "tsl";
+
+/** TSL builder slot for the WebGPU RenderPipeline stage. */
+export const POV_POST_FX_TSL_BUILDER_ID = "pov-post-fx";
 
 export interface PovPostFxOptions {
   readonly programMode?: PovPostFxProgramMode;
@@ -64,7 +64,9 @@ export class PovPostFx {
   readonly programMode: PovPostFxProgramMode;
 
   private readonly sceneTarget: THREE.WebGLRenderTarget | null;
-  private readonly historyTargets: readonly [THREE.WebGLRenderTarget, THREE.WebGLRenderTarget] | null;
+  private readonly historyTargets:
+    | readonly [THREE.WebGLRenderTarget, THREE.WebGLRenderTarget]
+    | null;
   private readonly fsScene: THREE.Scene | null;
   private readonly copyScene: THREE.Scene | null;
   private readonly fsCamera: THREE.OrthographicCamera | null;
@@ -100,8 +102,12 @@ export class PovPostFx {
       this.geometry = null;
       this.mesh = null;
       this.copyMesh = null;
-      this.tslUniforms = createPovPostFxTslUniforms();
-      this.tslPipeline = new PovPostFxTslPipeline(this.tslUniforms);
+      const build = requireTslBuilder<typeof import("./PovPostFxTsl").createPovPostFxTslStage>(
+        POV_POST_FX_TSL_BUILDER_ID,
+      );
+      const stage = build();
+      this.tslUniforms = stage.uniforms;
+      this.tslPipeline = stage.pipeline;
       return;
     }
 
@@ -449,11 +455,7 @@ export class PovPostFx {
     const curved = curvature * this.displayTuning.curvatureScale;
     const critical = THREE.MathUtils.clamp(criticalRed, 0, 1);
     // Cap stays tight: film grain should grade the image, not read as dirt.
-    const grainValue = THREE.MathUtils.clamp(
-      grain * this.displayTuning.grainScale,
-      0,
-      0.014,
-    );
+    const grainValue = THREE.MathUtils.clamp(grain * this.displayTuning.grainScale, 0, 0.014);
     if (this.material) {
       this.material.uniforms.uCurvature.value = curved;
       this.material.uniforms.uChromatic.value = chromatic;

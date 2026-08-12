@@ -13,4 +13,3 @@ describe("demand-driven Three render loop", () => {
     expect(source).toContain("if (!shouldRunThreeRenderLoop()) {");
   });
 });
-

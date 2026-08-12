@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, test } from "bun:test";
+import { afterEach, beforeAll, describe, expect, test } from "bun:test";
 import * as THREE from "three";
 import { MeshBasicNodeMaterial } from "three/webgpu";
 
@@ -8,6 +8,7 @@ import {
   resetShaderProgramModeRegistryForTests,
   setShaderProgramModeRegistry,
 } from "../src/systems/ShaderProgramMode";
+import { loadTslMaterialModules } from "../src/systems/TslMaterialModules";
 import {
   createVolumetricBeam,
   getVolumetricBeamStrength,
@@ -23,6 +24,12 @@ import {
 // into later test files would build node materials where GLSL is expected.
 afterEach(() => {
   resetShaderProgramModeRegistryForTests();
+});
+
+// TSL builders live in lazily imported `*.tsl` siblings so the WebGL bundle
+// never pulls in `three/webgpu`; tests must preload them like Play boot does.
+beforeAll(async () => {
+  await loadTslMaterialModules();
 });
 
 describe("volumetric beam dual-mode", () => {
@@ -43,7 +50,9 @@ describe("volumetric beam dual-mode", () => {
     });
 
     expect(signal.material).toBeInstanceOf(THREE.ShaderMaterial);
-    expect((signal.material as THREE.ShaderMaterial).defines?.AMBIENT_STRATA_PROFILE).toBeUndefined();
+    expect(
+      (signal.material as THREE.ShaderMaterial).defines?.AMBIENT_STRATA_PROFILE,
+    ).toBeUndefined();
     expect((ambient.material as THREE.ShaderMaterial).defines?.AMBIENT_STRATA_PROFILE).toBe(1);
     expect((objective.material as THREE.ShaderMaterial).defines?.OBJECTIVE_STRATA_PROFILE).toBe(1);
 

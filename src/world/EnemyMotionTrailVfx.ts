@@ -1,23 +1,10 @@
 import * as THREE from "three";
-import { MeshBasicNodeMaterial } from "three/webgpu";
-import {
-  attribute,
-  clamp,
-  float,
-  materialOpacity,
-  replaceDefaultUV,
-  texture,
-  uniform,
-  uv,
-  vec3,
-  vec4,
-} from "three/tsl";
-
 import {
   getShaderProgramModeRegistry,
   onShaderProgramModeRegistryChange,
   type ShaderProgramMode,
 } from "../systems/ShaderProgramMode";
+import { requireTslBuilder } from "../systems/TslMaterialModules";
 import { ENEMY_ARCHETYPES, type EnemyKind } from "./EnemyArchetypes";
 import { setEnemyBillboardFrame, type EnemyBillboardAtlasMaterial } from "./EnemyBillboardMaterial";
 import type { EnemyAnimationDefinition } from "./EnemySpriteAtlas";
@@ -26,7 +13,6 @@ import type { EnemyAnimationDefinition } from "./EnemySpriteAtlas";
 export const ENEMY_MOTION_TRAIL_SHADER_FACTORY_ID = "enemy-motion-trail";
 
 const ENEMY_MOTION_TRAIL_GLSL_CACHE_KEY = "enemy-motion-trail-black-atlas-v2";
-const ENEMY_MOTION_TRAIL_TSL_CACHE_KEY = "enemy-motion-trail-black-atlas-tsl-v1";
 
 /** Register (or refresh) dual-mode support on the active shader program registry. */
 export function registerEnemyMotionTrailShaderFactory(
@@ -115,7 +101,7 @@ const IDLE_FADE_PER_SECOND = 4.2;
 const FROZEN_FADE_PER_SECOND = 3.0;
 const ZERO_SCALE = new THREE.Vector3(0, 0, 0);
 
-function enemyTrailMaterialParams(map: THREE.Texture): THREE.MeshBasicMaterialParameters {
+export function enemyTrailMaterialParams(map: THREE.Texture): THREE.MeshBasicMaterialParameters {
   return {
     map,
     color: 0x000000,
@@ -170,33 +156,6 @@ diffuseColor.a *= clamp(vTrailAlpha, 0.0, 1.0);`,
 }
 
 /**
- * TSL / WebGPU path: same atlas UV uniform + trail alpha via MeshBasicNodeMaterial.
- * `colorNode` replaces diffuseColor — keep map alpha, force RGB black.
- *
- * Requires geometry attribute `aTrailAlpha` (float).
- */
-export function createEnemyTrailMaterialTsl(map: THREE.Texture): EnemyBillboardAtlasMaterial {
-  const atlasFrame = new THREE.Vector4(0, 0, 1, 1);
-  const material = new MeshBasicNodeMaterial(enemyTrailMaterialParams(map));
-  material.name = "Enemy motion trail material";
-  material.userData.enemyAtlasFrame = atlasFrame;
-  material.userData.enemyMotionTrailShaderMode = "tsl";
-
-  const uEnemyAtlasFrame = uniform(atlasFrame);
-  const trailAlpha = attribute<"float">("aTrailAlpha", "float");
-
-  material.contextNode = replaceDefaultUV(() =>
-    uEnemyAtlasFrame.xy.add(uv().mul(uEnemyAtlasFrame.zw)),
-  );
-  // Keep authored silhouette alpha from the atlas; paint the body pure black.
-  material.colorNode = vec4(vec3(0), texture(map).a);
-  material.opacityNode = materialOpacity.mul(clamp(trailAlpha, float(0), float(1)));
-  material.customProgramCacheKey = () => ENEMY_MOTION_TRAIL_TSL_CACHE_KEY;
-  material.needsUpdate = true;
-  return material;
-}
-
-/**
  * Unlit black afterimage of the enemy atlas. RGB is forced black; alpha comes
  * from the sprite (and per-instance trail fade).
  *
@@ -213,7 +172,10 @@ export function createEnemyTrailMaterial(
   registry.require(ENEMY_MOTION_TRAIL_SHADER_FACTORY_ID, resolved);
 
   if (resolved === "tsl") {
-    return createEnemyTrailMaterialTsl(map);
+    const build = requireTslBuilder<
+      typeof import("./EnemyMotionTrailVfx.tsl").createEnemyTrailMaterialTsl
+    >(ENEMY_MOTION_TRAIL_SHADER_FACTORY_ID);
+    return build(map);
   }
   return createEnemyTrailMaterialGlsl(map);
 }

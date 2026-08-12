@@ -201,4 +201,3 @@ describe("render capabilities", () => {
     expect(warmup).toContain("world.setPickupEffectsWarmupVisible(false);");
   });
 });
-

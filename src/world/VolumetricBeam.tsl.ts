@@ -4,6 +4,8 @@
  */
 
 import * as THREE from "three";
+import { registerTslBuilder } from "../systems/TslMaterialModules";
+import { VOLUMETRIC_BEAM_SHADER_FACTORY_ID } from "./VolumetricBeam";
 import { MeshBasicNodeMaterial } from "three/webgpu";
 import {
   Fn,
@@ -98,11 +100,7 @@ const retroDensityBand = /*@__PURE__*/ Fn(([bandIn]: [any]) => {
   return select(
     band.lessThan(0.5),
     float(0.82),
-    select(
-      band.lessThan(1.5),
-      float(1.0),
-      select(band.lessThan(2.5), float(0.76), float(0.48)),
-    ),
+    select(band.lessThan(1.5), float(1.0), select(band.lessThan(2.5), float(0.76), float(0.48))),
   );
 });
 
@@ -232,9 +230,7 @@ export function createSignalBeamMaterialTsl(
       vWorldPos.mul(vec3(0.48, 0.36, 0.48)).add(vec3(0.0, uTime.mul(0.035), 0.0)),
     );
     const detailNoise = valueNoise3(
-      vWorldPos
-        .mul(vec3(1.45, 1.05, 1.45))
-        .add(vec3(uTime.mul(0.018), 0.0, uTime.mul(-0.014))),
+      vWorldPos.mul(vec3(1.45, 1.05, 1.45)).add(vec3(uTime.mul(0.018), 0.0, uTime.mul(-0.014))),
     );
     const density = mix(float(0.72), float(1.08), smoothstep(0.18, 0.84, broadNoise))
       .mul(mix(float(0.9), float(1.08), detailNoise))
@@ -290,9 +286,7 @@ export function createAmbientBeamMaterialTsl(
     const cell = vec2(cellIn);
     const phase = float(phaseIn);
     const tick = floor(uTime.mul(1.35));
-    const stepped = floor(
-      cell.add(vec2(phase.mul(11.0).add(tick.mul(0.25)), tick.mul(-0.5))),
-    );
+    const stepped = floor(cell.add(vec2(phase.mul(11.0).add(tick.mul(0.25)), tick.mul(-0.5))));
     return hash21(stepped);
   });
 
@@ -316,7 +310,11 @@ export function createAmbientBeamMaterialTsl(
     const band = floor(bandCoord);
     const densityBand = retroDensityBand(band);
     const flow = coarseFlow(vec2(vBeamUv.x.mul(3.5), vBeamUv.y.mul(8.0)), aStratumPhase);
-    const flowDensity = mix(float(0.8), float(1.08), step(float(0.42).sub(lateral.mul(0.12)), flow));
+    const flowDensity = mix(
+      float(0.8),
+      float(1.08),
+      step(float(0.42).sub(lateral.mul(0.12)), flow),
+    );
     const facingBand = floor(clamp(facing.mul(3.0), 0.0, 2.999)).mul(0.5);
     const viewDensity = mix(float(0.32), float(1.0), facingBand);
     const layerDensity = mix(float(0.62), float(1.08), aBeamLayer);
@@ -377,9 +375,7 @@ export function createObjectiveBeamMaterialTsl(
     const cell = vec2(cellIn);
     const phase = float(phaseIn);
     const tick = floor(uTime.mul(1.35));
-    const stepped = floor(
-      cell.add(vec2(phase.mul(11.0).add(tick.mul(0.25)), tick.mul(-0.5))),
-    );
+    const stepped = floor(cell.add(vec2(phase.mul(11.0).add(tick.mul(0.25)), tick.mul(-0.5))));
     return hash21(stepped);
   });
 
@@ -460,12 +456,7 @@ export function createVolumetricBeamMaterialTsl(
       options,
     );
   }
-  return createSignalBeamMaterialTsl(
-    color,
-    strength,
-    height,
-    sourceRadius,
-    bottomRadius,
-    options,
-  );
+  return createSignalBeamMaterialTsl(color, strength, height, sourceRadius, bottomRadius, options);
 }
+
+registerTslBuilder(VOLUMETRIC_BEAM_SHADER_FACTORY_ID, createVolumetricBeamMaterialTsl);

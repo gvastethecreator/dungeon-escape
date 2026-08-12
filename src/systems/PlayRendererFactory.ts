@@ -2,10 +2,7 @@ import * as THREE from "three";
 
 import type { LaunchRendererPreference } from "../launch/LaunchConfiguration";
 import type { DungeonRenderer } from "./DungeonRenderer";
-import {
-  detectWebGpuAvailability,
-  type WebGpuAvailability,
-} from "./WebGpuAvailability";
+import { detectWebGpuAvailability, type WebGpuAvailability } from "./WebGpuAvailability";
 
 export type PlayRendererBackend = "webgl" | "webgpu";
 
@@ -27,7 +24,9 @@ export interface PlayRendererHandle {
   readonly initDurationMs: number;
   readonly isWebGpuRenderer: boolean;
   /** Concrete Three renderer for diagnostics that still need backend-specific fields. */
-  readonly raw: THREE.WebGLRenderer | { isWebGPURenderer?: boolean; backend?: { constructor?: { name?: string } } };
+  readonly raw:
+    | THREE.WebGLRenderer
+    | { isWebGPURenderer?: boolean; backend?: { constructor?: { name?: string } } };
   dispose(): void;
 }
 
@@ -49,7 +48,11 @@ function createWebGlRenderer(
 
 async function createWebGpuRenderer(canvas: HTMLCanvasElement): Promise<{
   renderer: DungeonRenderer;
-  raw: { isWebGPURenderer?: boolean; backend?: { constructor?: { name?: string } }; dispose(): void };
+  raw: {
+    isWebGPURenderer?: boolean;
+    backend?: { constructor?: { name?: string } };
+    dispose(): void;
+  };
 }> {
   const WEBGPU = await import("three/webgpu");
   const renderer = new WEBGPU.WebGPURenderer({
@@ -117,9 +120,7 @@ export async function createPlayRendererHandle(
       };
     } catch (error) {
       if (options.preference === "webgpu") {
-        throw error instanceof Error
-          ? error
-          : new Error("WebGPU renderer failed to initialize.");
+        throw error instanceof Error ? error : new Error("WebGPU renderer failed to initialize.");
       }
       console.warn("WebGPU renderer init failed; falling back to WebGL", error);
       const webgl = createWebGlRenderer(options.canvas, options.preferDefaultGpu);

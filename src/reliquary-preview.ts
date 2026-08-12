@@ -10,6 +10,7 @@ import {
   createShaderProgramModeRegistry,
   setShaderProgramModeRegistry,
 } from "./systems/ShaderProgramMode";
+import { loadTslMaterialModules } from "./systems/TslMaterialModules";
 import { createDungeonMaterials } from "./world/MaterialLibrary";
 import { createReliquaryAltar } from "./world/ReliquaryAltar";
 
@@ -36,6 +37,7 @@ async function boot(): Promise<void> {
   setShaderProgramModeRegistry(
     createShaderProgramModeRegistry(handle.isWebGpuRenderer ? "tsl" : "glsl"),
   );
+  if (handle.isWebGpuRenderer) await loadTslMaterialModules();
 
   (globalThis as { __rendererInfo?: unknown }).__rendererInfo = {
     app: "reliquary-preview",

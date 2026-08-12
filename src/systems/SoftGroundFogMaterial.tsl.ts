@@ -35,7 +35,12 @@ import {
   viewportCoordinate,
 } from "three/tsl";
 
-import type { SoftGroundFogMaterialInput, SoftGroundFogUniformHandles } from "./AtmosphereMaterialsShared";
+import type {
+  SoftGroundFogMaterialInput,
+  SoftGroundFogUniformHandles,
+} from "./AtmosphereMaterialsShared";
+import { SOFT_GROUND_FOG_SHADER_FACTORY_ID } from "./SoftGroundFogMaterial";
+import { registerTslBuilder } from "./TslMaterialModules";
 import {
   SOFT_FOG_DIST_FALLOFF,
   SOFT_FOG_HEIGHT_FALLOFF_AIR,
@@ -115,27 +120,25 @@ const localWindow = /*@__PURE__*/ Fn(([worldXZIn, uBoxCenter, uHalfExtent]: [any
   return float(1).sub(smoothstep(0.55, 1.0, r));
 });
 
-const rayBoxHit = /*@__PURE__*/ Fn(
-  ([roIn, rdIn, bminIn, bmaxIn]: [any, any, any, any]) => {
-    const ro = vec3(roIn);
-    const rd = vec3(rdIn);
-    const bmin = vec3(bminIn);
-    const bmax = vec3(bmaxIn);
-    const inv = vec3(
-      select(abs(rd.x).greaterThan(1e-5), float(1).div(rd.x), float(1e6).mul(sign(rd.x.add(1e-6)))),
-      select(abs(rd.y).greaterThan(1e-5), float(1).div(rd.y), float(1e6).mul(sign(rd.y.add(1e-6)))),
-      select(abs(rd.z).greaterThan(1e-5), float(1).div(rd.z), float(1e6).mul(sign(rd.z.add(1e-6)))),
-    );
-    const tbot = bmin.sub(ro).mul(inv);
-    const ttop = bmax.sub(ro).mul(inv);
-    const tminv = min(tbot, ttop);
-    const tmaxv = max(tbot, ttop);
-    const t0 = max(max(tminv.x, tminv.y), tminv.z);
-    const t1 = min(min(tmaxv.x, tmaxv.y), tmaxv.z);
-    const hit = t1.greaterThan(max(t0, 0.0));
-    return vec4(t0, t1, float(0), select(hit, float(1), float(0)));
-  },
-);
+const rayBoxHit = /*@__PURE__*/ Fn(([roIn, rdIn, bminIn, bmaxIn]: [any, any, any, any]) => {
+  const ro = vec3(roIn);
+  const rd = vec3(rdIn);
+  const bmin = vec3(bminIn);
+  const bmax = vec3(bmaxIn);
+  const inv = vec3(
+    select(abs(rd.x).greaterThan(1e-5), float(1).div(rd.x), float(1e6).mul(sign(rd.x.add(1e-6)))),
+    select(abs(rd.y).greaterThan(1e-5), float(1).div(rd.y), float(1e6).mul(sign(rd.y.add(1e-6)))),
+    select(abs(rd.z).greaterThan(1e-5), float(1).div(rd.z), float(1e6).mul(sign(rd.z.add(1e-6)))),
+  );
+  const tbot = bmin.sub(ro).mul(inv);
+  const ttop = bmax.sub(ro).mul(inv);
+  const tminv = min(tbot, ttop);
+  const tmaxv = max(tbot, ttop);
+  const t0 = max(max(tminv.x, tminv.y), tminv.z);
+  const t1 = min(min(tmaxv.x, tmaxv.y), tmaxv.z);
+  const hit = t1.greaterThan(max(t0, 0.0));
+  return vec4(t0, t1, float(0), select(hit, float(1), float(0)));
+});
 
 export function createSoftGroundFogMaterialTsl(
   input: SoftGroundFogMaterialInput,
@@ -189,16 +192,8 @@ export function createSoftGroundFogMaterialTsl(
     const ro = cameraPosition;
     const rd = normalize(vWorldPos.sub(ro));
 
-    const bmin = vec3(
-      uBoxCenter.x.sub(uHalfExtent),
-      float(0),
-      uBoxCenter.y.sub(uHalfExtent),
-    );
-    const bmax = vec3(
-      uBoxCenter.x.add(uHalfExtent),
-      uHeight,
-      uBoxCenter.y.add(uHalfExtent),
-    );
+    const bmin = vec3(uBoxCenter.x.sub(uHalfExtent), float(0), uBoxCenter.y.sub(uHalfExtent));
+    const bmax = vec3(uBoxCenter.x.add(uHalfExtent), uHeight, uBoxCenter.y.add(uHalfExtent));
 
     const boxHit = rayBoxHit(ro, rd, bmin, bmax);
     const t0 = boxHit.x;
@@ -270,14 +265,16 @@ export function createSoftGroundFogMaterialTsl(
     const alpha = uMaxAlpha
       .mul(
         float(1).sub(
-          exp(float(1).sub(exp(max(optical, 0.0).negate())).mul(-1.35)),
+          exp(
+            float(1)
+              .sub(exp(max(optical, 0.0).negate()))
+              .mul(-1.35),
+          ),
         ),
       )
       .toVar();
 
-    const bayer = fract(
-      sin(dot(viewportCoordinate.xy, vec2(12.9898, 78.233))).mul(43758.5453),
-    );
+    const bayer = fract(sin(dot(viewportCoordinate.xy, vec2(12.9898, 78.233))).mul(43758.5453));
     alpha.addAssign(bayer.sub(0.5).mul(0.004));
     alpha.lessThan(0.005).discard();
 
@@ -300,3 +297,5 @@ export function createSoftGroundFogMaterialTsl(
 
   return material;
 }
+
+registerTslBuilder(SOFT_GROUND_FOG_SHADER_FACTORY_ID, createSoftGroundFogMaterialTsl);

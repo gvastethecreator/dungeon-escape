@@ -135,9 +135,7 @@ export function detectRenderCapabilities(
     : (() => {
         const raw = (() => {
           try {
-            const params = new URLSearchParams(
-              search.startsWith("?") ? search.slice(1) : search,
-            );
+            const params = new URLSearchParams(search.startsWith("?") ? search.slice(1) : search);
             return params.get("renderer")?.trim().toLowerCase() ?? null;
           } catch {
             return null;
