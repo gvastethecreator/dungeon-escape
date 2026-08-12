@@ -65,7 +65,10 @@ export function compareRgbaImages(
 
   const regionW = Math.ceil(width / regionGrid);
   const regionH = Math.ceil(height / regionGrid);
-  const regions: RegionDiff[] = [];
+  type MutableRegion = {
+    -readonly [K in keyof RegionDiff]: RegionDiff[K];
+  };
+  const regions: MutableRegion[] = [];
   for (let gy = 0; gy < regionGrid; gy += 1) {
     for (let gx = 0; gx < regionGrid; gx += 1) {
       const x = gx * regionW;
