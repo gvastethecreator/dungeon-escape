@@ -19,7 +19,6 @@ import {
   sin,
   texture,
   uniform,
-  vec3,
   vec4,
 } from "three/tsl";
 import type { SceneTextureSink } from "../systems/SceneTextureRegistry";
@@ -286,14 +285,14 @@ function createShieldMaterialTsl(): WardShieldMaterial {
   const uOpacity = uniform(0);
   const uPulse = uniform(1);
   const uTime = uniform(0);
-  const material = new MeshBasicNodeMaterial() as WardShieldMaterial;
-  material.transparent = true;
-  material.depthWrite = false;
-  material.depthTest = true;
-  material.side = THREE.DoubleSide;
-  material.blending = THREE.AdditiveBlending;
-  material.toneMapped = false;
-  material.fog = false;
+  const nodeMaterial = new MeshBasicNodeMaterial();
+  nodeMaterial.transparent = true;
+  nodeMaterial.depthWrite = false;
+  nodeMaterial.depthTest = true;
+  nodeMaterial.side = THREE.DoubleSide;
+  nodeMaterial.blending = THREE.AdditiveBlending;
+  nodeMaterial.toneMapped = false;
+  nodeMaterial.fog = false;
   const sample = Fn(() => {
     const worldPos = modelWorldMatrix.mul(vec4(positionLocal, 1.0)).xyz;
     const worldNormal = normalize(modelWorldMatrix.mul(vec4(normalLocal, 0.0)).xyz);
@@ -304,11 +303,12 @@ function createShieldMaterialTsl(): WardShieldMaterial {
     const hex = float(0.72).add(sin(worldPos.x.add(worldPos.z).mul(4.2).sub(uTime.mul(1.1))).mul(0.28));
     const shell = fresnel.mul(bands).mul(hex).mul(uPulse);
     const color = mix(uColor, uRimColor, clamp(fresnel.mul(1.15), 0.0, 1.0));
-    return vec4(vec3(color), clamp(shell.mul(uOpacity), 0.0, 1.0));
+    return vec4(color as any, clamp(shell.mul(uOpacity), 0.0, 1.0));
   })();
-  material.colorNode = sample.rgb;
-  material.opacityNode = sample.a;
-  material.alphaTest = 0.004;
+  nodeMaterial.colorNode = sample.rgb as any;
+  nodeMaterial.opacityNode = sample.a as any;
+  nodeMaterial.alphaTest = 0.004;
+  const material = nodeMaterial as WardShieldMaterial;
   material.uniforms = { uColor, uRimColor, uOpacity, uPulse, uTime } as WardShieldUniforms;
   material.userData.luminousWardShield = true;
   material.userData.shaderProgramMode = "tsl";
@@ -338,9 +338,9 @@ function createWardMoteSpriteMaterial(
   material.toneMapped = false;
   material.alphaTest = 0.02;
   material.positionNode = aPosition as any;
-  material.sizeNode = max(float(0.035), aSize.mul(1.1));
-  material.colorNode = uColor.mul(texel.rgb);
-  material.opacityNode = texel.a.mul(materialOpacity);
+  material.sizeNode = max(float(0.035), aSize.mul(1.1)) as any;
+  material.colorNode = (uColor as any).mul(texel.rgb) as any;
+  material.opacityNode = texel.a.mul(materialOpacity) as any;
   material.userData.luminousWardMotes = true;
   material.userData.shaderProgramMode = "tsl";
   material.userData.particlePrimitive = "sprite";
@@ -410,21 +410,22 @@ function createWardTrailMaterialTsl(
   const aPosition = instancedBufferAttribute<"vec3">(positionAttribute, "vec3");
   const aTrailSize = instancedBufferAttribute<"float">(sizeAttribute, "float");
   const aTrailAlpha = instancedBufferAttribute<"float">(alphaAttribute, "float");
-  const material = new PointsNodeMaterial() as WardTrailMaterial;
+  const nodeMaterial = new PointsNodeMaterial();
   const texel = texture(particleTexture);
-  material.name = "Luminous ward motion trail material (TSL sprites)";
-  material.transparent = true;
-  material.depthWrite = false;
-  material.depthTest = true;
-  material.blending = THREE.AdditiveBlending;
-  material.toneMapped = false;
-  material.fog = false;
-  material.sizeAttenuation = true;
-  material.positionNode = aPosition;
-  material.sizeNode = max(float(0.018), aTrailSize.mul(0.12).mul(uPixelRatio));
-  material.colorNode = vec4(uColor.mul(texel.rgb), texel.a);
-  material.opacityNode = texel.a.mul(aTrailAlpha).mul(uOpacity);
-  material.alphaTest = 0.01;
+  nodeMaterial.name = "Luminous ward motion trail material (TSL sprites)";
+  nodeMaterial.transparent = true;
+  nodeMaterial.depthWrite = false;
+  nodeMaterial.depthTest = true;
+  nodeMaterial.blending = THREE.AdditiveBlending;
+  nodeMaterial.toneMapped = false;
+  nodeMaterial.fog = false;
+  nodeMaterial.sizeAttenuation = true;
+  nodeMaterial.positionNode = aPosition as any;
+  nodeMaterial.sizeNode = max(float(0.018), aTrailSize.mul(0.12).mul(uPixelRatio)) as any;
+  nodeMaterial.colorNode = (uColor as any).mul(texel.rgb) as any;
+  nodeMaterial.opacityNode = texel.a.mul(aTrailAlpha).mul(uOpacity) as any;
+  nodeMaterial.alphaTest = 0.01;
+  const material = nodeMaterial as WardTrailMaterial;
   material.uniforms = {
     map: { value: particleTexture },
     uColor,
