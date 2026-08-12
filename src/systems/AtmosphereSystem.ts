@@ -352,7 +352,10 @@ export class AtmosphereSystem {
       if (this.softGroundFog) {
         this.softGroundFog.mesh.position.x = viewerPosition.x;
         this.softGroundFog.mesh.position.z = viewerPosition.z;
-        this.softGroundFog.mesh.position.y = this.wallHeight * 0.5;
+        this.softGroundFog.mesh.position.y =
+          this.softGroundFog.mesh.userData.webGpuFogGroundLayer === true
+            ? 0.08
+            : this.wallHeight * 0.5;
         const fogHandles = softGroundFogHandles(this.softGroundFog.material);
         fogHandles?.uBoxCenter.value.set(viewerPosition.x, viewerPosition.z);
       }
@@ -440,8 +443,6 @@ export class AtmosphereSystem {
     this.textureSink?.register(mask);
     // Local box: follows player each frame; height = full wall column.
     const side = SOFT_FOG_LOCAL_HALF * 2;
-    const geometry = new THREE.BoxGeometry(side, this.wallHeight, side);
-
     const baseDensity = SOFT_FOG_DENSITY * mood.volumeFogMul;
     const material = createSoftGroundFogMaterial({
       color: fogVolumeColor(mood),
@@ -451,10 +452,16 @@ export class AtmosphereSystem {
       worldSize,
       wallHeight: this.wallHeight,
     });
+    const usesWebGpuGroundLayer = material.userData.softGroundFogPlane === true;
+    const geometry = usesWebGpuGroundLayer
+      ? new THREE.PlaneGeometry(side, side)
+      : new THREE.BoxGeometry(side, this.wallHeight, side);
 
     const mesh = new THREE.Mesh(geometry, material);
     mesh.name = "Soft volumetric ground fog";
-    mesh.position.set(0, this.wallHeight * 0.5, 0);
+    mesh.userData.webGpuFogGroundLayer = usesWebGpuGroundLayer;
+    if (usesWebGpuGroundLayer) mesh.rotation.x = -Math.PI * 0.5;
+    mesh.position.set(0, usesWebGpuGroundLayer ? 0.08 : this.wallHeight * 0.5, 0);
     mesh.renderOrder = 3;
     // Volume spans the dungeon; local bounds would cull valid fog slabs.
     mesh.frustumCulled = false;

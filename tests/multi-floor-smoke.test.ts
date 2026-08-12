@@ -127,7 +127,8 @@ describe("multi-floor smoke", () => {
       );
       for (let y = 0; y < floor.height; y += 1) {
         for (let x = 0; x < floor.width; x += 1) {
-          const expected = isFloorCell(floor, x, y) && !openCells.has(`${x},${y}`) ? floorIndex : null;
+          const expected =
+            isFloorCell(floor, x, y) && !openCells.has(`${x},${y}`) ? floorIndex : null;
           expect(sampleFloorSupportHeightfield(support, { x, y })).toBe(expected);
         }
       }

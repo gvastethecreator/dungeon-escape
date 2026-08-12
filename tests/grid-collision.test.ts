@@ -278,7 +278,12 @@ describe("grid collision", () => {
       16,
     );
     expect([...grouped.keys()].sort()).toEqual(["0,0", "1,0"]);
-    expect(grouped.get("1,0")?.map((entry) => entry.id).sort()).toEqual(["b", "c"]);
+    expect(
+      grouped
+        .get("1,0")
+        ?.map((entry) => entry.id)
+        .sort(),
+    ).toEqual(["b", "c"]);
     const near = spatialChunkKeysNearCells([{ x: 16, y: 16 }], 16, 1);
     expect(near.has("1,1")).toBe(true);
     expect(near.has("0,0")).toBe(true);
