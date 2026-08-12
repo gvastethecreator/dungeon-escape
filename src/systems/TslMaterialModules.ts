@@ -77,7 +77,9 @@ export async function loadTslMaterialModules(): Promise<void> {
 }
 
 export function resetTslMaterialModulesForTests(): void {
-  builders.clear();
+  // Registered builders are the import side effect that Play boot relies on, so
+  // they stay; only the "already loaded" latch resets, letting the next test
+  // re-run the (no-op) import batch instead of inheriting a peer's modules.
   loaded = false;
   loading = null;
 }
