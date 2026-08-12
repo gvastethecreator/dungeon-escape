@@ -596,16 +596,17 @@ const playRuntime = new PlayRuntime(world);
 const dungeonLoadTraces = new DungeonLoadTraceController();
 // Fog column shares WorldMetrics with the architecture stack.
 const atmosphere = new AtmosphereSystem(scene, TILE_SIZE, WORLD_WALL_HEIGHT, textureRegistry);
-const povPost = new PovPostFx();
+const povPost = new PovPostFx({
+  programMode: playRendererHandle.isWebGpuRenderer ? "tsl" : "glsl",
+});
 povPost.setDisplayTuning(displayPostFxTuning);
 // CRT history + multi-sample composite is the usual Firefox stutter source.
 povPost.setCrtEnabled(renderCaps.enableCrtByDefault);
 if (playRendererHandle.isWebGpuRenderer) {
-  // WGP-08: PovPostFx still uses ShaderMaterial. Keep the scene playable with a
-  // direct draw until WGP-18 ports the chain to RenderPipeline.
-  povPost.setEnabled(false);
-  console.warn(
-    "[renderer] WebGPU path: custom GLSL VFX and PovPostFx are disabled until their TSL ports land (WGP-09..19).",
+  // WGP-18: TSL RenderPipeline composite is live. WGP-19 CRT history ping-pong is
+  // still stubbed on TSL, so keep CRT off on WebGPU until that lands.
+  console.info(
+    "[renderer] WebGPU path: PovPostFx TSL RenderPipeline enabled (WGP-18); CRT history pending WGP-19.",
   );
 }
 const povFeel = new PovFeelState();
@@ -702,7 +703,8 @@ let touchSessionActive = false;
 let resumeTouchControls = false;
 let uiInteractQueued = false;
 let engineMode: EngineMode = "editor";
-let crtEnabled = renderCaps.enableCrtByDefault;
+// WebGPU: CRT phosphor/scanlines work via TSL, but history persistence is WGP-19.
+let crtEnabled = playRendererHandle.isWebGpuRenderer ? false : renderCaps.enableCrtByDefault;
 /** When frame time stays above budget, drop CRT without fighting a manual toggle. */
 let crtAutoDisabled = false;
 let crtManualOverride = false;

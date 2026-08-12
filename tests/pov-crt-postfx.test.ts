@@ -7,12 +7,15 @@ import {
   POV_CRT_RENDER_SCALE,
   PovPostFx,
 } from "../src/systems/PovPostFx";
+import { createPovPostFxTslUniforms } from "../src/systems/PovPostFxTsl";
 
 interface PovPostFxInternals {
   sceneTarget: THREE.WebGLRenderTarget;
   historyTargets: readonly [THREE.WebGLRenderTarget, THREE.WebGLRenderTarget];
   historyReady: boolean;
   material: THREE.ShaderMaterial;
+  programMode: "glsl" | "tsl";
+  tslUniforms: ReturnType<typeof createPovPostFxTslUniforms> | null;
 }
 
 describe("POV CRT post effect", () => {
@@ -187,6 +190,44 @@ describe("POV CRT post effect", () => {
       ),
     ).toThrow("disabled pass");
     expect(renderer.currentTarget).toBe(previousTarget);
+    post.dispose();
+  });
+
+  test("TSL program mode builds Rec.601 luma and pincushion (not barrelUV)", async () => {
+    const post = new PovPostFx({ programMode: "tsl" });
+    const internals = post as unknown as PovPostFxInternals;
+    const tslSource = await Bun.file(
+      new URL("../src/systems/PovPostFxTsl.ts", import.meta.url),
+    ).text();
+
+    expect(post.programMode).toBe("tsl");
+    expect(internals.material).toBeNull();
+    expect(internals.tslUniforms).not.toBeNull();
+    expect(tslSource).toContain("rec601Luma");
+    expect(tslSource).toContain("0.299, 0.587, 0.114");
+    expect(tslSource).toContain("pincushion");
+    expect(tslSource).not.toMatch(/\bbarrelUV\b/);
+    expect(tslSource).not.toContain("from \"three/addons/tsl/display/CRT.js\"");
+    expect(tslSource).not.toMatch(/\bluminance\s*\(/);
+    expect(tslSource).toContain("TODO(WGP-19)");
+    expect(tslSource).toContain("AfterImageNode");
+    expect(tslSource).toContain("RenderPipeline");
+
+    post.setHazardFeel(0.5, 0.25, 0.1, 0.2);
+    expect(internals.tslUniforms!.uHeatwave.value).toBeCloseTo(0.5, 5);
+    expect(internals.tslUniforms!.uToxinGreen.value).toBeCloseTo(0.25, 5);
+
+    post.setCrtEnabled(false);
+    expect(internals.tslUniforms!.uCrtEnabled.value).toBe(0);
+    expect(internals.tslUniforms!.uHistoryReady.value).toBe(0);
+
+    post.dispose();
+  });
+
+  test("default constructor stays on the GLSL expand path", () => {
+    const post = new PovPostFx();
+    expect(post.programMode).toBe("glsl");
+    expect((post as unknown as PovPostFxInternals).material).toBeInstanceOf(THREE.ShaderMaterial);
     post.dispose();
   });
 });

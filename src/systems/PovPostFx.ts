@@ -6,13 +6,31 @@ import {
   normalizeDisplayPostFxTuning,
   type DisplayPostFxTuning,
 } from "./DisplayPostFxTuning";
+import {
+  POV_CRT_RENDER_SCALE,
+  POV_VIGNETTE_INNER_RADIUS,
+  POV_VIGNETTE_STRENGTH,
+} from "./PovPostFxShared";
+import {
+  createPovPostFxTslUniforms,
+  PovPostFxTslPipeline,
+  type PovPostFxTslUniformState,
+} from "./PovPostFxTsl";
 
-export const POV_VIGNETTE_STRENGTH = 0.1;
-export const POV_VIGNETTE_INNER_RADIUS = 0.62;
-export const POV_CRT_HISTORY_WEIGHT = 0.16;
-export const POV_CRT_HALATION_STRENGTH = 0.16;
-/** Heavy CRT composite runs below scene resolution, then uses one cheap upscale. */
-export const POV_CRT_RENDER_SCALE = 0.8;
+export {
+  POV_CRT_HALATION_STRENGTH,
+  POV_CRT_HISTORY_WEIGHT,
+  POV_CRT_RENDER_SCALE,
+  POV_VIGNETTE_INNER_RADIUS,
+  POV_VIGNETTE_STRENGTH,
+} from "./PovPostFxShared";
+
+/** GLSL ShaderMaterial path (WebGL) or TSL RenderPipeline path (WebGPU / WGP-18). */
+export type PovPostFxProgramMode = "glsl" | "tsl";
+
+export interface PovPostFxOptions {
+  readonly programMode?: PovPostFxProgramMode;
+}
 
 const FULLSCREEN_VERTEX_SHADER = /* glsl */ `
   varying vec2 vUv;
@@ -37,18 +55,28 @@ function createPostTarget(depthBuffer: boolean): THREE.WebGLRenderTarget {
 /**
  * Full-screen post pass: mild outward (pincushion) lens warp + radial chromatic aberration.
  * Renders the main scene into a target, then composites to the canvas.
+ *
+ * Dual path (expand-contract):
+ * - `glsl` (default): WebGL ShaderMaterial + ping-pong CRT history
+ * - `tsl`: WebGPU RenderPipeline + three/tsl composite (WGP-18); CRT history TODO WGP-19
  */
 export class PovPostFx {
-  private readonly sceneTarget: THREE.WebGLRenderTarget;
-  private readonly historyTargets = [createPostTarget(false), createPostTarget(false)] as const;
-  private readonly fsScene = new THREE.Scene();
-  private readonly copyScene = new THREE.Scene();
-  private readonly fsCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
-  private readonly material: THREE.ShaderMaterial;
-  private readonly copyMaterial: THREE.ShaderMaterial;
-  private readonly geometry = new THREE.PlaneGeometry(2, 2);
-  private readonly mesh: THREE.Mesh;
-  private readonly copyMesh: THREE.Mesh;
+  readonly programMode: PovPostFxProgramMode;
+
+  private readonly sceneTarget: THREE.WebGLRenderTarget | null;
+  private readonly historyTargets: readonly [THREE.WebGLRenderTarget, THREE.WebGLRenderTarget] | null;
+  private readonly fsScene: THREE.Scene | null;
+  private readonly copyScene: THREE.Scene | null;
+  private readonly fsCamera: THREE.OrthographicCamera | null;
+  private readonly material: THREE.ShaderMaterial | null;
+  private readonly copyMaterial: THREE.ShaderMaterial | null;
+  private readonly geometry: THREE.PlaneGeometry | null;
+  private readonly mesh: THREE.Mesh | null;
+  private readonly copyMesh: THREE.Mesh | null;
+
+  private readonly tslUniforms: PovPostFxTslUniformState | null;
+  private readonly tslPipeline: PovPostFxTslPipeline | null;
+
   private width = 1;
   private height = 1;
   private enabled = true;
@@ -58,8 +86,32 @@ export class PovPostFx {
   private animateGrain = true;
   private displayTuning: DisplayPostFxTuning = { ...DEFAULT_DISPLAY_POST_FX_TUNING };
 
-  constructor() {
+  constructor(options: PovPostFxOptions = {}) {
+    this.programMode = options.programMode ?? "glsl";
+
+    if (this.programMode === "tsl") {
+      this.sceneTarget = null;
+      this.historyTargets = null;
+      this.fsScene = null;
+      this.copyScene = null;
+      this.fsCamera = null;
+      this.material = null;
+      this.copyMaterial = null;
+      this.geometry = null;
+      this.mesh = null;
+      this.copyMesh = null;
+      this.tslUniforms = createPovPostFxTslUniforms();
+      this.tslPipeline = new PovPostFxTslPipeline(this.tslUniforms);
+      return;
+    }
+
+    this.tslUniforms = null;
+    this.tslPipeline = null;
     this.sceneTarget = createPostTarget(true);
+    this.historyTargets = [createPostTarget(false), createPostTarget(false)] as const;
+    this.fsScene = new THREE.Scene();
+    this.copyScene = new THREE.Scene();
+    this.fsCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
 
     this.material = new THREE.ShaderMaterial({
       uniforms: {
@@ -310,6 +362,7 @@ export class PovPostFx {
       toneMapped: false,
     });
 
+    this.geometry = new THREE.PlaneGeometry(2, 2);
     this.mesh = new THREE.Mesh(this.geometry, this.material);
     // Full-screen pass: the mesh is camera-locked; frustum culling would drop it.
     this.mesh.frustumCulled = false;
@@ -332,7 +385,8 @@ export class PovPostFx {
   setCrtEnabled(value: boolean): void {
     if (this.crtEnabled === value) return;
     this.crtEnabled = value;
-    this.material.uniforms.uCrtEnabled.value = value ? 1 : 0;
+    if (this.material) this.material.uniforms.uCrtEnabled.value = value ? 1 : 0;
+    if (this.tslUniforms) this.tslUniforms.uCrtEnabled.value = value ? 1 : 0;
     this.resetCrtHistory();
   }
 
@@ -343,11 +397,14 @@ export class PovPostFx {
   setDisplayTuning(value: DisplayPostFxTuning): void {
     const tuning = normalizeDisplayPostFxTuning(value);
     this.displayTuning = tuning;
-    this.material.uniforms.uCrtHalation.value = tuning.halation;
-    this.material.uniforms.uCrtPersistence.value = tuning.persistence;
-    this.material.uniforms.uCrtScanlines.value = tuning.scanlines;
-    this.material.uniforms.uCrtPhosphor.value = tuning.phosphorMask;
-    this.material.uniforms.uCrtBrightness.value = tuning.brightness;
+    if (this.material) {
+      this.material.uniforms.uCrtHalation.value = tuning.halation;
+      this.material.uniforms.uCrtPersistence.value = tuning.persistence;
+      this.material.uniforms.uCrtScanlines.value = tuning.scanlines;
+      this.material.uniforms.uCrtPhosphor.value = tuning.phosphorMask;
+      this.material.uniforms.uCrtBrightness.value = tuning.brightness;
+    }
+    this.tslPipeline?.applyDisplayTuning(tuning);
     this.resetCrtHistory();
   }
 
@@ -357,7 +414,9 @@ export class PovPostFx {
 
   resetCrtHistory(): void {
     this.historyReady = false;
-    this.material.uniforms.uHistoryReady.value = 0;
+    if (this.material) this.material.uniforms.uHistoryReady.value = 0;
+    // TODO(WGP-19): when TSL history RTs land, clear them here too.
+    if (this.tslUniforms) this.tslUniforms.uHistoryReady.value = 0;
   }
 
   setSize(width: number, height: number, pixelRatio: number): void {
@@ -366,11 +425,16 @@ export class PovPostFx {
     if (w === this.width && h === this.height) return;
     this.width = w;
     this.height = h;
-    this.sceneTarget.setSize(w, h);
+    if (this.programMode === "tsl") {
+      this.tslPipeline?.setSize(w, h);
+      this.resetCrtHistory();
+      return;
+    }
+    this.sceneTarget!.setSize(w, h);
     const crtWidth = Math.max(1, Math.round(w * POV_CRT_RENDER_SCALE));
     const crtHeight = Math.max(1, Math.round(h * POV_CRT_RENDER_SCALE));
-    this.historyTargets.forEach((target) => target.setSize(crtWidth, crtHeight));
-    this.material.uniforms.uResolution.value.set(crtWidth, crtHeight);
+    this.historyTargets!.forEach((target) => target.setSize(crtWidth, crtHeight));
+    this.material!.uniforms.uResolution.value.set(crtWidth, crtHeight);
     this.resetCrtHistory();
   }
 
@@ -381,35 +445,90 @@ export class PovPostFx {
     grain = 0.007,
     animateGrain = true,
   ): void {
-    this.material.uniforms.uCurvature.value = curvature * this.displayTuning.curvatureScale;
-    this.material.uniforms.uChromatic.value = chromatic;
-    this.material.uniforms.uCriticalRed.value = THREE.MathUtils.clamp(criticalRed, 0, 1);
+    const curved = curvature * this.displayTuning.curvatureScale;
+    const critical = THREE.MathUtils.clamp(criticalRed, 0, 1);
     // Cap stays tight: film grain should grade the image, not read as dirt.
-    this.material.uniforms.uGrain.value = THREE.MathUtils.clamp(
+    const grainValue = THREE.MathUtils.clamp(
       grain * this.displayTuning.grainScale,
       0,
       0.014,
     );
+    if (this.material) {
+      this.material.uniforms.uCurvature.value = curved;
+      this.material.uniforms.uChromatic.value = chromatic;
+      this.material.uniforms.uCriticalRed.value = critical;
+      this.material.uniforms.uGrain.value = grainValue;
+    }
+    if (this.tslUniforms) {
+      this.tslUniforms.uCurvature.value = curved;
+      this.tslUniforms.uChromatic.value = chromatic;
+      this.tslUniforms.uCriticalRed.value = critical;
+      this.tslUniforms.uGrain.value = grainValue;
+    }
     this.animateGrain = animateGrain;
   }
 
   /** Hazard floor response: heat shimmer, poison grade, frost grade, spike edge. */
   setHazardFeel(heatwave: number, toxinGreen: number, iceBlue: number, spikeEdge = 0): void {
-    this.material.uniforms.uHeatwave.value = THREE.MathUtils.clamp(heatwave, 0, 1);
-    this.material.uniforms.uToxinGreen.value = THREE.MathUtils.clamp(toxinGreen, 0, 1);
-    this.material.uniforms.uIceBlue.value = THREE.MathUtils.clamp(iceBlue, 0, 1);
-    this.material.uniforms.uSpikeEdge.value = THREE.MathUtils.clamp(spikeEdge, 0, 1);
+    const heat = THREE.MathUtils.clamp(heatwave, 0, 1);
+    const toxin = THREE.MathUtils.clamp(toxinGreen, 0, 1);
+    const ice = THREE.MathUtils.clamp(iceBlue, 0, 1);
+    const spike = THREE.MathUtils.clamp(spikeEdge, 0, 1);
+    if (this.material) {
+      this.material.uniforms.uHeatwave.value = heat;
+      this.material.uniforms.uToxinGreen.value = toxin;
+      this.material.uniforms.uIceBlue.value = ice;
+      this.material.uniforms.uSpikeEdge.value = spike;
+    }
+    if (this.tslUniforms) {
+      this.tslUniforms.uHeatwave.value = heat;
+      this.tslUniforms.uToxinGreen.value = toxin;
+      this.tslUniforms.uIceBlue.value = ice;
+      this.tslUniforms.uSpikeEdge.value = spike;
+    }
   }
 
   /** Biome lens response: quiet underwater UV warp (sunken). Independent of hazard heatwave. */
   setBiomeLensFeel(waterWarp: number): void {
-    this.material.uniforms.uWaterWarp.value = THREE.MathUtils.clamp(waterWarp, 0, 1);
+    const water = THREE.MathUtils.clamp(waterWarp, 0, 1);
+    if (this.material) this.material.uniforms.uWaterWarp.value = water;
+    if (this.tslUniforms) this.tslUniforms.uWaterWarp.value = water;
   }
 
   /**
    * Draw scene → RT → fullscreen warp. When disabled, falls back to a normal render.
    */
   render(renderer: DungeonRenderer, scene: THREE.Scene, camera: THREE.Camera): void {
+    if (this.programMode === "tsl") {
+      this.renderTsl(renderer, scene, camera);
+      return;
+    }
+    this.renderGlsl(renderer, scene, camera);
+  }
+
+  private renderTsl(renderer: DungeonRenderer, scene: THREE.Scene, camera: THREE.Camera): void {
+    const prevTarget = renderer.getRenderTarget();
+    if (!this.enabled) {
+      try {
+        renderer.setRenderTarget(null);
+        renderer.render(scene, camera);
+      } finally {
+        renderer.setRenderTarget(prevTarget);
+      }
+      return;
+    }
+
+    try {
+      if (this.animateGrain) this.tslUniforms!.uTime.value = performance.now() * 0.001;
+      // WGP-19: CRT history ping-pong not wired on TSL — force history latch off.
+      this.tslUniforms!.uHistoryReady.value = 0;
+      this.tslPipeline!.render(renderer, scene, camera);
+    } finally {
+      renderer.setRenderTarget(prevTarget);
+    }
+  }
+
+  private renderGlsl(renderer: DungeonRenderer, scene: THREE.Scene, camera: THREE.Camera): void {
     const prevTarget = renderer.getRenderTarget();
     if (!this.enabled) {
       try {
@@ -424,7 +543,7 @@ export class PovPostFx {
     const prevTone = renderer.toneMapping;
     const prevAutoClear = renderer.autoClear;
     try {
-      if (this.animateGrain) this.material.uniforms.uTime.value = performance.now() * 0.001;
+      if (this.animateGrain) this.material!.uniforms.uTime.value = performance.now() * 0.001;
 
       renderer.setRenderTarget(this.sceneTarget);
       renderer.autoClear = true;
@@ -437,23 +556,23 @@ export class PovPostFx {
 
       if (this.crtEnabled) {
         const historyWriteIndex = 1 - this.historyReadIndex;
-        const historyRead = this.historyTargets[this.historyReadIndex];
-        const historyWrite = this.historyTargets[historyWriteIndex];
-        this.material.uniforms.tHistory.value = historyRead.texture;
-        this.material.uniforms.uHistoryReady.value = this.historyReady ? 1 : 0;
+        const historyRead = this.historyTargets![this.historyReadIndex];
+        const historyWrite = this.historyTargets![historyWriteIndex];
+        this.material!.uniforms.tHistory.value = historyRead.texture;
+        this.material!.uniforms.uHistoryReady.value = this.historyReady ? 1 : 0;
 
         renderer.setRenderTarget(historyWrite);
         renderer.clear();
-        renderer.render(this.fsScene, this.fsCamera);
+        renderer.render(this.fsScene!, this.fsCamera!);
 
-        this.copyMaterial.uniforms.tDiffuse.value = historyWrite.texture;
+        this.copyMaterial!.uniforms.tDiffuse.value = historyWrite.texture;
         renderer.setRenderTarget(null);
-        renderer.render(this.copyScene, this.fsCamera);
+        renderer.render(this.copyScene!, this.fsCamera!);
         this.historyReadIndex = historyWriteIndex;
         this.historyReady = true;
       } else {
         renderer.setRenderTarget(null);
-        renderer.render(this.fsScene, this.fsCamera);
+        renderer.render(this.fsScene!, this.fsCamera!);
       }
     } finally {
       renderer.toneMapping = prevTone;
@@ -472,24 +591,37 @@ export class PovPostFx {
     const wasCrtEnabled = this.crtEnabled;
     try {
       this.enabled = true;
-      this.crtEnabled = false;
-      this.render(renderer, scene, camera);
-      this.crtEnabled = true;
-      this.render(renderer, scene, camera);
+      if (this.programMode === "tsl") {
+        // TSL path: one composite compile is enough (no history ping-pong yet).
+        this.crtEnabled = false;
+        if (this.tslUniforms) this.tslUniforms.uCrtEnabled.value = 0;
+        this.render(renderer, scene, camera);
+      } else {
+        this.crtEnabled = false;
+        this.render(renderer, scene, camera);
+        this.crtEnabled = true;
+        this.render(renderer, scene, camera);
+      }
     } finally {
       this.enabled = wasEnabled;
       this.crtEnabled = wasCrtEnabled;
+      if (this.material) this.material.uniforms.uCrtEnabled.value = wasCrtEnabled ? 1 : 0;
+      if (this.tslUniforms) this.tslUniforms.uCrtEnabled.value = wasCrtEnabled ? 1 : 0;
       this.resetCrtHistory();
     }
   }
 
   dispose(): void {
-    this.sceneTarget.dispose();
-    this.historyTargets.forEach((target) => target.dispose());
-    this.material.dispose();
-    this.copyMaterial.dispose();
-    this.geometry.dispose();
-    this.fsScene.remove(this.mesh);
-    this.copyScene.remove(this.copyMesh);
+    if (this.programMode === "tsl") {
+      this.tslPipeline?.dispose();
+      return;
+    }
+    this.sceneTarget!.dispose();
+    this.historyTargets!.forEach((target) => target.dispose());
+    this.material!.dispose();
+    this.copyMaterial!.dispose();
+    this.geometry!.dispose();
+    this.fsScene!.remove(this.mesh!);
+    this.copyScene!.remove(this.copyMesh!);
   }
 }
