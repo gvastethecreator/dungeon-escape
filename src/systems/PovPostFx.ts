@@ -58,7 +58,7 @@ function createPostTarget(depthBuffer: boolean): THREE.WebGLRenderTarget {
  *
  * Dual path (expand-contract):
  * - `glsl` (default): WebGL ShaderMaterial + ping-pong CRT history
- * - `tsl`: WebGPU RenderPipeline + three/tsl composite (WGP-18); CRT history TODO WGP-19
+ * - `tsl`: WebGPU RenderPipeline + three/tsl composite + ping-pong CRT history
  */
 export class PovPostFx {
   readonly programMode: PovPostFxProgramMode;
@@ -387,6 +387,7 @@ export class PovPostFx {
     this.crtEnabled = value;
     if (this.material) this.material.uniforms.uCrtEnabled.value = value ? 1 : 0;
     if (this.tslUniforms) this.tslUniforms.uCrtEnabled.value = value ? 1 : 0;
+    this.tslPipeline?.setCrtEnabled(value);
     this.resetCrtHistory();
   }
 
@@ -415,8 +416,8 @@ export class PovPostFx {
   resetCrtHistory(): void {
     this.historyReady = false;
     if (this.material) this.material.uniforms.uHistoryReady.value = 0;
-    // TODO(WGP-19): when TSL history RTs land, clear them here too.
     if (this.tslUniforms) this.tslUniforms.uHistoryReady.value = 0;
+    this.tslPipeline?.resetHistory();
   }
 
   setSize(width: number, height: number, pixelRatio: number): void {
@@ -520,8 +521,6 @@ export class PovPostFx {
 
     try {
       if (this.animateGrain) this.tslUniforms!.uTime.value = performance.now() * 0.001;
-      // WGP-19: CRT history ping-pong not wired on TSL — force history latch off.
-      this.tslUniforms!.uHistoryReady.value = 0;
       this.tslPipeline!.render(renderer, scene, camera);
     } finally {
       renderer.setRenderTarget(prevTarget);
@@ -592,9 +591,9 @@ export class PovPostFx {
     try {
       this.enabled = true;
       if (this.programMode === "tsl") {
-        // TSL path: one composite compile is enough (no history ping-pong yet).
-        this.crtEnabled = false;
-        if (this.tslUniforms) this.tslUniforms.uCrtEnabled.value = 0;
+        this.setCrtEnabled(false);
+        this.render(renderer, scene, camera);
+        this.setCrtEnabled(true);
         this.render(renderer, scene, camera);
       } else {
         this.crtEnabled = false;
@@ -604,9 +603,7 @@ export class PovPostFx {
       }
     } finally {
       this.enabled = wasEnabled;
-      this.crtEnabled = wasCrtEnabled;
-      if (this.material) this.material.uniforms.uCrtEnabled.value = wasCrtEnabled ? 1 : 0;
-      if (this.tslUniforms) this.tslUniforms.uCrtEnabled.value = wasCrtEnabled ? 1 : 0;
+      this.setCrtEnabled(wasCrtEnabled);
       this.resetCrtHistory();
     }
   }

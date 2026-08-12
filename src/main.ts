@@ -603,11 +603,7 @@ povPost.setDisplayTuning(displayPostFxTuning);
 // CRT history + multi-sample composite is the usual Firefox stutter source.
 povPost.setCrtEnabled(renderCaps.enableCrtByDefault);
 if (playRendererHandle.isWebGpuRenderer) {
-  // WGP-18: TSL RenderPipeline composite is live. WGP-19 CRT history ping-pong is
-  // still stubbed on TSL, so keep CRT off on WebGPU until that lands.
-  console.info(
-    "[renderer] WebGPU path: PovPostFx TSL RenderPipeline enabled (WGP-18); CRT history pending WGP-19.",
-  );
+  console.info("[renderer] WebGPU path: PovPostFx TSL RenderPipeline enabled.");
 }
 const povFeel = new PovFeelState();
 const audio = new GameAudio();
@@ -703,8 +699,7 @@ let touchSessionActive = false;
 let resumeTouchControls = false;
 let uiInteractQueued = false;
 let engineMode: EngineMode = "editor";
-// WebGPU: CRT phosphor/scanlines work via TSL, but history persistence is WGP-19.
-let crtEnabled = playRendererHandle.isWebGpuRenderer ? false : renderCaps.enableCrtByDefault;
+let crtEnabled = renderCaps.enableCrtByDefault;
 /** When frame time stays above budget, drop CRT without fighting a manual toggle. */
 let crtAutoDisabled = false;
 let crtManualOverride = false;
