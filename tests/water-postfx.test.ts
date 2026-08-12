@@ -1,6 +1,12 @@
 import { describe, expect, test } from "bun:test";
 import * as THREE from "three";
+import { MeshStandardNodeMaterial } from "three/webgpu";
 import { POV_VIGNETTE_INNER_RADIUS, POV_VIGNETTE_STRENGTH } from "../src/systems/PovPostFx";
+import {
+  createShaderProgramModeRegistry,
+  resetShaderProgramModeRegistryForTests,
+  setShaderProgramModeRegistry,
+} from "../src/systems/ShaderProgramMode";
 
 import {
   createLiquidMaterial,
@@ -14,6 +20,7 @@ describe("water and post-process finish", () => {
     expect(material.roughness).toBeGreaterThanOrEqual(0.7);
     expect(material.metalness).toBe(0);
     expect(material.envMapIntensity).toBeLessThan(0.4);
+    expect(material.userData.liquidShaderMode).toBe("glsl");
     const shader = {
       uniforms: {} as Record<string, unknown>,
       vertexShader: "#include <common>\n#include <begin_vertex>",
@@ -40,6 +47,32 @@ describe("water and post-process finish", () => {
     surface.mesh.geometry.dispose();
     material.map?.dispose();
     material.dispose();
+  });
+
+  test("TSL liquid mode builds MeshStandardNodeMaterial with position/color nodes", () => {
+    resetShaderProgramModeRegistryForTests();
+    setShaderProgramModeRegistry(createShaderProgramModeRegistry("tsl"));
+
+    const material = createLiquidMaterial("pool", undefined, "tsl");
+    expect(material).toBeInstanceOf(MeshStandardNodeMaterial);
+    expect(material.userData.liquidShaderMode).toBe("tsl");
+    const nodeMaterial = material as unknown as MeshStandardNodeMaterial;
+    expect(nodeMaterial.positionNode).toBeTruthy();
+    expect(nodeMaterial.colorNode).toBeTruthy();
+
+    const surface: LiquidSurface = {
+      kind: "pool",
+      mesh: new THREE.Mesh(new THREE.PlaneGeometry(), material),
+      material,
+    };
+    tickLiquidSections([surface], 3.25);
+    expect((material.userData.liquidTime as { value: number }).value).toBe(3.25);
+    expect((material.userData.liquidTimeUniform as { value: number }).value).toBe(3.25);
+
+    surface.mesh.geometry.dispose();
+    material.map?.dispose();
+    material.dispose();
+    resetShaderProgramModeRegistryForTests();
   });
 
   test("the existing POV pass carries bounded subtle grain", async () => {
