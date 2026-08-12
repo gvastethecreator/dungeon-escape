@@ -1,9 +1,31 @@
 import * as THREE from "three";
+import { PointsNodeMaterial } from "three/webgpu";
+import {
+  Fn,
+  abs,
+  clamp,
+  float,
+  instancedBufferAttribute,
+  length,
+  max,
+  select,
+  sin,
+  smoothstep,
+  uv,
+  vec2,
+  vec3,
+  vec4,
+} from "three/tsl";
 
 import {
   ANNIHILATION_PULSE_RADIUS,
   ANNIHILATION_PULSE_REPEL_RADIUS,
 } from "../game/AnnihilationPulse";
+import {
+  getShaderProgramModeRegistry,
+  onShaderProgramModeRegistryChange,
+  type ShaderProgramMode,
+} from "../systems/ShaderProgramMode";
 
 export type AnnihilationBurstMaterial =
   | "blood"
@@ -175,6 +197,22 @@ const PULSE_RING_COUNT = 4;
 const PULSE_RING_DURATION = 0.72;
 const MAX_BURST_PARTICLES = 288;
 
+/** ShaderProgramMode factory id for annihilation enemy burst particles. */
+export const ANNIHILATION_BURST_SHADER_FACTORY_ID = "annihilation-burst-particles";
+
+/** Register (or refresh) dual-mode support on the active shader program registry. */
+export function registerAnnihilationBurstShaderFactory(
+  registry = getShaderProgramModeRegistry(),
+): void {
+  registry.register({
+    id: ANNIHILATION_BURST_SHADER_FACTORY_ID,
+    supports: ["glsl", "tsl"],
+  });
+}
+
+registerAnnihilationBurstShaderFactory();
+onShaderProgramModeRegistryChange(registerAnnihilationBurstShaderFactory);
+
 function hash(seed: number): number {
   const value = Math.sin(seed * 12.9898 + 78.233) * 43758.5453;
   return value - Math.floor(value);
@@ -206,8 +244,10 @@ function createPulseRing(index: number): PulseRingSlot {
   return { root, ring, active: false, age: 0 };
 }
 
-function createBurstMaterial(): THREE.ShaderMaterial {
-  return new THREE.ShaderMaterial({
+type AnnihilationBurstParticleMaterial = THREE.ShaderMaterial | PointsNodeMaterial;
+
+function createBurstMaterialGlsl(): THREE.ShaderMaterial {
+  const material = new THREE.ShaderMaterial({
     uniforms: {},
     vertexShader: `
       attribute float aAlpha;
@@ -294,6 +334,123 @@ function createBurstMaterial(): THREE.ShaderMaterial {
     toneMapped: false,
     fog: false,
   });
+  material.userData.shaderProgramMode = "glsl";
+  material.userData.annihilationBurstParticles = true;
+  material.userData.particlePrimitive = "points";
+  return material;
+}
+
+function createBurstMaterialTsl(attributes: {
+  position: THREE.InstancedBufferAttribute;
+  color: THREE.InstancedBufferAttribute;
+  alpha: THREE.InstancedBufferAttribute;
+  size: THREE.InstancedBufferAttribute;
+  shape: THREE.InstancedBufferAttribute;
+  spin: THREE.InstancedBufferAttribute;
+}): PointsNodeMaterial {
+  const aPosition = instancedBufferAttribute<"vec3">(attributes.position, "vec3");
+  const aColor = instancedBufferAttribute<"vec3">(attributes.color, "vec3");
+  const aAlpha = instancedBufferAttribute<"float">(attributes.alpha, "float");
+  const aSize = instancedBufferAttribute<"float">(attributes.size, "float");
+  const aShape = instancedBufferAttribute<"float">(attributes.shape, "float");
+  const aSpin = instancedBufferAttribute<"float">(attributes.spin, "float");
+
+  const material = new PointsNodeMaterial();
+  material.name = "Biome annihilation enemy particle material (TSL sprites)";
+  material.vertexColors = true;
+  material.transparent = true;
+  material.depthWrite = false;
+  material.blending = THREE.NormalBlending;
+  material.toneMapped = false;
+  material.fog = false;
+  material.sizeAttenuation = true;
+  material.positionNode = aPosition;
+  material.sizeNode = max(float(0.02), aSize.mul(1.2));
+
+  const sample = Fn(() => {
+    const local = uv().sub(vec2(0.5));
+    const spinPulse = sin(aSpin).mul(0.08);
+    const d = length(local);
+    const splatter = smoothstep(
+      float(0.38).add(spinPulse),
+      0.06,
+      length(vec2(local.x.mul(1.2), local.y.mul(0.9))),
+    );
+    const ember = max(
+      float(1).sub(smoothstep(0.25, 0.48, abs(local.x).mul(1.1).add(abs(local.y).mul(1.45)))),
+      smoothstep(0.2, 0.03, d),
+    );
+    const crystal = max(
+      float(1).sub(smoothstep(0.28, 0.48, abs(local.x).mul(2.7).add(abs(local.y).mul(0.7)))),
+      float(1).sub(smoothstep(0.02, 0.06, max(abs(local.x), abs(local.y)))),
+    );
+    const droplet = max(
+      smoothstep(0.43, 0.08, length(vec2(local.x.mul(1.7), local.y.mul(0.8).add(0.09)))),
+      smoothstep(0.2, 0.02, length(vec2(local.x.mul(2.6), local.y.add(0.3)))),
+    );
+    const bubble = max(
+      float(1).sub(smoothstep(0.025, 0.075, abs(d.sub(0.31)))),
+      smoothstep(0.11, 0.015, length(local.sub(vec2(-0.13, 0.13)))),
+    );
+    const spore = max(
+      smoothstep(0.34, 0.08, d).mul(0.72),
+      max(
+        smoothstep(0.09, 0.02, length(local.sub(vec2(0.2, 0.08)))),
+        smoothstep(0.075, 0.02, length(local.sub(vec2(-0.17, -0.14)))),
+      ),
+    );
+    const shard = max(
+      smoothstep(0.48, 0.08, length(vec2(local.x.mul(3.6), local.y.mul(0.74)))),
+      float(1)
+        .sub(smoothstep(0.02, 0.06, abs(local.x.add(local.y.mul(0.28)))))
+        .mul(smoothstep(0.36, 0.08, d)),
+    );
+    const crumb = smoothstep(float(0.36).add(spinPulse), 0.08, d);
+    const mask = select(
+      aShape.lessThan(0.5),
+      splatter,
+      select(
+        aShape.lessThan(1.5),
+        ember,
+        select(
+          aShape.lessThan(2.5),
+          crystal,
+          select(
+            aShape.lessThan(3.5),
+            droplet,
+            select(
+              aShape.lessThan(4.5),
+              bubble,
+              select(aShape.lessThan(5.5), spore, select(aShape.lessThan(6.5), shard, crumb)),
+            ),
+          ),
+        ),
+      ),
+    );
+    const alpha = clamp(mask.mul(aAlpha), 0.0, 1.0);
+    return vec4(vec3(aColor), alpha);
+  })();
+  material.colorNode = sample.rgb;
+  material.opacityNode = sample.a;
+  material.alphaTest = 0.015;
+  material.userData.shaderProgramMode = "tsl";
+  material.userData.annihilationBurstParticles = true;
+  material.userData.particlePrimitive = "sprite";
+  return material;
+}
+
+function createBurstParticles(
+  geometry: THREE.BufferGeometry,
+  material: AnnihilationBurstParticleMaterial,
+  mode: ShaderProgramMode,
+): THREE.Points<THREE.BufferGeometry, THREE.ShaderMaterial> | THREE.Sprite {
+  if (mode === "tsl") {
+    const sprite = new THREE.Sprite(material as unknown as THREE.SpriteMaterial);
+    sprite.count = MAX_BURST_PARTICLES;
+    sprite.userData.particlePrimitive = "sprite";
+    return sprite;
+  }
+  return new THREE.Points(geometry, material as THREE.ShaderMaterial);
 }
 
 /** Fixed-budget field, expanding rings, and biome-aware enemy death particles. */
@@ -315,7 +472,7 @@ export class AnnihilationPulseVfx {
   private readonly velocityZ = new Float32Array(MAX_BURST_PARTICLES);
   private readonly particleActive = new Uint8Array(MAX_BURST_PARTICLES);
   private readonly geometry = new THREE.BufferGeometry();
-  private readonly particles: THREE.Points<THREE.BufferGeometry, THREE.ShaderMaterial>;
+  private readonly particles: THREE.Points<THREE.BufferGeometry, THREE.ShaderMaterial> | THREE.Sprite;
   private readonly field: THREE.Mesh<THREE.TorusGeometry, THREE.MeshBasicMaterial>;
   private readonly fieldCore: THREE.Mesh<THREE.CircleGeometry, THREE.MeshBasicMaterial>;
   private readonly light: THREE.PointLight;
@@ -323,16 +480,57 @@ export class AnnihilationPulseVfx {
   private ringCursor = 0;
   private activeBurstCountValue = 0;
 
-  constructor() {
+  constructor(mode?: ShaderProgramMode) {
+    registerAnnihilationBurstShaderFactory();
+    const registry = getShaderProgramModeRegistry();
+    const resolved = mode ?? registry.mode;
+    registry.require(ANNIHILATION_BURST_SHADER_FACTORY_ID, resolved);
     this.root.name = "Annihilation pulse field and death particles";
+    this.root.userData.shaderProgramMode = resolved;
+    this.root.userData.annihilationBurstFactoryId = ANNIHILATION_BURST_SHADER_FACTORY_ID;
 
-    this.geometry.setAttribute("position", new THREE.BufferAttribute(this.positions, 3));
-    this.geometry.setAttribute("color", new THREE.BufferAttribute(this.colors, 3));
-    this.geometry.setAttribute("aAlpha", new THREE.BufferAttribute(this.alphas, 1));
-    this.geometry.setAttribute("aSize", new THREE.BufferAttribute(this.sizes, 1));
-    this.geometry.setAttribute("aShape", new THREE.BufferAttribute(this.shapes, 1));
-    this.geometry.setAttribute("aSpin", new THREE.BufferAttribute(this.spins, 1));
-    this.particles = new THREE.Points(this.geometry, createBurstMaterial());
+    const positionAttribute =
+      resolved === "tsl"
+        ? new THREE.InstancedBufferAttribute(this.positions, 3)
+        : new THREE.BufferAttribute(this.positions, 3);
+    const colorAttribute =
+      resolved === "tsl"
+        ? new THREE.InstancedBufferAttribute(this.colors, 3)
+        : new THREE.BufferAttribute(this.colors, 3);
+    const alphaAttribute =
+      resolved === "tsl"
+        ? new THREE.InstancedBufferAttribute(this.alphas, 1)
+        : new THREE.BufferAttribute(this.alphas, 1);
+    const sizeAttribute =
+      resolved === "tsl"
+        ? new THREE.InstancedBufferAttribute(this.sizes, 1)
+        : new THREE.BufferAttribute(this.sizes, 1);
+    const shapeAttribute =
+      resolved === "tsl"
+        ? new THREE.InstancedBufferAttribute(this.shapes, 1)
+        : new THREE.BufferAttribute(this.shapes, 1);
+    const spinAttribute =
+      resolved === "tsl"
+        ? new THREE.InstancedBufferAttribute(this.spins, 1)
+        : new THREE.BufferAttribute(this.spins, 1);
+    this.geometry.setAttribute("position", positionAttribute);
+    this.geometry.setAttribute("color", colorAttribute);
+    this.geometry.setAttribute("aAlpha", alphaAttribute);
+    this.geometry.setAttribute("aSize", sizeAttribute);
+    this.geometry.setAttribute("aShape", shapeAttribute);
+    this.geometry.setAttribute("aSpin", spinAttribute);
+    const material =
+      resolved === "tsl"
+        ? createBurstMaterialTsl({
+            position: positionAttribute as THREE.InstancedBufferAttribute,
+            color: colorAttribute as THREE.InstancedBufferAttribute,
+            alpha: alphaAttribute as THREE.InstancedBufferAttribute,
+            size: sizeAttribute as THREE.InstancedBufferAttribute,
+            shape: shapeAttribute as THREE.InstancedBufferAttribute,
+            spin: spinAttribute as THREE.InstancedBufferAttribute,
+          })
+        : createBurstMaterialGlsl();
+    this.particles = createBurstParticles(this.geometry, material, resolved);
     this.particles.name = "Biome annihilation enemy particles";
     // Burst particles spawn at camera-visible kill events.
     this.particles.frustumCulled = false;

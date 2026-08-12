@@ -22,21 +22,20 @@ import {
 } from "../systems/ShaderProgramMode";
 import type { DungeonMaterials } from "./MaterialLibrary";
 
-const LIQUID_SHADER_FACTORY_ID = "liquid-surface";
-let liquidFactoryRegistered = false;
+export const LIQUID_SHADER_FACTORY_ID = "liquid-surface";
 
-function registerLiquidShaderFactory(): void {
-  if (liquidFactoryRegistered) return;
-  liquidFactoryRegistered = true;
-  const bind = () => {
-    getShaderProgramModeRegistry().register({
-      id: LIQUID_SHADER_FACTORY_ID,
-      supports: ["glsl", "tsl"],
-    });
-  };
-  bind();
-  onShaderProgramModeRegistryChange(bind);
+/** Register (or refresh) dual-mode support on the active shader program registry. */
+export function registerLiquidShaderFactory(
+  registry = getShaderProgramModeRegistry(),
+): void {
+  registry.register({
+    id: LIQUID_SHADER_FACTORY_ID,
+    supports: ["glsl", "tsl"],
+  });
 }
+
+registerLiquidShaderFactory();
+onShaderProgramModeRegistryChange(registerLiquidShaderFactory);
 
 const NEIGHBORS: ReadonlyArray<readonly [number, number]> = [
   [0, -1],
