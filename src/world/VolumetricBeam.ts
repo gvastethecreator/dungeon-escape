@@ -1,4 +1,39 @@
 import * as THREE from "three";
+import {
+  getShaderProgramModeRegistry,
+  onShaderProgramModeRegistryChange,
+  type ShaderProgramMode,
+} from "../systems/ShaderProgramMode";
+import { createVolumetricBeamMaterialTsl } from "./VolumetricBeam.tsl";
+import type {
+  VolumetricBeamMaterial,
+  VolumetricBeamOptions,
+  VolumetricBeamProfile,
+  VolumetricBeamUniformHandles,
+} from "./VolumetricBeamShared";
+
+export type {
+  VolumetricBeamMaterial,
+  VolumetricBeamOptions,
+  VolumetricBeamProfile,
+  VolumetricBeamUniformHandles,
+} from "./VolumetricBeamShared";
+
+/** ShaderProgramMode factory id for volumetric light shafts. */
+export const VOLUMETRIC_BEAM_SHADER_FACTORY_ID = "volumetric-beam";
+
+/** Register (or refresh) dual-mode support on the active shader program registry. */
+export function registerVolumetricBeamShaderFactory(
+  registry = getShaderProgramModeRegistry(),
+): void {
+  registry.register({
+    id: VOLUMETRIC_BEAM_SHADER_FACTORY_ID,
+    supports: ["glsl", "tsl"],
+  });
+}
+
+registerVolumetricBeamShaderFactory();
+onShaderProgramModeRegistryChange(registerVolumetricBeamShaderFactory);
 
 /**
  * A beam is geometry in the dungeon, never a camera-facing/post-process layer.
@@ -236,22 +271,7 @@ const BEAM_FRAGMENT_SHADER = /* glsl */ `
   }
 `;
 
-export interface VolumetricBeamOptions {
-  /** Use the subdued environment path for ambient shafts. */
-  readonly role?: "signal" | "ambient";
-  /** Defaults to additive for existing portal and stone signals. */
-  readonly blending?: THREE.Blending;
-  /** Scene fog is enabled for ambient shafts, disabled for authored beacons. */
-  readonly fog?: boolean;
-  /** Ambient shafts should participate in the scene's exposure/tone response. */
-  readonly toneMapped?: boolean;
-  /** Radius at the ceiling opening; defaults to a small non-zero source. */
-  readonly topRadius?: number;
-  /** Thin open objective strata; the default signal profile remains portal-safe. */
-  readonly signalStyle?: "smooth" | "objective";
-}
-
-function makeBeamMaterial(
+function makeBeamMaterialGlsl(
   color: number,
   strength: number,
   height: number,
@@ -292,6 +312,16 @@ function makeBeamMaterial(
   material.name = `${ambient ? "Retro ambient strata" : objective ? "Objective strata" : "World"} volumetric beam material`;
   material.userData.volumetricSpace = "world";
   material.userData.screenSpace = false;
+  material.userData.shaderProgramMode = "glsl";
+  const handles: VolumetricBeamUniformHandles = {
+    uColor: material.uniforms.uColor!,
+    uStrength: material.uniforms.uStrength!,
+    uTime: material.uniforms.uTime!,
+    uHeight: material.uniforms.uHeight!,
+    uTopRadius: material.uniforms.uTopRadius!,
+    uBottomRadius: material.uniforms.uBottomRadius!,
+  };
+  material.userData.volumetricBeamHandles = handles;
   return material;
 }
 
@@ -299,7 +329,7 @@ function makeBeamGeometry(
   sourceRadius: number,
   bottomRadius: number,
   height: number,
-  profile: "signal" | "ambient" | "objective",
+  profile: VolumetricBeamProfile,
 ): THREE.BufferGeometry {
   if (profile === "signal") {
     const geometry = new THREE.CylinderGeometry(sourceRadius, bottomRadius, height, 20, 8, true);
@@ -405,18 +435,21 @@ function makeBeamGeometry(
   return geometry;
 }
 
-function beamMaterial(source: THREE.Mesh | THREE.Material): THREE.ShaderMaterial | null {
+function beamHandles(source: THREE.Mesh | THREE.Material): VolumetricBeamUniformHandles | null {
   const material = source instanceof THREE.Mesh ? source.material : source;
-  if (!(material instanceof THREE.ShaderMaterial)) return null;
+  if (!(material instanceof THREE.Material)) return null;
   if (!material.userData.volumetricSpace) return null;
-  return material;
+  const handles = material.userData.volumetricBeamHandles as
+    | VolumetricBeamUniformHandles
+    | undefined;
+  return handles ?? null;
 }
 
 /** Advance shared beam time (call once per frame from world update if desired). */
 export function tickVolumetricBeamTime(mesh: THREE.Mesh, time: number): void {
-  const material = beamMaterial(mesh);
-  if (!material?.uniforms.uTime) return;
-  material.uniforms.uTime.value = time;
+  const handles = beamHandles(mesh);
+  if (!handles) return;
+  handles.uTime.value = time;
 }
 
 /** Runtime strength for distance/FX fading. Clamped to a non-negative range. */
@@ -424,14 +457,14 @@ export function setVolumetricBeamStrength(
   mesh: THREE.Mesh | THREE.Material,
   strength: number,
 ): void {
-  const material = beamMaterial(mesh);
-  if (!material?.uniforms.uStrength) return;
-  material.uniforms.uStrength.value = Math.max(0, strength);
+  const handles = beamHandles(mesh);
+  if (!handles) return;
+  handles.uStrength.value = Math.max(0, strength);
 }
 
 export function getVolumetricBeamStrength(mesh: THREE.Mesh | THREE.Material): number | null {
-  const material = beamMaterial(mesh);
-  const value = material?.uniforms.uStrength?.value;
+  const handles = beamHandles(mesh);
+  const value = handles?.uStrength.value;
   return typeof value === "number" ? value : null;
 }
 
@@ -441,10 +474,9 @@ export function tintVolumetricBeamColor(
   color: THREE.Color,
   strength: number,
 ): boolean {
-  const beam = beamMaterial(material);
-  const uniform = beam?.uniforms.uColor;
-  if (!uniform || !(uniform.value instanceof THREE.Color)) return false;
-  uniform.value.lerp(color, THREE.MathUtils.clamp(strength, 0, 1));
+  const handles = beamHandles(material);
+  if (!handles || !(handles.uColor.value instanceof THREE.Color)) return false;
+  handles.uColor.value.lerp(color, THREE.MathUtils.clamp(strength, 0, 1));
   return true;
 }
 
@@ -454,27 +486,37 @@ export function createVolumetricBeam(
   radius = 1.25,
   strength = 0.24,
   options: VolumetricBeamOptions = {},
+  mode?: ShaderProgramMode,
 ): THREE.Mesh {
+  registerVolumetricBeamShaderFactory();
+  const registry = getShaderProgramModeRegistry();
+  const resolved = mode ?? registry.mode;
+  registry.require(VOLUMETRIC_BEAM_SHADER_FACTORY_ID, resolved);
+
   const shaftHeight = Math.max(0.1, height);
   const bottomRadius = Math.max(0.02, radius);
   const sourceRadius = Math.max(0.04, options.topRadius ?? Math.min(bottomRadius * 0.24, 0.28));
   const ambient = options.role === "ambient";
   const objective = !ambient && options.signalStyle === "objective";
-  const geometry = makeBeamGeometry(
-    sourceRadius,
-    bottomRadius,
-    shaftHeight,
-    ambient ? "ambient" : objective ? "objective" : "signal",
-  );
-  const material = makeBeamMaterial(
-    color,
-    strength,
-    shaftHeight,
-    sourceRadius,
-    bottomRadius,
-    options,
-  );
-  const beam = new THREE.Mesh(geometry, material);
+  const profile: VolumetricBeamProfile = ambient
+    ? "ambient"
+    : objective
+      ? "objective"
+      : "signal";
+  const geometry = makeBeamGeometry(sourceRadius, bottomRadius, shaftHeight, profile);
+  const material: VolumetricBeamMaterial =
+    resolved === "tsl"
+      ? createVolumetricBeamMaterialTsl(
+          color,
+          strength,
+          shaftHeight,
+          sourceRadius,
+          bottomRadius,
+          options,
+          profile,
+        )
+      : makeBeamMaterialGlsl(color, strength, shaftHeight, sourceRadius, bottomRadius, options);
+  const beam = new THREE.Mesh(geometry, material as THREE.Material);
   beam.name = "World-space volumetric light shaft";
   beam.renderOrder = 0;
   beam.userData.isVolumetricBeam = true;
@@ -489,5 +531,6 @@ export function createVolumetricBeam(
   beam.userData.sourceRadius = sourceRadius;
   beam.userData.bottomRadius = bottomRadius;
   beam.userData.height = shaftHeight;
+  beam.userData.shaderProgramMode = resolved;
   return beam;
 }
