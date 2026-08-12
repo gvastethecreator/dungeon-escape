@@ -154,8 +154,21 @@ if (typeof globalThis !== "undefined") {
 }
 if (forgeWebGpu) {
   console.warn(
-    "[forge] WebGPU backend active — bloom/liquid/particle ShaderMaterials use simplified fallbacks until TSL ports land.",
+    "[forge] WebGPU backend active — liquid/particle ShaderMaterials use simplified fallbacks; bloom runs through the TSL RenderPipeline stage.",
   );
+  forgePostStagePromise = import("./ForgePost.webgpu.js")
+    .then((mod) => mod.createForgePostStage(renderer, scene, cam))
+    .then((stage) => {
+      forgePostStage = stage;
+      const size = new THREE.Vector2();
+      renderer.getDrawingBufferSize(size);
+      stage.setSize(size.x, size.y);
+      return stage;
+    })
+    .catch((error) => {
+      console.warn("[forge] WebGPU post stage failed; falling back to plain render", error);
+      return null;
+    });
 }
 renderer.setPixelRatio?.(renderQuality.pixelRatio);
 if (initialViewportSize) {
@@ -423,6 +436,11 @@ const _cBg = new THREE.Color();
 function renderFrame() {
   if (!resolveForgeRenderSize(innerWidth, innerHeight)) return false;
   if (!POST.enabled) {
+    if (forgeWebGpu && forgePostStage) {
+      forgePostStage.setUniform("uTime", elapsed);
+      forgePostStage.render();
+      return true;
+    }
     /* straight-to-canvas debug path: let three apply sRGB + its ACES tone map */
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.setClearColor(curBg);
@@ -1020,6 +1038,9 @@ const partMat = forgeWebGpu
     }`,
     });
 partMat.toneMapped = false;
+/** Lazily resolved WebGPU post stage; `null` until the dynamic import lands. */
+let forgePostStage = null;
+let forgePostStagePromise = null;
 if (forgeWebGpu && partMat.color && partUniforms.uColor) {
   // Keep PointsMaterial color loosely synced when theme uniforms change.
   const syncPartColor = () => {
@@ -2186,6 +2207,14 @@ function buildScene(d) {
     liquidMat.uniforms.uColA.value.set(TH.pools.colA);
     liquidMat.uniforms.uColB.value.set(TH.pools.colB);
     liquidMat.uniforms.uGlow.value = TH.pools.glow;
+    if (forgeWebGpu && liquidMat.color) {
+      // MeshBasicMaterial fallback reads color/opacity, not the shader uniforms.
+      liquidMat.color
+        .copy(TH.pools.colB)
+        .lerp(TH.pools.colA, 0.35)
+        .multiplyScalar(0.5 + TH.pools.glow * 0.5);
+      liquidMat.opacity = liquidUniforms.uOp.value;
+    }
   }
   if (d.pools.length) {
     const skirtC = TH.pools.mode === 0 ? 0xff5a1f : TH.pools.mode === 3 ? 0x33531e : 0x11463c;
@@ -2367,6 +2396,7 @@ function buildScene(d) {
       partMat.uniforms.uSpeed.value = spec.speed;
       partMat.uniforms.uTurbulence.value = spec.turbulence;
       partMat.uniforms.uFlow.value.set(spec.flowX, spec.flowY, spec.flowZ);
+      partMat.userData.syncPartColor?.();
       const pm = new THREE.Points(g, partMat);
       pm.name = `Forge biome particles: ${spec.name}`;
       pm.frustumCulled = false;
@@ -2971,6 +3001,10 @@ function liveUpdate(time, tt) {
   partMat.uniforms.uTime.value = time;
   /* device pixels per world unit, so particle sizes track the ortho zoom */
   partMat.uniforms.uZoom.value = (renderer.domElement.height * cam.zoom) / (2 * BASE_HALF);
+  if (forgeWebGpu) {
+    partMat.userData.syncPartColor?.();
+    if (liquidMat.color) liquidMat.opacity = liquidUniforms.uOp.value;
+  }
   for (const sp of fx.spinners) sp.m.rotation.y = time * sp.spd;
   for (const stone of fx.stones) {
     const phase = stone.root.userData.phase || 0;
