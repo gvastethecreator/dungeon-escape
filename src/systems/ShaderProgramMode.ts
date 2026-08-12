@@ -78,14 +78,27 @@ export function createShaderProgramModeRegistry(
 /** Session-wide registry. Mode is fixed at boot; do not mutate mid-run. */
 let activeRegistry = createShaderProgramModeRegistry("glsl");
 
+/** Optional post-swap hook so factories can re-bind after boot replaces the registry. */
+const registryListeners = new Set<(registry: ShaderProgramModeRegistry) => void>();
+
 export function getShaderProgramModeRegistry(): ShaderProgramModeRegistry {
   return activeRegistry;
 }
 
+export function onShaderProgramModeRegistryChange(
+  listener: (registry: ShaderProgramModeRegistry) => void,
+): () => void {
+  registryListeners.add(listener);
+  return () => {
+    registryListeners.delete(listener);
+  };
+}
+
 export function setShaderProgramModeRegistry(registry: ShaderProgramModeRegistry): void {
   activeRegistry = registry;
+  for (const listener of registryListeners) listener(registry);
 }
 
 export function resetShaderProgramModeRegistryForTests(): void {
-  activeRegistry = createShaderProgramModeRegistry("glsl");
+  setShaderProgramModeRegistry(createShaderProgramModeRegistry("glsl"));
 }
