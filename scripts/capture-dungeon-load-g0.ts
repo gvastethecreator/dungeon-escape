@@ -158,10 +158,7 @@ export function validateDungeonLoadTrace(
       return { ok: false, error: "Trace warmupWaitMs must be finite and non-negative or null." };
     if (value.warmupWorkMs !== null && !isNonNegativeFinite(value.warmupWorkMs))
       return { ok: false, error: "Trace warmupWorkMs must be finite and non-negative or null." };
-    if (
-      isNonNegativeFinite(value.warmupWaitMs) &&
-      value.warmupWaitMs !== warmup.durationMs
-    ) {
+    if (isNonNegativeFinite(value.warmupWaitMs) && value.warmupWaitMs !== warmup.durationMs) {
       return { ok: false, error: "Trace warmupWaitMs must equal warmup.durationMs." };
     }
   }

@@ -62,6 +62,8 @@ describe("soft ground fog", () => {
 
     const mesh = scene.getObjectByName("Soft volumetric ground fog") as THREE.Mesh;
     expect(mesh).toBeDefined();
+    expect(mesh.visible).toBe(true);
+    expect(mesh.userData.webGpuFogGroundLayer).toBe(false);
     expect(mesh.geometry).toBeInstanceOf(THREE.BoxGeometry);
     const mat = mesh.material as THREE.ShaderMaterial;
     expect(mat.side).toBe(THREE.BackSide);
@@ -316,6 +318,11 @@ describe("soft ground fog", () => {
     expect(mesh.material).toBeInstanceOf(MeshBasicNodeMaterial);
     expect((mesh.material as MeshBasicNodeMaterial).userData.shaderProgramMode).toBe("tsl");
     expect((mesh.material as MeshBasicNodeMaterial).colorNode).toBeTruthy();
+    expect(mesh.visible).toBe(true);
+    expect(mesh.userData.webGpuFogGroundLayer).toBe(true);
+    expect(mesh.geometry).toBeInstanceOf(THREE.PlaneGeometry);
+    expect(mesh.rotation.x).toBeCloseTo(-Math.PI * 0.5);
+    expect((mesh.material as MeshBasicNodeMaterial).depthTest).toBe(true);
 
     const profile = getBiomeParticleProfile("ash");
     const support = scene.getObjectByName(

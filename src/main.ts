@@ -3029,7 +3029,7 @@ function showEndOverlay(mode: "dead" | "won"): void {
     elements.endOverlay.hidden = true;
     return;
   }
-  if (!launchConfig.visualQa.state) recordPlayerRunCompleted();
+  if (!launchConfig.visualQa.enabled) recordPlayerRunCompleted();
   const activeMood = dungeon ? resolveActiveMood(dungeon) : null;
   const endingBiomeId = activeMood?.id ?? "ancient";
   elements.endArt.src = biomeScreenArtSrc(endingBiomeId, "ending");
@@ -3447,6 +3447,7 @@ async function buildDungeon(
     persistBuild?: boolean;
     restore?: RunResumeActivationPlan;
     params?: Readonly<DungeonParams>;
+    activeFloor?: number;
   } = {},
   trace?: DungeonLoadTrace,
 ): Promise<DungeonRuntimeState> {
@@ -3467,7 +3468,10 @@ async function buildDungeon(
     loadTrace.begin("generation");
     try {
       const rootSeed = options.restore?.generation.seed ?? normalizedSeed;
-      const activeFloor = Math.max(0, options.restore?.generation.activeFloor ?? 0);
+      const activeFloor = Math.max(
+        0,
+        options.restore?.generation.activeFloor ?? options.activeFloor ?? 0,
+      );
       if (runSource === "campaign" && requestedCampaignMood) {
         const floorCount = biomeCampaignFloorCount(requestedCampaignMood);
         const result = generateDungeonBuild({
@@ -4931,6 +4935,7 @@ window.__BLACK_FLAG_DUNGEON_ENGINE__ = api;
 window.__BLACK_FLAG_PROTOTYPE__ = api;
 window.__THREE_GAME_DIAGNOSTICS__ = {
   getState: getRuntimeState,
+  getDungeon: () => dungeon,
   getResidentFloorCount: () => campaignFloorSet?.count ?? 1,
   getRenderer: getRendererDiagnostics,
   getScene: () => scene,
@@ -4938,6 +4943,10 @@ window.__THREE_GAME_DIAGNOSTICS__ = {
   getController: () => controller,
   getAudio: () => audio.getLoadDiagnostics(),
   getLoop: getThreeLoopDiagnostics,
+  resetFrameGaps(warmupMs = 0) {
+    frameGapProfiler.reset();
+    profileWarmupUntil = performance.now() + THREE.MathUtils.clamp(warmupMs, 0, 30_000);
+  },
 };
 
 // Three r185+ Timer API is absent from the pinned renderer; use a local delta clock.
@@ -5292,7 +5301,13 @@ function frame(now: number): void {
     cameraShakeEuler.z += shake.roll;
     camera.quaternion.setFromEuler(cameraShakeEuler);
   }
-  povPost.setEnabled(engineMode === "play");
+  // Three's WebGPU RenderPipeline has a large steady-state cost even for the
+  // CRT-off composite. The native renderer already applies tone/color output,
+  // so keep the default WebGPU path direct and reserve the pipeline for the
+  // explicitly enabled CRT presentation.
+  povPost.setEnabled(
+    engineMode === "play" && (!playRendererHandle.isWebGpuRenderer || povPost.isCrtEnabled()),
+  );
   // Auto-drop CRT when the frame budget is missed (Firefox especially). Manual
   // toggle wins so players can force CRT back on after recovery.
   if (engineMode === "play") {
@@ -5503,7 +5518,8 @@ audio.setMusicMuted(readStoredMusicMuted());
 syncMusicToggleUi();
 // Welcome owns the first choice. New Game starts play; Custom Run opens Creation.
 const visualQaState = launchConfig.visualQa.state;
-setBootProgress(0.28, visualQaState ? "Forging the QA map…" : "Opening the hall…");
+const visualQaEnabled = launchConfig.visualQa.enabled;
+setBootProgress(0.28, visualQaEnabled ? "Forging the QA map…" : "Opening the hall…");
 // The welcome screen does not need either WebGL world. Keep the runtime canvas
 // empty and the Forge iframe unmounted until the player chooses a real route.
 setEditorSurface("runtime");
@@ -5522,25 +5538,36 @@ if (canContinueLocalRun(localContinue)) {
 } else {
   setContinueCandidate(null, "");
 }
-if (visualQaState) {
+if (visualQaEnabled) {
   // Deterministic visual-QA URLs intentionally own a live world at boot.
   setBootProgress(0.55, "Warming the renderer…");
   void (async () => {
-    await buildDungeon(urlSeed, { persistBuild: false });
+    forcedPlayMoodId = parseDungeonMoodId(launchConfig.mood);
+    setRunSource("campaign", false);
+    await buildDungeon(urlSeed, {
+      persistBuild: false,
+      activeFloor: launchConfig.visualQa.floorIndex,
+    });
     runHasStarted = false;
     setWelcomeOpen(false);
     setEngineMode("play", { hydrate: false, persist: false });
-    const qaState = playRuntime.loadFixture(visualQaState);
-    lastPortalBanner = qaState.quest.portalOpen;
-    questHudStonesFound = -1;
-    questHudPortalOpen = false;
-    updateResolve();
-    elements.shell.dataset.resolve = String(qaState.resolve);
-    elements.shell.dataset.relic = String(qaState.quest.portalOpen);
-    elements.shell.dataset.stones = String(qaState.quest.stonesFound);
-    syncQuestHud();
-    if (qaState.runMode !== "playing") showEndOverlay(qaState.runMode);
-    setStatus(`Visual QA state · ${visualQaState}`);
+    if (visualQaState) {
+      const qaState = playRuntime.loadFixture(visualQaState);
+      lastPortalBanner = qaState.quest.portalOpen;
+      questHudStonesFound = -1;
+      questHudPortalOpen = false;
+      updateResolve();
+      elements.shell.dataset.resolve = String(qaState.resolve);
+      elements.shell.dataset.relic = String(qaState.quest.portalOpen);
+      elements.shell.dataset.stones = String(qaState.quest.stonesFound);
+      syncQuestHud();
+      if (qaState.runMode !== "playing") showEndOverlay(qaState.runMode);
+    }
+    setStatus(
+      launchConfig.visualQa.parityScene
+        ? `Visual parity scene · ${launchConfig.visualQa.parityScene}`
+        : `Visual QA state · ${visualQaState}`,
+    );
     setBootProgress(0.8, "Loading type…");
     await Promise.all([
       document.fonts.ready.catch(() => undefined),

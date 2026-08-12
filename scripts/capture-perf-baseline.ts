@@ -25,6 +25,10 @@ const SEED = process.env.SEED ?? "WGP03-BASELINE";
 const MOOD = process.env.MOOD ?? "ash";
 const CRT = (process.env.CRT ?? "off").trim().toLowerCase() === "on";
 const SAMPLE_SECONDS = Math.max(3, Number.parseFloat(process.env.SAMPLE_SECONDS ?? "8") || 8);
+const PIPELINE_WARMUP_SECONDS = Math.max(
+  3,
+  Number.parseFloat(process.env.PIPELINE_WARMUP_SECONDS ?? "8") || 8,
+);
 const CHROME =
   process.env.CHROME_PATH ??
   (process.platform === "win32"
@@ -52,6 +56,8 @@ async function main(): Promise<void> {
     renderer: backend,
     crt: CRT ? "1" : "0",
     perfAudit: "1",
+    parityScene: "empty-corridor",
+    skipRunIntro: "1",
   });
   const url = `${BASE}/?${params.toString()}`;
   const port = 9500 + (process.pid % 400);
@@ -66,6 +72,9 @@ async function main(): Promise<void> {
       `--user-data-dir=${userDataDir}`,
       "--headless=new",
       "--disable-gpu-sandbox",
+      "--disable-backgrounding-occluded-windows",
+      "--disable-background-timer-throttling",
+      "--disable-renderer-backgrounding",
       "--no-first-run",
       "--no-default-browser-check",
       "--window-size=1280,720",
@@ -124,15 +133,105 @@ async function main(): Promise<void> {
 
     await send("Page.enable");
     await send("Runtime.enable");
-    await Bun.sleep(Math.round(SAMPLE_SECONDS * 1000));
+    await send("Page.bringToFront");
+
+    let readyAtMs = 0;
+    let readyInfo: {
+      backend?: string;
+      capabilityPath?: string;
+      fellBack?: boolean;
+    } | null = null;
+    const readyDeadline = Date.now() + 60_000;
+    while (Date.now() < readyDeadline) {
+      try {
+        await send("Page.captureScreenshot", { format: "png", fromSurface: true });
+      } catch {
+        // WebGPU may not expose a surface on its first frame.
+      }
+      const readyResult = (await send("Runtime.evaluate", {
+        expression: `(() => ({
+          now: performance.now(),
+          info: globalThis.__rendererInfo ?? null,
+          rendererReady: document.querySelector('.app-shell')?.dataset.rendererReady ?? '',
+          bootHidden: Boolean(document.querySelector('#boot-screen')?.hidden),
+          welcomeHidden: Boolean(document.querySelector('#welcome-screen')?.hidden),
+          engineReady: Boolean(globalThis.__BLACK_FLAG_DUNGEON_ENGINE__?.ready),
+        }))()`,
+        returnByValue: true,
+      })) as {
+        result?: {
+          value?: {
+            now?: number;
+            info?: typeof readyInfo;
+            rendererReady?: string;
+            bootHidden?: boolean;
+            welcomeHidden?: boolean;
+            engineReady?: boolean;
+          };
+        };
+      };
+      const value = readyResult.result?.value;
+      readyInfo = value?.info ?? null;
+      if (
+        readyInfo?.backend === backend &&
+        readyInfo.fellBack !== true &&
+        value?.rendererReady === "true" &&
+        value.bootHidden &&
+        value.welcomeHidden &&
+        value.engineReady
+      ) {
+        readyAtMs = value.now ?? 0;
+        break;
+      }
+      await Bun.sleep(250);
+    }
+    if (readyAtMs <= 0 || readyInfo?.backend !== backend || readyInfo.fellBack === true) {
+      throw new Error(
+        `Performance scene did not reach playable ${backend}: ${JSON.stringify(readyInfo)}`,
+      );
+    }
+
+    const inputResult = (await send("Runtime.evaluate", {
+      expression: `(() => {
+        const diag = globalThis.__THREE_GAME_DIAGNOSTICS__;
+        const prompt = document.querySelector('#interaction-prompt');
+        if (!diag || !(prompt instanceof HTMLElement)) return null;
+        prompt.dispatchEvent(new PointerEvent('pointerdown', {
+          bubbles: true,
+          cancelable: true,
+          pointerId: 91,
+          pointerType: 'touch',
+        }));
+        const ctrl = diag.getController();
+        ctrl.setEnabled(true);
+        ctrl.setVirtualAction('forward', true);
+        ctrl.setVirtualAction('turnRight', true);
+        return performance.now();
+      })()`,
+      returnByValue: true,
+    })) as { result?: { value?: number | null } };
+    const firstInputMs = inputResult.result?.value ?? 0;
+    if (firstInputMs <= 0) throw new Error("Performance scene could not start live input.");
+    await Bun.sleep(Math.round(PIPELINE_WARMUP_SECONDS * 1000));
+    await send("Runtime.evaluate", {
+      expression: `(() => {
+        globalThis.__THREE_GAME_DIAGNOSTICS__?.resetFrameGaps?.(1000);
+        return true;
+      })()`,
+      returnByValue: true,
+    });
+    await Bun.sleep(1_000 + Math.round(SAMPLE_SECONDS * 1000));
 
     const evaluated = (await send("Runtime.evaluate", {
       expression: `(() => {
         const info = globalThis.__rendererInfo || {};
-        const gaps = globalThis.__frameGapSnapshot
-          ? globalThis.__frameGapSnapshot()
-          : null;
-        return JSON.stringify({ info, gaps, ua: navigator.userAgent });
+        const diag = globalThis.__THREE_GAME_DIAGNOSTICS__;
+        const gaps = globalThis.__frameGapSnapshot?.() ?? null;
+        const renderer = diag?.getRenderer?.() ?? null;
+        const ctrl = diag?.getController?.();
+        ctrl?.setVirtualAction('forward', false);
+        ctrl?.setVirtualAction('turnRight', false);
+        return JSON.stringify({ info, gaps, renderer, ua: navigator.userAgent });
       })()`,
       returnByValue: true,
     })) as { result?: { value?: string } };
@@ -144,23 +243,36 @@ async function main(): Promise<void> {
         fallbackReason?: string | null;
       };
       gaps?: {
+        samples?: number;
         p50?: number;
         p95?: number;
         max?: number;
         longestTask?: number;
       };
+      renderer?: {
+        calls?: number;
+        triangles?: number;
+        programs?: number;
+      };
       ua?: string;
     };
+
+    const minimumSamples = Math.max(60, Math.floor(SAMPLE_SECONDS * 20));
+    if ((payload.gaps?.samples ?? 0) < minimumSamples) {
+      throw new Error(
+        `Performance capture recorded ${payload.gaps?.samples ?? 0} frame samples; expected at least ${minimumSamples}.`,
+      );
+    }
 
     const sample: PerfBaselineSample = {
       frameP50Ms: payload.gaps?.p50 ?? 0,
       frameP95Ms: payload.gaps?.p95 ?? 0,
       frameMaxMs: payload.gaps?.max ?? 0,
-      drawCalls: 0,
-      triangles: 0,
-      programs: 0,
-      rendererReadyMs: 0,
-      firstInputMs: 0,
+      drawCalls: payload.renderer?.calls ?? 0,
+      triangles: payload.renderer?.triangles ?? 0,
+      programs: payload.renderer?.programs ?? 0,
+      rendererReadyMs: readyAtMs,
+      firstInputMs,
       longestLongTaskMs:
         typeof payload.gaps?.longestTask === "number" && payload.gaps.longestTask > 0
           ? payload.gaps.longestTask
@@ -174,7 +286,7 @@ async function main(): Promise<void> {
       os: process.platform,
       seed: SEED,
       mood: MOOD,
-      capabilityPath: String(payload.info?.backend ?? backend),
+      capabilityPath: String(readyInfo.capabilityPath ?? payload.info?.backend ?? backend),
       backend,
       crtEnabled: CRT,
     };

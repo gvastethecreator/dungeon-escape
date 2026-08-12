@@ -7,32 +7,21 @@ import * as THREE from "three";
 import { MeshBasicNodeMaterial } from "three/webgpu";
 import {
   Fn,
-  Loop,
-  abs,
-  cameraPosition,
-  clamp,
   dot,
-  exp,
   float,
   floor,
   fract,
   length,
-  max,
-  min,
   mix,
   modelWorldMatrix,
-  normalize,
   positionLocal,
   select,
-  sign,
   sin,
   smoothstep,
   texture,
   uniform,
   vec2,
-  vec3,
   vec4,
-  viewportCoordinate,
 } from "three/tsl";
 
 import type {
@@ -81,26 +70,6 @@ const fbm = /*@__PURE__*/ Fn(([pIn]: [any]) => {
   return v;
 });
 
-const integrateExp = /*@__PURE__*/ Fn(([AIn, CIn, tEnterIn, TIn]: [any, any, any, any]) => {
-  const A = float(AIn);
-  const C = float(CIn);
-  const tEnter = float(tEnterIn);
-  const T = float(TIn);
-  const A1 = A.mul(exp(C.negate().mul(tEnter)));
-  return select(
-    abs(C).lessThan(1e-4),
-    A1.mul(T),
-    A1.mul(float(1).sub(exp(C.negate().mul(T)))).div(C),
-  );
-});
-
-const heightDensity = /*@__PURE__*/ Fn(([yIn, uBetaGround, uBetaAir]: [any, any, any]) => {
-  const yg = max(float(yIn), 0.0);
-  return float(0.52)
-    .mul(exp(uBetaGround.negate().mul(yg)))
-    .add(float(0.48).mul(exp(uBetaAir.negate().mul(yg))));
-});
-
 const floorMaskAt = /*@__PURE__*/ Fn(
   ([worldXZIn, uWorldMin, uWorldSize, uFloorMask]: [any, any, any, any]) => {
     const worldXZ = vec2(worldXZIn);
@@ -118,26 +87,6 @@ const localWindow = /*@__PURE__*/ Fn(([worldXZIn, uBoxCenter, uHalfExtent]: [any
   const d = vec2(worldXZIn).sub(uBoxCenter).div(uHalfExtent);
   const r = length(d);
   return float(1).sub(smoothstep(0.55, 1.0, r));
-});
-
-const rayBoxHit = /*@__PURE__*/ Fn(([roIn, rdIn, bminIn, bmaxIn]: [any, any, any, any]) => {
-  const ro = vec3(roIn);
-  const rd = vec3(rdIn);
-  const bmin = vec3(bminIn);
-  const bmax = vec3(bmaxIn);
-  const inv = vec3(
-    select(abs(rd.x).greaterThan(1e-5), float(1).div(rd.x), float(1e6).mul(sign(rd.x.add(1e-6)))),
-    select(abs(rd.y).greaterThan(1e-5), float(1).div(rd.y), float(1e6).mul(sign(rd.y.add(1e-6)))),
-    select(abs(rd.z).greaterThan(1e-5), float(1).div(rd.z), float(1e6).mul(sign(rd.z.add(1e-6)))),
-  );
-  const tbot = bmin.sub(ro).mul(inv);
-  const ttop = bmax.sub(ro).mul(inv);
-  const tminv = min(tbot, ttop);
-  const tmaxv = max(tbot, ttop);
-  const t0 = max(max(tminv.x, tminv.y), tminv.z);
-  const t1 = min(min(tmaxv.x, tmaxv.y), tmaxv.z);
-  const hit = t1.greaterThan(max(t0, 0.0));
-  return vec4(t0, t1, float(0), select(hit, float(1), float(0)));
 });
 
 export function createSoftGroundFogMaterialTsl(
@@ -181,118 +130,42 @@ export function createSoftGroundFogMaterialTsl(
   material.name = "Soft volumetric ground fog (TSL)";
   material.transparent = true;
   material.depthWrite = false;
-  material.depthTest = false;
+  // Three's WebGPU scene pass currently loses transparent blending for this
+  // depth-disabled volume and emits an opaque black shell. Depth testing keeps
+  // the TSL fog behind foreground geometry until that renderer bug is removed.
+  material.depthTest = true;
   material.side = THREE.BackSide;
   material.fog = false;
   material.toneMapped = false;
   material.blending = THREE.NormalBlending;
 
-  const sample = Fn((): any => {
-    const vWorldPos = modelWorldMatrix.mul(vec4(positionLocal, 1.0)).xyz;
-    const ro = cameraPosition;
-    const rd = normalize(vWorldPos.sub(ro));
-
-    const bmin = vec3(uBoxCenter.x.sub(uHalfExtent), float(0), uBoxCenter.y.sub(uHalfExtent));
-    const bmax = vec3(uBoxCenter.x.add(uHalfExtent), uHeight, uBoxCenter.y.add(uHalfExtent));
-
-    const boxHit = rayBoxHit(ro, rd, bmin, bmax);
-    const t0 = boxHit.x;
-    const t1 = boxHit.y;
-    boxHit.w.lessThan(0.5).discard();
-
-    const tEnter = max(t0, 0.0);
-    const tExit = min(min(t1, uMaxDist), tEnter.add(uMaxDist));
-    tExit.lessThanEqual(tEnter.add(0.02)).discard();
-
-    const gamma = uDistFalloff;
-    const y0 = max(ro.y, 0.0);
-    const T = tExit.sub(tEnter);
-
-    const drift = vec2(uTime.mul(0.01), uTime.mul(-0.0075));
-    const n = fbm(ro.xz.mul(0.038).add(rd.xz.mul(1.25)).add(drift));
-    const n2 = fbm(ro.xz.mul(0.09).sub(rd.xz.mul(0.6)).add(drift.yx.mul(1.3)).add(4.0));
-    const wisp = float(0.78).add(float(0.28).mul(n)).add(float(0.12).mul(n2));
-    const rho0 = uDensity.mul(wisp);
-
-    const optical = integrateExp(
-      rho0.mul(0.52).mul(exp(uBetaGround.negate().mul(y0))),
-      uBetaGround.mul(rd.y).add(gamma),
-      tEnter,
-      T,
-    )
-      .add(
-        integrateExp(
-          rho0.mul(0.48).mul(exp(uBetaAir.negate().mul(y0))),
-          uBetaAir.mul(rd.y).add(gamma),
-          tEnter,
-          T,
-        ),
-      )
-      .toVar();
-
-    const maskAcc = float(0).toVar();
-    const winAcc = float(0).toVar();
-    const detailAcc = float(0).toVar();
-    Loop(8, ({ i }) => {
-      const ft = float(i).add(0.5).div(8);
-      const u = ft.mul(ft).mul(float(3).sub(ft.mul(2)));
-      const tt = tEnter.add(T.mul(u));
-      const p = ro.add(rd.mul(tt));
-      maskAcc.addAssign(floorMaskAt(p.xz, uWorldMin, uWorldSize, uFloorMask));
-      winAcc.addAssign(localWindow(p.xz, uBoxCenter, uHalfExtent));
-      const hd = heightDensity(p.y, uBetaGround, uBetaAir);
-      const dn = fbm(p.xz.mul(0.07).add(vec2(p.y.mul(0.2), uTime.mul(0.02))));
-      detailAcc.addAssign(
-        float(0.88)
-          .add(float(0.22).mul(dn))
-          .mul(mix(float(1.0), float(0.55), clamp(p.y.div(max(uHeight, 0.001)), 0.0, 1.0)))
-          .mul(hd),
-      );
-    });
-
-    const mask = maskAcc.div(8);
-    const window = winAcc.div(8);
-    const detail = detailAcc.div(8);
-    mask.mul(window).lessThan(0.018).discard();
-
-    const nearSoft = smoothstep(0.2, 1.4, tEnter.add(T.mul(0.35)));
-    optical.mulAssign(mask.mul(window).mul(nearSoft));
-    optical.mulAssign(mix(float(0.9), float(1.18), clamp(detail, 0.0, 1.5)));
-
-    const up = clamp(rd.y, 0.0, 1.0);
-    optical.mulAssign(float(1).sub(up.mul(0.22)));
-
+  // The full eight-sample volume is too expensive on the current WebGPU
+  // backend. Keep the same floor mask, local window, palette, animation and
+  // authored alpha in a single ground-layer sample.
+  const groundSample = Fn((): any => {
+    const worldPos = modelWorldMatrix.mul(vec4(positionLocal, 1.0)).xyz;
+    const maskValue = floorMaskAt(worldPos.xz, uWorldMin, uWorldSize, uFloorMask);
+    const windowValue = localWindow(worldPos.xz, uBoxCenter, uHalfExtent);
+    const drift = vec2(uTime.mul(0.012), uTime.mul(-0.009));
+    const noise = fbm(worldPos.xz.mul(0.075).add(drift));
     const alpha = uMaxAlpha
-      .mul(
-        float(1).sub(
-          exp(
-            float(1)
-              .sub(exp(max(optical, 0.0).negate()))
-              .mul(-1.35),
-          ),
-        ),
-      )
-      .toVar();
-
-    const bayer = fract(sin(dot(viewportCoordinate.xy, vec2(12.9898, 78.233))).mul(43758.5453));
-    alpha.addAssign(bayer.sub(0.5).mul(0.004));
+      .mul(0.62)
+      .mul(maskValue)
+      .mul(windowValue)
+      .mul(mix(float(0.68), float(1), noise));
     alpha.lessThan(0.005).discard();
-
-    const col = mix(
-      (uColor as any).mul(1.06),
-      (uColor as any).mul(0.88),
-      clamp(alpha.div(max(uMaxAlpha, 0.001)), 0.0, 1.0),
-    );
-    return vec4(col as any, alpha as any);
+    const color = mix((uColor as any).mul(0.92), (uColor as any).mul(1.06), noise);
+    return vec4(color as any, alpha as any);
   })();
 
-  material.colorNode = sample.rgb;
-  material.opacityNode = sample.a;
+  material.colorNode = groundSample.rgb;
+  material.opacityNode = groundSample.a;
   material.alphaTest = 0.005;
 
   material.userData.softGroundFog = true;
   material.userData.softGroundFogHandles = handles;
   material.userData.shaderProgramMode = "tsl";
+  material.userData.softGroundFogPlane = true;
   (material as any).uniforms = handles;
 
   return material;
