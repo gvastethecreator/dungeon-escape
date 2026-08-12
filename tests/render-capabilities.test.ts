@@ -11,7 +11,8 @@ describe("render capabilities", () => {
   test("production avoids synchronous shader diagnostic reads", () => {
     const source = readFileSync("src/main.ts", "utf8");
 
-    expect(source).toContain("if (import.meta.env.PROD) renderer.debug.checkShaderErrors = false;");
+    expect(source).toContain("if (import.meta.env.PROD && renderer.debug) {");
+    expect(source).toContain("renderer.debug.checkShaderErrors = false;");
   });
 
   test("detects Firefox from user agent", () => {
@@ -166,7 +167,7 @@ describe("render capabilities", () => {
     expect(warmup).toContain("compileRendererWarmupBatches()");
     expect(warmup).toContain("povPost.warmup(renderer, scene, camera);");
     expect(warmup).toContain("povPost.render(renderer, scene, camera);");
-    expect(source).toContain("renderer.compileAsync(scene, camera)");
+    expect(source).toContain("webGlRenderer?.compileAsync?.bind(webGlRenderer)");
     expect(source).toContain("await waitAnimationFrames(1);");
     expect(source).toContain("ASYNC_SHADER_WARMUP_BUDGET_MS = 2_000");
     expect(warmup).not.toContain("renderer.compile(");
@@ -176,3 +177,4 @@ describe("render capabilities", () => {
     expect(warmup).toContain("world.setPickupEffectsWarmupVisible(false);");
   });
 });
+
