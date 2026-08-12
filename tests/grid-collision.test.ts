@@ -5,9 +5,12 @@ import {
   canOccupy,
   feetClearColliderTop,
   gridToWorld,
+  groupBySpatialChunk,
   moveWithCollision,
   overlapsColliderHeight,
   overlapsWorldCollider,
+  spatialChunkKey,
+  spatialChunkKeysNearCells,
   WorldColliderSpatialIndex,
   worldToGrid,
 } from "../src/dungeon/gridCollision";
@@ -258,5 +261,28 @@ describe("grid collision", () => {
     expect(source).toContain("updateVaultedColliders");
     expect(source).toContain("feetClearColliderTop");
     expect(source).toContain("rebuildActiveColliders");
+  });
+
+  test("spatial chunk keys group cells on a fixed tile grid", () => {
+    expect(spatialChunkKey({ x: 0, y: 0 }, 16)).toBe("0,0");
+    expect(spatialChunkKey({ x: 15, y: 15 }, 16)).toBe("0,0");
+    expect(spatialChunkKey({ x: 16, y: 0 }, 16)).toBe("1,0");
+    expect(spatialChunkKey({ x: 31, y: 32 }, 16)).toBe("1,2");
+    const grouped = groupBySpatialChunk(
+      [
+        { cell: { x: 1, y: 1 }, id: "a" },
+        { cell: { x: 17, y: 1 }, id: "b" },
+        { cell: { x: 18, y: 2 }, id: "c" },
+      ],
+      (entry) => entry.cell,
+      16,
+    );
+    expect([...grouped.keys()].sort()).toEqual(["0,0", "1,0"]);
+    expect(grouped.get("1,0")?.map((entry) => entry.id).sort()).toEqual(["b", "c"]);
+    const near = spatialChunkKeysNearCells([{ x: 16, y: 16 }], 16, 1);
+    expect(near.has("1,1")).toBe(true);
+    expect(near.has("0,0")).toBe(true);
+    expect(near.has("2,2")).toBe(true);
+    expect(near.has("3,1")).toBe(false);
   });
 });

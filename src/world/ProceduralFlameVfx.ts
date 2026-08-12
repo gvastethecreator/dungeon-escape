@@ -266,6 +266,7 @@ function createNoiseFlameEmbers(
   });
   const embers = new THREE.Points(geometry, material);
   embers.name = "Floating flame embers";
+  // Embers rise around dynamic fire lights; keep them drawable near the camera.
   embers.frustumCulled = false;
   embers.renderOrder = 5;
   embers.userData.vfxOnly = true;

@@ -68,6 +68,8 @@ export interface DungeonTopologyMetadata {
   roomIds: Int16Array;
   corridors: Uint8Array;
   doorways: DungeonDoorway[];
+  /** Exact centerline carved for each graph edge, indexed like DungeonData.edges. */
+  routes?: GridCell[][];
 }
 
 export interface DungeonStair {

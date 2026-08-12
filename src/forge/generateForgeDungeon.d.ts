@@ -71,6 +71,7 @@ export type GeneratedForgeDungeon = Omit<
   maxDepth: number;
   rooms: GeneratedForgeRoom[];
   edges: GeneratedForgeEdge[];
+  edgeRoutes: GridCell[][];
   props: ForgePropMetadata[];
   spawns: ForgeSpawnMetadata[];
   torches: ForgeTorchMetadata[];

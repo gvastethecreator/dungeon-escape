@@ -12,6 +12,7 @@ import {
   createAudioGroupLevels,
   creatureBaseTakes,
   creatureToneAsset,
+  CREATURE_VOICES,
   getAudioAsset,
   type AudioAssetId,
   type AudioCue,
@@ -644,6 +645,14 @@ export class GameAudio {
     const context = this.context;
     if (!context || context.state !== "running" || this.disposed) return;
     const tone = creatureToneForMood(this.frame.moodId);
+    let voiceMask = 0;
+    for (const enemy of this.frame.enemies) {
+      const index = CREATURE_VOICES.indexOf(enemy.voice);
+      if (index >= 0) voiceMask |= 1 << index;
+    }
+    const ambience = audioAssetForBiomeAmbience(this.frame.moodId);
+    const routeKey = `${ambience}:${tone}:${voiceMask}`;
+    if (routeKey === this.prefetchedRouteKey) return;
     const orderedEnemies = [...this.frame.enemies].sort((left, right) => {
       const leftDistance =
         (left.x - this.listener.x) ** 2 +
@@ -656,9 +665,6 @@ export class GameAudio {
       return leftDistance - rightDistance || left.voice.localeCompare(right.voice);
     });
     const voices = [...new Set(orderedEnemies.map((enemy) => enemy.voice))];
-    const ambience = audioAssetForBiomeAmbience(this.frame.moodId);
-    const routeKey = `${ambience}:${tone}:${[...voices].sort().join(",")}`;
-    if (routeKey === this.prefetchedRouteKey) return;
     this.prefetchedRouteKey = routeKey;
     const ids: AudioAssetId[] = [...PLAY_AUDIO_PREFETCH_ASSETS];
     for (const voice of voices) {

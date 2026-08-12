@@ -14,15 +14,7 @@
  */
 import * as THREE from "three";
 import { FORGE_THEME_PROFILES as THEMES } from "./ForgeThemeProfiles";
-import {
-  FLOOR,
-  POOL,
-  TYPE,
-  WALL,
-  delaunay,
-  makeRng,
-  mulberry32,
-} from "./ForgeProceduralPrimitives";
+import { FLOOR, POOL, TYPE, WALL, makeRng, mulberry32 } from "./ForgeProceduralPrimitives";
 import { generateForgeDungeon } from "./generateForgeDungeon";
 import { selectForgeMagicStonePlacements } from "./layoutTuning";
 import {
@@ -40,7 +32,10 @@ import { enemyAnimationsForMood } from "../world/EnemySpriteAtlas";
 import { createMagicStone } from "../world/MagicStoneKit";
 import { auditAndRepairForgeSurface } from "./SurfaceGeometryAudit";
 import { resolveForgeRenderQuality } from "./ForgeRenderQuality";
-import { resolveForgeRoomPresentationRect } from "./ForgePresentationGeometry";
+import {
+  resolveForgeRoomPresentationRect,
+  resolveForgeOverlayRoutes,
+} from "./ForgePresentationGeometry";
 import { resolveEditorLightingProfile } from "../editor/EditorLightingProfiles";
 import { nextProceduralSeed } from "../game/SeedFactory";
 import { ForgePresentationSession } from "./ForgePresentationSession";
@@ -2351,14 +2346,18 @@ function buildScene(d) {
   /* graph overlay */
   overlay = new THREE.Group();
   group.add(overlay);
-  const mkLines = (pairs, color, y, op) => {
-    const pos = new Float32Array(Math.max(pairs.length, 1) * 6);
-    pairs.forEach((e, i) => {
-      pos.set(
-        [wx(rooms[e.a].cx), y, wz(rooms[e.a].cy), wx(rooms[e.b].cx), y, wz(rooms[e.b].cy)],
-        i * 6,
-      );
-    });
+  const mkLines = (paths, color, y, op) => {
+    const segmentCount = paths.reduce((count, path) => count + Math.max(0, path.length - 1), 0);
+    const pos = new Float32Array(Math.max(segmentCount, 1) * 6);
+    let offset = 0;
+    for (const path of paths) {
+      for (let index = 1; index < path.length; index += 1) {
+        const from = path[index - 1];
+        const to = path[index];
+        pos.set([wx(from.x), y, wz(from.y), wx(to.x), y, wz(to.y)], offset);
+        offset += 6;
+      }
+    }
     const g = new THREE.BufferGeometry();
     g.setAttribute("position", new THREE.BufferAttribute(pos, 3));
     const m = new THREE.LineBasicMaterial({
@@ -2372,28 +2371,53 @@ function buildScene(d) {
     overlay.add(l);
     return l;
   };
-  const delPairs = delaunay(rooms.map((r) => ({ x: r.cx, y: r.cy }))).map((e) => ({
-    a: e[0],
-    b: e[1],
+  const routedEdges = d.edges.map((edge, edgeIndex) => ({
+    ...edge,
+    route: d.edgeRoutes?.[edgeIndex],
   }));
+  const resolvedEdgeRoutes = resolveForgeOverlayRoutes({
+    width: W,
+    height: H,
+    grid,
+    rooms,
+    pairs: routedEdges,
+    routes: routedEdges.map((edge) => edge.route),
+    floorValue: FLOOR,
+    walkableValues: [FLOOR, POOL],
+  });
+  const resolvedEdges = routedEdges.map((edge, edgeIndex) => ({
+    ...edge,
+    path: resolvedEdgeRoutes[edgeIndex] ?? [],
+  }));
+  if (presentationSession.isPresentationMode) {
+    const validRouteCount = resolvedEdges.filter((edge) => edge.path.length > 1).length;
+    document.documentElement.dataset.forgeOverlayRoutes = `${validRouteCount}/${resolvedEdges.length}`;
+    document.documentElement.dataset.forgeOverlayRouteGeometry =
+      validRouteCount === resolvedEdges.length ? "complete" : "partial";
+  }
   overlay.userData = {
-    del: mkLines(delPairs, 0x6a7385, 2.5, 0.13),
+    del: mkLines(
+      resolvedEdges.map((edge) => edge.path),
+      0x6a7385,
+      0.38,
+      0.13,
+    ),
     mst: mkLines(
-      d.edges.filter((e) => !e.isLoop),
+      resolvedEdges.filter((edge) => !edge.isLoop).map((edge) => edge.path),
       0xdfe4f0,
-      2.6,
+      0.4,
       0.7,
     ),
     loop: mkLines(
-      d.edges.filter((e) => e.isLoop),
+      resolvedEdges.filter((edge) => edge.isLoop).map((edge) => edge.path),
       0x39d5e0,
-      2.65,
+      0.42,
       0.9,
     ),
     crit: mkLines(
-      d.edges.filter((e) => e.isCritical),
+      resolvedEdges.filter((edge) => edge.isCritical).map((edge) => edge.path),
       0xff4d4d,
-      2.75,
+      0.44,
       0.95,
     ),
   };
@@ -2401,7 +2425,7 @@ function buildScene(d) {
     const pos = new Float32Array(rooms.length * 3),
       col = new Float32Array(rooms.length * 3);
     rooms.forEach((r, i) => {
-      pos.set([wx(r.cx), 2.85, wz(r.cy)], i * 3);
+      pos.set([wx(r.cx), 0.46, wz(r.cy)], i * 3);
       _c.set(TINT[r.type]);
       col.set([_c.r, _c.g, _c.b], i * 3);
     });
@@ -2947,6 +2971,7 @@ addEventListener("message", (event) => {
       return;
     }
     presentationSession.start(presentationId, D);
+    delete document.documentElement.dataset.forgePresentationSource;
     // Enable presentation before forge() so fitCameraToDungeon centers the map.
     applyPresentationMode();
     hostPaused = false;
@@ -2971,6 +2996,7 @@ addEventListener("message", (event) => {
       const shouldAnimate = event.data.animate !== false;
       el.tAnim.checked = shouldAnimate;
       try {
+        document.documentElement.dataset.forgePresentationSource = "host";
         buildScene(hostDungeon);
         applyObjectVis();
         if (shouldAnimate) {
@@ -2985,6 +3011,7 @@ addEventListener("message", (event) => {
         });
       } catch (error) {
         console.warn("Forge host dungeon presentation failed; falling back to generator.", error);
+        document.documentElement.dataset.forgePresentationSource = "procedural-fallback";
         forge(shouldAnimate);
       }
       return;
@@ -2999,6 +3026,7 @@ addEventListener("message", (event) => {
     }
     const shouldAnimate = event.data.animate !== false;
     el.tAnim.checked = shouldAnimate;
+    document.documentElement.dataset.forgePresentationSource = "procedural";
     forge(shouldAnimate);
     // forge() already fits; re-fit after layout in case the iframe just expanded.
     requestAnimationFrame(() => {

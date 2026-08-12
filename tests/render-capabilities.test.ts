@@ -1,7 +1,11 @@
 import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 
-import { detectRenderCapabilities, isFirefoxUserAgent } from "../src/systems/RenderCapabilities";
+import {
+  detectRenderCapabilities,
+  detectRendererCompileCapabilities,
+  isFirefoxUserAgent,
+} from "../src/systems/RenderCapabilities";
 
 describe("render capabilities", () => {
   test("production avoids synchronous shader diagnostic reads", () => {
@@ -28,6 +32,7 @@ describe("render capabilities", () => {
     expect(caps.rendererReadyTimeoutMs).toBe(2_500);
     expect(caps.preferDefaultGpu).toBe(true);
     expect(caps.pixelRatioCap).toBe(1);
+    expect(caps.allowAsyncShaderWarmup).toBe(false);
   });
 
   test("Chrome desktop keeps the full readiness deadline with CRT opt-in", () => {
@@ -44,6 +49,7 @@ describe("render capabilities", () => {
     expect(caps.rendererReadyTimeoutMs).toBe(8_000);
     expect(caps.preferDefaultGpu).toBe(false);
     expect(caps.pixelRatioCap).toBe(1.25);
+    expect(caps.allowAsyncShaderWarmup).toBe(true);
   });
 
   test("low-end hosts get a safer path without claiming Firefox", () => {
@@ -59,6 +65,7 @@ describe("render capabilities", () => {
     expect(caps.enableCrtByDefault).toBe(false);
     expect(caps.preferDefaultGpu).toBe(true);
     expect(caps.telemetryPath).toBe("low-end");
+    expect(caps.allowAsyncShaderWarmup).toBe(false);
   });
 
   test("query overrides force quality or safe render", () => {
@@ -99,6 +106,29 @@ describe("render capabilities", () => {
     expect(crtOff.enableCrtByDefault).toBe(false);
   });
 
+  test("requires both renderer async compilation and parallel shader completion", () => {
+    const supported = detectRendererCompileCapabilities({
+      compileAsync() {},
+      extensions: { get: (name) => (name === "KHR_parallel_shader_compile" ? {} : null) },
+    });
+    expect(supported).toEqual({
+      hasCompileAsync: true,
+      hasParallelShaderCompile: true,
+      canCompileAsync: true,
+    });
+
+    const missingExtension = detectRendererCompileCapabilities({
+      compileAsync() {},
+      extensions: { get: () => null },
+    });
+    expect(missingExtension.canCompileAsync).toBe(false);
+
+    const missingMethod = detectRendererCompileCapabilities({
+      extensions: { get: () => ({}) },
+    });
+    expect(missingMethod.canCompileAsync).toBe(false);
+  });
+
   test("uses a parsed override snapshot without falling back to search", () => {
     const caps = detectRenderCapabilities({
       userAgent: "Mozilla/5.0 Firefox/153.0",
@@ -112,17 +142,23 @@ describe("render capabilities", () => {
     expect(caps.enableCrtByDefault).toBe(false);
   });
 
-  test("main never polls shader programs across a replaceable world lifecycle", () => {
+  test("main incrementally compiles supported resident floors without retaining replacement worlds", () => {
     const source = readFileSync("src/main.ts", "utf8");
     const start = source.indexOf("function startRendererWarmup(");
     const end = source.indexOf("\nfunction clearObjectiveBannerTimers", start);
     const warmup = source.slice(start, end);
 
+    expect(warmup).toContain("renderCaps.allowAsyncShaderWarmup && renderCaps.canCompileAsync");
+    expect(warmup).toContain("compileRendererWarmupBatches()");
+    expect(warmup).toContain("povPost.warmup(renderer, scene, camera);");
     expect(warmup).toContain("povPost.render(renderer, scene, camera);");
+    expect(source).toContain("renderer.compileAsync(scene, camera)");
+    expect(source).toContain("await waitAnimationFrames(1);");
+    expect(source).toContain("ASYNC_SHADER_WARMUP_BUDGET_MS = 2_000");
     expect(warmup).not.toContain("renderer.compile(");
     expect(warmup).not.toContain("compileScene(");
     expect(warmup).not.toContain("rendererWarmupQueue");
-    expect(warmup).not.toContain("raceWithTimeout");
+    expect(source).toContain("Do not retain a replaced world's roots");
     expect(warmup).toContain("world.setPickupEffectsWarmupVisible(false);");
   });
 });

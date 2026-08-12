@@ -5,8 +5,10 @@ import { isExitReachable, isFloorCell } from "../src/dungeon/generateDungeon";
 import { stairFlightFootprintCells } from "../src/dungeon/StairShaftPlan";
 import {
   createFloorDeckColliders,
+  createFloorSupportHeightfield,
   gridToWorld,
   overlapsWorldCollider,
+  sampleFloorSupportHeightfield,
 } from "../src/dungeon/gridCollision";
 import { generateDungeonFloorSet, MAX_DUNGEON_FLOORS } from "../src/dungeon/generateDungeonFloors";
 import {
@@ -108,6 +110,26 @@ describe("multi-floor smoke", () => {
         expect(colliders.some((collider) => overlapsWorldCollider(point, 0.01, collider))).toBe(
           true,
         );
+      }
+    }
+  });
+
+  test("heightfield stores each slab height but leaves incoming shaft mouths unsupported", () => {
+    const stack = generateDungeonFloorSet("SMOKE-SUPPORT-HEIGHTFIELD", { roomTarget: 20 }, 4);
+    for (const floor of stack.floors) {
+      const support = createFloorSupportHeightfield(floor);
+      const floorIndex = floor.floor?.index ?? 0;
+      const incoming = floor.floor?.stairs.find((stair) => stair.targetFloor < floorIndex);
+      const openCells = new Set(
+        incoming
+          ? stairFlightFootprintCells(incoming.footprint).map((cell) => `${cell.x},${cell.y}`)
+          : [],
+      );
+      for (let y = 0; y < floor.height; y += 1) {
+        for (let x = 0; x < floor.width; x += 1) {
+          const expected = isFloorCell(floor, x, y) && !openCells.has(`${x},${y}`) ? floorIndex : null;
+          expect(sampleFloorSupportHeightfield(support, { x, y })).toBe(expected);
+        }
       }
     }
   });

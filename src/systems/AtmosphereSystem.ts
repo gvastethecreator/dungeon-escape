@@ -875,6 +875,7 @@ export class AtmosphereSystem {
     mesh.name = "Soft volumetric ground fog";
     mesh.position.set(0, this.wallHeight * 0.5, 0);
     mesh.renderOrder = 3;
+    // Volume spans the dungeon; local bounds would cull valid fog slabs.
     mesh.frustumCulled = false;
     this.group.add(mesh);
     this.softGroundFog = { mesh, material, baseDensity, mask, worldMin, worldSize };

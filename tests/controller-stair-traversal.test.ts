@@ -3,7 +3,7 @@ import * as THREE from "three";
 
 import { FLOOR, WALL } from "../src/dungeon/generateDungeon";
 import {
-  createFloorDeckColliders,
+  createFloorSupportHeightfield,
   gridToWorld,
   type WorldCollider,
 } from "../src/dungeon/gridCollision";
@@ -176,12 +176,6 @@ describe("FirstPersonController stair traversal", () => {
     );
     const direction = rotateYaw(0, 1, link.yaw);
     const treads = worldTreadColliders(flight.treadColliders, origin.x, 0, origin.z, link.yaw);
-    const upperDeck = createFloorDeckColliders(
-      upper,
-      tileSize,
-      STORY_HEIGHT - 0.06,
-      STORY_HEIGHT + 0.02,
-    );
     const camera = new THREE.PerspectiveCamera(70, 1, 0.1, 100);
     const controller = new FirstPersonController(camera, new FakeElement() as never, {
       tileSize,
@@ -189,7 +183,11 @@ describe("FirstPersonController stair traversal", () => {
       cameraMotion: 0,
     });
     controller.setDungeon(lower);
-    controller.setSolidColliders([...treads, ...upperDeck]);
+    controller.setSolidColliders(
+      treads,
+      [createFloorSupportHeightfield(lower), createFloorSupportHeightfield(upper)],
+      treads,
+    );
     expect(
       controller.restorePose({
         x: origin.x - direction.x * 0.8,

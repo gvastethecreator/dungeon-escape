@@ -412,10 +412,18 @@ async function waitForGameReady(ws: WebSocket, timeoutMs = 25_000): Promise<void
   const deadline = Date.now() + timeoutMs;
   let lastValue: unknown = null;
   while (Date.now() < deadline) {
+    // Headless Chrome can starve requestAnimationFrame until a paint is forced.
+    // Periodic screenshots keep the warmup rAF advancing so warmupWaitMs measures
+    // wall wait, not tab starvation (see PERF-31).
+    try {
+      await send(ws, "Page.captureScreenshot", { format: "png", fromSurface: true }, "warmup-frame");
+    } catch {
+      /* page may not be ready yet */
+    }
     const value = await readReadyState(ws, "renderer-ready");
     lastValue = value;
     if (value.diagnostics && value.rendererReady === "true") return;
-    await sleep(500);
+    await sleep(250);
   }
   throw new Error(
     `Dungeon page did not reach renderer-ready state: ${JSON.stringify({ lastValue, browserErrors, networkErrors })}`,

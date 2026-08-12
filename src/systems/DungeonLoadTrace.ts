@@ -40,9 +40,15 @@ export interface DungeonLoadMilestone {
   readonly atMs: number;
 }
 
-/** Stable, JSON-safe payload consumed by browser and offline telemetry. */
+/**
+ * Stable, JSON-safe payload consumed by browser and offline telemetry.
+ *
+ * Schema 2 adds `warmupWorkMs` (CPU cost of the first live draw / compile) and
+ * `warmupWaitMs` (wall time from warmup begin to first rAF handoff). The legacy
+ * `warmup` span remains the wait span so older consumers keep working.
+ */
 export interface DungeonLoadTraceSnapshot {
-  readonly schemaVersion: 1;
+  readonly schemaVersion: 2;
   readonly loadId: string;
   readonly terminal: DungeonLoadTerminal;
   readonly terminalDetail: string | null;
@@ -55,7 +61,12 @@ export interface DungeonLoadTraceSnapshot {
   readonly texturePolicy: DungeonLoadSpan | null;
   readonly atmosphere: DungeonLoadSpan | null;
   readonly editorProjection: DungeonLoadSpan | null;
+  /** Wall wait from warmup begin until the warmup phase ends (rAF / failsafe). */
   readonly warmup: DungeonLoadSpan | null;
+  /** Same as `warmup.durationMs` when present; explicit for honest telemetry. */
+  readonly warmupWaitMs: number | null;
+  /** Measured cost of the first usable draw / compile work inside warmup. */
+  readonly warmupWorkMs: number | null;
   readonly firstUsableFrame: DungeonLoadMilestone | null;
   readonly inputReady: DungeonLoadMilestone | null;
 }
@@ -110,6 +121,7 @@ export class DungeonLoadTrace implements DungeonLoadPhaseObserver {
   private readonly spans = emptySpans();
   private firstFrame: DungeonLoadMilestone | null = null;
   private input: DungeonLoadMilestone | null = null;
+  private warmupWorkMs: number | null = null;
   private terminalSnapshot: DungeonLoadTraceSnapshot | null = null;
 
   constructor({ clock = defaultClock, loadId = defaultLoadId() }: DungeonLoadTraceOptions = {}) {
@@ -153,6 +165,18 @@ export class DungeonLoadTrace implements DungeonLoadPhaseObserver {
     return true;
   }
 
+  /**
+   * Record the measured CPU cost of the first usable draw / compile. Call once
+   * inside the open warmup phase; later calls are ignored so a failsafe path
+   * cannot overwrite a real measurement.
+   */
+  recordWarmupWorkMs(workMs: number): boolean {
+    if (!this.isPhaseOpen("warmup") || this.warmupWorkMs !== null) return false;
+    if (!Number.isFinite(workMs) || workMs < 0) return false;
+    this.warmupWorkMs = workMs;
+    return true;
+  }
+
   markInputReady(): boolean {
     const warmup = this.spans.warmup;
     if (
@@ -184,8 +208,9 @@ export class DungeonLoadTrace implements DungeonLoadPhaseObserver {
       });
     }
     this.phaseStarts.clear();
+    const warmup = this.spans.warmup;
     this.terminalSnapshot = Object.freeze({
-      schemaVersion: 1,
+      schemaVersion: 2,
       loadId: this.loadId,
       terminal,
       terminalDetail: terminalDetail || null,
@@ -198,7 +223,9 @@ export class DungeonLoadTrace implements DungeonLoadPhaseObserver {
       texturePolicy: this.spans.texturePolicy,
       atmosphere: this.spans.atmosphere,
       editorProjection: this.spans.editorProjection,
-      warmup: this.spans.warmup,
+      warmup,
+      warmupWaitMs: warmup?.durationMs ?? null,
+      warmupWorkMs: this.warmupWorkMs,
       firstUsableFrame: this.firstFrame,
       inputReady: this.input,
     });

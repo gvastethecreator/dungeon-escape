@@ -25,6 +25,16 @@ export interface VerticalCollisionRange {
 type DungeonGrid = Pick<DungeonData, "width" | "height" | "grid">;
 export type CellBlocker = (cell: GridCell) => boolean;
 
+/**
+ * Per-floor walkable support, encoded as floor index + 1 so zero means an
+ * unsupported cell. This keeps shaft mouths genuinely open.
+ */
+export interface FloorSupportHeightfield {
+  readonly width: number;
+  readonly height: number;
+  readonly floorIndices: Uint8Array;
+}
+
 export interface CollisionResult {
   position: WorldPoint;
   blockedX: boolean;
@@ -41,17 +51,7 @@ export function createFloorDeckColliders(
   minY: number,
   maxY: number,
 ): WorldCollider[] {
-  const openMask = new Uint8Array(dungeon.width * dungeon.height);
-  const floorIndex = dungeon.floor?.index ?? 0;
-  for (const stair of dungeon.floor?.stairs ?? []) {
-    // Only the mouth reached from the lower story opens this slab. The outgoing
-    // upward flight keeps normal support beneath its lower landing and treads.
-    if (stair.targetFloor >= floorIndex) continue;
-    for (const cell of stairFlightFootprintCells(stair.footprint)) {
-      if (cell.x < 0 || cell.y < 0 || cell.x >= dungeon.width || cell.y >= dungeon.height) continue;
-      openMask[cell.y * dungeon.width + cell.x] = 1;
-    }
-  }
+  const openMask = createOpenShaftMask(dungeon);
 
   const colliders: WorldCollider[] = [];
   const half = tileSize * 0.5;
@@ -83,6 +83,56 @@ export function createFloorDeckColliders(
     }
   }
   return colliders;
+}
+
+/**
+ * Build compact vertical support for one dungeon slab. The caller turns a
+ * sampled floor index into world Y with STORY_HEIGHT so no floor deck needs a
+ * solid collider. Stair mouths intentionally stay empty.
+ */
+export function createFloorSupportHeightfield(dungeon: DungeonData): FloorSupportHeightfield {
+  const openMask = createOpenShaftMask(dungeon);
+  const floorIndex = Math.max(0, Math.min(254, dungeon.floor?.index ?? 0));
+  const floorIndices = new Uint8Array(dungeon.width * dungeon.height);
+  for (let y = 0; y < dungeon.height; y += 1) {
+    for (let x = 0; x < dungeon.width; x += 1) {
+      const index = y * dungeon.width + x;
+      if (dungeon.grid[y]?.[x] === FLOOR && openMask[index] === 0) {
+        floorIndices[index] = floorIndex + 1;
+      }
+    }
+  }
+  return { width: dungeon.width, height: dungeon.height, floorIndices };
+}
+
+/**
+ * Sample one support field at an already-computed grid cell. Null means the
+ * point is outside its grid or is an intentionally unsupported shaft mouth.
+ */
+export function sampleFloorSupportHeightfield(
+  heightfield: FloorSupportHeightfield,
+  cell: GridCell,
+): number | null {
+  if (cell.x < 0 || cell.y < 0 || cell.x >= heightfield.width || cell.y >= heightfield.height) {
+    return null;
+  }
+  const encoded = heightfield.floorIndices[cell.y * heightfield.width + cell.x] ?? 0;
+  return encoded === 0 ? null : encoded - 1;
+}
+
+function createOpenShaftMask(dungeon: DungeonData): Uint8Array {
+  const openMask = new Uint8Array(dungeon.width * dungeon.height);
+  const floorIndex = dungeon.floor?.index ?? 0;
+  for (const stair of dungeon.floor?.stairs ?? []) {
+    // Only the mouth reached from the lower story opens this slab. The outgoing
+    // upward flight keeps normal support beneath its lower landing and treads.
+    if (stair.targetFloor >= floorIndex) continue;
+    for (const cell of stairFlightFootprintCells(stair.footprint)) {
+      if (cell.x < 0 || cell.y < 0 || cell.x >= dungeon.width || cell.y >= dungeon.height) continue;
+      openMask[cell.y * dungeon.width + cell.x] = 1;
+    }
+  }
+  return openMask;
 }
 
 /** Static broadphase for authored prop/chest colliders. */
@@ -437,4 +487,74 @@ export function moveWithCollision(
     verticalRange,
   );
   return { position: vertical.position, blockedX: horizontal.blocked, blockedZ: vertical.blocked };
+}
+
+/** Default tile span for static InstancedMesh spatial chunks (PERF-35). */
+export const STATIC_PROP_SPATIAL_CHUNK_TILES = 16;
+
+export function spatialChunkCoord(
+  cell: GridCell,
+  chunkTiles: number = STATIC_PROP_SPATIAL_CHUNK_TILES,
+): { cx: number; cy: number } {
+  const size = Math.max(1, Math.floor(chunkTiles));
+  return {
+    cx: Math.floor(cell.x / size),
+    cy: Math.floor(cell.y / size),
+  };
+}
+
+/** Stable key for grouping prop instances into frustum-culled batches. */
+export function spatialChunkKey(
+  cell: GridCell,
+  chunkTiles: number = STATIC_PROP_SPATIAL_CHUNK_TILES,
+): string {
+  const { cx, cy } = spatialChunkCoord(cell, chunkTiles);
+  return `${cx},${cy}`;
+}
+
+export function parseSpatialChunkKey(key: string): { cx: number; cy: number } | null {
+  const comma = key.indexOf(",");
+  if (comma <= 0) return null;
+  const cx = Number(key.slice(0, comma));
+  const cy = Number(key.slice(comma + 1));
+  if (!Number.isFinite(cx) || !Number.isFinite(cy)) return null;
+  return { cx, cy };
+}
+
+/** Group placements so each InstancedMesh covers one spatial chunk. */
+export function groupBySpatialChunk<T>(
+  items: readonly T[],
+  cellOf: (item: T) => GridCell,
+  chunkTiles: number = STATIC_PROP_SPATIAL_CHUNK_TILES,
+): Map<string, T[]> {
+  const groups = new Map<string, T[]>();
+  for (const item of items) {
+    const key = spatialChunkKey(cellOf(item), chunkTiles);
+    const list = groups.get(key);
+    if (list) list.push(item);
+    else groups.set(key, [item]);
+  }
+  return groups;
+}
+
+/**
+ * Chunk keys within Chebyshev radius of any seed cell. Radius 1 keeps the
+ * shaft mouth plus the ring of adjacent chunks readable on neighbor floors.
+ */
+export function spatialChunkKeysNearCells(
+  cells: readonly GridCell[],
+  chunkTiles: number = STATIC_PROP_SPATIAL_CHUNK_TILES,
+  chebyshevRadius = 1,
+): Set<string> {
+  const keys = new Set<string>();
+  const radius = Math.max(0, Math.floor(chebyshevRadius));
+  for (const cell of cells) {
+    const { cx, cy } = spatialChunkCoord(cell, chunkTiles);
+    for (let dy = -radius; dy <= radius; dy += 1) {
+      for (let dx = -radius; dx <= radius; dx += 1) {
+        keys.add(`${cx + dx},${cy + dy}`);
+      }
+    }
+  }
+  return keys;
 }

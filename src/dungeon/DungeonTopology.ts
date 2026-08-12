@@ -360,6 +360,64 @@ function doorwayFromCandidate(
   };
 }
 
+function appendCardinalLine(route: GridCell[], from: GridCell, to: GridCell): void {
+  if (from.x !== to.x && from.y !== to.y) {
+    throw new Error(
+      `Overlay route segment must be cardinal: ${from.x},${from.y} -> ${to.x},${to.y}.`,
+    );
+  }
+  let x = from.x;
+  let y = from.y;
+  const append = (): void => {
+    const previous = route.at(-1);
+    if (!previous || previous.x !== x || previous.y !== y) route.push({ x, y });
+  };
+  append();
+  const stepX = Math.sign(to.x - from.x);
+  const stepY = Math.sign(to.y - from.y);
+  while (x !== to.x || y !== to.y) {
+    x += stepX;
+    y += stepY;
+    append();
+  }
+}
+
+function appendRoomDoorPath(
+  route: GridCell[],
+  room: RoomShape,
+  doorway: DoorwayCandidate,
+  towardDoorway: boolean,
+): void {
+  const turn =
+    doorway.outDx !== 0
+      ? { x: room.center.x, y: doorway.cell.y }
+      : { x: doorway.cell.x, y: room.center.y };
+  if (towardDoorway) {
+    appendCardinalLine(route, room.center, turn);
+    appendCardinalLine(route, turn, doorway.cell);
+  } else {
+    appendCardinalLine(route, doorway.cell, turn);
+    appendCardinalLine(route, turn, room.center);
+  }
+}
+
+function buildEdgeRoute(
+  leftRoom: RoomShape,
+  rightRoom: RoomShape,
+  selected: { left: DoorwayCandidate; right: DoorwayCandidate; path: readonly GridCell[] },
+): GridCell[] {
+  const route: GridCell[] = [];
+  appendRoomDoorPath(route, leftRoom, selected.left, true);
+  appendCardinalLine(route, selected.left.cell, selected.left.routeAnchor);
+  for (const cell of selected.path) {
+    const previous = route.at(-1);
+    if (!previous || previous.x !== cell.x || previous.y !== cell.y) route.push({ ...cell });
+  }
+  appendCardinalLine(route, selected.right.routeAnchor, selected.right.cell);
+  appendRoomDoorPath(route, rightRoom, selected.right, false);
+  return route;
+}
+
 /**
  * Carve graph edges through void, with a one-cell neck at every room boundary.
  * Wide corridors only expand after that neck, so room walls cannot gain
@@ -378,6 +436,7 @@ export function carveDungeonTopology(
   const roomIds = createRoomIds(width, height, rooms);
   const corridors = new Uint8Array(width * height);
   const doorways: DungeonDoorway[] = [];
+  const routes: GridCell[][] = [];
   const reserved = new Set<string>();
   // Room geometry is immutable during routing. Cache its clearance field and
   // components once so candidate pairs do not each run a full failed BFS.
@@ -449,11 +508,12 @@ export function carveDungeonTopology(
     carveNeck(grid, corridors, roomIds, width, height, selected.right, radius);
     reserved.add(`${leftRoom.id}:${selected.left.cell.x},${selected.left.cell.y}`);
     reserved.add(`${rightRoom.id}:${selected.right.cell.x},${selected.right.cell.y}`);
+    routes[edgeIndex] = buildEdgeRoute(leftRoom, rightRoom, selected);
     doorways.push(
       doorwayFromCandidate(selected.left, edgeIndex, leftRoom.id, rightRoom.id),
       doorwayFromCandidate(selected.right, edgeIndex, rightRoom.id, leftRoom.id),
     );
   }
 
-  return { roomIds, corridors, doorways };
+  return { roomIds, corridors, doorways, routes };
 }

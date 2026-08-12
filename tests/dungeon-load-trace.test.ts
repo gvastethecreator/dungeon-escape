@@ -91,6 +91,7 @@ describe("DungeonLoadTrace", () => {
     const snapshot = trace.finish("complete");
 
     expect(snapshot).toMatchObject({
+      schemaVersion: 2,
       loadId: "load-order",
       terminal: "complete",
       generation: null,
@@ -102,11 +103,33 @@ describe("DungeonLoadTrace", () => {
       colliderIndex: { durationMs: 2 },
       actors: { durationMs: 3 },
       warmup: { durationMs: 9 },
+      warmupWaitMs: 9,
+      warmupWorkMs: null,
       firstUsableFrame: { atMs: 21 },
       inputReady: { atMs: 24 },
     });
     expect(snapshot?.inputReady?.atMs).toBeGreaterThan(snapshot?.firstUsableFrame?.atMs ?? 0);
     expect(snapshot?.inputReady?.atMs).toBeGreaterThan(snapshot?.warmup?.endedAtMs ?? 0);
+  });
+
+  test("records warmup work separately from the wait span", () => {
+    let now = 0;
+    const trace = new DungeonLoadTrace({ clock: () => now, loadId: "warmup-work" });
+    trace.begin("warmup");
+    now = 5;
+    expect(trace.recordWarmupWorkMs(12.4)).toBe(true);
+    expect(trace.recordWarmupWorkMs(99)).toBe(false);
+    expect(trace.markFirstUsableFrame()).toBe(true);
+    now = 20;
+    trace.end("warmup");
+    now = 21;
+    expect(trace.markInputReady()).toBe(true);
+    expect(trace.finish("complete")).toMatchObject({
+      schemaVersion: 2,
+      warmup: { durationMs: 20 },
+      warmupWaitMs: 20,
+      warmupWorkMs: 12.4,
+    });
   });
 
   test("accepts a first frame only inside warmup and completes only after its input handoff", () => {
@@ -369,17 +392,20 @@ describe("DungeonLoadTrace", () => {
     expect(warmup.indexOf("trace?.markFirstUsableFrame();")).toBeGreaterThan(
       warmup.indexOf("povPost.render(renderer, scene, camera);"),
     );
-    expect(warmup.lastIndexOf("markRendererWarmupReady(")).toBeGreaterThan(
+    expect(warmup.indexOf("trace?.recordWarmupWorkMs(roundedWarmupWorkMs);")).toBeGreaterThan(
       warmup.indexOf("trace?.markFirstUsableFrame();"),
     );
+    expect(warmup.lastIndexOf("markRendererWarmupReady(")).toBeGreaterThan(
+      warmup.indexOf("trace?.recordWarmupWorkMs(roundedWarmupWorkMs);"),
+    );
     const firstRafStart = warmup.indexOf("window.requestAnimationFrame(() =>");
-    const secondRafStart = warmup.indexOf("window.requestAnimationFrame(() =>", firstRafStart + 1);
+    expect(firstRafStart).toBeGreaterThan(-1);
     const staleWarmupStart = warmup.indexOf(
       "if (!isCurrentRendererWarmup(sequence, trace))",
-      secondRafStart,
+      firstRafStart,
     );
     const currentWarmupStart = warmup.indexOf("let warmupError: unknown = null;", staleWarmupStart);
-    expect(staleWarmupStart).toBeGreaterThan(secondRafStart);
+    expect(staleWarmupStart).toBeGreaterThan(firstRafStart);
     expect(currentWarmupStart).toBeGreaterThan(staleWarmupStart);
     expect(warmup.slice(staleWarmupStart, currentWarmupStart)).not.toContain(
       "setPickupEffectsWarmupVisible(false)",

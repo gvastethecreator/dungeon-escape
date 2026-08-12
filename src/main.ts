@@ -55,10 +55,6 @@ import { SceneTextureRegistry } from "./systems/SceneTextureRegistry";
 import { resolveDungeonExposure } from "./systems/LightTuning";
 import { PovPostFx } from "./systems/PovPostFx";
 import {
-  normalizePalettePostEffectId,
-  palettePostEffectProfile,
-} from "./systems/PalettePostEffect";
-import {
   DEFAULT_DISPLAY_POST_FX_TUNING,
   displayPostFxPreset,
   normalizeDisplayPostFxTuning,
@@ -82,7 +78,10 @@ import { SceneLoaderEnemy } from "./ui/SceneLoaderEnemy";
 import { projectPickupFeedback } from "./ui/PickupFeedback";
 import { FrameGapProfiler, type FrameGapSnapshot } from "./systems/FrameGapProfiler";
 import type { BiomeEventSnapshot } from "./systems/BiomeEventDirector";
-import { detectRenderCapabilities } from "./systems/RenderCapabilities";
+import {
+  detectRenderCapabilities,
+  detectRendererCompileCapabilities,
+} from "./systems/RenderCapabilities";
 import { collectVisibleRenderInventory } from "./systems/RenderInventory";
 import { resolveRenderPixelRatio } from "./systems/RenderScale";
 import {
@@ -346,14 +345,11 @@ const elements = {
   effectsVolume: requireElement<HTMLInputElement>("#effects-volume"),
   effectsVolumeValue: requireElement<HTMLOutputElement>("#effects-volume-value"),
   textureSmoothingToggle: requireElement<HTMLButtonElement>("#texture-smoothing-toggle"),
-  paletteEffectSelect: requireElement<HTMLSelectElement>("#palette-effect"),
-  paletteDither: requireElement<HTMLInputElement>("#palette-dither"),
-  paletteDitherValue: requireElement<HTMLOutputElement>("#palette-dither-value"),
   displayPostFxLayer: requireElement<HTMLElement>("#display-post-fx-layer"),
   displayPostFxLab: requireElement<HTMLDetailsElement>("#display-post-fx-lab"),
   displayPostFxSummary: requireElement<HTMLElement>("#display-post-fx-summary"),
+  displayPostFxLaunch: requireElement<HTMLButtonElement>("#display-post-fx-launch"),
   displayPostFxPreset: requireElement<HTMLSelectElement>("#display-post-fx-preset"),
-  displayPaletteStage: requireElement<HTMLSelectElement>("#display-palette-stage"),
   displayTuningInputs: [...document.querySelectorAll<HTMLInputElement>("[data-display-tuning]")],
   displayTuningOutputs: [
     ...document.querySelectorAll<HTMLOutputElement>("[data-display-tuning-output]"),
@@ -441,6 +437,7 @@ function applyLocalDevToolsChrome(): void {
   elements.recordPanel.setAttribute("aria-hidden", localDevTools ? "false" : "true");
   elements.displayPostFxLab.hidden = !localDevTools;
   elements.displayPostFxLab.setAttribute("aria-hidden", localDevTools ? "false" : "true");
+  elements.displayPostFxLaunch.hidden = !localDevTools;
   if (!localDevTools) elements.recordPanel.open = false;
   if (!localDevTools) elements.displayPostFxLab.open = false;
 }
@@ -461,7 +458,7 @@ applyLocalDevToolsChrome();
 const scene = new THREE.Scene();
 
 const camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.08, 120);
-const renderCaps = detectRenderCapabilities({ overrides: launchConfig.render });
+const renderPathCaps = detectRenderCapabilities({ overrides: launchConfig.render });
 function createPlayRenderer(): THREE.WebGLRenderer {
   const common = {
     canvas: elements.scene,
@@ -471,7 +468,7 @@ function createPlayRenderer(): THREE.WebGLRenderer {
     return new THREE.WebGLRenderer({
       ...common,
       // Firefox dual-GPU + high-performance often picks a dead adapter (black canvas).
-      powerPreference: renderCaps.preferDefaultGpu ? "default" : "high-performance",
+      powerPreference: renderPathCaps.preferDefaultGpu ? "default" : "high-performance",
     });
   } catch (error) {
     console.warn("Primary WebGL context failed; retrying with defaults", error);
@@ -479,6 +476,10 @@ function createPlayRenderer(): THREE.WebGLRenderer {
   }
 }
 const renderer = createPlayRenderer();
+const renderCaps = {
+  ...renderPathCaps,
+  ...detectRendererCompileCapabilities(renderer),
+};
 // Three.js recommends keeping shader diagnostics in development, but each
 // program info-log read can serialize Chrome's shader compiler. The production
 // runtime is covered by browser smokes, so avoid that cold-start stall there.
@@ -609,6 +610,7 @@ let hitTrauma = 0;
 let exhaustionTrauma = 0;
 /** Dirty cache for stamina HUD updates. */
 let lastStaminaHudKey = "";
+let lastResolveHudKey = "";
 let touchSessionActive = false;
 let resumeTouchControls = false;
 let uiInteractQueued = false;
@@ -1816,6 +1818,57 @@ function markRendererWarmupReady(
   }
 }
 
+const ASYNC_SHADER_WARMUP_BUDGET_MS = 2_000;
+
+function residentFloorWarmupRoots(): THREE.Object3D[] {
+  const roots: THREE.Object3D[] = [];
+  scene.traverse((object) => {
+    if (/^Dungeon resident floor \d+$/.test(object.name)) roots.push(object);
+  });
+  return roots;
+}
+
+async function compileRendererWarmupBatches(): Promise<number> {
+  const roots = residentFloorWarmupRoots();
+  const batches = roots.length > 0 ? roots : [null];
+  const originalVisibility = new Map(roots.map((root) => [root, root.visible] as const));
+  const warmupStartedAt = performance.now();
+  let workMs = 0;
+
+  try {
+    for (const root of batches) {
+      const remainingMs = ASYNC_SHADER_WARMUP_BUDGET_MS - (performance.now() - warmupStartedAt);
+      if (remainingMs <= 0) break;
+      if (root) {
+        for (const candidate of roots) candidate.visible = candidate === root;
+      }
+
+      const batchStartedAt = performance.now();
+      let batchComplete = false;
+      const compile = renderer.compileAsync(scene, camera);
+      await Promise.race([
+        compile.then(() => {
+          batchComplete = true;
+        }),
+        waitMs(remainingMs),
+      ]);
+      workMs += performance.now() - batchStartedAt;
+
+      if (!batchComplete) {
+        // The browser can finish this program in parallel after the cover drops.
+        // Do not retain a replaced world's roots just to wait for it.
+        void compile.catch((error: unknown) => console.warn("Async shader warmup failed", error));
+        break;
+      }
+      await waitAnimationFrames(1);
+    }
+  } finally {
+    for (const [root, visible] of originalVisibility) root.visible = visible;
+  }
+
+  return workMs;
+}
+
 function startRendererWarmup(
   sequence: number,
   readyMessage: string,
@@ -1837,46 +1890,64 @@ function startRendererWarmup(
   const failsafe = window.setTimeout(() => {
     markRendererWarmupReady(sequence, "timeout", readyMessage, undefined, undefined, trace);
   }, 4_000);
-  // Draw the live graph first. Forcing every dormant pickup effect into this
-  // frame made large resident stacks decode and upload unrelated paths before
+  // Warm only the live graph. Forcing every dormant pickup effect into this
+  // path made large resident stacks decode and upload unrelated variants before
   // the player could move.
   window.requestAnimationFrame(() => {
-    if (!isCurrentRendererWarmup(sequence, trace)) {
-      window.clearTimeout(failsafe);
-      finishDungeonLoadTrace(trace, "superseded");
-      return;
-    }
-    const startedAt = performance.now();
-    let warmupError: unknown = null;
-    try {
-      // Draw only the live frame. Explicit scene precompile also registers
-      // offscreen variants whose program handles can outlive a replaced world.
-      povPost.render(renderer, scene, camera);
-      trace?.markFirstUsableFrame();
-    } catch (error) {
-      warmupError = error;
-    }
-    try {
-      world.setPickupEffectsWarmupVisible(false);
-    } catch (error) {
-      if (warmupError === null) warmupError = error;
-    } finally {
-      window.clearTimeout(failsafe);
-    }
+    void (async () => {
+      if (!isCurrentRendererWarmup(sequence, trace)) {
+        window.clearTimeout(failsafe);
+        finishDungeonLoadTrace(trace, "superseded");
+        return;
+      }
+      let warmupError: unknown = null;
+      let warmupWorkMs = 0;
+      try {
+        if (renderCaps.allowAsyncShaderWarmup && renderCaps.canCompileAsync) {
+          // Compile one resident floor at a time and yield while the cover is up.
+          // Do not reveal dormant pickup variants: their program handles may
+          // outlive a replaced world.
+          warmupWorkMs += await compileRendererWarmupBatches();
+          if (!isCurrentRendererWarmup(sequence, trace) || renderWarmupReady) return;
+          const postFxStartedAt = performance.now();
+          povPost.warmup(renderer, scene, camera);
+          warmupWorkMs += performance.now() - postFxStartedAt;
+        } else {
+          // Firefox, safe-render, and unsupported WebGL retain the established
+          // single live draw path.
+          const drawStartedAt = performance.now();
+          povPost.render(renderer, scene, camera);
+          warmupWorkMs += performance.now() - drawStartedAt;
+        }
+        trace?.markFirstUsableFrame();
+      } catch (error) {
+        warmupError = error;
+      }
+      try {
+        world.setPickupEffectsWarmupVisible(false);
+      } catch (error) {
+        if (warmupError === null) warmupError = error;
+      } finally {
+        window.clearTimeout(failsafe);
+      }
 
-    if (warmupError !== null) {
-      const detail = warmupError instanceof Error ? warmupError.message : "unknown error";
-      markRendererWarmupReady(sequence, "error", readyMessage, detail, undefined, trace);
-      return;
-    }
-    markRendererWarmupReady(
-      sequence,
-      "true",
-      readyMessage,
-      undefined,
-      Math.round(performance.now() - startedAt),
-      trace,
-    );
+      if (!isCurrentRendererWarmup(sequence, trace) || renderWarmupReady) return;
+      const roundedWarmupWorkMs = Math.round(warmupWorkMs);
+      trace?.recordWarmupWorkMs(roundedWarmupWorkMs);
+      if (warmupError !== null) {
+        const detail = warmupError instanceof Error ? warmupError.message : "unknown error";
+        markRendererWarmupReady(sequence, "error", readyMessage, detail, undefined, trace);
+        return;
+      }
+      markRendererWarmupReady(
+        sequence,
+        "true",
+        readyMessage,
+        undefined,
+        roundedWarmupWorkMs,
+        trace,
+      );
+    })();
   });
 }
 
@@ -1967,7 +2038,11 @@ function applyPersistedRunSession(plan: RunResumeActivationPlan): void {
   playStatusHud.reset();
   syncPlayStatusHud();
   syncRunTimer();
-  controller.setSolidColliders(world.getSolidColliders());
+  controller.setSolidColliders(
+    world.getSolidColliders(),
+    world.getSupportHeightfields(),
+    world.getSupportTreads(),
+  );
   elements.shell.dataset.mode = state.runMode;
   elements.shell.dataset.relic = String(state.quest.portalOpen);
   elements.shell.dataset.stones = String(state.quest.stonesFound);
@@ -2014,10 +2089,15 @@ function setOptionsOpen(
   elements.optionsCard.setAttribute("aria-modal", "true");
   elements.optionsTitle.textContent = open ? "Paused" : "Play";
   if (open) {
+    controller.setEnabled(false);
     controller.releasePointerLock();
     audio.setPaused(true);
     elements.optionsResume.focus();
   } else {
+    // Pause and the CRT Lab can both leave the controller disabled. Re-arm it
+    // before any caller attempts pointer lock; requestPointerLock intentionally
+    // no-ops while disabled.
+    controller.setEnabled(canEnablePlayController());
     audio.setPaused(
       elements.displayPostFxLab.open || (!controller.getState().locked && !touchSessionActive),
     );
@@ -2026,7 +2106,6 @@ function setOptionsOpen(
 
 function setDisplayPostFxLabOpen(open: boolean, restoreFocus = true): void {
   const nextOpen = localDevTools && engineMode === "play" && open;
-  const focusWasInside = elements.displayPostFxLab.contains(document.activeElement);
   elements.displayPostFxLab.open = nextOpen;
   elements.shell.dataset.displayLabOpen = String(nextOpen);
 
@@ -2039,15 +2118,19 @@ function setDisplayPostFxLabOpen(open: boolean, restoreFocus = true): void {
     audio.setPaused(true);
     syncDisplayPostFxLabUi();
     window.requestAnimationFrame(() => elements.displayPostFxPreset.focus());
-    setStatus("Display Lab live · gameplay paused while tuning.");
+    setStatus("CRT Lab live · gameplay paused while tuning.");
     return;
   }
 
   controller.setEnabled(canEnablePlayController());
   audio.setPaused(!controller.getState().locked && !touchSessionActive);
-  if (restoreFocus && focusWasInside) elements.displayPostFxSummary.focus();
+  if (restoreFocus) elements.scene.focus();
   if (restoreFocus && engineMode === "play") {
-    setStatus("Display Lab closed. Click the scene to continue.");
+    // Closing from the Lab summary or keyboard is a user gesture, so resume
+    // immediately where the browser permits it. Escape may still be rejected;
+    // the enabled controller keeps the following scene click as a valid retry.
+    controller.requestPointerLock();
+    if (!controller.getState().locked) setStatus("CRT Lab closed. Click the scene to continue.");
   }
 }
 
@@ -2632,11 +2715,15 @@ function applyCameraSettings(): void {
 function updateResolve(): void {
   const clamped = THREE.MathUtils.clamp(playRuntime.state().resolve, 0, 100);
   const shown = Math.ceil(clamped);
+  const low = clamped <= 30;
+  const key = `${shown}|${low ? 1 : 0}`;
+  if (key === lastResolveHudKey) return;
+  lastResolveHudKey = key;
   const fill = `${clamped}%`;
   elements.resolveValue.value = String(shown);
   // --fill drives liquid height + meniscus on the orb root.
   elements.healthOrb.style.setProperty("--fill", fill);
-  elements.healthOrb.classList.toggle("is-low", clamped <= 30);
+  elements.healthOrb.classList.toggle("is-low", low);
   elements.healthOrb.setAttribute("aria-valuenow", String(shown));
   elements.healthOrb.setAttribute("aria-valuetext", `${shown} health`);
 }
@@ -2700,6 +2787,7 @@ function drawMap(force = false): void {
     viewport: minimapViewport,
     explored: exploration.explored,
     playerYaw: player.lookYaw,
+    staticLayerKey: exploration.exploredCount,
   });
 }
 
@@ -2935,6 +3023,7 @@ function publishMapLoadTelemetry(metrics: {
   geometries: number;
   textures: number;
   programs: number;
+  residentFloorCount: number;
 }): void {
   const dataset = elements.scene.dataset;
   dataset.mapLoadMs = String(Math.round(metrics.clearToReadyMs));
@@ -2946,6 +3035,7 @@ function publishMapLoadTelemetry(metrics: {
   dataset.mapLoadGeometries = String(metrics.geometries);
   dataset.mapLoadTextures = String(metrics.textures);
   dataset.mapLoadPrograms = String(metrics.programs);
+  dataset.residentFloorCount = String(metrics.residentFloorCount);
   if (localDevTools || launchConfig.performanceAudit) {
     console.info("[map-load]", metrics);
   }
@@ -2957,6 +3047,16 @@ function publishDungeonLoadTrace(snapshot: DungeonLoadTraceSnapshot): void {
   dataset.dungeonLoadState = snapshot.terminal;
   dataset.dungeonLoadTerminal = snapshot.terminal;
   dataset.dungeonLoadTrace = JSON.stringify(snapshot);
+  if (snapshot.warmupWaitMs !== null) {
+    dataset.warmupWaitMs = String(Math.round(snapshot.warmupWaitMs));
+  } else {
+    delete dataset.warmupWaitMs;
+  }
+  if (snapshot.warmupWorkMs !== null) {
+    dataset.warmupWorkMs = String(Math.round(snapshot.warmupWorkMs));
+  } else {
+    delete dataset.warmupWorkMs;
+  }
   console.info("[dungeon-load]", snapshot);
 }
 
@@ -3106,7 +3206,16 @@ async function activateDungeon(
   if (trace && !dungeonLoadTraces.isActive(trace)) return getRuntimeState();
   controller.setDungeon(dungeon);
   controller.setBlockedCells([]);
-  controller.setSolidColliders(world.getSolidColliders());
+  trace?.begin("colliderIndex");
+  try {
+    controller.setSolidColliders(
+      world.getSolidColliders(),
+      world.getSupportHeightfields(),
+      world.getSupportTreads(),
+    );
+  } finally {
+    trace?.end("colliderIndex");
+  }
   if (options.restore) {
     applyRunResumePlan(options.restore);
     const restoredPlayer = controller.getState().position;
@@ -3137,6 +3246,7 @@ async function activateDungeon(
   hitTrauma = 0;
   exhaustionTrauma = 0;
   lastStaminaHudKey = "";
+  lastResolveHudKey = "";
   updateStaminaHud(1, false, false);
   povFeel.reset();
   lastPortalBanner = state.quest.portalOpen;
@@ -3177,6 +3287,7 @@ async function activateDungeon(
     geometries: renderer.info.memory.geometries,
     textures: renderer.info.memory.textures,
     programs: renderer.info.programs?.length ?? 0,
+    residentFloorCount: campaignFloorSet?.count ?? nextDungeon.floor?.count ?? 1,
   });
   startRendererWarmup(warmupSequence, message, trace);
   if (persistBuild) {
@@ -3353,7 +3464,11 @@ function selectEditorSpawn(cell: { x: number; y: number }): void {
   atmosphere.setDungeon(dungeon, mood);
   controller.setDungeon(dungeon);
   controller.setBlockedCells([]);
-  controller.setSolidColliders(world.getSolidColliders());
+  controller.setSolidColliders(
+    world.getSolidColliders(),
+    world.getSupportHeightfields(),
+    world.getSupportTreads(),
+  );
   editorView.setDungeon(dungeon, mood);
   editorView.setSpawn(cell);
   elements.editorCell.textContent = `SPAWN ${formatCell(cell)} · EXIT ${formatCell(dungeon.exit)}`;
@@ -3812,6 +3927,7 @@ function publishPerformanceDiagnostics(now: number): void {
   dataset.renderPrograms = String(renderer.info.programs?.length ?? 0);
   dataset.renderDpr = renderer.getPixelRatio().toFixed(2);
   dataset.worldLights = String(world.stats.lights);
+  dataset.residentFloorCount = String(campaignFloorSet?.count ?? dungeon?.floor?.count ?? 1);
   if (launchConfig.performanceAudit) {
     dataset.renderInventory = JSON.stringify(collectVisibleRenderInventory(scene, camera));
   }
@@ -4367,21 +4483,7 @@ function syncCrtToggleUi(): void {
   elements.crtToggle.title = crtEnabled ? "Turn CRT off" : "Turn CRT on";
 }
 
-function syncPaletteEffectUi(): void {
-  const ditherPercent = Math.round(userSettings.paletteDitherStrength * 100);
-  elements.paletteEffectSelect.value = userSettings.paletteEffect;
-  elements.paletteDither.value = String(ditherPercent);
-  elements.paletteDitherValue.value = `${ditherPercent}%`;
-  elements.paletteDither.disabled = userSettings.paletteEffect === "off";
-  povPost.setPaletteEffect(userSettings.paletteEffect, userSettings.paletteDitherStrength);
-}
-
 const DISPLAY_TUNING_FIELDS = [
-  "paletteDitherScale",
-  "paletteShadowGuard",
-  "paletteFlatGuard",
-  "paletteDetailBoost",
-  "paletteLightnessBias",
   "halation",
   "persistence",
   "scanlines",
@@ -4389,7 +4491,7 @@ const DISPLAY_TUNING_FIELDS = [
   "brightness",
   "curvatureScale",
   "grainScale",
-] as const satisfies readonly Exclude<keyof DisplayPostFxTuning, "paletteStage">[];
+] as const satisfies readonly (keyof DisplayPostFxTuning)[];
 type DisplayTuningField = (typeof DISPLAY_TUNING_FIELDS)[number];
 
 function isDisplayTuningField(value: string | undefined): value is DisplayTuningField {
@@ -4397,17 +4499,7 @@ function isDisplayTuningField(value: string | undefined): value is DisplayTuning
 }
 
 function displayTuningLabel(field: DisplayTuningField, value: number): string {
-  if (field === "paletteLightnessBias") {
-    const percent = Math.round(value * 100);
-    return `${percent > 0 ? "+" : ""}${percent}% L`;
-  }
-  return field === "brightness" ||
-    field === "curvatureScale" ||
-    field === "grainScale" ||
-    field === "paletteDitherScale" ||
-    field === "paletteShadowGuard" ||
-    field === "paletteFlatGuard" ||
-    field === "paletteDetailBoost"
+  return field === "brightness" || field === "curvatureScale" || field === "grainScale"
     ? `${value.toFixed(2)}×`
     : `${Math.round(value * 100)}%`;
 }
@@ -4415,9 +4507,6 @@ function displayTuningLabel(field: DisplayTuningField, value: number): string {
 function currentDisplayPostFxConfig(): string {
   return JSON.stringify(
     {
-      paletteEffect: userSettings.paletteEffect,
-      paletteDitherStrength: userSettings.paletteDitherStrength,
-      paletteProfile: palettePostEffectProfile(userSettings.paletteEffect),
       crtEnabled,
       tuning: displayPostFxTuning,
     },
@@ -4432,7 +4521,6 @@ function persistDisplayPostFxTuning(): void {
 
 function syncDisplayPostFxLabUi(presetId = "custom"): void {
   elements.displayPostFxPreset.value = presetId;
-  elements.displayPaletteStage.value = displayPostFxTuning.paletteStage;
   for (const input of elements.displayTuningInputs) {
     const field = input.dataset.displayTuning;
     if (!isDisplayTuningField(field)) continue;
@@ -4459,10 +4547,6 @@ function applyDisplayPostFxPreset(presetId: string): void {
   const preset = displayPostFxPreset(presetId);
   if (!preset) return;
   displayPostFxTuning = { ...preset.tuning };
-  updateUserSettings({
-    paletteEffect: preset.paletteEffect,
-    paletteDitherStrength: preset.paletteDitherStrength,
-  });
   if (!crtEnabled) {
     crtEnabled = true;
     crtManualOverride = true;
@@ -4471,7 +4555,6 @@ function applyDisplayPostFxPreset(presetId: string): void {
     syncCrtToggleUi();
   }
   persistDisplayPostFxTuning();
-  syncPaletteEffectUi();
   syncDisplayPostFxLabUi(preset.id);
   setStatus(`${preset.label} applied.`);
 }
@@ -4479,7 +4562,6 @@ function applyDisplayPostFxPreset(presetId: string): void {
 // Apply capability default before first paint (toggle reflects Firefox/low-end path).
 povPost.setCrtEnabled(crtEnabled);
 syncCrtToggleUi();
-syncPaletteEffectUi();
 syncDisplayPostFxLabUi();
 syncAudioToggleUi();
 syncVolumeControl(elements.musicVolume, elements.musicVolumeValue, userSettings.musicVolume);
@@ -4495,39 +4577,14 @@ elements.crtToggle.addEventListener("click", () => {
   markDisplayPostFxCustom();
   setStatus(crtEnabled ? "CRT on." : "CRT off.");
 });
-elements.paletteEffectSelect.addEventListener("change", () => {
-  const paletteEffect = normalizePalettePostEffectId(elements.paletteEffectSelect.value);
-  const profile = palettePostEffectProfile(paletteEffect);
-  updateUserSettings({
-    paletteEffect,
-    ...(profile ? { paletteDitherStrength: profile.recommendedDitherStrength } : {}),
-  });
-  syncPaletteEffectUi();
-  markDisplayPostFxCustom();
-  setStatus(paletteEffect === "off" ? "Color palette off." : "Color palette changed.");
-});
-elements.paletteDither.addEventListener("input", () => {
-  const paletteDitherStrength = Number(elements.paletteDither.value) / 100;
-  updateUserSettings({ paletteDitherStrength });
-  syncPaletteEffectUi();
-  markDisplayPostFxCustom();
-});
-elements.paletteDither.addEventListener("change", () => playCue("uiTick"));
+
+elements.displayPostFxLaunch.addEventListener("click", () => setDisplayPostFxLabOpen(true));
 elements.displayPostFxSummary.addEventListener("click", (event) => {
   event.preventDefault();
   setDisplayPostFxLabOpen(!elements.displayPostFxLab.open);
 });
 elements.displayPostFxPreset.addEventListener("change", () => {
   applyDisplayPostFxPreset(elements.displayPostFxPreset.value);
-});
-elements.displayPaletteStage.addEventListener("change", () => {
-  if (!localDevTools) return;
-  displayPostFxTuning = normalizeDisplayPostFxTuning({
-    ...displayPostFxTuning,
-    paletteStage: elements.displayPaletteStage.value,
-  });
-  persistDisplayPostFxTuning();
-  syncDisplayPostFxLabUi();
 });
 for (const input of elements.displayTuningInputs) {
   input.addEventListener("input", () => {
@@ -4552,8 +4609,8 @@ elements.displayPostFxCopy.addEventListener("click", () => {
   elements.displayPostFxConfig.value = config;
   void navigator.clipboard
     ?.writeText(config)
-    .then(() => setStatus("Display configuration copied."))
-    .catch(() => setStatus("Copy failed. Select the display configuration manually."));
+    .then(() => setStatus("CRT configuration copied."))
+    .catch(() => setStatus("Copy failed. Select the CRT configuration manually."));
 });
 elements.displayPostFxReset.addEventListener("click", () => {
   applyDisplayPostFxPreset("balanced");
@@ -4734,6 +4791,14 @@ let appDisposed = false;
 let animationFrameId = 0;
 let threeFrameCount = 0;
 let threeRenderCount = 0;
+const locomotionModsScratch = {
+  invertLook: false,
+  invertMove: false,
+  yawBias: 0,
+  sensitivityScale: 1,
+  slowActive: false,
+  mobilityActive: false,
+};
 
 function shouldRunThreeRenderLoop(): boolean {
   return shouldRunGameRenderLoop({
@@ -4769,7 +4834,7 @@ function frame(now: number): void {
   if (!shouldRunThreeRenderLoop()) return;
   animationFrameId = requestAnimationFrame(frame);
   threeFrameCount += 1;
-  renderer.info.reset();
+  if (launchConfig.performanceAudit || engineMode === "debug") renderer.info.reset();
   const rawFrameGapMs = now - lastFrameMs;
   const delta = Math.min(Math.max(0, rawFrameGapMs / 1000), 0.05);
   lastFrameMs = now;
@@ -4782,12 +4847,15 @@ function frame(now: number): void {
   );
   controller.setCriticalMovementDrift(criticalHealth.movementDrift);
   controller.setLocomotionMods(
-    projectLocomotionMods({
-      mirrorCurseRemaining: world.mirrorCurseRemaining,
-      spinCurseRemaining: world.spinCurseRemaining,
-      slowCurseRemaining: world.slowCurseRemaining,
-      mobilityBoostRemaining: world.mobilityBoostRemaining,
-    }),
+    projectLocomotionMods(
+      {
+        mirrorCurseRemaining: world.mirrorCurseRemaining,
+        spinCurseRemaining: world.spinCurseRemaining,
+        slowCurseRemaining: world.slowCurseRemaining,
+        mobilityBoostRemaining: world.mobilityBoostRemaining,
+      },
+      locomotionModsScratch,
+    ),
   );
   const result = controller.update(delta);
   const player = controller.getState();
@@ -4843,6 +4911,7 @@ function frame(now: number): void {
   if (simulationActive && now >= profileWarmupUntil) frameGapProfiler.record(rawFrameGapMs);
   if (!simulationActive) elements.interactionPrompt.hidden = true;
   const pausedFlag = String(!simulationActive);
+  let playStatusHudRemaining: Parameters<typeof syncPlayStatusHud>[0] | undefined;
   if (pausedFlag !== lastPaused) {
     lastPaused = pausedFlag;
     elements.shell.dataset.paused = pausedFlag;
@@ -4859,7 +4928,7 @@ function frame(now: number): void {
     uiInteractQueued = false;
     const { worldUpdate, effects, state } = step;
     if (worldUpdate) {
-      syncPlayStatusHud({
+      playStatusHudRemaining = {
         timeFreeze: worldUpdate.timeFreezeRemaining,
         luminousWard: worldUpdate.luminousWardRemaining,
         annihilationPulse: worldUpdate.annihilationPulseRemaining,
@@ -4873,16 +4942,19 @@ function frame(now: number): void {
         swarm: worldUpdate.swarmCurseActive,
         mirror: worldUpdate.mirrorCurseRemaining,
         spin: worldUpdate.spinCurseRemaining,
-      });
+      };
       syncBiomeEvent(worldUpdate.biomeEvent);
       floorExploration.setMapRevealed(worldUpdate.mapRevealed);
       controller.setLocomotionMods(
-        projectLocomotionMods({
-          mirrorCurseRemaining: worldUpdate.mirrorCurseRemaining,
-          spinCurseRemaining: worldUpdate.spinCurseRemaining,
-          slowCurseRemaining: worldUpdate.slowCurseRemaining,
-          mobilityBoostRemaining: worldUpdate.mobilityBoostRemaining,
-        }),
+        projectLocomotionMods(
+          {
+            mirrorCurseRemaining: worldUpdate.mirrorCurseRemaining,
+            spinCurseRemaining: worldUpdate.spinCurseRemaining,
+            slowCurseRemaining: worldUpdate.slowCurseRemaining,
+            mobilityBoostRemaining: worldUpdate.mobilityBoostRemaining,
+          },
+          locomotionModsScratch,
+        ),
       );
       controller.setSurfaceMovement(
         worldUpdate.surfaceEffect.movementScale,
@@ -4976,7 +5048,7 @@ function frame(now: number): void {
       currentThreatDistance = worldUpdate.nearestThreat;
     }
   }
-  syncPlayStatusHud();
+  syncPlayStatusHud(playStatusHudRemaining);
   syncRunTimer();
 
   damageTimer = Math.max(0, damageTimer - delta);
@@ -5109,7 +5181,7 @@ function frame(now: number): void {
     drawMap();
     lastMapDraw = now;
     localRunSave.schedule();
-  } else if (now - lastMapDraw > 220) {
+  } else if (now - lastMapDraw > 350) {
     drawMap();
     lastMapDraw = now;
   }

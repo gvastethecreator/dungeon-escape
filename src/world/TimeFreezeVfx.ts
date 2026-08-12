@@ -101,6 +101,7 @@ export class TimeFreezeVfx {
       }),
     );
     this.motes.name = "Time freeze body motes";
+    // Player-attached body motes; camera-relative, so cull would hide the buff.
     this.motes.frustumCulled = false;
     this.motes.renderOrder = 3;
     this.root.add(this.motes);

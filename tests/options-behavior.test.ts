@@ -2,33 +2,38 @@ import { describe, expect, test } from "bun:test";
 
 describe("pause options behavior", () => {
   test("exposes persistent volume and texture controls", async () => {
-    const html = await Bun.file(new URL("../index.html", import.meta.url)).text();
-    const main = await Bun.file(new URL("../src/main.ts", import.meta.url)).text();
+    const [html, main, styles] = await Promise.all([
+      Bun.file(new URL("../index.html", import.meta.url)).text(),
+      Bun.file(new URL("../src/main.ts", import.meta.url)).text(),
+      Bun.file(new URL("../src/styles.css", import.meta.url)).text(),
+    ]);
     expect(html).toContain('id="music-volume"');
     expect(html).toContain('id="effects-volume"');
     expect(html).toContain('id="texture-smoothing-toggle"');
-    expect(html).toContain('id="palette-effect"');
-    expect(html).toContain('id="palette-dither"');
     expect(html).toContain('id="display-post-fx-lab"');
     expect(html).toContain('id="display-post-fx-layer"');
-    expect(html).toContain('id="display-palette-stage"');
+    expect(html).toContain('id="display-post-fx-launch"');
     expect(html).toContain('data-display-tuning="halation"');
     expect(html).toContain('data-display-tuning="phosphorMask"');
-    expect(html).toContain('data-display-tuning="paletteShadowGuard"');
-    expect(html).toContain('data-display-tuning="paletteFlatGuard"');
-    expect(html).toContain('data-display-tuning="paletteDetailBoost"');
+    expect(html).not.toContain('id="palette-effect"');
+    expect(html).not.toContain('id="palette-dither"');
+    expect(html).not.toContain('data-display-tuning="paletteBlend"');
+    expect(html).not.toContain('data-display-tuning="paletteDitherScale"');
     expect(html).toContain('id="display-post-fx-copy"');
     expect(html).toContain('id="display-post-fx-reset"');
     expect(main).toContain("audio.setMusicVolume(userSettings.musicVolume)");
     expect(main).toContain("audio.setEffectsVolume(userSettings.effectsVolume)");
     expect(main).toContain("textureRegistry.setSmoothing(textureSmoothing)");
     expect(main).toContain("textureRegistry.diagnostics().registered");
-    expect(main).toContain("povPost.setPaletteEffect(");
-    expect(main).toContain("paletteDitherStrength: profile.recommendedDitherStrength");
-    expect(main).toContain("updateUserSettings({ paletteDitherStrength })");
+    expect(main).not.toContain("setPaletteEffect(");
+    expect(main).not.toContain("paletteDitherStrength");
+    expect(main).not.toContain("palettePostEffectProfile");
     expect(main).toContain("povPost.setDisplayTuning(displayPostFxTuning)");
     expect(main).toContain("elements.displayPostFxLayer.append(elements.displayPostFxLab)");
     expect(main).toContain("elements.shell.dataset.displayLabOpen = String(nextOpen)");
+    expect(main).toContain('elements.displayPostFxLaunch.addEventListener("click"');
+    expect(styles).toContain('[data-display-lab-open="true"]');
+    expect(styles).toContain(".display-post-fx-lab:not([open]) > summary");
     expect(main).toContain("if (!localDevTools) return;");
     expect(main).toContain("writeDisplayPostFxTuning(displayPostFxTuning)");
     expect(main).not.toContain("applyTextureSmoothing(");
@@ -78,6 +83,33 @@ describe("pause options behavior", () => {
     );
     expect(onLock).toContain("!suppressPauseOnPointerUnlock");
     expect(onLock).toContain("setStatus(COPY.status.pointerFailed)");
+  });
+
+  test("re-arms gameplay input before pause and CRT Lab request pointer lock", async () => {
+    const main = await Bun.file(new URL("../src/main.ts", import.meta.url)).text();
+    const options = main.slice(
+      main.indexOf("function setOptionsOpen("),
+      main.indexOf("function setDisplayPostFxLabOpen("),
+    );
+    const lab = main.slice(
+      main.indexOf("function setDisplayPostFxLabOpen("),
+      main.indexOf("function clearTouchSession("),
+    );
+    const resume = main.slice(
+      main.indexOf("function resumePlay("),
+      main.indexOf("let mapRebuildPending"),
+    );
+
+    expect(options).toContain("controller.setEnabled(false);");
+    expect(options.indexOf("controller.setEnabled(canEnablePlayController());")).toBeGreaterThan(
+      options.indexOf("} else {"),
+    );
+    expect(lab.indexOf("controller.setEnabled(canEnablePlayController());")).toBeLessThan(
+      lab.indexOf("controller.requestPointerLock();"),
+    );
+    expect(resume.indexOf("setOptionsOpen(false);")).toBeLessThan(
+      resume.indexOf("controller.requestPointerLock();"),
+    );
   });
 
   test("auto-saves a completed campaign with the persisted player identity", async () => {

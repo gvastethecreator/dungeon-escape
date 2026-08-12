@@ -133,7 +133,8 @@ describe("image-sculpted hanging model set v2", () => {
     const materials = createDungeonMaterials();
     for (const family of ACCEPTED_HANGING) {
       const root = createImageSculptedHanging(family, materials, 2.4, 0);
-      assertRuntimeContract(root, family, "hanging", 3000);
+      const maximumTriangles = family === "hanging-chain" ? 700 : 3000;
+      assertRuntimeContract(root, family, "hanging", maximumTriangles);
       expect(root.userData.sculptRuntime.origin).toBe("ceiling-mount");
       expect(new THREE.Box3().setFromObject(root).max.y).toBeLessThanOrEqual(0.08);
     }
@@ -150,7 +151,7 @@ describe("image-sculpted hanging model set v2", () => {
       ["root-cluster", "Angular crossing crown root", 5],
       ["root-cluster", "Joined bifurcated hanging root", 3],
       ["root-cluster", "Attached moss clump", 3],
-      ["hanging-chain", "Alternating rectangular forged chain link", 9],
+      ["hanging-chain", "Alternating rectangular forged chain link", 6],
       ["hanging-vine", "Attached vine tendril", 3],
       ["hanging-vine", "Pointed low-poly vine leaf", 3],
     ];
@@ -403,21 +404,23 @@ describe("image-sculpted ambient model set v2", () => {
 });
 
 describe("image-sculpted hanging chain form", () => {
-  test("uses nine overlapping low-poly loops with alternating readable orientations", () => {
+  test("uses six overlapping lean loops with alternating readable orientations", () => {
     const chain = createImageSculptedHanging("hanging-chain", createDungeonMaterials(), 2.4, 0);
     const links = chain.getObjectsByProperty(
       "name",
       "Alternating rectangular forged chain link",
     ) as THREE.Mesh[];
-    expect(links).toHaveLength(9);
+    expect(links).toHaveLength(6);
     expect(chain.getObjectByName("Blackened iron ceiling plate")).toBeDefined();
     expect(chain.getObjectByName("Heavy round open chain hook")).toBeDefined();
     expect(chain.getObjectByName("Heavy forged mount neck")).toBeDefined();
-    expect(chain.getObjectsByProperty("name", "Forged link weld collar")).toHaveLength(9);
+    // Weld collars were dropped for PERF-36; silhouette stays in the links.
+    expect(chain.getObjectsByProperty("name", "Forged link weld collar")).toHaveLength(0);
+    expect(chain.userData.sculptRuntime.geometry.triangles).toBeLessThanOrEqual(600);
     for (let index = 0; index < links.length; index += 1) {
       const link = links[index]!;
       expect(link.geometry).toBeInstanceOf(THREE.ExtrudeGeometry);
-      expect(link.geometry.userData.linkProfile).toBe("rectangular-chamfered");
+      expect(link.geometry.userData.linkProfile).toBe("rectangular-lean");
       expect(link.userData.interlocked).toBe(true);
       expect(link.userData.chainOrientation).toBe(index % 2 === 0 ? "front" : "cross");
       const size = new THREE.Box3().setFromObject(link).getSize(new THREE.Vector3());

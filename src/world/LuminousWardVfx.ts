@@ -297,6 +297,7 @@ export class LuminousWardVfx {
     this.shield.name = "Luminous ward protective shell";
     this.shield.position.y = 0.08;
     this.shield.renderOrder = 2;
+    // Shield tracks the player; cull would hide an on-screen ward.
     this.shield.frustumCulled = false;
 
     this.moteData = Array.from({ length: WARD_PARTICLE_COUNT }, (_, index) => {
@@ -349,6 +350,7 @@ export class LuminousWardVfx {
     );
     this.motes.name = "Luminous ward floating motes";
     this.motes.renderOrder = 4;
+    // Motes orbit the player; keep drawable regardless of world bounds.
     this.motes.frustumCulled = false;
 
     const trailGeometry = new THREE.BufferGeometry();
@@ -401,6 +403,7 @@ export class LuminousWardVfx {
     this.trails = new THREE.Points(trailGeometry, trailMaterial);
     this.trails.name = "Luminous ward motion trails";
     this.trails.renderOrder = 3;
+    // Motion trails follow the ward root on the player.
     this.trails.frustumCulled = false;
 
     this.root.add(

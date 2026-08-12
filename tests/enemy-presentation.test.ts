@@ -148,4 +148,68 @@ describe("EnemyPresentation", () => {
     expect(scale.x).toBeGreaterThan(0);
     expect(scale.y).toBeGreaterThan(0);
   });
+
+  test("uploads only changed billboard batches while staggering idle shadows", () => {
+    const billboard = new THREE.InstancedMesh(
+      new THREE.PlaneGeometry(1, 1),
+      new THREE.MeshStandardMaterial(),
+      1,
+    );
+    const shadow = new THREE.InstancedMesh(
+      new THREE.PlaneGeometry(1, 1),
+      new THREE.MeshBasicMaterial(),
+      1,
+    );
+    const visibility = new THREE.InstancedBufferAttribute(new Float32Array(1), 1);
+    const actor = {
+      kind: "goblin" as const,
+      position: new THREE.Vector3(),
+      batch: billboard,
+      shadowBatch: shadow,
+      instanceIndex: 0,
+      shadowInstanceIndex: 0,
+      hitCooldown: 0,
+      baseY: 0,
+      baseScale: new THREE.Vector2(1, 1),
+      phase: 0,
+      attackPulse: 0,
+      scaleX: 1,
+      scaleY: 1,
+      roll: 0,
+      yaw: 0,
+      phaseEpoch: 0,
+      phaseVisibility: 1,
+      spawnReveal: 1,
+      startsActive: true,
+      moving: false,
+      visibilityAttribute: visibility,
+      tier: 0,
+      defeated: false,
+    };
+    const presentation = new EnemyPresentation();
+    const frame = {
+      actors: [actor],
+      billboardBatches: new Set([billboard]),
+      shadowBatches: new Set([shadow]),
+      visibilityAttributes: new Set([visibility]),
+      animationBatches: new Map(),
+      animationElapsed: 0,
+      revealSeconds: 1,
+      frozen: true,
+      player: new THREE.Vector3(0, 0, 1),
+      delta: 0,
+      moodId: "ash",
+      trail: null,
+    };
+
+    presentation.update(frame);
+    const billboardVersion = billboard.instanceMatrix.version;
+    const shadowVersion = shadow.instanceMatrix.version;
+    const visibilityVersion = visibility.version;
+    presentation.update(frame);
+
+    expect(billboard.instanceMatrix.version).toBe(billboardVersion);
+    expect(visibility.version).toBe(visibilityVersion);
+    expect(shadow.instanceMatrix.version).toBe(shadowVersion);
+  });
 });

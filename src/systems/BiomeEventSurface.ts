@@ -33,6 +33,7 @@ export function composeHazardWithBiomeEvent<T extends ComposableHazardSurface>(
 ): T {
   const damageScale = Number.isFinite(event.hazardDamageScale) ? event.hazardDamageScale : 1;
   const movementScale = Number.isFinite(event.movementScale) ? event.movementScale : 1;
+  if (damageScale === 1 && movementScale === 1) return surface;
   return {
     ...surface,
     damage: surface.damage * damageScale,

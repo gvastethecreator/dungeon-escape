@@ -1,7 +1,7 @@
 {
-  "current_commit": "81eb7e8cd564ea0cf06e09eaa11836f121095af9",
+  "current_commit": "c408d501786581ca1bf17fb3b8d93b7283f20732",
   "working_tree_dirty": true,
-  "generated_at": "2026-08-11T21:30:27Z",
+  "generated_at": "2026-08-12T00:31:07Z",
   "scanned_scope": [
     "."
   ],
@@ -32,7 +32,7 @@
       "id": ".",
       "path": ".",
       "file_count": 17,
-      "fingerprint": "2fc2a345413b7dca876af8aaf4d6052f05d4236d99a6853ca96933f09d5f956b"
+      "fingerprint": "c02184f3afcc25976ec5d040d289ec4d23508f69f8e7cb26accf12d2565ad323"
     },
     {
       "id": ".github",
@@ -110,7 +110,7 @@
       "id": "docs",
       "path": "docs",
       "file_count": 42,
-      "fingerprint": "f13255868acf5f0bfcdb2d4f9bc0284b0a2be520616a237fa38d513775c3560d"
+      "fingerprint": "9ea5a1a943833103cd781a671cc6fd3aec32f379acd9e0537684b519e11028c0"
     },
     {
       "id": "migrations",
@@ -128,7 +128,7 @@
       "id": "scripts",
       "path": "scripts",
       "file_count": 63,
-      "fingerprint": "0eae002fea6141d4d4da38b7e85e9a1655eae8615f817c00c89a771342db36da"
+      "fingerprint": "b1223713bec77e1aeeb0e86c4541b1e44eb71e4143c7566bcb4841a2e96a2351"
     },
     {
       "id": "server",
@@ -139,14 +139,14 @@
     {
       "id": "src",
       "path": "src",
-      "file_count": 231,
-      "fingerprint": "8ec013fc598bf04f610289606c17871e1b82c33856fe0c094f478e2527f77789"
+      "file_count": 233,
+      "fingerprint": "c97bb3875fa2c254e8451efd6ace948a05a3c19bfcf58fd4231a1bfbc59530d7"
     },
     {
       "id": "tests",
       "path": "tests",
-      "file_count": 207,
-      "fingerprint": "5aa674a85e25cf0372de302659e058194442bc8feb018fee2b7abd79154656e5"
+      "file_count": 209,
+      "fingerprint": "a075d861cb8da08d1f1f7bbb81f0e277a379c6a6cf69c011308c2a0932beab50"
     },
     {
       "id": "worker",

@@ -34,7 +34,7 @@ import {
 
 function trace(overrides: Partial<DungeonLoadTraceSnapshot> = {}): DungeonLoadTraceSnapshot {
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     loadId: "load-1",
     terminal: "complete",
     terminalDetail: null,
@@ -48,6 +48,8 @@ function trace(overrides: Partial<DungeonLoadTraceSnapshot> = {}): DungeonLoadTr
     atmosphere: null,
     editorProjection: null,
     warmup: { startedAtMs: 10, endedAtMs: 17, durationMs: 7 },
+    warmupWaitMs: 7,
+    warmupWorkMs: 2,
     firstUsableFrame: { atMs: 15 },
     inputReady: { atMs: 17 },
     ...overrides,

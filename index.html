@@ -787,52 +787,20 @@
               <span class="options-toggle__label">CRT</span>
               <span class="options-toggle__value" data-toggle-value>ON</span>
             </button>
-            <div class="options-volume-grid options-palette-grid">
-              <label class="options-volume options-palette" for="palette-effect">
-                <span>Color palette</span>
-                <select id="palette-effect" aria-label="Limit the game color palette">
-                  <option value="off">Original colors</option>
-                  <option value="game-boy-olive">Game Boy Olive</option>
-                  <option value="cga-0-high">CGA 0 High</option>
-                  <option value="ega-16">EGA 16</option>
-                  <option value="commodore-64">Commodore 64</option>
-                  <option value="pico-8">PICO-8</option>
-                  <option value="zx-spectrum">ZX Spectrum</option>
-                </select>
-              </label>
-              <label class="options-volume" for="palette-dither">
-                <span>Dithering</span>
-                <output id="palette-dither-value" for="palette-dither">72%</output>
-                <input id="palette-dither" type="range" min="0" max="100" step="4" value="72" />
-              </label>
-            </div>
           </fieldset>
 
           <details id="display-post-fx-lab" class="display-post-fx-lab" data-local-dev-only="true">
             <summary id="display-post-fx-summary" aria-controls="display-post-fx-body">
-              <span><kbd>L</kbd> · DISPLAY LAB</span>
+              <span><kbd>L</kbd> · CRT LAB</span>
               <small>LOCAL</small>
             </summary>
             <div id="display-post-fx-body" class="display-post-fx-lab__body">
-              <label class="options-volume options-palette" for="display-post-fx-preset">
+              <label class="options-volume options-select" for="display-post-fx-preset">
                 <span>Preset</span>
                 <select id="display-post-fx-preset">
                   <option value="custom">Custom</option>
                   <option value="balanced">Balanced CRT</option>
                   <option value="clean">Clean CRT</option>
-                  <option value="pico-arcade">PICO Arcade</option>
-                  <option value="c64-tube">C64 Tube</option>
-                  <option value="game-boy-tube">Game Boy Tube</option>
-                  <option value="cga-hard">Hard CGA</option>
-                  <option value="ega-monitor">EGA Monitor</option>
-                  <option value="zx-crisp">ZX Crisp</option>
-                </select>
-              </label>
-              <label class="options-volume options-palette" for="display-palette-stage">
-                <span>Palette stage</span>
-                <select id="display-palette-stage">
-                  <option value="world">World grade · before CRT</option>
-                  <option value="final">Final screen · exact palette</option>
                 </select>
               </label>
               <div class="display-post-fx-lab__metrics" aria-label="Live render metrics">
@@ -841,71 +809,6 @@
                 <span>PROGRAMS <output id="display-debug-programs">—</output></span>
               </div>
               <div class="display-post-fx-lab__ranges">
-                <label class="options-volume" for="display-palette-dither-scale">
-                  <span>Palette dither scale</span>
-                  <output data-display-tuning-output="paletteDitherScale">1.00×</output>
-                  <input
-                    id="display-palette-dither-scale"
-                    data-display-tuning="paletteDitherScale"
-                    type="range"
-                    min="25"
-                    max="200"
-                    step="5"
-                    value="100"
-                  />
-                </label>
-                <label class="options-volume" for="display-palette-shadow-guard">
-                  <span>Shadow guard</span>
-                  <output data-display-tuning-output="paletteShadowGuard">1.00×</output>
-                  <input
-                    id="display-palette-shadow-guard"
-                    data-display-tuning="paletteShadowGuard"
-                    type="range"
-                    min="0"
-                    max="150"
-                    step="5"
-                    value="100"
-                  />
-                </label>
-                <label class="options-volume" for="display-palette-flat-guard">
-                  <span>Flat background guard</span>
-                  <output data-display-tuning-output="paletteFlatGuard">1.00×</output>
-                  <input
-                    id="display-palette-flat-guard"
-                    data-display-tuning="paletteFlatGuard"
-                    type="range"
-                    min="0"
-                    max="150"
-                    step="5"
-                    value="100"
-                  />
-                </label>
-                <label class="options-volume" for="display-palette-detail-boost">
-                  <span>Edge detail</span>
-                  <output data-display-tuning-output="paletteDetailBoost">1.00×</output>
-                  <input
-                    id="display-palette-detail-boost"
-                    data-display-tuning="paletteDetailBoost"
-                    type="range"
-                    min="50"
-                    max="200"
-                    step="5"
-                    value="100"
-                  />
-                </label>
-                <label class="options-volume" for="display-palette-lightness-bias">
-                  <span>Palette exposure</span>
-                  <output data-display-tuning-output="paletteLightnessBias">0% L</output>
-                  <input
-                    id="display-palette-lightness-bias"
-                    data-display-tuning="paletteLightnessBias"
-                    type="range"
-                    min="-10"
-                    max="10"
-                    step="1"
-                    value="0"
-                  />
-                </label>
                 <label class="options-volume" for="display-tuning-halation">
                   <span>Halation</span>
                   <output data-display-tuning-output="halation">16%</output>
@@ -1003,7 +906,7 @@
                 rows="5"
                 readonly
                 spellcheck="false"
-                aria-label="Current display configuration"
+                aria-label="Current CRT configuration"
               ></textarea>
               <div class="display-post-fx-lab__actions">
                 <button id="display-post-fx-copy" type="button">COPY CONFIG</button>
@@ -1011,6 +914,15 @@
               </div>
             </div>
           </details>
+
+          <button
+            id="display-post-fx-launch"
+            class="display-post-fx-launch"
+            type="button"
+            data-local-dev-only="true"
+          >
+            OPEN CRT LAB <kbd>L</kbd>
+          </button>
 
           <!-- Play pause only: leave run, then restart (secondary / destructive). -->
           <nav class="options-session" aria-label="Run actions">
@@ -1287,7 +1199,7 @@
         </div>
       </section>
 
-      <!-- Runtime portal target: Display Lab is a Play overlay, never part of the editor/debug deck. -->
+      <!-- Runtime portal target: CRT Lab is a Play overlay, never part of the editor/debug deck. -->
       <div
         id="display-post-fx-layer"
         class="display-post-fx-layer"

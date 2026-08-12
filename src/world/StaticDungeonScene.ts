@@ -5,9 +5,13 @@ import { createSeededRandom } from "../core/random";
 import { MAX_DUNGEON_FLOORS } from "../dungeon/generateDungeonFloors";
 import { FLOOR, WALL } from "../dungeon/generateDungeon";
 import {
-  createFloorDeckColliders,
+  createFloorSupportHeightfield,
   gridToWorld,
+  groupBySpatialChunk,
+  spatialChunkKey,
+  spatialChunkKeysNearCells,
   worldToGrid,
+  type FloorSupportHeightfield,
   type WorldCollider,
 } from "../dungeon/gridCollision";
 import type {
@@ -289,6 +293,10 @@ export interface StaticDungeonSceneHandles {
   solidCells: Map<string, GridCell>;
   objectOccupiedCells: Set<string>;
   solidColliders: WorldCollider[];
+  /** Walkable slab heights; floor decks do not need support colliders. */
+  supportHeightfields: FloorSupportHeightfield[];
+  /** Treads remain physical colliders and are sampled separately for step-up. */
+  supportTreads: WorldCollider[];
   objectiveClearanceCells: Set<string>;
   /** Active-floor compatibility alias. Read `allHazardCells` only for diagnostics. */
   hazardCells: ReadonlySet<string>;
@@ -342,6 +350,12 @@ interface FloorBuildContext {
   plan: ResidentDungeonFloorPlan;
 }
 
+interface DeferredFloorPresentation {
+  dungeon: DungeonData;
+  floorBuild: FloorBuildContext;
+  stonePlacements: readonly MagicStonePlacement[];
+}
+
 type RoomWallSeat = { cell: GridCell; intoDx: number; intoDy: number };
 
 interface PendingChestBatch {
@@ -359,6 +373,8 @@ function createHandles(): MutableStaticDungeonSceneHandles {
     solidCells: new Map(),
     objectOccupiedCells: new Set(),
     solidColliders: [],
+    supportHeightfields: [],
+    supportTreads: [],
     objectiveClearanceCells: new Set(),
     hazardCells: new Set(),
     allHazardCells: new Set(),
@@ -439,6 +455,11 @@ export class StaticDungeonScene {
   private stackBuildActive = false;
   /** Stable canonical lookup for resident floors. Never use adapter array scans at runtime. */
   private readonly residentFloorsByIndex = new Map<number, ResidentFloorRuntimeOwner>();
+  /** Inactive slabs retain traversal topology and hydrate their visual dressing on first bind. */
+  private readonly deferredFloorPresentations = new Map<
+    ResidentFloorRuntimeOwner,
+    DeferredFloorPresentation
+  >();
   /** Build-only owner for render roots and collider publication. */
   private currentResidentFloor: ResidentFloorRuntimeOwner | null = null;
   /** Last logical active floor, retained without scanning aggregate adapters. */
@@ -682,6 +703,39 @@ export class StaticDungeonScene {
     decorDensity: number,
     preparedPlan?: ResidentDungeonPlan,
   ): StaticDungeonSceneHandles {
+    const steps = this.buildSteps(dungeon, mood, decorDensity, preparedPlan);
+    let result = steps.next();
+    while (!result.done) result = steps.next();
+    return result.value;
+  }
+
+  async buildWithYield(
+    dungeon: DungeonData,
+    mood: DungeonMood,
+    decorDensity: number,
+    yieldToMain: () => Promise<void>,
+    preparedPlan?: ResidentDungeonPlan,
+  ): Promise<StaticDungeonSceneHandles> {
+    const steps = this.buildSteps(dungeon, mood, decorDensity, preparedPlan);
+    try {
+      let result = steps.next();
+      while (!result.done) {
+        await yieldToMain();
+        result = steps.next();
+      }
+      return result.value;
+    } catch (error) {
+      steps.return(this.handles);
+      throw error;
+    }
+  }
+
+  private *buildSteps(
+    dungeon: DungeonData,
+    mood: DungeonMood,
+    decorDensity: number,
+    preparedPlan?: ResidentDungeonPlan,
+  ): Generator<void, StaticDungeonSceneHandles, void> {
     if (this.disposed) throw new Error("StaticDungeonScene has been disposed.");
     const residentPlan =
       preparedPlan ??
@@ -706,7 +760,7 @@ export class StaticDungeonScene {
       const floorBuild = this.createFloorBuildContext(dungeon, this.floorWorldY, floorPlan);
       this.currentResidentFloor = floorBuild.runtime;
       this.currentFloorRenderGroup = floorBuild.runtime.root;
-      this.buildFloorContents(dungeon, mood, floorBuild);
+      yield* this.buildFloorContentsSteps(dungeon, mood, floorBuild);
       this.currentResidentFloor = null;
       this.currentFloorRenderGroup = null;
       this.commitResidentInteractiveBatches();
@@ -777,7 +831,7 @@ export class StaticDungeonScene {
     // stack. A legacy single dungeon without floor metadata still uses build().
     if (floors.length > 1 || floors[0]!.floor) this.validateResidentStack(floors);
     if (floors.length === 1) {
-      return this.build(floors[0]!, mood, decorDensity, preparedPlan);
+      return yield* this.buildSteps(floors[0]!, mood, decorDensity, preparedPlan);
     }
 
     // Freeze the pure plan and verify the generated topology before clearing a
@@ -811,7 +865,7 @@ export class StaticDungeonScene {
         this.currentResidentFloor = floorBuild.runtime;
         this.currentFloorRenderGroup = floorBuild.runtime.root;
         this.stackBuildActive = true;
-        const counts = this.buildFloorContents(dungeon, mood, floorBuild);
+        const counts = yield* this.buildFloorContentsSteps(dungeon, mood, floorBuild);
         totalFloorCells += counts.floorCells;
         totalWallCells += counts.wallCells;
         yield;
@@ -857,11 +911,11 @@ export class StaticDungeonScene {
     );
   }
 
-  private buildFloorContents(
+  private *buildFloorContentsSteps(
     dungeon: DungeonData,
     mood: DungeonMood,
     floorBuild: FloorBuildContext,
-  ): { floorCells: number; wallCells: number } {
+  ): Generator<void, { floorCells: number; wallCells: number }, void> {
     const previousOccupancy = this.activeFloorOccupancy;
     this.activeFloorOccupancy = floorBuild.occupancy;
     try {
@@ -909,6 +963,7 @@ export class StaticDungeonScene {
       }
       const wallCells = collectBoundaryWalls(dungeon);
       this.addArchitecture(dungeon, floorCells, wallCells);
+      yield;
       const hazardExclusions = this.createHazardExclusionQuery(dungeon, floorBuild.occupancy);
       // Every resident slab owns its visual and traversal state. The old
       // plan-only upper floors leaked a flat hazard set and made same-XZ traps
@@ -929,35 +984,68 @@ export class StaticDungeonScene {
       });
       this.add(hazardTiles.root);
       this.stats.hazardTiles += hazardTiles.placements.length;
-      if (!dungeon.forge) {
-        this.addCaveProps(dungeon);
-        // Practical lights own their planned wall anchors. Claim them before
-        // decorative atlas props so prioritising generated assets never
-        // silently lowers the fire/light budget.
-        this.addLightProps(dungeon, floorBuild.plan);
-      }
-      this.addDoorsAndRoomProps(dungeon, floorBuild, floorBuild.plan);
-      // Gameplay, doors, practical lights, and authored furniture keep first
-      // claim on their seats. The biome pass then fills every remaining room
-      // from a much larger candidate pool without deleting playable content.
-      if (dungeon.forge) {
-        this.addLightProps(dungeon, floorBuild.plan);
-      }
-      this.commitStaticContactShadows();
-      const specialSignals = createSpecialRoomSignals(dungeon, this.materials, this.tileSize);
-      if (specialSignals) {
-        this.add(specialSignals);
-        this.stats.props += specialSignals.children.length;
-        for (const signal of specialSignals.children) {
-          const room = dungeon.rooms.find((candidate) => candidate.id === signal.userData.roomId);
-          if (room) this.reserveObjectCell(room.center);
+      const deferPresentation = this.stackBuildActive && floorBuild.floorIndex !== 0;
+      if (deferPresentation) {
+        this.addMarkers(dungeon, mood, floorBuild.plan);
+        yield;
+        this.addStaircases(dungeon, floorBuild.plan);
+        yield;
+        this.addStaticObjectives(dungeon, stonePlacements, floorBuild.plan, true, false);
+        yield;
+        this.deferredFloorPresentations.set(floorBuild.runtime, {
+          dungeon,
+          floorBuild,
+          stonePlacements,
+        });
+      } else {
+        if (!dungeon.forge) {
+          this.addCaveProps(dungeon);
+          yield;
+          // Practical lights own their planned wall anchors. Claim them before
+          // decorative atlas props so prioritising generated assets never
+          // silently lowers the fire/light budget.
+          this.addLightProps(dungeon, floorBuild.plan);
+          yield;
         }
+        this.addDoorsAndRoomProps(dungeon, floorBuild, floorBuild.plan);
+        yield;
+        // Gameplay, doors, practical lights, and authored furniture keep first
+        // claim on their seats. The biome pass then fills every remaining room
+        // from a much larger candidate pool without deleting playable content.
+        if (dungeon.forge) {
+          this.addLightProps(dungeon, floorBuild.plan);
+          yield;
+        }
+        this.commitStaticContactShadows();
+        const specialSignals = createSpecialRoomSignals(dungeon, this.materials, this.tileSize);
+        if (specialSignals) {
+          this.add(specialSignals);
+          this.stats.props += specialSignals.children.length;
+          for (const signal of specialSignals.children) {
+            const room = dungeon.rooms.find((candidate) => candidate.id === signal.userData.roomId);
+            if (room) this.reserveObjectCell(room.center);
+          }
+        }
+        this.commitWallFireBatches();
+        yield;
+        this.addAmbientGodrays(dungeon, mood, floorBuild.plan);
+        yield;
+        this.addMarkers(dungeon, mood, floorBuild.plan);
+        yield;
+        this.addStaircases(dungeon, floorBuild.plan);
+        yield;
+        this.addStaticObjectives(dungeon, stonePlacements, floorBuild.plan);
+        yield;
+        this.addAtmosphereProps(dungeon, floorBuild.plan);
+        yield;
+        // Decorative density is resolved only after every playable object has
+        // claimed its cell. The enlarged candidate pools still complete all 84
+        // placements without trading away doors, objectives, or furniture.
+        this.scatterBiomeSpriteProps(dungeon);
+        yield;
+        this.applyMoodToPracticalLights(mood);
+        this.cacheResidentMinimapProjection(dungeon, floorBuild.runtime);
       }
-      this.commitWallFireBatches();
-      this.addAmbientGodrays(dungeon, mood, floorBuild.plan);
-      this.addMarkers(dungeon, mood, floorBuild.plan);
-      this.addStaircases(dungeon, floorBuild.plan);
-      this.addStaticObjectives(dungeon, stonePlacements, floorBuild.plan);
       const stonePickups = this.pickups.filter((pickup) => pickup.kind === "stone");
       // Stack builds accumulate stones across floors; only enforce on single-floor builds.
       if (this.floorWorldY === 0 && !this.stackBuildActive) {
@@ -971,13 +1059,6 @@ export class StaticDungeonScene {
           throw new Error("Dungeon completeness failed: exit portal mesh was not created.");
         }
       }
-      this.addAtmosphereProps(dungeon, floorBuild.plan);
-      // Decorative density is resolved only after every playable object has
-      // claimed its cell. The enlarged candidate pools still complete all 84
-      // placements without trading away doors, objectives, or furniture.
-      this.scatterBiomeSpriteProps(dungeon);
-      this.applyMoodToPracticalLights(mood);
-      this.cacheResidentMinimapProjection(dungeon, floorBuild.runtime);
       if (!this.stackBuildActive) {
         this.stats.floorTiles = floorCells.length;
         this.stats.wallTiles = wallCells.length;
@@ -1019,6 +1100,7 @@ export class StaticDungeonScene {
       clean(() => runtime.dispose(resourceDisposer));
     }
     this.residentFloorsByIndex.clear();
+    this.deferredFloorPresentations.clear();
     this.floorRenderGroups.length = 0;
     for (const root of this.buildRoots.splice(0)) {
       root.parent?.remove(root);
@@ -1040,6 +1122,8 @@ export class StaticDungeonScene {
     expired.solidCells.clear();
     expired.objectOccupiedCells.clear();
     expired.solidColliders.length = 0;
+    expired.supportHeightfields.length = 0;
+    expired.supportTreads.length = 0;
     expired.objectiveClearanceCells.clear();
     expired.allHazardCells.clear();
     expired.hazardTiles = null;
@@ -1142,8 +1226,9 @@ export class StaticDungeonScene {
   }
 
   /**
-   * Keep the active slab and its direct neighbors renderable. All floor scene
-   * graphs stay resident; the overlap keeps stair traversal visually seamless.
+   * Keep the active slab and its direct neighbors renderable. Neighbor floors
+   * only show spatial chunks near connecting shafts (PERF-38) so far-away
+   * dressing and structure stay culled while the shaft still reads.
    */
   setActiveFloor(floorIndex: number): void {
     if (this.residentFloorsByIndex.size === 0) return;
@@ -1153,6 +1238,7 @@ export class StaticDungeonScene {
       : Math.min(this.residentFloorsByIndex.size - 1, Math.max(0, requested));
     const activeRuntime = this.residentFloorsByIndex.get(active);
     if (!activeRuntime) return;
+    this.hydrateDeferredFloorPresentation(activeRuntime);
     this.activeResidentFloor = activeRuntime;
     // Transitional scene handles are active-owner aliases, never a latest
     // build winner or a flat aggregate. The aggregate arrays remain outputs.
@@ -1160,9 +1246,208 @@ export class StaticDungeonScene {
     this.handles.hazardCells = activeRuntime.hazardCells;
     this.handles.liquidKit = activeRuntime.liquidKit;
     for (const runtime of this.residentFloorsByIndex.values()) {
-      const visible = Math.abs(runtime.floorIndex - activeRuntime.floorIndex) <= 1;
+      const delta = Math.abs(runtime.floorIndex - activeRuntime.floorIndex);
+      const visible = delta <= 1;
       if (runtime.root.visible !== visible) runtime.root.visible = visible;
+      if (!visible) continue;
+      if (delta === 0) {
+        this.applySpatialChunkVisibility(runtime.root, null);
+        continue;
+      }
+      // Keep neighbor architecture fully visible for shaft continuity; cull only
+      // tagged dressing chunks far from the connecting shaft (PERF-38).
+      const nearShaft = this.shaftChunkKeysBetweenFloors(
+        activeRuntime.floorIndex,
+        runtime.floorIndex,
+      );
+      this.applyNeighborDressingTrim(runtime.root, nearShaft);
     }
+  }
+
+  /**
+   * Local bounding sphere + frustum culling for one spatial chunk batch.
+   * Role tags feed neighbor-floor shaft trimming (PERF-38).
+   */
+  private finalizeSpatialInstancedBatch(
+    batch: THREE.InstancedMesh,
+    chunkKey: string,
+    role: "structure" | "dressing",
+  ): void {
+    batch.frustumCulled = true;
+    batch.userData.spatialChunkKey = chunkKey;
+    batch.userData.spatialChunkRole = role;
+    batch.computeBoundingBox();
+    batch.computeBoundingSphere();
+  }
+
+  /** Chunk keys around shafts that open between two adjacent resident floors. */
+  private shaftChunkKeysBetweenFloors(floorA: number, floorB: number): Set<string> {
+    const lower = Math.min(floorA, floorB);
+    const upper = Math.max(floorA, floorB);
+    const cells: GridCell[] = [];
+    const plan = this.residentDungeonPlan;
+    if (plan) {
+      const width = plan.floors[lower]?.width ?? 0;
+      for (const shaft of plan.shafts) {
+        if (shaft.lowerFloor !== lower || shaft.upperFloor !== upper) continue;
+        cells.push({ ...shaft.anchor });
+        if (width > 0) {
+          for (const encoded of shaft.footprint) {
+            cells.push({ x: encoded % width, y: Math.floor(encoded / width) });
+          }
+        }
+      }
+    }
+    if (cells.length === 0) {
+      for (const floorIndex of [floorA, floorB]) {
+        const runtime = this.residentFloorsByIndex.get(floorIndex);
+        if (!runtime) continue;
+        for (const stair of runtime.staircases) {
+          const bridges =
+            (runtime.floorIndex === floorA && stair.targetFloor === floorB) ||
+            (runtime.floorIndex === floorB && stair.targetFloor === floorA);
+          if (bridges) cells.push({ ...stair.cell });
+        }
+      }
+    }
+    // Empty allow-list would hide every tagged chunk and blank the shaft.
+    if (cells.length === 0) return new Set<string>();
+    return spatialChunkKeysNearCells(cells);
+  }
+
+  /**
+   * Neighbor floors keep all structure chunks (shaft walls/floors stay legible)
+   * and only hide dressing chunks outside the shaft ring.
+   */
+  private applyNeighborDressingTrim(root: THREE.Object3D, nearShaft: Set<string>): void {
+    root.traverse((object) => {
+      const key = object.userData?.spatialChunkKey;
+      if (typeof key !== "string") return;
+      if (object.userData.spatialChunkRole === "structure") {
+        object.visible = true;
+        return;
+      }
+      object.visible = nearShaft.size === 0 || nearShaft.has(key);
+    });
+  }
+
+  /** Active floor: every tagged chunk is shown. */
+  private applySpatialChunkVisibility(root: THREE.Object3D, allowed: Set<string> | null): void {
+    root.traverse((object) => {
+      const key = object.userData?.spatialChunkKey;
+      if (typeof key !== "string") return;
+      object.visible = allowed === null || allowed.has(key);
+    });
+  }
+
+  /**
+   * Deferred dressing belongs to its original resident runtime. Rebinding never
+   * replaces the scene, so player pose and active-floor collision remain intact.
+   */
+  private hydrateDeferredFloorPresentation(runtime: ResidentFloorRuntimeOwner): void {
+    const deferred = this.deferredFloorPresentations.get(runtime);
+    if (!deferred) return;
+    const previousRuntime = this.currentResidentFloor;
+    const previousRenderGroup = this.currentFloorRenderGroup;
+    const previousFloorWorldY = this.floorWorldY;
+    const previousOccupancy = this.activeFloorOccupancy;
+    const previousStackBuildActive = this.stackBuildActive;
+    this.currentResidentFloor = runtime;
+    this.currentFloorRenderGroup = runtime.root;
+    this.floorWorldY = floorSlabY(runtime.floorIndex);
+    this.activeFloorOccupancy = runtime.occupancy;
+    this.stackBuildActive = true;
+    try {
+      const { dungeon, floorBuild, stonePlacements } = deferred;
+      if (dungeon.forge) {
+        this.addDoorsAndRoomProps(dungeon, floorBuild, floorBuild.plan);
+        this.addLightProps(dungeon, floorBuild.plan);
+      } else {
+        this.addCaveProps(dungeon);
+        this.addLightProps(dungeon, floorBuild.plan);
+        this.addDoorsAndRoomProps(dungeon, floorBuild, floorBuild.plan);
+      }
+      this.commitStaticContactShadows();
+      const specialSignals = createSpecialRoomSignals(dungeon, this.materials, this.tileSize);
+      if (specialSignals) {
+        this.add(specialSignals);
+        this.stats.props += specialSignals.children.length;
+        for (const signal of specialSignals.children) {
+          const room = dungeon.rooms.find((candidate) => candidate.id === signal.userData.roomId);
+          if (room) this.reserveObjectCell(room.center);
+        }
+      }
+      this.commitWallFireBatches();
+      this.addAmbientGodrays(dungeon, this.activeMood, floorBuild.plan);
+      this.addStaticObjectives(dungeon, stonePlacements, floorBuild.plan, false, true);
+      this.addAtmosphereProps(dungeon, floorBuild.plan);
+      this.scatterBiomeSpriteProps(dungeon);
+      this.applyMoodToPracticalLights(this.activeMood);
+      this.cacheResidentMinimapProjection(dungeon, runtime);
+      this.commitDoorFrameBatches(runtime);
+      this.commitChestBatches(runtime);
+      this.deferredFloorPresentations.delete(runtime);
+      this.refreshResidentAggregateHandles();
+    } finally {
+      this.currentResidentFloor = previousRuntime;
+      this.currentFloorRenderGroup = previousRenderGroup;
+      this.floorWorldY = previousFloorWorldY;
+      this.activeFloorOccupancy = previousOccupancy;
+      this.stackBuildActive = previousStackBuildActive;
+    }
+  }
+
+  /** Keep compatibility arrays in canonical floor order after lazy hydration. */
+  private refreshResidentAggregateHandles(): void {
+    const runtimes = [...this.residentFloorsByIndex.values()].sort(
+      (left, right) => left.floorIndex - right.floorIndex,
+    );
+    this.handles.doors.splice(0, this.handles.doors.length, ...runtimes.flatMap((floor) => floor.doors));
+    this.handles.pickups.splice(
+      0,
+      this.handles.pickups.length,
+      ...runtimes.flatMap((floor) => floor.pickups),
+    );
+    this.handles.chests.splice(
+      0,
+      this.handles.chests.length,
+      ...runtimes.flatMap((floor) => floor.chests),
+    );
+    this.handles.staircases.splice(
+      0,
+      this.handles.staircases.length,
+      ...runtimes.flatMap((floor) => floor.staircases),
+    );
+    this.handles.fireEffects.splice(
+      0,
+      this.handles.fireEffects.length,
+      ...runtimes.flatMap((floor) => floor.fires),
+    );
+    this.handles.floorBiomeSprites.splice(
+      0,
+      this.handles.floorBiomeSprites.length,
+      ...runtimes.flatMap((floor) => floor.floorBiomeSprites),
+    );
+    this.handles.ceilingBiomeSprites.splice(
+      0,
+      this.handles.ceilingBiomeSprites.length,
+      ...runtimes.flatMap((floor) => floor.ceilingBiomeSprites),
+    );
+    this.handles.solidColliders.splice(
+      0,
+      this.handles.solidColliders.length,
+      ...runtimes.flatMap((floor) => floor.colliders),
+    );
+    this.handles.stoneBeams.splice(
+      0,
+      this.handles.stoneBeams.length,
+      ...runtimes.flatMap((floor) => floor.stoneBeams),
+    );
+    this.handles.ambientBeams.splice(
+      0,
+      this.handles.ambientBeams.length,
+      ...runtimes.flatMap((floor) => floor.ambientBeams),
+    );
   }
 
   isObjectOccupiedCell(cell: GridCell, floorIndex?: number): boolean {
@@ -1213,10 +1498,6 @@ export class StaticDungeonScene {
     const runtime = this.currentResidentFloor;
     if (!runtime) throw new Error(`${consumer} requires a resident floor runtime.`);
     return runtime;
-  }
-
-  private worldY(localY: number): number {
-    return localY + this.floorWorldY;
   }
 
   private markActiveFloorOccupancy(cell: GridCell, bits: number): void {
@@ -1429,66 +1710,68 @@ export class StaticDungeonScene {
       if (floorSeats.length === 0 && ceilingSeats.length === 0) continue;
 
       if (floorSeats.length > 0) {
-        const floorOffsets = new Float32Array(floorSeats.length * 2);
-        const floorGeometry = floorTemplate.clone();
-        floorSeats.forEach((cell, instance) => {
-          const floorUv = dungeonFloorUvOffset(cell);
-          floorOffsets[instance * 2] = floorUv[0];
-          floorOffsets[instance * 2 + 1] = floorUv[1];
-        });
-        setTileUvOffsets(floorGeometry, floorOffsets);
-        const floor = new THREE.InstancedMesh(
-          floorGeometry,
-          this.surfaceMaterials[theme].floor,
-          floorSeats.length,
-        );
-        floor.name = `${theme} room floor`;
-        floor.receiveShadow = true;
-        floorSeats.forEach((cell, instance) => {
-          const p = gridToWorld(dungeon, cell, this.tileSize);
-          makeInstance(floor, instance, { x: p.x, y: -0.05, z: p.z });
-        });
-        floor.instanceMatrix.needsUpdate = true;
-        this.add(floor);
+        for (const [chunkKey, chunkSeats] of groupBySpatialChunk(floorSeats, (cell) => cell)) {
+          const floorOffsets = new Float32Array(chunkSeats.length * 2);
+          const floorGeometry = floorTemplate.clone();
+          chunkSeats.forEach((cell, instance) => {
+            const floorUv = dungeonFloorUvOffset(cell);
+            floorOffsets[instance * 2] = floorUv[0];
+            floorOffsets[instance * 2 + 1] = floorUv[1];
+          });
+          setTileUvOffsets(floorGeometry, floorOffsets);
+          const floor = new THREE.InstancedMesh(
+            floorGeometry,
+            this.surfaceMaterials[theme].floor,
+            chunkSeats.length,
+          );
+          floor.name = `${theme} room floor chunk ${chunkKey}`;
+          floor.receiveShadow = true;
+          chunkSeats.forEach((cell, instance) => {
+            const p = gridToWorld(dungeon, cell, this.tileSize);
+            makeInstance(floor, instance, { x: p.x, y: -0.05, z: p.z });
+          });
+          floor.instanceMatrix.needsUpdate = true;
+          this.finalizeSpatialInstancedBatch(floor, chunkKey, "structure");
+          this.add(floor);
+        }
       }
 
       if (ceilingSeats.length > 0) {
-        const ceilingOffsets = new Float32Array(ceilingSeats.length * 2);
-        const ceilingGeometry = ceilingTemplate.clone();
-        ceilingSeats.forEach((cell, instance) => {
-          const ceilingUv = dungeonCeilingUvOffset(cell);
-          ceilingOffsets[instance * 2] = ceilingUv[0];
-          ceilingOffsets[instance * 2 + 1] = ceilingUv[1];
-        });
-        setTileUvOffsets(ceilingGeometry, ceilingOffsets);
-        const ceiling = new THREE.InstancedMesh(
-          ceilingGeometry,
-          this.surfaceMaterials[theme].ceiling,
-          ceilingSeats.length,
-        );
-        ceiling.name = `${theme} room ceiling`;
-        ceilingSeats.forEach((cell, instance) => {
-          const p = gridToWorld(dungeon, cell, this.tileSize);
-          makeInstance(
-            ceiling,
-            instance,
-            { x: p.x, y: this.wallHeight - 0.01, z: p.z },
-            { x: 1, y: 1, z: 1 },
-            ceilingOrientation,
+        for (const [chunkKey, chunkSeats] of groupBySpatialChunk(ceilingSeats, (cell) => cell)) {
+          const ceilingOffsets = new Float32Array(chunkSeats.length * 2);
+          const ceilingGeometry = ceilingTemplate.clone();
+          chunkSeats.forEach((cell, instance) => {
+            const ceilingUv = dungeonCeilingUvOffset(cell);
+            ceilingOffsets[instance * 2] = ceilingUv[0];
+            ceilingOffsets[instance * 2 + 1] = ceilingUv[1];
+          });
+          setTileUvOffsets(ceilingGeometry, ceilingOffsets);
+          const ceiling = new THREE.InstancedMesh(
+            ceilingGeometry,
+            this.surfaceMaterials[theme].ceiling,
+            chunkSeats.length,
           );
-        });
-        ceiling.instanceMatrix.needsUpdate = true;
-        this.add(ceiling);
+          ceiling.name = `${theme} room ceiling chunk ${chunkKey}`;
+          chunkSeats.forEach((cell, instance) => {
+            const p = gridToWorld(dungeon, cell, this.tileSize);
+            makeInstance(
+              ceiling,
+              instance,
+              { x: p.x, y: this.wallHeight - 0.01, z: p.z },
+              { x: 1, y: 1, z: 1 },
+              ceilingOrientation,
+            );
+          });
+          ceiling.instanceMatrix.needsUpdate = true;
+          this.finalizeSpatialInstancedBatch(ceiling, chunkKey, "structure");
+          this.add(ceiling);
+        }
       }
     }
 
-    // The ground slab uses virtual support at Y=0. Raised slabs use compact
-    // row spans so support queries do not carry one collider per floor cell.
-    if (this.floorWorldY > 0) {
-      this.addSolidColliders(
-        ...createFloorDeckColliders(dungeon, this.tileSize, this.worldY(-0.06), this.worldY(0.02)),
-      );
-    }
+    // Slab decks are sampled from a dense support field instead of joining the
+    // solid collider index. Incoming shaft mouths remain intentionally empty.
+    this.handles.supportHeightfields.push(createFloorSupportHeightfield(dungeon));
 
     // Masonry as exposed face panels (not solid cubes) — kills the grid of vertical seams.
     const faces = collectExposedWallFaces(dungeon, wallCells);
@@ -1501,43 +1784,45 @@ export class StaticDungeonScene {
     const wallFaceAxis = new THREE.Vector3(0, 1, 0);
     const wallFaceQuaternion = new THREE.Quaternion();
     for (const [theme, themeFaces] of facesByTheme) {
-      const wallOffsets = new Float32Array(themeFaces.length * 2);
-      const wallGeometry = wallFaceTemplate.clone();
-      themeFaces.forEach((face, instance) => {
-        const uv = dungeonWallUvOffset(face.cell, face.intoDx, face.intoDy);
-        wallOffsets[instance * 2] = uv[0];
-        wallOffsets[instance * 2 + 1] = uv[1];
-      });
-      setTileUvOffsets(wallGeometry, wallOffsets);
+      for (const [chunkKey, chunkFaces] of groupBySpatialChunk(themeFaces, (face) => face.cell)) {
+        const wallOffsets = new Float32Array(chunkFaces.length * 2);
+        const wallGeometry = wallFaceTemplate.clone();
+        chunkFaces.forEach((face, instance) => {
+          const uv = dungeonWallUvOffset(face.cell, face.intoDx, face.intoDy);
+          wallOffsets[instance * 2] = uv[0];
+          wallOffsets[instance * 2 + 1] = uv[1];
+        });
+        setTileUvOffsets(wallGeometry, wallOffsets);
 
-      const walls = new THREE.InstancedMesh(
-        wallGeometry,
-        this.surfaceMaterials[theme].wall,
-        themeFaces.length,
-      );
-      walls.name = `${theme} room masonry faces`;
-      walls.castShadow = true;
-      walls.receiveShadow = true;
-      walls.frustumCulled = true;
-      themeFaces.forEach((face, instance) => {
-        const p = gridToWorld(dungeon, face.cell, this.tileSize);
-        // Sit on the wall–floor plane, slightly into the room to avoid z-fight with colliders.
-        const x = p.x + face.intoDx * this.tileSize * 0.5;
-        const z = p.z + face.intoDy * this.tileSize * 0.5;
-        const rotation = wallFaceQuaternion.setFromAxisAngle(
-          wallFaceAxis,
-          Math.atan2(face.intoDx, face.intoDy),
+        const walls = new THREE.InstancedMesh(
+          wallGeometry,
+          this.surfaceMaterials[theme].wall,
+          chunkFaces.length,
         );
-        makeInstance(
-          walls,
-          instance,
-          { x, y: this.wallHeight / 2, z },
-          { x: 1, y: 1, z: 1 },
-          rotation,
-        );
-      });
-      walls.instanceMatrix.needsUpdate = true;
-      this.add(walls);
+        walls.name = `${theme} room masonry faces chunk ${chunkKey}`;
+        walls.castShadow = true;
+        walls.receiveShadow = true;
+        chunkFaces.forEach((face, instance) => {
+          const p = gridToWorld(dungeon, face.cell, this.tileSize);
+          // Sit on the wall–floor plane, slightly into the room to avoid z-fight with colliders.
+          const x = p.x + face.intoDx * this.tileSize * 0.5;
+          const z = p.z + face.intoDy * this.tileSize * 0.5;
+          const rotation = wallFaceQuaternion.setFromAxisAngle(
+            wallFaceAxis,
+            Math.atan2(face.intoDx, face.intoDy),
+          );
+          makeInstance(
+            walls,
+            instance,
+            { x, y: this.wallHeight / 2, z },
+            { x: 1, y: 1, z: 1 },
+            rotation,
+          );
+        });
+        walls.instanceMatrix.needsUpdate = true;
+        this.finalizeSpatialInstancedBatch(walls, chunkKey, "structure");
+        this.add(walls);
+      }
     }
 
     // Thin solid fill inside wall cells so tops/corners don't show sky through masonry.
@@ -1565,16 +1850,19 @@ export class StaticDungeonScene {
     material.emissive.multiplyScalar(0.22);
     material.emissiveIntensity = Math.min(0.16, material.emissiveIntensity);
     material.userData.sharedDungeonMaterial = false;
-    const mesh = new THREE.InstancedMesh(geometry, material, wallCells.length);
-    mesh.name = "Wall core fill";
-    mesh.castShadow = true;
-    mesh.receiveShadow = true;
-    wallCells.forEach((cell, instance) => {
-      const p = gridToWorld(dungeon, cell, this.tileSize);
-      makeInstance(mesh, instance, { x: p.x, y: this.wallHeight / 2, z: p.z });
-    });
-    mesh.instanceMatrix.needsUpdate = true;
-    this.add(mesh);
+    for (const [chunkKey, chunkCells] of groupBySpatialChunk(wallCells, (cell) => cell)) {
+      const mesh = new THREE.InstancedMesh(geometry, material, chunkCells.length);
+      mesh.name = `Wall core fill chunk ${chunkKey}`;
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      chunkCells.forEach((cell, instance) => {
+        const p = gridToWorld(dungeon, cell, this.tileSize);
+        makeInstance(mesh, instance, { x: p.x, y: this.wallHeight / 2, z: p.z });
+      });
+      mesh.instanceMatrix.needsUpdate = true;
+      this.finalizeSpatialInstancedBatch(mesh, chunkKey, "structure");
+      this.add(mesh);
+    }
   }
 
   private addCaveProps(dungeon: DungeonData): void {
@@ -1945,10 +2233,13 @@ export class StaticDungeonScene {
           bounds: THREE.Box3;
         };
         bounds: THREE.Box3;
-        matrices: THREE.Matrix4[];
+        entries: Array<{ cell: GridCell; matrix: THREE.Matrix4 }>;
       }
     >();
-    const classicWallArtPlacements = new Map<number, THREE.Matrix4[]>();
+    const classicWallArtPlacements = new Map<
+      number,
+      Array<{ cell: GridCell; matrix: THREE.Matrix4 }>
+    >();
     const plannedWallArtByRoom = new Map(
       (floorPlan?.roomWallArt ?? []).map((placement) => [placement.roomId, placement]),
     );
@@ -2024,9 +2315,9 @@ export class StaticDungeonScene {
             new THREE.Vector3(1, 1, 1),
           );
           const mapIndex = plannedWall?.mapIndex ?? Math.abs(room.id) % 4;
-          const artMatrices = classicWallArtPlacements.get(mapIndex) ?? [];
-          artMatrices.push(artMatrix);
-          classicWallArtPlacements.set(mapIndex, artMatrices);
+          const artEntries = classicWallArtPlacements.get(mapIndex) ?? [];
+          artEntries.push({ cell: wall.cell, matrix: artMatrix });
+          classicWallArtPlacements.set(mapIndex, artEntries);
           for (const seat of wallSeats) {
             if (
               seat.cell.x - seat.intoDx === wall.cell.x &&
@@ -2125,7 +2416,7 @@ export class StaticDungeonScene {
           placementGroup = {
             source: cachedTemplate,
             bounds: cachedTemplate.bounds,
-            matrices: [],
+            entries: [],
           };
           classicPropPlacements.set(groupKey, placementGroup);
         }
@@ -2138,7 +2429,7 @@ export class StaticDungeonScene {
           new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), rotation),
           new THREE.Vector3(scale, scale, scale),
         );
-        placementGroup.matrices.push(rootMatrix);
+        placementGroup.entries.push({ cell, matrix: rootMatrix });
         this.registerSolidBounds(
           placementGroup.bounds.clone().applyMatrix4(rootMatrix),
           cell,
@@ -2154,26 +2445,27 @@ export class StaticDungeonScene {
       "classic-wall-art-geometry/v2",
     );
     const wallSpriteRoughness = getBiomeDecorationProfile(this.activeMood.id).doorRoughness + 0.04;
-    for (const [mapIndex, matrices] of classicWallArtPlacements) {
+    for (const [mapIndex, artEntries] of classicWallArtPlacements) {
       const material = createWallSpriteMaterial(
         this.assets.wallArtPbr(mapIndex),
         this.activeMood,
         wallSpriteRoughness,
       );
-      const batch = new THREE.InstancedMesh(artGeometry, material, matrices.length);
-      batch.name = `Room wall artwork ${mapIndex + 1}`;
-      batch.castShadow = false;
-      batch.receiveShadow = true;
-      batch.frustumCulled = false;
-      batch.userData.distanceLod = "disabled";
-      matrices.forEach((matrix, index) => batch.setMatrixAt(index, matrix));
-      batch.instanceMatrix.needsUpdate = true;
-      this.add(batch);
+      for (const [chunkKey, chunkEntries] of groupBySpatialChunk(artEntries, (entry) => entry.cell)) {
+        const batch = new THREE.InstancedMesh(artGeometry, material, chunkEntries.length);
+        batch.name = `Room wall artwork ${mapIndex + 1} chunk ${chunkKey}`;
+        batch.castShadow = false;
+        batch.receiveShadow = true;
+        batch.userData.distanceLod = "disabled";
+        chunkEntries.forEach((entry, index) => batch.setMatrixAt(index, entry.matrix));
+        batch.instanceMatrix.needsUpdate = true;
+        this.finalizeSpatialInstancedBatch(batch, chunkKey, "dressing");
+        this.add(batch);
+      }
     }
 
-    // Keep InstancedMesh per classic family:variant. Global material bake was
-    // measured and raised mapLoadWorldMs (~+20%) for a modest draw reduction.
-    // Shared finish variants (PERF-13) still cut unique materials/programs.
+    // Keep InstancedMesh per classic family:variant, then split by spatial chunk
+    // so frustum culling can discard off-screen dressing (PERF-35).
     for (const [groupKey, placement] of classicPropPlacements) {
       let templateBatches: readonly StaticPropTemplateBatch[];
       try {
@@ -2182,20 +2474,24 @@ export class StaticDungeonScene {
         // Final normalized batches belong to the catalog. Source templates are recipes only.
         this.disposeClassicPropSource(placement.source);
       }
-      for (const [partIndex, part] of templateBatches.entries()) {
-        const batch = new THREE.InstancedMesh(
-          part.geometry,
-          part.material,
-          placement.matrices.length,
-        );
-        batch.name = `Classic ${groupKey} batch ${partIndex + 1}`;
-        batch.castShadow = part.castShadow;
-        batch.receiveShadow = part.receiveShadow;
-        placement.matrices.forEach((matrix, index) => batch.setMatrixAt(index, matrix));
-        batch.instanceMatrix.needsUpdate = true;
-        batch.computeBoundingBox();
-        batch.computeBoundingSphere();
-        this.add(batch);
+      for (const [chunkKey, chunkEntries] of groupBySpatialChunk(
+        placement.entries,
+        (entry) => entry.cell,
+      )) {
+        for (const [partIndex, part] of templateBatches.entries()) {
+          const batch = new THREE.InstancedMesh(
+            part.geometry,
+            part.material,
+            chunkEntries.length,
+          );
+          batch.name = `Classic ${groupKey} chunk ${chunkKey} batch ${partIndex + 1}`;
+          batch.castShadow = part.castShadow;
+          batch.receiveShadow = part.receiveShadow;
+          chunkEntries.forEach((entry, index) => batch.setMatrixAt(index, entry.matrix));
+          batch.instanceMatrix.needsUpdate = true;
+          this.finalizeSpatialInstancedBatch(batch, chunkKey, "dressing");
+          this.add(batch);
+        }
       }
     }
   }
@@ -2509,7 +2805,6 @@ export class StaticDungeonScene {
       const groupKey = `${instances[0]!.kind}:${Math.abs(instances[0]!.v ?? 0) % 3}`;
       const template = this.getForgePropTemplateBatches(groupKey, instances[0]!);
       if (!template) continue;
-      const instanceMatrices = instances.map((prop) => this.forgePropRootMatrix(dungeon, prop));
       for (const prop of instances) {
         if (
           !SOLID_PROP_KINDS.has(prop.kind) ||
@@ -2522,18 +2817,26 @@ export class StaticDungeonScene {
           true,
         );
       }
-      for (const part of template.batches) {
-        const batch = new THREE.InstancedMesh(part.geometry, part.material, instances.length);
-        batch.name = `Forge static material batch ${batchIndex + 1}`;
-        batch.castShadow = part.castShadow;
-        batch.receiveShadow = part.receiveShadow;
-        batch.frustumCulled = true;
-        instanceMatrices.forEach((matrix, index) => batch.setMatrixAt(index, matrix));
-        batch.instanceMatrix.needsUpdate = true;
-        batch.computeBoundingBox();
-        batch.computeBoundingSphere();
-        this.add(batch);
-        batchIndex += 1;
+      for (const [chunkKey, chunkInstances] of groupBySpatialChunk(instances, (prop) => ({
+        x: prop.x,
+        y: prop.y,
+      }))) {
+        const instanceMatrices = chunkInstances.map((prop) => this.forgePropRootMatrix(dungeon, prop));
+        for (const part of template.batches) {
+          const batch = new THREE.InstancedMesh(
+            part.geometry,
+            part.material,
+            chunkInstances.length,
+          );
+          batch.name = `Forge static material chunk ${chunkKey} batch ${batchIndex + 1}`;
+          batch.castShadow = part.castShadow;
+          batch.receiveShadow = part.receiveShadow;
+          instanceMatrices.forEach((matrix, index) => batch.setMatrixAt(index, matrix));
+          batch.instanceMatrix.needsUpdate = true;
+          this.finalizeSpatialInstancedBatch(batch, chunkKey, "dressing");
+          this.add(batch);
+          batchIndex += 1;
+        }
       }
       this.stats.props += instances.length;
     }
@@ -2847,7 +3150,7 @@ export class StaticDungeonScene {
   }
 
   private commitStaticContactShadows(): void {
-    const placements = this.staticContactShadowPlacements;
+    const placements = this.staticContactShadowPlacements.splice(0);
     if (placements.length === 0) return;
     const geometry = this.resourceCatalog.borrowGeometry(
       "rigid-prop/v2:family:contact-shadow:topology:circle:radius:0.5000:segments:18",
@@ -3677,33 +3980,33 @@ export class StaticDungeonScene {
       material.polygonOffsetUnits = frame >= 2 ? -3 : 0;
       const spriteSize = 1.72 * profile.wallDecorScale;
       const geometry = new THREE.PlaneGeometry(spriteSize, spriteSize);
-      const batch = new THREE.InstancedMesh(geometry, material, cells.length);
-      batch.name = `${this.activeMood.label} wall decor ${frame + 1}`;
-      batch.castShadow = false;
-      batch.receiveShadow = true;
-      batch.frustumCulled = false;
-      batch.userData.distanceLod = "disabled";
-      cells.forEach(({ seat }, index) => {
-        const p = gridToWorld(dungeon, seat.cell, this.tileSize);
-        const offset = wallHugWorldOffset(
-          seat.intoDx,
-          seat.intoDy,
-          this.tileSize,
-          BIOME_WALL_DECAL_OFFSET,
-        );
-        this.tempPosition.set(p.x + offset.x, 1.75 + ((index + frame) % 3) * 0.12, p.z + offset.z);
-        this.tempEuler.set(0, facingRotation(seat.intoDx, seat.intoDy), 0, "YXZ");
-        this.tempQuaternion.setFromEuler(this.tempEuler);
-        const spriteScale = 0.9 + random.next() * 0.2;
-        this.tempScale.set(spriteScale, spriteScale, 1);
-        this.tempMatrix.compose(this.tempPosition, this.tempQuaternion, this.tempScale);
-        batch.setMatrixAt(index, this.tempMatrix);
-      });
-      batch.instanceMatrix.needsUpdate = true;
-      batch.computeBoundingBox();
-      batch.computeBoundingSphere();
-      this.add(batch);
-      this.stats.props += cells.length;
+      for (const [chunkKey, chunkCells] of groupBySpatialChunk(cells, ({ seat }) => seat.cell)) {
+        const batch = new THREE.InstancedMesh(geometry, material, chunkCells.length);
+        batch.name = `${this.activeMood.label} wall decor ${frame + 1} chunk ${chunkKey}`;
+        batch.castShadow = false;
+        batch.receiveShadow = true;
+        batch.userData.distanceLod = "disabled";
+        chunkCells.forEach(({ seat }, index) => {
+          const p = gridToWorld(dungeon, seat.cell, this.tileSize);
+          const offset = wallHugWorldOffset(
+            seat.intoDx,
+            seat.intoDy,
+            this.tileSize,
+            BIOME_WALL_DECAL_OFFSET,
+          );
+          this.tempPosition.set(p.x + offset.x, 1.75 + ((index + frame) % 3) * 0.12, p.z + offset.z);
+          this.tempEuler.set(0, facingRotation(seat.intoDx, seat.intoDy), 0, "YXZ");
+          this.tempQuaternion.setFromEuler(this.tempEuler);
+          const spriteScale = 0.9 + random.next() * 0.2;
+          this.tempScale.set(spriteScale, spriteScale, 1);
+          this.tempMatrix.compose(this.tempPosition, this.tempQuaternion, this.tempScale);
+          batch.setMatrixAt(index, this.tempMatrix);
+        });
+        batch.instanceMatrix.needsUpdate = true;
+        this.finalizeSpatialInstancedBatch(batch, chunkKey, "dressing");
+        this.add(batch);
+        this.stats.props += chunkCells.length;
+      }
     }
   }
 
@@ -4540,18 +4843,16 @@ export class StaticDungeonScene {
     const quaternion = new THREE.Quaternion();
     const scale = new THREE.Vector3(1, 1, 1);
     const euler = new THREE.Euler(0, 0, 0, "YXZ");
-    const grouped = new Map<
-      THREE.Group,
-      Array<{ cell: GridCell; rot: number; y: number; scaleY?: number }>
-    >();
+    type AtmosphereCell = { cell: GridCell; rot: number; y: number; scaleY?: number };
+    const grouped = new Map<THREE.Group, AtmosphereCell[]>();
     for (const placement of placements) {
       const cells = grouped.get(placement.template) ?? [];
       cells.push(...placement.cells);
       grouped.set(placement.template, cells);
     }
 
-    // One canonical template per semantic family. The old per-room loop made
-    // many tiny batches, turning ambient dressing into a draw-call cliff.
+    // PERF-35: one template per family, then split by spatial chunk so each
+    // InstancedMesh has a local bounding sphere and frustum culling works.
     for (const [template, cells] of grouped) {
       if (cells.length === 0) continue;
       const templateName = template.name;
@@ -4566,23 +4867,35 @@ export class StaticDungeonScene {
         });
         this.runtimeAtmosphereBatches.set(batchKey, templateBatches);
       }
-      const instanceCount = cells.length;
-      for (const [partIndex, part] of templateBatches.entries()) {
-        const batch = new THREE.InstancedMesh(part.geometry, part.material, instanceCount);
-        batch.name = `Atmosphere ${templateName} batch ${partIndex + 1}`;
-        batch.castShadow = part.castShadow;
-        batch.receiveShadow = part.receiveShadow;
-        cells.forEach((cell, index) => {
-          const p = gridToWorld(dungeon, cell.cell, this.tileSize);
-          position.set(p.x, cell.y, p.z);
-          euler.set(0, cell.rot, 0, "YXZ");
-          quaternion.setFromEuler(euler);
-          scale.set(1, cell.scaleY ?? 1, 1);
-          matrix.compose(position, quaternion, scale);
-          batch.setMatrixAt(index, matrix);
-        });
-        batch.instanceMatrix.needsUpdate = true;
-        this.add(batch);
+      const byChunk = new Map<string, AtmosphereCell[]>();
+      for (const entry of cells) {
+        const key = spatialChunkKey(entry.cell);
+        const list = byChunk.get(key) ?? [];
+        list.push(entry);
+        byChunk.set(key, list);
+      }
+      let instanceCount = 0;
+      for (const [chunkKey, chunkCells] of byChunk) {
+        if (chunkCells.length === 0) continue;
+        instanceCount += chunkCells.length;
+        for (const [partIndex, part] of templateBatches.entries()) {
+          const batch = new THREE.InstancedMesh(part.geometry, part.material, chunkCells.length);
+          batch.name = `Atmosphere ${templateName} chunk ${chunkKey} batch ${partIndex + 1}`;
+          batch.castShadow = part.castShadow;
+          batch.receiveShadow = part.receiveShadow;
+          chunkCells.forEach((cell, index) => {
+            const p = gridToWorld(dungeon, cell.cell, this.tileSize);
+            position.set(p.x, cell.y, p.z);
+            euler.set(0, cell.rot, 0, "YXZ");
+            quaternion.setFromEuler(euler);
+            scale.set(1, cell.scaleY ?? 1, 1);
+            matrix.compose(position, quaternion, scale);
+            batch.setMatrixAt(index, matrix);
+          });
+          batch.instanceMatrix.needsUpdate = true;
+          this.finalizeSpatialInstancedBatch(batch, chunkKey, "dressing");
+          this.add(batch);
+        }
       }
       this.stats.props += instanceCount;
     }
@@ -4659,6 +4972,7 @@ export class StaticDungeonScene {
         stair.yaw,
       );
       this.addSolidColliders(...colliders);
+      this.handles.supportTreads.push(...colliders);
       const actor: StaticStairActor = {
         root,
         direction: stair.direction,
@@ -4722,6 +5036,8 @@ export class StaticDungeonScene {
     dungeon: DungeonData,
     stonePlacements: readonly MagicStonePlacement[],
     floorPlan?: ResidentDungeonFloorPlan,
+    includeStonePickups = true,
+    includeRewards = true,
   ): void {
     const runtime = this.requireCurrentResidentFloor("Static objective registration");
     const rankedRooms = dungeon.rooms
@@ -4729,7 +5045,8 @@ export class StaticDungeonScene {
       .sort((left, right) => roomDistance(dungeon, left) - roomDistance(dungeon, right));
     // Shared editor/runtime placement keeps objective diamonds tied to the real rooms.
     const stoneRooms = stonePlacements.map((placement) => placement.room);
-    stonePlacements.forEach((placement) => {
+    if (includeStonePickups)
+      stonePlacements.forEach((placement) => {
       const { stoneId } = placement;
       const stone = createMagicStone(stoneId, this.materials, this.stoneTextures.get(stoneId));
       preparePickupOpacity(stone.root);
@@ -4775,9 +5092,10 @@ export class StaticDungeonScene {
       // PointLight stays parented to the pickup so its world position follows the stone.
       this.add(stone.root, beam);
       this.stats.beams += 1;
-    });
+      });
 
     const stoneRoomSet = new Set(stoneRooms);
+    if (!includeRewards) return;
     const occupancy = this.requireActiveFloorOccupancy("Static objectives");
     const selected = new FloorOccupancyOverlay(dungeon.width, dungeon.height);
     const excludedBits =

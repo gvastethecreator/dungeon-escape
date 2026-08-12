@@ -25,6 +25,9 @@ describe("export play dungeon to forge presentation", () => {
     expect(payload.entrance).toBe(dungeon.entranceRoomId);
     expect(payload.boss).toBe(dungeon.exitRoomId);
     expect(payload.rooms.length).toBeGreaterThanOrEqual(dungeon.rooms.length);
+    expect(dungeon.topology?.routes).toBeDefined();
+    expect(payload.edgeRoutes).toEqual(dungeon.topology?.routes ?? []);
+    expect(payload.edgeRoutes).toHaveLength(payload.edges.length);
 
     const entranceRoom = payload.rooms[payload.entrance];
     expect(entranceRoom).toBeDefined();
