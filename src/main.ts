@@ -526,12 +526,24 @@ const { registerVolumetricBeamShaderFactory } = await import("./world/Volumetric
 const { registerEnemyBillboardShaderFactory } = await import("./world/EnemyBillboardMaterial");
 const { registerEnemyMotionTrailShaderFactory } = await import("./world/EnemyMotionTrailVfx");
 const { registerLiquidShaderFactory } = await import("./world/LiquidSectionKit");
+const { registerCobwebSilkShaderFactory } = await import("./world/AtmospherePropsKit");
+const { registerUncannyWallShaderFactory } = await import("./world/UncannyWallRuntime");
+const { registerAnnihilationBurstShaderFactory } = await import("./world/AnnihilationPulseVfx");
+const { registerPickupBurstSparksShaderFactory } = await import("./world/PickupBurstPool");
+const { registerSoftGroundFogShaderFactory } = await import("./systems/SoftGroundFogMaterial");
+const { registerBiomeParticleShaderFactory } = await import("./systems/BiomeParticleMaterial");
 registerDungeonSurfaceShaderFactory();
 registerNoiseFlameShaderFactory();
 registerVolumetricBeamShaderFactory();
 registerEnemyBillboardShaderFactory();
 registerEnemyMotionTrailShaderFactory();
 registerLiquidShaderFactory();
+registerCobwebSilkShaderFactory();
+registerUncannyWallShaderFactory();
+registerAnnihilationBurstShaderFactory();
+registerPickupBurstSparksShaderFactory();
+registerSoftGroundFogShaderFactory();
+registerBiomeParticleShaderFactory();
 console.info("[renderer-init]", {
   durationMs: Math.round(rendererInitDurationMs),
   requestedRenderer: renderPathCaps.requestedRenderer,

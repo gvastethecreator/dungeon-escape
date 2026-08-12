@@ -1,6 +1,13 @@
 import { describe, expect, test } from "bun:test";
 import * as THREE from "three";
+import { PointsNodeMaterial } from "three/webgpu";
 
+import {
+  createShaderProgramModeRegistry,
+  getShaderProgramModeRegistry,
+  resetShaderProgramModeRegistryForTests,
+  setShaderProgramModeRegistry,
+} from "../src/systems/ShaderProgramMode";
 import {
   createLuminousWardStone,
   createTimeFreezeRelic,
@@ -10,7 +17,11 @@ import {
   PICKUP_DORMANT_SCALE,
 } from "../src/world/ItemFactory";
 import { createDungeonMaterials } from "../src/world/MaterialLibrary";
-import { PickupBurstPool } from "../src/world/PickupBurstPool";
+import {
+  PickupBurstPool,
+  PICKUP_BURST_SPARKS_SHADER_FACTORY_ID,
+  registerPickupBurstSparksShaderFactory,
+} from "../src/world/PickupBurstPool";
 import { TimeFreezeVfx } from "../src/world/TimeFreezeVfx";
 
 describe("pickup frame stability", () => {
@@ -137,6 +148,28 @@ describe("pickup frame stability", () => {
     });
     expect(new Set(shapeIds).size).toBe(kinds.length);
     pool.dispose();
+  });
+
+  test("TSL burst pool uses sprite sparks and registers dual-mode factory", () => {
+    resetShaderProgramModeRegistryForTests();
+    setShaderProgramModeRegistry(createShaderProgramModeRegistry("tsl"));
+    registerPickupBurstSparksShaderFactory();
+
+    const pool = new PickupBurstPool(1);
+    pool.trigger({ x: 0, y: 0.4, z: 0 }, "annihilation-pulse");
+    const sparks = pool.root.children[0]?.getObjectByName("Pickup rising sparks");
+    expect(sparks).toBeInstanceOf(THREE.Sprite);
+    expect((sparks as THREE.Sprite).count).toBe(36);
+    expect((sparks as THREE.Sprite).material).toBeInstanceOf(PointsNodeMaterial);
+    expect((sparks as THREE.Sprite).material.userData.sparkPrimitive).toBe("sprite");
+    expect(getShaderProgramModeRegistry().supports(PICKUP_BURST_SPARKS_SHADER_FACTORY_ID, "glsl")).toBe(
+      true,
+    );
+    expect(getShaderProgramModeRegistry().supports(PICKUP_BURST_SPARKS_SHADER_FACTORY_ID, "tsl")).toBe(
+      true,
+    );
+    pool.dispose();
+    resetShaderProgramModeRegistryForTests();
   });
 
   test("dormant power pickups hide meshes but keep PointLights in the graph", () => {

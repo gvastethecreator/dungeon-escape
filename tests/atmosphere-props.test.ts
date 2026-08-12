@@ -1,13 +1,22 @@
 import { describe, expect, test } from "bun:test";
 import * as THREE from "three";
+import { MeshBasicNodeMaterial } from "three/webgpu";
 
 import {
+  createShaderProgramModeRegistry,
+  getShaderProgramModeRegistry,
+  resetShaderProgramModeRegistryForTests,
+  setShaderProgramModeRegistry,
+} from "../src/systems/ShaderProgramMode";
+import {
+  COBWEB_SILK_SHADER_FACTORY_ID,
   createBonePile,
   createCobweb,
   createCobwebGeometry,
   createCobwebMaterial,
   createHanging,
   createRubblePile,
+  registerCobwebSilkShaderFactory,
 } from "../src/world/AtmospherePropsKit";
 import {
   createImageSculptedHanging,
@@ -69,6 +78,24 @@ describe("atmosphere props — cobwebs", () => {
       new URL("../src/world/AtmospherePropsKit.ts", import.meta.url),
     ).text();
     expect(source).toContain("instanceMatrix * localPosition");
+  });
+
+  test("TSL cobweb registers dual mode and uses MeshBasicNodeMaterial", () => {
+    resetShaderProgramModeRegistryForTests();
+    setShaderProgramModeRegistry(createShaderProgramModeRegistry("tsl"));
+    registerCobwebSilkShaderFactory();
+
+    const material = createCobwebMaterial(0x88aa88, 0.3, 1);
+    expect(material).toBeInstanceOf(MeshBasicNodeMaterial);
+    expect(material.userData.shaderProgramMode).toBe("tsl");
+    expect(material.userData.cobwebSilk).toBe(true);
+    expect(getShaderProgramModeRegistry().supports(COBWEB_SILK_SHADER_FACTORY_ID, "glsl")).toBe(
+      true,
+    );
+    expect(getShaderProgramModeRegistry().supports(COBWEB_SILK_SHADER_FACTORY_ID, "tsl")).toBe(
+      true,
+    );
+    resetShaderProgramModeRegistryForTests();
   });
 });
 
