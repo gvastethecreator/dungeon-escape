@@ -50,8 +50,9 @@ describe("atmosphere props — cobwebs", () => {
     expect(geometry).toBeInstanceOf(THREE.BufferGeometry);
     expect(geometry.getAttribute("position").count).toBe(8);
     expect(material).toBeInstanceOf(THREE.ShaderMaterial);
-    expect(material.uniforms.uColor.value.getHex()).toBe(0x88aa88);
-    expect(material.uniforms.uStrength.value).toBeCloseTo(0.3);
+    const glsl = material as THREE.ShaderMaterial;
+    expect(glsl.uniforms.uColor.value.getHex()).toBe(0x88aa88);
+    expect(glsl.uniforms.uStrength.value).toBeCloseTo(0.3);
     expect(material.blending).toBe(THREE.NormalBlending);
   });
 
