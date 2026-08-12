@@ -37,7 +37,10 @@
     "db:migrate:local": "wrangler d1 migrations apply LEADERBOARD_DB --local",
     "db:migrate:remote": "wrangler d1 migrations apply dungeon-escape-leaderboard --remote",
     "cloudflare:dev": "wrangler dev",
-    "cloudflare:deploy": "bun run audit:runtime-assets && bun run build && wrangler deploy"
+    "cloudflare:deploy": "bun run audit:runtime-assets && bun run build && wrangler deploy",
+    "perf:baseline:hitl": "bun run scripts/evaluate-webgpu-hitl.ts",
+    "webgpu:flip": "bun run scripts/flip-webgpu-default.ts",
+    "webgpu:glsl-contraction": "bun run scripts/remove-legacy-glsl.ts"
   },
   "dependencies": {
     "three": "^0.185.1"
