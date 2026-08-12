@@ -13,6 +13,7 @@ import {
   setEnemyBillboardFrame,
   setEnemyBillboardInstanceFrame,
   setEnemyFreezeAmount,
+  type EnemyBillboardMaterial,
 } from "./EnemyBillboardMaterial";
 import type { EnemyMotionTrailTarget } from "./EnemyMotionTrailVfx";
 import {
@@ -39,7 +40,7 @@ export interface EnemyPresentationActor extends EnemySimBody {
 
 export interface EnemyAnimationBatch {
   kind: EnemyKind;
-  material: THREE.MeshStandardMaterial;
+  material: EnemyBillboardMaterial;
   animation: EnemyAnimationDefinition;
   attackAnimation?: EnemyAnimationDefinition;
   atlasFrameAttribute: THREE.InstancedBufferAttribute;
