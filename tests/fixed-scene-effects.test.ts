@@ -95,7 +95,10 @@ describe("FixedSceneEffects", () => {
 
     expect(root.visible).toBe(true);
     expect(flameAssembly.flame.visible).toBe(true);
-    expect(flameAssembly.material.uniforms.uTime.value).toBe(2.5);
+    expect(
+      (flameAssembly.material.userData.noiseFlameHandles as { uTime: { value: number } }).uTime
+        .value,
+    ).toBe(2.5);
     expect(flameAssembly.flame.position.y).toBe(0.7);
     expect(flameAssembly.flame.scale.y).toBe(0.9);
     expect(flameAssembly.flame.rotation.y).not.toBe(0);

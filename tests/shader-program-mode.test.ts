@@ -11,6 +11,14 @@ import {
   DUNGEON_SURFACE_SHADER_FACTORY_ID,
   registerDungeonSurfaceShaderFactory,
 } from "../src/world/TextureTreatment";
+import {
+  NOISE_FLAME_SHADER_FACTORY_ID,
+  registerNoiseFlameShaderFactory,
+} from "../src/world/ProceduralFlameVfx";
+import {
+  registerVolumetricBeamShaderFactory,
+  VOLUMETRIC_BEAM_SHADER_FACTORY_ID,
+} from "../src/world/VolumetricBeam";
 
 describe("shader program mode registry", () => {
   test("defaults to glsl and tracks factory support counts", () => {
@@ -46,6 +54,29 @@ describe("shader program mode registry", () => {
       true,
     );
     expect(getShaderProgramModeRegistry().supports(DUNGEON_SURFACE_SHADER_FACTORY_ID, "tsl")).toBe(
+      true,
+    );
+    resetShaderProgramModeRegistryForTests();
+  });
+
+  test("noise-flame and volumetric-beam factories support glsl+tsl", () => {
+    resetShaderProgramModeRegistryForTests();
+    registerNoiseFlameShaderFactory();
+    registerVolumetricBeamShaderFactory();
+    expect(getShaderProgramModeRegistry().supports(NOISE_FLAME_SHADER_FACTORY_ID, "tsl")).toBe(
+      true,
+    );
+    expect(getShaderProgramModeRegistry().supports(VOLUMETRIC_BEAM_SHADER_FACTORY_ID, "tsl")).toBe(
+      true,
+    );
+
+    setShaderProgramModeRegistry(createShaderProgramModeRegistry("tsl"));
+    registerNoiseFlameShaderFactory();
+    registerVolumetricBeamShaderFactory();
+    expect(getShaderProgramModeRegistry().supports(NOISE_FLAME_SHADER_FACTORY_ID, "glsl")).toBe(
+      true,
+    );
+    expect(getShaderProgramModeRegistry().supports(VOLUMETRIC_BEAM_SHADER_FACTORY_ID, "glsl")).toBe(
       true,
     );
     resetShaderProgramModeRegistryForTests();

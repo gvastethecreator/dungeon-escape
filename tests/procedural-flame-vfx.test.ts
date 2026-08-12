@@ -1,14 +1,26 @@
 import { describe, expect, test } from "bun:test";
 import * as THREE from "three";
+import { MeshBasicNodeMaterial, PointsNodeMaterial } from "three/webgpu";
 
 import {
+  createShaderProgramModeRegistry,
+  getShaderProgramModeRegistry,
+  resetShaderProgramModeRegistryForTests,
+  setShaderProgramModeRegistry,
+} from "../src/systems/ShaderProgramMode";
+import {
   createNoiseFlame,
+  NOISE_FLAME_SHADER_FACTORY_ID,
+  registerNoiseFlameShaderFactory,
   setNoiseFlameMoodPalette,
   tickNoiseFlame,
+  type NoiseFlameEmberUniformHandles,
+  type NoiseFlameUniformHandles,
 } from "../src/world/ProceduralFlameVfx";
 
 describe("procedural noise flame", () => {
   test("rebuilds the reference technique on one two-triangle card", () => {
+    resetShaderProgramModeRegistryForTests();
     const result = createNoiseFlame({
       name: "Test flame",
       width: 0.4,
@@ -29,10 +41,13 @@ describe("procedural noise flame", () => {
     expect(result.details[0]).toBeInstanceOf(THREE.Points);
     expect(result.details[0]?.name).toBe("Floating flame embers");
     expect(result.material.userData.sourceTechnique).toContain("animated noise offset/map");
-    expect(result.material.fragmentShader).toContain("tipFade");
-    expect(result.material.fragmentShader).toContain("baseFade");
-    expect(result.material.fragmentShader).toContain("baseWidth");
-    expect(result.material.fragmentShader).toContain("smoothstep(0.965, 1.0, y)");
+    expect(result.material.userData.shaderProgramMode).toBe("glsl");
+    expect((result.material as THREE.ShaderMaterial).fragmentShader).toContain("tipFade");
+    expect((result.material as THREE.ShaderMaterial).fragmentShader).toContain("baseFade");
+    expect((result.material as THREE.ShaderMaterial).fragmentShader).toContain("baseWidth");
+    expect((result.material as THREE.ShaderMaterial).fragmentShader).toContain(
+      "smoothstep(0.965, 1.0, y)",
+    );
     expect((result.details[0] as THREE.Points).material).toBeInstanceOf(THREE.ShaderMaterial);
     expect(result.material.blending).toBe(THREE.NormalBlending);
     expect(result.material.depthWrite).toBe(false);
@@ -41,6 +56,7 @@ describe("procedural noise flame", () => {
   });
 
   test("animates and fades through uniforms while accepting biome palettes", () => {
+    resetShaderProgramModeRegistryForTests();
     const result = createNoiseFlame({
       name: "Test flame",
       width: 0.3,
@@ -50,18 +66,72 @@ describe("procedural noise flame", () => {
     });
     const outer = new THREE.Color(0x326ec8);
     const core = new THREE.Color(0x9cecff);
+    const handles = result.material.userData.noiseFlameHandles as NoiseFlameUniformHandles;
 
     expect(setNoiseFlameMoodPalette(result.material, outer, core)).toBe(true);
     const sourceHsl = { h: 0, s: 0, l: 0 };
     const vividHsl = { h: 0, s: 0, l: 0 };
     outer.getHSL(sourceHsl);
-    (result.material.uniforms.uOuterColor.value as THREE.Color).getHSL(vividHsl);
+    handles.uOuterColor.value.getHSL(vividHsl);
     expect(vividHsl.s).toBeGreaterThan(sourceHsl.s);
     expect(tickNoiseFlame(result.material, 3.5, 0.25)).toBe(true);
-    expect(result.material.uniforms.uTime.value).toBe(3.5);
-    expect(result.material.uniforms.uOpacity.value).toBeCloseTo(0.2);
-    const emberMaterial = result.material.userData.emberMaterial as THREE.ShaderMaterial;
-    expect(emberMaterial.uniforms.uTime.value).toBe(3.5);
-    expect(emberMaterial.uniforms.uOpacity.value).toBeCloseTo(0.2);
+    expect(handles.uTime.value).toBe(3.5);
+    expect(handles.uOpacity.value).toBeCloseTo(0.2);
+    const emberHandles = result.material.userData.emberHandles as NoiseFlameEmberUniformHandles;
+    expect(emberHandles.uTime.value).toBe(3.5);
+    expect(emberHandles.uOpacity.value).toBeCloseTo(0.2);
+  });
+
+  test("TSL mode builds MeshBasicNodeMaterial flame and sprite embers", () => {
+    resetShaderProgramModeRegistryForTests();
+    setShaderProgramModeRegistry(createShaderProgramModeRegistry("tsl"));
+    registerNoiseFlameShaderFactory();
+
+    const result = createNoiseFlame({
+      name: "TSL flame",
+      width: 0.4,
+      height: 0.6,
+      phase: 0.5,
+      opacity: 0.9,
+    });
+
+    expect(result.material).toBeInstanceOf(MeshBasicNodeMaterial);
+    expect(result.material.userData.shaderProgramMode).toBe("tsl");
+    expect(result.material.userData.noiseFlameHandles).toBeDefined();
+    expect(result.details[0]).toBeInstanceOf(THREE.Sprite);
+    expect(result.details[0]?.userData.emberPrimitive).toBe("sprite");
+    expect((result.details[0] as THREE.Sprite).count).toBeGreaterThanOrEqual(4);
+    expect(result.material.userData.emberMaterial).toBeInstanceOf(PointsNodeMaterial);
+
+    const outer = new THREE.Color(0x326ec8);
+    const core = new THREE.Color(0x9cecff);
+    expect(setNoiseFlameMoodPalette(result.material, outer, core)).toBe(true);
+    expect(tickNoiseFlame(result.material, 2, 0.5)).toBe(true);
+    const handles = result.material.userData.noiseFlameHandles as NoiseFlameUniformHandles;
+    expect(handles.uTime.value).toBe(2);
+    expect(handles.uOpacity.value).toBeCloseTo(0.45);
+
+    resetShaderProgramModeRegistryForTests();
+  });
+
+  test("factory registers glsl+tsl and rebinds across registry swaps", () => {
+    resetShaderProgramModeRegistryForTests();
+    registerNoiseFlameShaderFactory();
+    expect(getShaderProgramModeRegistry().supports(NOISE_FLAME_SHADER_FACTORY_ID, "glsl")).toBe(
+      true,
+    );
+    expect(getShaderProgramModeRegistry().supports(NOISE_FLAME_SHADER_FACTORY_ID, "tsl")).toBe(
+      true,
+    );
+
+    setShaderProgramModeRegistry(createShaderProgramModeRegistry("tsl"));
+    registerNoiseFlameShaderFactory();
+    expect(getShaderProgramModeRegistry().supports(NOISE_FLAME_SHADER_FACTORY_ID, "glsl")).toBe(
+      true,
+    );
+    expect(getShaderProgramModeRegistry().supports(NOISE_FLAME_SHADER_FACTORY_ID, "tsl")).toBe(
+      true,
+    );
+    resetShaderProgramModeRegistryForTests();
   });
 });

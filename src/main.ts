@@ -521,7 +521,11 @@ const rendererInitDurationMs = playRendererHandle.initDurationMs;
 const shaderProgramMode: ShaderProgramMode = playRendererHandle.isWebGpuRenderer ? "tsl" : "glsl";
 setShaderProgramModeRegistry(createShaderProgramModeRegistry(shaderProgramMode));
 const { registerDungeonSurfaceShaderFactory } = await import("./world/TextureTreatment");
+const { registerNoiseFlameShaderFactory } = await import("./world/ProceduralFlameVfx");
+const { registerVolumetricBeamShaderFactory } = await import("./world/VolumetricBeam");
 registerDungeonSurfaceShaderFactory();
+registerNoiseFlameShaderFactory();
+registerVolumetricBeamShaderFactory();
 console.info("[renderer-init]", {
   durationMs: Math.round(rendererInitDurationMs),
   requestedRenderer: renderPathCaps.requestedRenderer,
