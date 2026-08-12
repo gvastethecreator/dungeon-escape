@@ -4,6 +4,8 @@
  * instead of returning a broken material.
  */
 
+import { resetTslMaterialModulesForTests } from "./TslMaterialModules";
+
 export type ShaderProgramMode = "glsl" | "tsl";
 
 export interface VfxFactoryRegistration {
@@ -101,4 +103,10 @@ export function setShaderProgramModeRegistry(registry: ShaderProgramModeRegistry
 
 export function resetShaderProgramModeRegistryForTests(): void {
   setShaderProgramModeRegistry(createShaderProgramModeRegistry("glsl"));
+  // Preloading the TSL siblings also flags them as loaded, so a later test that
+  // asks a factory for `tsl` without preloading would otherwise build a node
+  // material against a registry that never registered the builder. Resetting
+  // the mode must reset that too; the builder map stays, so the next preload
+  // in the same process is a no-op.
+  resetTslMaterialModulesForTests();
 }
