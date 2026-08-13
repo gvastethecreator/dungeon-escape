@@ -48,6 +48,12 @@ describe("AudioAssetCatalog", () => {
     expect(audioAssetForCue("uiSelect")).toBe("ui-select");
     expect(audioAssetForPickup("time-freeze")).toBe("pickup-time-freeze-v2");
     expect(audioAssetForMusic("biome-backrooms-portal")).toBe("music-biome-backrooms-portal");
+    expect(audioAssetForMusic("hall")).toBe("music-hall");
+    expect(audioAssetForMusic("biome-select")).toBe("music-biome-select");
+    expect(getAudioAsset("music-menu")).toMatchObject({
+      file: "music-menu.ogg",
+      group: "music",
+    });
     expect(getAudioAsset("music-biome-backrooms-portal")).toMatchObject({
       file: "music-biome-backrooms-portal.ogg",
       group: "music",
@@ -114,5 +120,6 @@ describe("AudioAssetCatalog", () => {
     const second = createAudioGroupLevels();
     first.ui = 1;
     expect(second.ui).toBe(0.28);
+    expect(second.music).toBe(0.288);
   });
 });

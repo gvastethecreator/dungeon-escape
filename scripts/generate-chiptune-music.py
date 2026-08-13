@@ -1,12 +1,10 @@
 #!/usr/bin/env python3
-"""Generate dark, non-invasive 8-bit music loops for Dungeon Escape.
+"""Deprecated. Welcome / win / lose beds now come from scripts/generate-game-music.py.
 
-Outputs:
+This chiptune generator used to write:
   public/assets/audio/dungeon/music-menu.opus
   public/assets/audio/dungeon/music-win.opus
   public/assets/audio/dungeon/music-lose.opus
-
-Requires: numpy, scipy (WAV), ffmpeg (Opus).
 """
 
 from __future__ import annotations

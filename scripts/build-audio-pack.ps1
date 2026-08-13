@@ -1,6 +1,7 @@
 [CmdletBinding()]
 param(
-  [string]$OutputDirectory = (Join-Path $PSScriptRoot "..\public\assets\audio\dungeon")
+  [string]$OutputDirectory = (Join-Path $PSScriptRoot "..\public\assets\audio\dungeon"),
+  [switch]$EnemyOnly
 )
 
 $ErrorActionPreference = "Stop"
@@ -9,6 +10,17 @@ $sourceRoot = "F:\# AUDIO\# SAMPLES\#SFX"
 
 function SourcePath([string]$relativePath) {
   return Join-Path $sourceRoot $relativePath
+}
+
+function ResolveLibrarySource($asset) {
+  $relative = $asset.source
+  if (-not $relative) { $relative = $asset.Source }
+  $root = $asset.root
+  if (-not $root) { $root = $asset.Root }
+  if ($root -eq "G") {
+    return Join-Path "G:\#SAMPLES\# SFX" $relative
+  }
+  return Join-Path $sourceRoot $relative
 }
 
 # Personal sample library → browser Opus pack.
@@ -112,18 +124,24 @@ $assets = @(
   }
 )
 
-# Per-enemy multi-take + biome skins (see enemy-audio-map.ps1).
+# Per-enemy multi-take + biome skins (see scripts/enemy-audio-sources.ts).
 . (Join-Path $PSScriptRoot "enemy-audio-map.ps1")
+$enemyAssets = @()
 foreach ($enemy in $EnemyAudioAssets) {
-  $assets += [pscustomobject]@{
-    Name = $enemy.Name
-    Channels = $enemy.Channels
-    Bitrate = $enemy.Bitrate
-    TargetLufs = $enemy.TargetLufs
-    Start = $enemy.Start
-    Duration = $enemy.Duration
-    Source = SourcePath $enemy.Source
+  $enemyAssets += [pscustomobject]@{
+    Name = $enemy.name
+    Channels = $enemy.channels
+    Bitrate = $enemy.bitrate
+    TargetLufs = $enemy.targetLufs
+    Start = $enemy.start
+    Duration = $enemy.duration
+    Source = ResolveLibrarySource $enemy
   }
+}
+if ($EnemyOnly) {
+  $assets = $enemyAssets
+} else {
+  foreach ($enemy in $enemyAssets) { $assets += $enemy }
 }
 
 New-Item -ItemType Directory -Force -Path $OutputDirectory | Out-Null
@@ -149,4 +167,10 @@ foreach ($asset in $assets) {
   & $ffmpeg @arguments
   if ($LASTEXITCODE -ne 0) { throw "ffmpeg failed for $($asset.Name)" }
   Write-Host "Built $output"
+}
+
+if ($EnemyOnly) {
+  Get-ChildItem -LiteralPath $OutputDirectory -File |
+    Where-Object { $_.Name -match "enemy-.*-(cold|wet|fire|weird)\.opus$" } |
+    Remove-Item -Force
 }

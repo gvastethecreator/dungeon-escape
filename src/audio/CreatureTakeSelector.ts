@@ -1,4 +1,5 @@
 import {
+  CREATURE_TONES,
   creatureBaseTakes,
   creatureToneAsset,
   type AudioAssetId,
@@ -7,13 +8,14 @@ import {
   type CreatureVoice,
 } from "./AudioAssetCatalog";
 
+function isBiomeCreatureTone(value: string): value is Exclude<CreatureTone, "base"> {
+  return (CREATURE_TONES as readonly string[]).includes(value);
+}
+
+/** Ancient keeps the canonical v0–v2 pool. Every other biome has its own species skin. */
 export function creatureToneForMood(moodId: string | null | undefined): CreatureTone {
   const id = (moodId ?? "").trim().toLowerCase();
-  if (id === "frost") return "cold";
-  if (id === "sunken" || id === "fungal") return "wet";
-  if (id === "molten" || id === "obsidian") return "fire";
-  if (id === "backrooms") return "weird";
-  return "base";
+  return isBiomeCreatureTone(id) ? id : "base";
 }
 
 /** Selects weighted creature takes without immediately repeating a prior pick. */

@@ -743,7 +743,7 @@ describe("StaticDungeonScene", () => {
       });
       expect(runtimes.every((runtime) => runtime.root.children.length > 0)).toBe(true);
       expect(runtimes.map((runtime) => runtime.occupancy.diagnostics().occupiedCells)).toEqual([
-        251, 262, 239, 274,
+        248, 268, 245, 274,
       ]);
       expect(runtimes.map((runtime) => runtime.occupancy.memoryBytes)).toEqual([
         5329, 5329, 5329, 5329,
@@ -1214,7 +1214,7 @@ describe("StaticDungeonScene", () => {
         pickups: 29,
         beams: 7,
         lights: 16,
-        props: 328,
+        props: 326,
       });
       expect(classic.ambientBeams).toHaveLength(2);
       expect(group.getObjectByName("Ambient godray 1")).toBeDefined();
@@ -1390,8 +1390,8 @@ describe("StaticDungeonScene", () => {
         pickups: 29,
         beams: 7,
         lights: 16,
-        props: 328,
-        reserveEnemies: 22,
+        props: 326,
+        reserveEnemies: 20,
       });
       expect(world.getSolidCells()).toHaveLength(27);
       expect(world.getSolidColliders()).toHaveLength(27);

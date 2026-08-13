@@ -17,7 +17,7 @@ import {
   type DungeonDomainState,
 } from "./domain/bridge";
 import { DEFAULT_DUNGEON_PARAMS, type DungeonParams } from "./domain/core";
-import { generateDungeonBuild } from "./dungeon/DungeonGenerationEngine";
+import { generateDungeonBuildWithYield } from "./dungeon/DungeonGenerationEngine";
 import type { DungeonFloorCampaign } from "./dungeon/generateDungeonFloors";
 import { DUNGEON_PRESETS, type DungeonPresetId } from "./dungeon/presets";
 import { setDungeonSpawn } from "./dungeon/generateDungeon";
@@ -147,6 +147,7 @@ import { BiomeScreenParticles } from "./ui/BiomeScreenParticles";
 import { createMinimapDrawInvalidator, createMinimapLayoutScheduler } from "./ui/minimapLayout";
 import { PlayRuntime } from "./game/PlayRuntime";
 import { shouldAdoptHydratedSeed } from "./game/hydratePolicy";
+import { mintCampaignSeed, nextCampaignSeed } from "./game/CampaignSeed";
 import { nextProceduralSeed } from "./game/SeedFactory";
 import { FloorExploration } from "./game/FloorExploration";
 import { readUserSettings, writeUserSettings, type UserSettings } from "./game/UserSettings";
@@ -1132,6 +1133,7 @@ function setWelcomeTransitionBusy(busy: boolean, message?: string): void {
   elements.welcomeNew.disabled = busy;
   elements.welcomeCustom.disabled = busy;
   elements.welcomeContinue.disabled = busy || continueDomainState === null;
+  elements.biomePickerBack.disabled = busy;
   if (message) elements.welcomeStatus.textContent = message;
 }
 
@@ -1230,8 +1232,8 @@ function setWelcomeOpen(open: boolean): void {
   if (open) {
     controller.releasePointerLock();
     audio.setPaused(true);
-    setMusicBed("menu");
     showWelcomeHome();
+    syncWelcomeMusic();
     void refreshLeaderboard();
     window.requestAnimationFrame(focusWelcomeEntry);
   } else {
@@ -1253,6 +1255,7 @@ function showWelcomeHome(): void {
   elements.welcomeProfile.hidden = true;
   elements.welcomeBiomePicker.hidden = true;
   syncWelcomeLeaderboardVisibility();
+  syncWelcomeMusic();
 }
 
 function storedLeaderboardName(): string | null {
@@ -1293,6 +1296,7 @@ function showBiomePicker(): void {
   elements.welcomeProfile.hidden = true;
   elements.welcomeBiomePicker.hidden = false;
   syncWelcomeLeaderboardVisibility();
+  syncWelcomeMusic();
   // Warm the Forge iframe while the player picks a biome so New Game does not
   // stall on a cold WebGL load under the black curtain.
   if (!launchConfig.skipRunIntro) {
@@ -1364,13 +1368,18 @@ function renderBiomePicker(): void {
 
 function startNewGameWithBiome(biomeId: BiomeId): void {
   if (!playerProfile || !isBiomeUnlocked(playerProfile, biomeId)) return;
+  if (elements.welcomeScreen.getAttribute("aria-busy") === "true") return;
   forcedPlayMoodId = biomeId;
   // Apply the campaign ramp without reading or painting editor controls.
   setGenerationParams(biomeCampaignParams(biomeId));
-  void startPlayWithSeed(launchConfig.visualQa.seed ?? makeSeed(), {
+  const seed = nextCampaignSeed(launchConfig.visualQa, makeSeed);
+  elements.seed.value = seed;
+  setWelcomeTransitionBusy(true, COPY.status.preparingDungeon);
+  void startPlayWithSeed(seed, {
     refreshProcedural: true,
     runSource: "campaign",
   }).then((result) => {
+    setWelcomeTransitionBusy(false);
     if (result.kind !== "entered-play") return;
     setStatus(
       `Level ${biomeDifficultyRank(biomeId) + 1} · ${getDungeonMood(biomeId).label} · ${biomeCampaignFloorCount(biomeId)} floor${biomeCampaignFloorCount(biomeId) === 1 ? "" : "s"}.`,
@@ -1381,6 +1390,19 @@ function startNewGameWithBiome(biomeId: BiomeId): void {
 /** Scene beds. Menu / end screens keep music while play SFX are paused. */
 function setMusicBed(track: MusicTrack | null): void {
   audio.setMusicTrack(track);
+}
+
+function syncWelcomeMusic(): void {
+  if (!welcomeOpen) return;
+  if (!elements.welcomeBiomePicker.hidden) {
+    setMusicBed("biome-select");
+    return;
+  }
+  if (elements.welcomeLeaderboard.classList.contains("is-expanded")) {
+    setMusicBed("hall");
+    return;
+  }
+  setMusicBed("menu");
 }
 
 /** Exploration bed, or denser portal bed once all four stones are bound. */
@@ -1481,6 +1503,15 @@ function isSceneFadeCovering(): boolean {
   return !elements.sceneFade.hidden && elements.sceneFade.classList.contains("is-opaque");
 }
 
+/** True when a load cover is up so yielding cannot flash the unfinished scene. */
+function isMapLoadCovered(): boolean {
+  return (
+    isSceneFadeCovering() ||
+    isRunIntroActive() ||
+    elements.welcomeScreen.getAttribute("aria-busy") === "true"
+  );
+}
+
 /** Mood for the loading teaser: campaign pick, forced URL mood, or live dungeon. */
 function resolveSceneLoaderMoodId(): string {
   if (forcedPlayMoodId) return forcedPlayMoodId;
@@ -1496,6 +1527,10 @@ function setSceneLoaderVisible(visible: boolean): void {
   elements.sceneLoader.setAttribute("aria-hidden", visible ? "false" : "true");
   // Keep the same teaser while a cover re-asserts the spinner mid-build.
   if (visible) {
+    elements.sceneLoader.setAttribute(
+      "aria-label",
+      `${COPY.status.pleaseWait}. ${COPY.status.preparingDungeon}`,
+    );
     if (!sceneLoaderEnemy.isVisible) sceneLoaderEnemy.show(resolveSceneLoaderMoodId());
   } else {
     sceneLoaderEnemy.hide();
@@ -1518,7 +1553,7 @@ async function setSceneFadeOpaque(
     instant?: boolean;
     durationMs?: number;
     signal?: AbortSignal;
-    /** When covering, show the "Loading dungeon" spinner. Default true. */
+    /** When covering, show the "Please wait" spinner. Default true. */
     showLoader?: boolean;
   } = {},
 ): Promise<void> {
@@ -1588,6 +1623,7 @@ const runIntroDirector = new RunIntroDirector({
     if (request.runSource) setRunSource(request.runSource, false);
     elements.seed.value = request.seed;
     setWelcomeOpen(false);
+    setWelcomeTransitionBusy(false);
     setMusicBed(null);
     controller.setEnabled(false);
     closeEndOverlay();
@@ -1728,7 +1764,7 @@ function startPlayWithSeed(
   seed: string,
   options: { refreshProcedural?: boolean; runSource?: RunSource } = {},
 ): Promise<RunIntroResult> {
-  const normalizedSeed = seed.trim() || COPY.hud.seedDefault;
+  const normalizedSeed = seed.trim() || makeSeed();
   const request: RunIntroRequest = {
     seed: normalizedSeed,
     runSource: options.runSource,
@@ -3133,9 +3169,17 @@ function bindAuthorityRunTransition(runId: string): void {
   }
 }
 
-/** One painted frame between heavy map-load steps so the fade/loader stays alive. */
+/** Yield to the event loop, then paint one frame so the load cover stays alive. */
 function yieldMapLoadFrame(): Promise<void> {
-  return waitAnimationFrames(1);
+  return yieldToEventLoop().then(() => waitAnimationFrames(1));
+}
+
+function yieldToEventLoop(): Promise<void> {
+  const scheduler = (globalThis as { scheduler?: { yield?: () => Promise<void> } }).scheduler;
+  if (typeof scheduler?.yield === "function") return scheduler.yield();
+  return new Promise((resolve) => {
+    setTimeout(resolve, 0);
+  });
 }
 
 function publishMapLoadTelemetry(metrics: {
@@ -3276,12 +3320,11 @@ async function activateDungeon(
   // Never self-own a cover-and-wait here: that deadlocked first-map loads when
   // the warmup rAF and the waiter both stalled behind the same fade.
   // Only re-show the spinner while a black cover is already up for a real build.
-  if (isSceneFadeCovering()) setSceneLoaderVisible(true);
+  if (isMapLoadCovered()) setSceneLoaderVisible(true);
   const warmupSequence = beginRendererWarmup();
   const loadStartedAt = performance.now();
-  const mayYieldDuringBuild = isSceneFadeCovering();
   const yieldIfCovered = async (): Promise<void> => {
-    if (mayYieldDuringBuild) await yieldMapLoadFrame();
+    if (isMapLoadCovered()) await yieldMapLoadFrame();
   };
 
   dungeon = nextDungeon;
@@ -3450,7 +3493,7 @@ async function buildDungeon(
   const loadTrace = trace ?? openDungeonLoadTrace();
   if (!dungeonLoadTraces.isActive(loadTrace)) return getRuntimeState();
   povPost.resetCrtHistory();
-  const normalizedSeed = seed.trim() || COPY.hud.seedDefault;
+  const normalizedSeed = seed.trim() || makeSeed();
   try {
     const params = setGenerationParams(options.params ?? generationParams);
     const requestedCampaignMood =
@@ -3460,6 +3503,8 @@ async function buildDungeon(
           parseDungeonMoodId(launchConfig.mood))
         : null;
     let generated: DungeonData;
+    // Topology work does not clear the Three.js scene, so it can always yield.
+    await yieldMapLoadFrame();
     loadTrace.begin("generation");
     try {
       const rootSeed = options.restore?.generation.seed ?? normalizedSeed;
@@ -3469,27 +3514,36 @@ async function buildDungeon(
       );
       if (runSource === "campaign" && requestedCampaignMood) {
         const floorCount = biomeCampaignFloorCount(requestedCampaignMood);
-        const result = generateDungeonBuild({
-          seed: rootSeed,
-          params,
-          floorCount,
-          activeFloor,
-        });
-        campaignFloorSet = result.floorSet;
-        generated = result.dungeon;
-      } else {
-        const first = generateDungeonBuild({ seed: rootSeed, params });
-        generated = first.dungeon;
-        if (runSource === "campaign" && !generated.forge) {
-          const moodId = resolveActiveMood(generated).id;
-          const floorCount = biomeCampaignFloorCount(moodId);
-          const result = generateDungeonBuild({
+        const result = await generateDungeonBuildWithYield(
+          {
             seed: rootSeed,
             params,
             floorCount,
             activeFloor,
-            initialFloor: generated,
-          });
+          },
+          yieldMapLoadFrame,
+        );
+        campaignFloorSet = result.floorSet;
+        generated = result.dungeon;
+      } else {
+        const first = await generateDungeonBuildWithYield(
+          { seed: rootSeed, params },
+          yieldMapLoadFrame,
+        );
+        generated = first.dungeon;
+        if (runSource === "campaign" && !generated.forge) {
+          const moodId = resolveActiveMood(generated).id;
+          const floorCount = biomeCampaignFloorCount(moodId);
+          const result = await generateDungeonBuildWithYield(
+            {
+              seed: rootSeed,
+              params,
+              floorCount,
+              activeFloor,
+              initialFloor: generated,
+            },
+            yieldMapLoadFrame,
+          );
           campaignFloorSet = result.floorSet;
           generated = result.dungeon;
         } else {
@@ -3771,9 +3825,7 @@ function toggleMap(forceExpanded = !mapExpanded): void {
 }
 
 function makeSeed(): string {
-  const values = new Uint32Array(1);
-  crypto.getRandomValues(values);
-  return `ASH-${(values[0] ?? 0).toString(36).toUpperCase()}`;
+  return mintCampaignSeed();
 }
 
 function makeProceduralSeed(): number {
@@ -4420,6 +4472,7 @@ elements.welcomeHallToggle.addEventListener("click", () => {
   const arrow = elements.welcomeHallToggle.lastElementChild;
   if (label) label.textContent = expanded ? "HIDE HALL" : "VIEW HALL";
   if (arrow) arrow.textContent = expanded ? "↑" : "→";
+  syncWelcomeMusic();
 });
 elements.welcomeProfileEdit.addEventListener("click", () => {
   showPlayerProfileEditor(false);
@@ -4468,8 +4521,9 @@ elements.welcomeContinue.addEventListener("click", () => {
     if (!state) return;
 
     void audio.unlock();
-    setWelcomeTransitionBusy(true, "Restoring saved dungeon…");
-    // Two frames guarantee the busy state is painted before generation blocks the main thread.
+    setWelcomeTransitionBusy(true, COPY.status.restoringDungeon);
+    await setSceneFadeOpaque(true, { instant: true, showLoader: true });
+    // Two frames guarantee the busy cover is painted before generation work.
     await waitAnimationFrames(2);
     try {
       setRunSource(recovery?.runSource ?? runSourceFromLocalSave(validSave), false);
@@ -4486,11 +4540,13 @@ elements.welcomeContinue.addEventListener("click", () => {
       setWelcomeTransitionBusy(false);
       setWelcomeOpen(false);
       setEngineMode("play", { hydrate: false });
+      await setSceneFadeOpaque(false, { durationMs: 240 });
       localRunSave.schedule(0);
       setStatus(`Continued run · seed ${state.seed}. Click the scene to look.`);
     } catch (error) {
       console.warn("Could not restore saved dungeon", error);
       setWelcomeTransitionBusy(false, "Could not restore this run. Try again or start a new game.");
+      await setSceneFadeOpaque(false, { instant: true });
     }
   })();
 });
@@ -4498,7 +4554,8 @@ elements.welcomeCustom.addEventListener("click", () => {
   void (async () => {
     void audio.unlock();
     continueRecoveryOverride = null;
-    setWelcomeTransitionBusy(true, "Creating custom dungeon…");
+    setWelcomeTransitionBusy(true, COPY.status.creatingCustomDungeon);
+    await setSceneFadeOpaque(true, { instant: true, showLoader: true });
     // Keep feedback visible even when procedural generation takes more than one frame.
     await waitAnimationFrames(2);
     try {
@@ -4512,10 +4569,12 @@ elements.welcomeCustom.addEventListener("click", () => {
       setWelcomeOpen(false);
       setEngineMode("editor", { hydrate: false, loadEditor: false });
       setEditorSurface("forge");
+      await setSceneFadeOpaque(false, { durationMs: 240 });
       setStatus("Custom run · practice only. Create a dungeon, then select PLAY.");
     } catch (error) {
       console.warn("Could not create custom dungeon", error);
       setWelcomeTransitionBusy(false, "Could not create a custom dungeon. Try again.");
+      await setSceneFadeOpaque(false, { instant: true });
     }
   })();
 });

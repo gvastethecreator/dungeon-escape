@@ -66,6 +66,10 @@ export const COPY = {
     enter: "Click the scene to lock the pointer.",
     enterPlay:
       "Click the scene to lock the pointer. Right-click to jump · ESC options.",
+    pleaseWait: "Please wait",
+    preparingDungeon: "Preparing the dungeon…",
+    restoringDungeon: "Restoring saved dungeon…",
+    creatingCustomDungeon: "Creating custom dungeon…",
     forgingMap: "Forging the dungeon…",
     enteringDungeon: "Entering the depths…",
     exploring:

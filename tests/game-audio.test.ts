@@ -9,6 +9,7 @@ import {
   musicTrackForBiome,
   type AudioCue,
 } from "../src/audio/GameAudio";
+import { audioAssetCount } from "../src/audio/AudioAssetCatalog";
 import { listBiomeIds } from "../src/systems/BiomeIdentity";
 import { ENEMY_ROSTER } from "../src/world/EnemySpriteAtlas";
 import { creatureVoiceForEnemy } from "../src/world/DungeonWorld";
@@ -114,8 +115,10 @@ describe("GameAudio dungeon soundscape", () => {
     expect(catalog).toContain("pickup-shotgun-v2.opus");
     expect(catalog).toContain("win.opus");
     expect(catalog).toContain("lose.opus");
-    expect(catalog).toContain("music-menu.opus");
-    expect(catalog).toContain("music-win.opus");
+    expect(catalog).toContain("music-menu.ogg");
+    expect(catalog).toContain("music-hall.ogg");
+    expect(catalog).toContain("music-biome-select.ogg");
+    expect(catalog).toContain("music-win.ogg");
     expect(catalog).toContain("music-lose.ogg");
     expect(catalog).toContain("music-biome-backrooms.ogg");
     expect(catalog).toContain("music-biome-backrooms-portal.ogg");
@@ -259,21 +262,27 @@ describe("GameAudio dungeon soundscape", () => {
     expect(musicTrackForBiome("unknown", { portalOpen: true })).toBe("biome-ancient-portal");
   });
 
-  test("lose bed is a melancholic Neo-SPC ogg asset", async () => {
-    const asset = Bun.file(
-      new URL("../public/assets/audio/dungeon/music-lose.ogg", import.meta.url),
-    );
-    expect(await asset.exists()).toBe(true);
-    expect(asset.size).toBeGreaterThan(150_000);
+  test("screen and biome music beds exist on disk", async () => {
+    for (const file of [
+      "music-menu.ogg",
+      "music-hall.ogg",
+      "music-biome-select.ogg",
+      "music-win.ogg",
+      "music-lose.ogg",
+    ] as const) {
+      const asset = Bun.file(new URL(`../public/assets/audio/dungeon/${file}`, import.meta.url));
+      expect(await asset.exists()).toBe(true);
+      expect(asset.size).toBeGreaterThan(150_000);
+    }
   });
 
   test("mood maps to creature tone families", () => {
-    expect(creatureToneForMood("frost")).toBe("cold");
-    expect(creatureToneForMood("sunken")).toBe("wet");
-    expect(creatureToneForMood("fungal")).toBe("wet");
-    expect(creatureToneForMood("molten")).toBe("fire");
-    expect(creatureToneForMood("obsidian")).toBe("fire");
-    expect(creatureToneForMood("backrooms")).toBe("weird");
+    expect(creatureToneForMood("frost")).toBe("frost");
+    expect(creatureToneForMood("sunken")).toBe("sunken");
+    expect(creatureToneForMood("fungal")).toBe("fungal");
+    expect(creatureToneForMood("molten")).toBe("molten");
+    expect(creatureToneForMood("obsidian")).toBe("obsidian");
+    expect(creatureToneForMood("backrooms")).toBe("backrooms");
     expect(creatureToneForMood("ancient")).toBe("base");
     expect(creatureToneForMood(null)).toBe("base");
   });
@@ -316,6 +325,9 @@ describe("GameAudio dungeon soundscape", () => {
   test("main wires menu and end-screen music beds", async () => {
     const main = await Bun.file(new URL("../src/main.ts", import.meta.url)).text();
     expect(main).toContain('setMusicBed("menu")');
+    expect(main).toContain('setMusicBed("hall")');
+    expect(main).toContain('setMusicBed("biome-select")');
+    expect(main).toContain("syncWelcomeMusic()");
     expect(main).toContain('setMusicBed("win")');
     expect(main).toContain('setMusicBed("lose")');
     expect(main).toContain("musicTrackForBiome");
@@ -473,7 +485,7 @@ describe("GameAudio dungeon soundscape", () => {
       expect(await audio.unlock()).toBe(true);
       expect(audio.isReady).toBe(false);
       expect(audio.getLoadDiagnostics()).toMatchObject({
-        catalogAssets: 253,
+        catalogAssets: audioAssetCount(),
         requestedAssets: 9,
         decodedAssets: 8,
         residentBuffers: 8,

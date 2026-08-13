@@ -29,11 +29,15 @@ export type BiomePortalMusicTrack =
   | "biome-fungal-portal"
   | "biome-backrooms-portal";
 
-export type MusicTrack = "menu" | "win" | "lose" | BiomeMusicTrack | BiomePortalMusicTrack;
+export type ScreenMusicTrack = "menu" | "hall" | "biome-select" | "win" | "lose";
+
+export type MusicTrack = ScreenMusicTrack | BiomeMusicTrack | BiomePortalMusicTrack;
 
 /** Asset ids for every music track key (files live under public/assets/audio/dungeon). */
 export const MUSIC_ASSET_IDS: Readonly<Record<MusicTrack, string>> = {
   menu: "music-menu",
+  hall: "music-hall",
+  "biome-select": "music-biome-select",
   win: "music-win",
   lose: "music-lose",
   "biome-ancient": "music-biome-ancient",

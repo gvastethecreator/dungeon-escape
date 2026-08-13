@@ -75,11 +75,13 @@ describe("welcome and map flow", () => {
     expect(continueAt).toBeGreaterThan(-1);
     expect(customAt).toBeGreaterThan(continueAt);
     expect(optionsAt).toBeGreaterThan(customAt);
-    expect(continueHandler).toContain('setWelcomeTransitionBusy(true, "Restoring saved dungeon…")');
+    expect(continueHandler).toContain("setWelcomeTransitionBusy(true, COPY.status.restoringDungeon)");
     expect(css).toContain(".welcome-card .welcome-status:empty");
     expect(continueHandler).toContain("await waitAnimationFrames(2)");
+    expect(continueHandler).toContain("await setSceneFadeOpaque(true, { instant: true, showLoader: true })");
     expect(continueHandler).toContain("await waitForRendererWarmup(10_000)");
-    expect(customHandler).toContain('setWelcomeTransitionBusy(true, "Creating custom dungeon…")');
+    expect(customHandler).toContain("setWelcomeTransitionBusy(true, COPY.status.creatingCustomDungeon)");
+    expect(customHandler).toContain("await setSceneFadeOpaque(true, { instant: true, showLoader: true })");
     expect(customHandler).toContain("await waitAnimationFrames(2)");
   });
 

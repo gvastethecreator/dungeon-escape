@@ -4,6 +4,7 @@ import { DEFAULT_DUNGEON_PARAMS } from "../src/domain/core";
 import {
   dungeonOptionsFromParams,
   generateDungeonBuild,
+  generateDungeonBuildWithYield,
 } from "../src/dungeon/DungeonGenerationEngine";
 
 const FAST_PARAMS = {
@@ -58,6 +59,32 @@ describe("DungeonGenerationEngine", () => {
     expect(result.floorSet?.allFloors()).toHaveLength(4);
     expect(result.dungeon.floor?.index).toBe(2);
     expect(result.dungeon.floor?.count).toBe(4);
+  });
+
+  test("yields between campaign floors without changing the generated stack", async () => {
+    let yields = 0;
+    const result = await generateDungeonBuildWithYield(
+      {
+        seed: "ENGINE-STACK-YIELD",
+        params: FAST_PARAMS,
+        floorCount: 4,
+        activeFloor: 1,
+      },
+      async () => {
+        yields += 1;
+      },
+    );
+    const sync = generateDungeonBuild({
+      seed: "ENGINE-STACK-YIELD",
+      params: FAST_PARAMS,
+      floorCount: 4,
+      activeFloor: 1,
+    });
+
+    expect(yields).toBeGreaterThanOrEqual(4);
+    expect(result.dungeon.topologySignature).toBe(sync.dungeon.topologySignature);
+    expect(result.floorSet?.cachedFloorCount).toBe(4);
+    expect(result.dungeon.floor?.index).toBe(1);
   });
 
   test("has no editor, DOM, rendering, or world dependency", async () => {

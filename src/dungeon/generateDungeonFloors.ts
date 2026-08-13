@@ -86,18 +86,37 @@ export class DungeonFloorCampaign {
     return this;
   }
 
-  private ensureMaterialized(): void {
-    if (this.materialized) return;
+  /**
+   * Same as `materialize`, but yields after each floor so a load cover can
+   * keep painting instead of blocking the tab on a four-floor campaign.
+   */
+  async materializeWithYield(yieldToMain: () => Promise<void>): Promise<this> {
+    if (this.materialized) return this;
     const raw: DungeonData[] = [];
     for (let index = 0; index < this.count; index += 1) {
-      const floorSeed = index === 0 ? this.rootSeed : `${this.rootSeed}:F${index + 1}`;
-      raw.push(
-        index === 0 && this.initialFloor
-          ? cloneDungeonGrid(this.initialFloor)
-          : cloneDungeonGrid(this.generator(floorSeed, this.options)),
-      );
+      raw.push(this.buildRawFloor(index));
+      await yieldToMain();
     }
+    this.linkAndCacheFloors(raw);
+    await yieldToMain();
+    return this;
+  }
 
+  private ensureMaterialized(): void {
+    if (this.materialized) return;
+    const raw = Array.from({ length: this.count }, (_, index) => this.buildRawFloor(index));
+    this.linkAndCacheFloors(raw);
+  }
+
+  private buildRawFloor(index: number): DungeonData {
+    const floorSeed = index === 0 ? this.rootSeed : `${this.rootSeed}:F${index + 1}`;
+    return index === 0 && this.initialFloor
+      ? cloneDungeonGrid(this.initialFloor)
+      : cloneDungeonGrid(this.generator(floorSeed, this.options));
+  }
+
+  private linkAndCacheFloors(raw: DungeonData[]): void {
+    if (this.materialized) return;
     if (this.count > 1) {
       this.shaftPlan = planStairShafts(raw, this.rootSeed);
       applyStairShaftCarves(raw, this.shaftPlan);
@@ -131,6 +150,22 @@ export function createDungeonFloorCampaign(
     generateCompletableDungeon,
     initialFloor,
   ).materialize();
+}
+
+/** Pending campaign owner. Call `materializeWithYield` before Play uses the stack. */
+export function createPendingDungeonFloorCampaign(
+  seed = "BLACK-FLAG",
+  options: DungeonOptions = {},
+  requestedFloorCount = 1,
+  initialFloor?: DungeonData,
+): DungeonFloorCampaign {
+  return new DungeonFloorCampaign(
+    seed,
+    options,
+    requestedFloorCount,
+    generateCompletableDungeon,
+    initialFloor,
+  );
 }
 
 function clampFloorCount(value: number): number {

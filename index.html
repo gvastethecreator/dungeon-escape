@@ -33,14 +33,23 @@
       <canvas id="scene" tabindex="0" aria-label="First-person grimdark dungeon"></canvas>
       <div class="view-falloff" aria-hidden="true"></div>
       <div id="scene-fade" class="scene-fade" hidden aria-hidden="true">
-        <div id="scene-loader" class="scene-loader" hidden aria-hidden="true">
+        <div
+          id="scene-loader"
+          class="scene-loader"
+          hidden
+          aria-hidden="true"
+          role="status"
+          aria-live="polite"
+          aria-label="Please wait. Preparing the dungeon."
+        >
           <div id="scene-loader-enemy" class="scene-loader__enemy" hidden aria-hidden="true">
             <div id="scene-loader-enemy-sprite" class="scene-loader__enemy-sprite"></div>
           </div>
           <div class="scene-loader__track" aria-hidden="true">
             <div class="scene-loader__bar"></div>
           </div>
-          <p class="scene-loader__text">Loading dungeon</p>
+          <p class="scene-loader__kicker">Please wait</p>
+          <p class="scene-loader__text">Preparing the dungeon…</p>
         </div>
       </div>
       <p id="run-intro-status" class="run-intro-status" role="status" aria-live="polite" hidden></p>

@@ -18,6 +18,7 @@ function makeCanvasStub(width = 200, height = 120) {
     setTransform: () => {},
     clearRect: () => {},
     fillRect: () => calls.push({ op: "fillRect" }),
+    drawImage: () => calls.push({ op: "drawImage" }),
     beginPath: () => calls.push({ op: "beginPath" }),
     arc: () => calls.push({ op: "arc" }),
     moveTo: () => calls.push({ op: "moveTo" }),
@@ -225,5 +226,44 @@ describe("minimap marker layer", () => {
     // Walls are never marked as explored floors.
     expect(explored.has(cellKey(0, 2))).toBe(false);
     expect(explored.size).toBe(15);
+  });
+
+  test("reuses the static fog canvas when exploration grows", () => {
+    let created = 0;
+    const previous = globalThis.document;
+    globalThis.document = {
+      createElement(name: string) {
+        if (name !== "canvas") return {};
+        created += 1;
+        const ctx = {
+          setTransform() {},
+          clearRect() {},
+          fillRect() {},
+          fillStyle: "#000",
+          drawImage() {},
+        };
+        return { width: 0, height: 0, getContext: () => ctx };
+      },
+    } as unknown as Document;
+    try {
+      const { canvas } = makeCanvasStub();
+      const dungeon = makeDungeon();
+      const explored = new Set([cellKey(2, 2)]);
+      const viewport = { width: 200, height: 120, pixelRatio: 1 };
+      drawMinimap(canvas, dungeon, { x: 2, y: 2 }, {
+        explored,
+        staticLayerKey: 1,
+        viewport,
+      });
+      explored.add(cellKey(3, 2));
+      drawMinimap(canvas, dungeon, { x: 3, y: 2 }, {
+        explored,
+        staticLayerKey: 2,
+        viewport,
+      });
+      expect(created).toBe(1);
+    } finally {
+      globalThis.document = previous;
+    }
   });
 });

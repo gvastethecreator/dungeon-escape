@@ -56,7 +56,7 @@ export interface CornerSeat extends WallSeat {
  */
 export type PlacementOccupancyQuery = CellOccupancyQuery | ReadonlySet<string>;
 
-function isPlacementOccupied(occupancy: PlacementOccupancyQuery, cell: GridCell): boolean {
+export function isPlacementOccupied(occupancy: PlacementOccupancyQuery, cell: GridCell): boolean {
   if ("isOccupied" in occupancy) return occupancy.isOccupied(cell.x, cell.y);
   return occupancy.has(`${cell.x},${cell.y}`);
 }
