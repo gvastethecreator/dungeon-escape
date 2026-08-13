@@ -23,6 +23,7 @@ pwsh -File scripts/build-audio-pack.ps1
 | wet footsteps   | 0.84 group; 0.14–0.16 per asset |        -32 LUFS |             soft bed | Water masks (left soft)   |
 | threat          |                            0.72 | -24 to -18 LUFS |     ~-30 to -27 LUFS | Enemy voices              |
 | ui              |                            0.28 |        -32 LUFS |             soft bed | Soft menu clicks/ticks    |
+| music           |                           0.288 |        -16 LUFS |             under SFX | Scene and biome beds      |
 
 Master defaults to `0.76`. Effective level ≈ file LUFS + asset gain + group gain + master. Per-asset gains in `GameAudio` were matched to measured Opus loudness; footsteps stay intentionally quiet.
 
@@ -58,22 +59,8 @@ python scripts/generate-ui-sounds.py
 | `enemy-growl` / `enemy-attack` | Generic threat fallbacks |
 | `enemy-{kind}-v0..v2` | Three presence takes per kind (random, no immediate repeat) |
 | `enemy-{kind}-attack-v0..v2` | Three attack takes per kind |
-| `enemy-{kind}-{tone}` | Biome skin presence (`cold` / `wet` / `fire` / `weird`) |
-| `enemy-{kind}-attack-{tone}` | Biome skin attack |
-
-Kinds: `carrion`, `goblin`, `ghost`, `ratling`, `husk`, `imp`, `zombie-orc`, `spider`, `bone-slime`, `white-eyed-shadow`, `carrion-stalker`.
-
-`creatureVoiceForEnemy(kind)` is 1:1 with roster kind. Proximity picks from presence takes; `playEnemyHit` picks from attack takes. The active dungeon mood is on `DungeonAudioFrame.moodId` and maps via `creatureToneForMood`:
-
-| Mood             | Tone  | Pool effect                               |
-| ---------------- | ----- | ----------------------------------------- |
-| frost            | cold  | skin clips double-weighted into take pool |
-| sunken, fungal   | wet   | same                                      |
-| molten, obsidian | fire  | same                                      |
-| backrooms        | weird | same                                      |
-| others           | base  | only v0–v2                                |
-
-Sources live in `scripts/enemy-audio-map.ps1` (personal library under `F:\# AUDIO\# SAMPLES\#SFX\`). Rebuild with `build-audio-pack.ps1`.
+| `enemy-{kind}-{biome}` | Biome subspecies presence (one clip per non-ancient biome) |
+| `enemy-{kind}-attack-{biome}` | Biome subspecies attack |
 | `door-open` / `door-close` | Dungeon doors |
 | `chest-open` / `chest-reward` | Chest lid + shimmer |
 | `damage` | Player hit |
@@ -81,9 +68,23 @@ Sources live in `scripts/enemy-audio-map.ps1` (personal library under `F:\# AUDI
 | `win` | Escape end |
 | `portal-open` | Portal unlock / spawn |
 | `music-biome-*` | Exploration bed per biome (see `docs/BIOME-MUSIC.md`) |
-| `music-biome-*-portal` | Escalated bed after four stones bind |
-| `music-lose` | Melancholic death bed (`Last Lantern`) |
-| `music-win` / `music-menu` | End-screen win / welcome menu beds |
+| `music-biome-*-portal` | Quietly raised bed after four stones bind |
+| `music-lose` | Melancholic death bed (`Last Wick`) |
+| `music-win` | Relief bed after escape (`Open Air`) |
+| `music-menu` | Welcome home bed (`Threshold Ember`) |
+| `music-hall` | Hall of Escapes bed (`Names in Stone`) |
+| `music-biome-select` | Biome picker bed (`Choose the Descent`) |
+
+Kinds: `carrion`, `goblin`, `ghost`, `ratling`, `husk`, `imp`, `zombie-orc`, `spider`, `bone-slime`, `white-eyed-shadow`, `carrion-stalker`.
+
+`creatureVoiceForEnemy(kind)` is 1:1 with roster kind. Proximity picks from presence takes; `playEnemyHit` picks from attack takes. The active dungeon mood is on `DungeonAudioFrame.moodId` and maps via `creatureToneForMood`:
+
+| Mood              | Tone          | Pool effect                               |
+| ----------------- | ------------- | ----------------------------------------- |
+| ancient           | base          | only v0–v2 (canonical species)            |
+| every other biome | that biome id | skin clips double-weighted into take pool |
+
+Sources live in `scripts/enemy-audio-sources.ts` (personal libraries under `F:\# AUDIO\# SAMPLES\#SFX\` and `G:\#SAMPLES\# SFX\`). Rebuild with `build-audio-pack.ps1 -EnemyOnly`.
 
 ## Spatial behavior
 

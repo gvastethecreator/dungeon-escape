@@ -142,6 +142,11 @@ import {
   WALL_HUGGING_KINDS,
   wallHugWorldOffset,
 } from "./PropPlacement";
+import {
+  collectCorridorFloorSeats,
+  collectCorridorPickupSeats,
+  selectShotgunFloorSeats,
+} from "./CorridorLootPlacement";
 import { createMagicStone } from "./MagicStoneKit";
 import { createBiomeMagicPortal, magicPortalApproachYaw } from "./MagicPortalKit";
 import {
@@ -232,6 +237,11 @@ export interface StaticDungeonSceneStats {
 
 /** Coplanar tile faces meet edge-to-edge; overlap causes z-fighting grid seams. */
 export const DUNGEON_SURFACE_TILE_SCALE = 1;
+/** Play-frame deferred hydration/dressing: several small steps, hard time cap. */
+export const PLAY_DRESSING_PUMP_STEPS = 6;
+export const PLAY_DRESSING_PUMP_BUDGET_MS = 3;
+/** Skip catch-up dressing after a hitch so the next frame can recover. */
+export const PLAY_DRESSING_PUMP_SKIP_DELTA = 0.04;
 
 export function dungeonFloorUvOffset(cell: GridCell): readonly [number, number] {
   // BoxGeometry's top-face V axis runs against world +Z.
@@ -487,6 +497,24 @@ export class StaticDungeonScene {
   private readonly pendingFloorHydration = new Map<ResidentFloorRuntimeOwner, Array<() => void>>();
   /** Visual dressing queued after interactables so climb frames stay short. */
   private readonly pendingFloorDressing = new Map<ResidentFloorRuntimeOwner, Array<() => void>>();
+  /** Play-pump deadline so one hydration callback can yield mid-function. */
+  private playDressingDeadline = Number.POSITIVE_INFINITY;
+  /** When set, the current queued callback still has work and must not be shifted. */
+  private deferredStepIncomplete = false;
+  /** Neighbor shaft trim is only needed after new spatially tagged batches appear. */
+  private residentVisibilityDirty = false;
+  /** Classic room dressing resumed across play frames for one resident slab. */
+  private readonly classicRoomDressingByRuntime = new WeakMap<
+    ResidentFloorRuntimeOwner,
+    {
+      session: {
+        dressRoom(room: DungeonRoom): void;
+        commit(): void;
+      };
+      roomIndex: number;
+      committed: boolean;
+    }
+  >();
   /** Build-only owner for render roots and collider publication. */
   private currentResidentFloor: ResidentFloorRuntimeOwner | null = null;
   /** Last logical active floor, retained without scanning aggregate adapters. */
@@ -1002,6 +1030,7 @@ export class StaticDungeonScene {
         }
       }
       const wallCells = collectBoundaryWalls(dungeon);
+      yield;
       this.addArchitecture(dungeon, floorCells, wallCells);
       yield;
       const hazardExclusions = this.createHazardExclusionQuery(dungeon, floorBuild.occupancy);
@@ -1334,6 +1363,7 @@ export class StaticDungeonScene {
     batch.userData.spatialChunkRole = role;
     batch.computeBoundingBox();
     batch.computeBoundingSphere();
+    this.residentVisibilityDirty = true;
   }
 
   /** Chunk keys around shafts that open between two adjacent resident floors. */
@@ -1401,12 +1431,18 @@ export class StaticDungeonScene {
    * destination floor immediately; this pump makes that finish cheap after a
    * short stay on the previous slab.
    */
-  pumpDeferredFloorDressing(maxSteps = 1): number {
+  pumpDeferredFloorDressing(
+    maxSteps = PLAY_DRESSING_PUMP_STEPS,
+    budgetMs = PLAY_DRESSING_PUMP_BUDGET_MS,
+  ): number {
     const budget = Math.max(0, Math.floor(maxSteps));
-    const hydrated = this.pumpDeferredFloorHydration(budget);
-    const ran =
-      hydrated >= budget ? hydrated : hydrated + this.pumpFloorDressingOnly(budget - hydrated);
-    if (ran > 0) this.syncResidentFloorVisibility();
+    const deadline = performance.now() + Math.max(0, budgetMs);
+    this.residentVisibilityDirty = false;
+    const hydrated = this.pumpDeferredFloorHydration(budget, deadline);
+    const dressed =
+      hydrated >= budget ? 0 : this.pumpFloorDressingOnly(budget - hydrated, deadline);
+    const ran = hydrated + dressed;
+    if (this.residentVisibilityDirty || dressed > 0) this.syncResidentFloorVisibility();
     return ran;
   }
 
@@ -1477,11 +1513,18 @@ export class StaticDungeonScene {
       },
       () => {
         this.addStaticObjectives(dungeon, stonePlacements, floorBuild.plan, false, true);
+      },
+      () => {
         this.commitDoorFrameBatches(runtime);
+      },
+      () => {
         this.commitChestBatches(runtime);
         this.cacheResidentMinimapProjection(dungeon, runtime);
         this.deferredFloorPresentations.delete(runtime);
         this.refreshResidentAggregateHandles();
+        const atmosphereRandom = createSeededRandom(
+          floorBuild.plan.atmosphere.seed ?? `${dungeon.seed}:atmosphere`,
+        );
         this.pendingFloorDressing.set(runtime, [
           () => {
             this.commitStaticContactShadows();
@@ -1503,7 +1546,12 @@ export class StaticDungeonScene {
             this.addAmbientGodrays(dungeon, this.activeMood, floorBuild.plan);
           },
           () => {
-            this.addAtmosphereProps(dungeon, floorBuild.plan);
+            this.scatterCobwebs(dungeon, atmosphereRandom);
+          },
+          () => {
+            this.scatterRoomAtmosphereProps(dungeon, atmosphereRandom);
+          },
+          () => {
             this.scatterBiomeSpriteProps(dungeon);
           },
           () => {
@@ -1555,11 +1603,11 @@ export class StaticDungeonScene {
     return best;
   }
 
-  private pumpDeferredFloorHydration(maxSteps: number): number {
+  private pumpDeferredFloorHydration(maxSteps: number, deadline = Number.POSITIVE_INFINITY): number {
     let remaining = Math.max(0, maxSteps);
     let ran = 0;
     const skipped = new Set<ResidentFloorRuntimeOwner>();
-    while (remaining > 0) {
+    while (remaining > 0 && performance.now() < deadline) {
       const runtime = this.selectBackgroundHydrationRuntime(skipped);
       if (!runtime) break;
       this.queueFloorHydration(runtime);
@@ -1573,9 +1621,7 @@ export class StaticDungeonScene {
         skipped.add(runtime);
         continue;
       }
-      this.withFloorBuildContext(runtime, () => {
-        steps.shift()!();
-      });
+      this.runQueuedDeferredStep(runtime, steps, deadline);
       remaining -= 1;
       ran += 1;
       if (steps.length === 0) this.pendingFloorHydration.delete(runtime);
@@ -1583,21 +1629,37 @@ export class StaticDungeonScene {
     return ran;
   }
 
-  private pumpFloorDressingOnly(maxSteps: number): number {
+  private pumpFloorDressingOnly(maxSteps: number, deadline = Number.POSITIVE_INFINITY): number {
     let remaining = Math.max(0, maxSteps);
     let ran = 0;
     for (const [runtime, steps] of this.pendingFloorDressing) {
-      if (remaining <= 0) break;
-      this.withFloorBuildContext(runtime, () => {
-        while (remaining > 0 && steps.length > 0) {
-          steps.shift()!();
-          remaining -= 1;
-          ran += 1;
-        }
-      });
+      if (remaining <= 0 || performance.now() >= deadline) break;
+      while (remaining > 0 && steps.length > 0 && performance.now() < deadline) {
+        this.runQueuedDeferredStep(runtime, steps, deadline);
+        remaining -= 1;
+        ran += 1;
+      }
       if (steps.length === 0) this.pendingFloorDressing.delete(runtime);
     }
     return ran;
+  }
+
+  /** Run the head callback; leave it queued when it yields to the frame budget. */
+  private runQueuedDeferredStep(
+    runtime: ResidentFloorRuntimeOwner,
+    steps: Array<() => void>,
+    deadline: number,
+  ): void {
+    this.playDressingDeadline = deadline;
+    this.deferredStepIncomplete = false;
+    try {
+      this.withFloorBuildContext(runtime, () => {
+        steps[0]!();
+      });
+    } finally {
+      this.playDressingDeadline = Number.POSITIVE_INFINITY;
+    }
+    if (!this.deferredStepIncomplete) steps.shift();
   }
 
   /** Keep compatibility arrays in canonical floor order after lazy hydration. */
@@ -2409,6 +2471,53 @@ export class StaticDungeonScene {
       this.addForgeDoorsAndProps(dungeon);
       return;
     }
+    const runtime = this.currentResidentFloor;
+    if (!runtime) {
+      const session = this.createClassicRoomDressingSession(dungeon, floorBuild, floorPlan);
+      for (const room of dungeon.rooms) session.dressRoom(room);
+      session.commit();
+      return;
+    }
+    const deadline = this.playDressingDeadline;
+    let progress = this.classicRoomDressingByRuntime.get(runtime);
+    if (!progress) {
+      progress = {
+        session: this.createClassicRoomDressingSession(dungeon, floorBuild, floorPlan),
+        roomIndex: 0,
+        committed: false,
+      };
+      this.classicRoomDressingByRuntime.set(runtime, progress);
+    }
+    const rooms = dungeon.rooms;
+    let didWork = false;
+    while (progress.roomIndex < rooms.length) {
+      if (didWork && performance.now() >= deadline) {
+        this.deferredStepIncomplete = true;
+        return;
+      }
+      progress.session.dressRoom(rooms[progress.roomIndex]!);
+      progress.roomIndex += 1;
+      didWork = true;
+    }
+    if (!progress.committed) {
+      if (didWork && performance.now() >= deadline) {
+        this.deferredStepIncomplete = true;
+        return;
+      }
+      progress.session.commit();
+      progress.committed = true;
+    }
+    this.classicRoomDressingByRuntime.delete(runtime);
+  }
+
+  private createClassicRoomDressingSession(
+    dungeon: DungeonData,
+    floorBuild?: FloorBuildContext,
+    floorPlan?: ResidentDungeonFloorPlan,
+  ): {
+    dressRoom(room: DungeonRoom): void;
+    commit(): void;
+  } {
     const random = createSeededRandom(
       floorPlan?.rooms[0]?.dressingSeed ?? `${dungeon.seed}:room-dressing`,
     );
@@ -2451,7 +2560,7 @@ export class StaticDungeonScene {
       (floorPlan?.roomWallArt ?? []).map((placement) => [placement.roomId, placement]),
     );
 
-    for (const room of dungeon.rooms) {
+    const dressRoom = (room: DungeonRoom): void => {
       const theme = roomTheme(dungeon, room);
       const wallSeats = this.getRoomWallSeats(dungeon, room);
       const candidates = doorwaysByRoom.get(room.id) ?? [];
@@ -2471,7 +2580,7 @@ export class StaticDungeonScene {
         this.stats.props += 1;
       }
 
-      if (room.role === "entrance" || room.width < 5 || room.height < 5) continue;
+      if (room.role === "entrance" || room.width < 5 || room.height < 5) return;
       if (room.id % 2 === 0) {
         // Paintings share a shallow real frame and one instanced batch per map.
         const plannedWall = plannedWallArtByRoom.get(room.id);
@@ -2644,8 +2753,9 @@ export class StaticDungeonScene {
         );
         this.stats.props += 1;
       }
-    }
+    };
 
+    const commit = (): void => {
     const artGeometry = this.resourceCatalog.borrowGeometry(
       "rigid-prop/v2:family:classic-wall-art:topology:plane:width:2.3000:height:2.3000",
       () => new THREE.PlaneGeometry(2.3, 2.3),
@@ -2700,6 +2810,9 @@ export class StaticDungeonScene {
         }
       }
     }
+    };
+
+    return { dressRoom, commit };
   }
 
   private addForgeDoorsAndProps(dungeon: DungeonData): void {
@@ -4292,7 +4405,7 @@ export class StaticDungeonScene {
           FloorOccupancyBit.CeilingDecoration,
       );
     const rooms = dungeon.rooms.filter((room) => room.role === "room" || room.role === "entrance");
-    const corridorCells = collectDecorCorridorCells(dungeon);
+    const corridorCells = collectCorridorFloorSeats(dungeon);
     const corridorRoomId = (cell: GridCell): number =>
       -1 -
       (Math.floor(cell.x / 6) + Math.floor(cell.y / 6) * Math.max(1, Math.ceil(dungeon.width / 6)));
@@ -4971,7 +5084,7 @@ export class StaticDungeonScene {
       }
     }
 
-    const corridorHangSeats = collectDecorCorridorCells(dungeon).filter(
+    const corridorHangSeats = collectCorridorFloorSeats(dungeon).filter(
       (cell) =>
         !this.requireActiveFloorOccupancy("Corridor hanging props").hasAny(
           cell.x,
@@ -5535,35 +5648,17 @@ export class StaticDungeonScene {
         }
       }
 
-      const shotgunDepths = spreadDepthFractions(loot.shotguns, 0.16, 0.72);
       const shotgunPickups = floorPlan?.rewards.freePickups.filter(
         (pickup) => pickup.source === "shotgun",
       );
-      shotgunDepths.forEach((depth, index) => {
-        const preferCorridor = index % 2 === 0;
-        if (preferCorridor) {
-          const fromCorridor = pickSpreadSeats(
-            corridorCells.filter((cell) => !pickupExcluded.isOccupied(cell.x, cell.y)),
-            1,
-            dungeon.seedHash + 511 + index * 19,
-          )[0];
-          if (fromCorridor) {
-            placeFloor("shotgun", fromCorridor, shotgunPickups?.[index]);
-            return;
-          }
-        }
-        const room = healthRooms[Math.floor(healthRooms.length * depth)] ?? healthRooms[0] ?? null;
-        if (!room) return;
-        const seat = pickSpreadSeats(
-          this.getRoomInteriorSeats(dungeon, room).filter(
-            (cell) =>
-              !pickupExcluded.isOccupied(cell.x, cell.y) &&
-              !isProtectedTraversalCell(dungeon, cell),
-          ),
-          1,
-          dungeon.seedHash + room.id * 67 + index,
-        )[0];
-        placeFloor("shotgun", seat, shotgunPickups?.[index]);
+      const shotgunSeats = selectShotgunFloorSeats(
+        dungeon,
+        loot.shotguns,
+        pickupExcluded,
+        roomFreeCells,
+      );
+      shotgunSeats.forEach((cell, index) => {
+        placeFloor("shotgun", cell, shotgunPickups?.[index]);
       });
 
       const corridorFlaskCells = pickSpreadSeats(
@@ -5917,79 +6012,6 @@ function corridorHangerFacing(
     baseYaw: facingRotation(along[0], along[1]),
     maxWallTurn: BIOME_CORRIDOR_HANGER_MAX_TURN,
   };
-}
-
-/** Corridor cells usable by scenery. Unlike pickup seats, Forge corridor tiles
- * are intentionally allowed; door mouths, stairs, spawn and exit remain clear. */
-function collectDecorCorridorCells(dungeon: DungeonData): GridCell[] {
-  const seats: GridCell[] = [];
-  const blocked = new Uint8Array(dungeon.width * dungeon.height);
-  const block = (cell: GridCell): void => {
-    if (cell.x < 0 || cell.y < 0 || cell.x >= dungeon.width || cell.y >= dungeon.height) return;
-    blocked[cell.y * dungeon.width + cell.x] = 1;
-  };
-  block(dungeon.spawn);
-  block(dungeon.exit);
-  for (const doorway of dungeon.topology?.doorways ?? []) {
-    block(doorway.cell);
-    block(doorway.outside);
-  }
-  for (const stair of dungeon.floor?.stairs ?? []) {
-    block(stair.cell);
-    for (const cell of stair.footprint) block(cell);
-  }
-  for (const cell of dungeon.floor?.openVerticalCells ?? []) block(cell);
-
-  for (let y = 1; y < dungeon.height - 1; y += 1) {
-    for (let x = 1; x < dungeon.width - 1; x += 1) {
-      const index = y * dungeon.width + x;
-      if (dungeon.grid[y]?.[x] !== FLOOR || blocked[index]) continue;
-      if (dungeon.forge?.doorways[index] || dungeon.forge?.pools[index]) continue;
-      const structuralRoomId =
-        dungeon.forge?.roomIds[index] ?? dungeon.topology?.roomIds[index] ?? -1;
-      if (structuralRoomId >= 0) continue;
-      const authoredCorridor = Boolean(
-        dungeon.forge?.corridors[index] || dungeon.topology?.corridors[index],
-      );
-      let floorNeighbors = 0;
-      for (const [dx, dy] of CARDINAL_NEIGHBORS) {
-        if (dungeon.grid[y + dy]?.[x + dx] === FLOOR) floorNeighbors += 1;
-      }
-      if (!authoredCorridor && (floorNeighbors === 0 || floorNeighbors > 2)) continue;
-      seats.push({ x, y });
-    }
-  }
-  return seats;
-}
-
-/**
- * Corridor-like floor seats for free pickups: forge corridor mask, or floor
- * tiles with few orthogonal floor neighbors (narrow runs).
- */
-function collectCorridorPickupSeats(
-  dungeon: DungeonData,
-  excluded: CellOccupancyQuery,
-): GridCell[] {
-  const seats: GridCell[] = [];
-  const width = dungeon.width;
-  const height = dungeon.height;
-  for (let y = 1; y < height - 1; y += 1) {
-    for (let x = 1; x < width - 1; x += 1) {
-      if (dungeon.grid[y]?.[x] !== FLOOR) continue;
-      if (excluded.isOccupied(x, y)) continue;
-      const cell = { x, y };
-      if (isProtectedTraversalCell(dungeon, cell)) continue;
-      const forgeCorridor = dungeon.forge?.corridors?.[y * width + x];
-      let floorNeighbors = 0;
-      for (const [dx, dy] of CARDINAL_NEIGHBORS) {
-        if (dungeon.grid[y + dy]?.[x + dx] === FLOOR) floorNeighbors += 1;
-      }
-      const narrow = floorNeighbors > 0 && floorNeighbors <= 2;
-      if (!forgeCorridor && !narrow) continue;
-      seats.push(cell);
-    }
-  }
-  return seats;
 }
 
 type DungeonWallSeat = ReturnType<typeof collectRoomWallSeats>[number];

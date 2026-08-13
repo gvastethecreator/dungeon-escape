@@ -4,12 +4,12 @@ import { CreatureTakeSelector, creatureToneForMood } from "../src/audio/Creature
 
 describe("CreatureTakeSelector", () => {
   test("maps dungeon moods to creature tone families", () => {
-    expect(creatureToneForMood("frost")).toBe("cold");
-    expect(creatureToneForMood("sunken")).toBe("wet");
-    expect(creatureToneForMood("fungal")).toBe("wet");
-    expect(creatureToneForMood("molten")).toBe("fire");
-    expect(creatureToneForMood("obsidian")).toBe("fire");
-    expect(creatureToneForMood("backrooms")).toBe("weird");
+    expect(creatureToneForMood("frost")).toBe("frost");
+    expect(creatureToneForMood("sunken")).toBe("sunken");
+    expect(creatureToneForMood("fungal")).toBe("fungal");
+    expect(creatureToneForMood("molten")).toBe("molten");
+    expect(creatureToneForMood("obsidian")).toBe("obsidian");
+    expect(creatureToneForMood("backrooms")).toBe("backrooms");
     expect(creatureToneForMood("ancient")).toBe("base");
     expect(creatureToneForMood(null)).toBe("base");
   });
@@ -23,11 +23,11 @@ describe("CreatureTakeSelector", () => {
 
   test("weights biome takes and avoids an immediate repeat", () => {
     const selector = new CreatureTakeSelector();
-    const themed = creatureToneAsset("carrion", "voice", "cold");
+    const themed = creatureToneAsset("carrion", "voice", "frost");
 
-    expect(selector.select("carrion", "voice", "cold", 0.99)).toBe(themed);
-    expect(selector.select("carrion", "voice", "cold", 0.99)).toBe("enemy-carrion-v2");
-    expect(selector.select("carrion", "voice", "cold", 0.99)).toBe(themed);
+    expect(selector.select("carrion", "voice", "frost", 0.99)).toBe(themed);
+    expect(selector.select("carrion", "voice", "frost", 0.99)).toBe("enemy-carrion-v2");
+    expect(selector.select("carrion", "voice", "frost", 0.99)).toBe(themed);
   });
 
   test("tracks voice and attack pools independently", () => {

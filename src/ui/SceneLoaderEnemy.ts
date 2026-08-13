@@ -1,5 +1,5 @@
 /**
- * Animated enemy teaser above the "Loading dungeon" progress bar.
+ * Animated enemy teaser above the "Please wait" progress bar.
  * Picks a random roster kind and plays its biome atlas walk loop.
  *
  * Frames advance with compositor-friendly `transform` + `steps(4)` on a

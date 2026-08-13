@@ -11,7 +11,7 @@ export function readVisualQaState(search: string): VisualQaState | null {
   return parseLaunchConfiguration(search).visualQa.state;
 }
 
-/** Keep campaign captures repeatable without changing normal New Game seed generation. */
+/** Keep campaign captures repeatable. Normal New Game ignores this unless visual QA is enabled. */
 export function readVisualQaSeed(search: string): string | null {
   return parseLaunchConfiguration(search).visualQa.seed;
 }

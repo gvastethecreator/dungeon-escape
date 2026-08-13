@@ -308,6 +308,15 @@ body.is-booting .app-shell {
   }
 }
 
+.scene-loader__kicker {
+  margin: 0;
+  color: #f2f2f2;
+  font-family: var(--font-pixel);
+  font-size: 13px;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+}
+
 .scene-loader__text {
   margin: 0;
   color: #c8c8c8;
@@ -604,6 +613,14 @@ kbd {
 
 .welcome-screen[hidden] {
   display: none;
+}
+
+.welcome-screen[aria-busy="true"] {
+  cursor: wait;
+}
+
+.welcome-screen[aria-busy="true"] .welcome-content {
+  pointer-events: none;
 }
 
 .welcome-content {

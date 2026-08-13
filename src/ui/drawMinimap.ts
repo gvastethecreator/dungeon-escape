@@ -86,7 +86,14 @@ interface MinimapStaticLayer {
   key: number;
   width: number;
   height: number;
+  originX: number;
+  originY: number;
+  cellSize: number;
+  cssWidth: number;
+  cssHeight: number;
+  pixelRatio: number;
   canvas: HTMLCanvasElement;
+  painted: Set<string>;
 }
 
 const staticLayers = new WeakMap<HTMLCanvasElement, MinimapStaticLayer>();
@@ -233,25 +240,88 @@ function getStaticLayer(
 ): HTMLCanvasElement | null {
   if (typeof document === "undefined") return null;
   const cached = staticLayers.get(canvas);
-  if (
+  const sameLayout =
     cached &&
     cached.dungeon === dungeon &&
-    cached.explored === explored &&
-    cached.key === key &&
     cached.width === width &&
-    cached.height === height
-  ) {
+    cached.height === height &&
+    cached.originX === originX &&
+    cached.originY === originY &&
+    cached.cellSize === cellSize &&
+    cached.cssWidth === cssWidth &&
+    cached.cssHeight === cssHeight &&
+    cached.pixelRatio === pixelRatio;
+  if (sameLayout && cached.key === key && cached.explored === explored) {
     return cached.canvas;
   }
-  const layer = document.createElement("canvas");
+  if (
+    sameLayout &&
+    explored &&
+    cached.explored &&
+    key >= cached.key &&
+    cached.painted.size <= explored.size
+  ) {
+    const context = cached.canvas.getContext("2d");
+    if (context) {
+      paintNewExploredCells(
+        context,
+        dungeon,
+        explored,
+        cached.painted,
+        originX,
+        originY,
+        cellSize,
+      );
+      cached.explored = explored;
+      cached.key = key;
+      return cached.canvas;
+    }
+  }
+  const layer = sameLayout ? cached.canvas : document.createElement("canvas");
   layer.width = width;
   layer.height = height;
   const context = layer.getContext("2d");
   if (!context) return null;
   context.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
   drawStaticLayer(context, dungeon, explored, cssWidth, cssHeight, originX, originY, cellSize);
-  staticLayers.set(canvas, { dungeon, explored, key, width, height, canvas: layer });
+  const painted = new Set<string>();
+  if (explored) for (const cell of explored) painted.add(cell);
+  staticLayers.set(canvas, {
+    dungeon,
+    explored,
+    key,
+    width,
+    height,
+    originX,
+    originY,
+    cellSize,
+    cssWidth,
+    cssHeight,
+    pixelRatio,
+    canvas: layer,
+    painted,
+  });
   return layer;
+}
+
+function paintNewExploredCells(
+  context: CanvasRenderingContext2D,
+  dungeon: DungeonData,
+  explored: ReadonlySet<string>,
+  painted: Set<string>,
+  originX: number,
+  originY: number,
+  cellSize: number,
+): void {
+  for (const key of explored) {
+    if (painted.has(key)) continue;
+    const sep = key.indexOf(",");
+    const x = Number(key.slice(0, sep));
+    const y = Number(key.slice(sep + 1));
+    if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
+    paintExploredFloorCell(context, dungeon, x, y, originX, originY, cellSize);
+    painted.add(key);
+  }
 }
 
 function drawStaticLayer(
@@ -268,35 +338,46 @@ function drawStaticLayer(
   context.fillStyle = COLORS.field;
   context.fillRect(0, 0, cssWidth, cssHeight);
   if (explored) {
-    context.fillStyle = COLORS.wall;
     for (const key of explored) {
       const sep = key.indexOf(",");
       const x = Number(key.slice(0, sep));
       const y = Number(key.slice(sep + 1));
       if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
-      for (let dy = -1; dy <= 1; dy += 1) {
-        for (let dx = -1; dx <= 1; dx += 1) {
-          if (dx === 0 && dy === 0) continue;
-          const wx = x + dx;
-          const wy = y + dy;
-          if (dungeon.grid[wy]?.[wx] !== WALL) continue;
-          const size = Math.ceil(cellSize);
-          context.fillRect(originX + wx * cellSize, originY + wy * cellSize, size, size);
-        }
-      }
+      paintExploredFloorCell(context, dungeon, x, y, originX, originY, cellSize);
     }
+    return;
   }
   for (let y = 0; y < dungeon.height; y += 1) {
     for (let x = 0; x < dungeon.width; x += 1) {
       if (dungeon.grid[y]?.[x] !== FLOOR) continue;
-      if (explored && !explored.has(cellKey(x, y))) continue;
-      const px = originX + x * cellSize;
-      const py = originY + y * cellSize;
-      const size = Math.ceil(cellSize);
-      context.fillStyle = COLORS.floor;
-      context.fillRect(px, py, size, size);
+      paintExploredFloorCell(context, dungeon, x, y, originX, originY, cellSize);
     }
   }
+}
+
+function paintExploredFloorCell(
+  context: CanvasRenderingContext2D,
+  dungeon: DungeonData,
+  x: number,
+  y: number,
+  originX: number,
+  originY: number,
+  cellSize: number,
+): void {
+  if (dungeon.grid[y]?.[x] !== FLOOR) return;
+  const size = Math.ceil(cellSize);
+  context.fillStyle = COLORS.wall;
+  for (let dy = -1; dy <= 1; dy += 1) {
+    for (let dx = -1; dx <= 1; dx += 1) {
+      if (dx === 0 && dy === 0) continue;
+      const wx = x + dx;
+      const wy = y + dy;
+      if (dungeon.grid[wy]?.[wx] !== WALL) continue;
+      context.fillRect(originX + wx * cellSize, originY + wy * cellSize, size, size);
+    }
+  }
+  context.fillStyle = COLORS.floor;
+  context.fillRect(originX + x * cellSize, originY + y * cellSize, size, size);
 }
 
 function isOptionsBag(value: MinimapFeatures | DrawMinimapOptions): value is DrawMinimapOptions {

@@ -62,6 +62,8 @@ describe("scene loader enemy teaser", () => {
     expect(enemyAt).toBeGreaterThan(-1);
     expect(spriteAt).toBeGreaterThan(enemyAt);
     expect(trackAt).toBeGreaterThan(spriteAt);
+    expect(html).toContain('class="scene-loader__kicker">Please wait');
+    expect(html).toContain("Preparing the dungeon");
   });
 
   test("main wires the teaser through setSceneLoaderVisible", async () => {

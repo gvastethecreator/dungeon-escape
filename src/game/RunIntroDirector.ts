@@ -71,7 +71,7 @@ export interface RunIntroPort {
     },
     signal: AbortSignal,
   ): Promise<void>;
-  /** Drop the "Loading dungeon" spinner without lifting the black fade. */
+  /** Drop the "Please wait" spinner without lifting the black fade. */
   clearLoader(): void;
   enterTheater(): void;
   setTheaterStatus(status: "entering-play"): void;
@@ -197,7 +197,7 @@ export class RunIntroDirector {
     if (request.skip) return this.#runSkipped(operation);
 
     // Build under a black cover + spinner. The spinner is cleared as soon as the
-    // isometric theater is ready so players never read "Loading dungeon" over the map.
+    // isometric theater is ready so players never read "Please wait" over the map.
     await this.#port.fade("opaque", { instant: true, showLoader: true }, signal);
     if (signal.aborted) return this.#cancelled(operation);
     this.#port.enterTheater();

@@ -141,6 +141,7 @@ describe("host wiring smoke", () => {
     ]);
     expect(scene).toContain("planBiomeLootBudget");
     expect(scene).toContain("addFloorPickup");
+    expect(scene).toContain("selectShotgunFloorSeats");
     expect(scene).toContain('source === "shotgun"');
     expect(scene).toContain("selectPhoenixEggSeat");
     expect(scene).toContain("phoenix-egg");

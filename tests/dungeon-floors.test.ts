@@ -3,6 +3,7 @@ import { describe, expect, test } from "bun:test";
 import { gridToWorld } from "../src/dungeon/gridCollision";
 import {
   createDungeonFloorCampaign,
+  createPendingDungeonFloorCampaign,
   DungeonFloorCampaign,
   generateDungeonFloorSet,
   MAX_DUNGEON_FLOORS,
@@ -107,6 +108,22 @@ describe("multi-floor dungeon generation", () => {
     const campaign = createDungeonFloorCampaign("EAGER-CAMPAIGN", { roomTarget: 10 }, 4);
     expect(campaign.cachedFloorCount).toBe(4);
     expect(campaign.allFloors()).toHaveLength(4);
+  });
+
+  test("materializeWithYield generates the same stack as eager materialize", async () => {
+    let yields = 0;
+    const pending = createPendingDungeonFloorCampaign("YIELD-CAMPAIGN", { roomTarget: 10 }, 4);
+    expect(pending.cachedFloorCount).toBe(0);
+    await pending.materializeWithYield(async () => {
+      yields += 1;
+    });
+    const eager = createDungeonFloorCampaign("YIELD-CAMPAIGN", { roomTarget: 10 }, 4);
+
+    expect(yields).toBeGreaterThanOrEqual(4);
+    expect(pending.cachedFloorCount).toBe(4);
+    expect(pending.allFloors().map((floor) => floor.topologySignature)).toEqual(
+      eager.allFloors().map((floor) => floor.topologySignature),
+    );
   });
 
   test("reuses an accepted first floor instead of generating it twice", () => {

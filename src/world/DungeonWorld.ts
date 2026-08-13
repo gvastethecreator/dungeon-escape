@@ -126,6 +126,7 @@ import {
 } from "./ResidentEnemyRuntime";
 import {
   clearStaticPropTemplateBatchCache,
+  PLAY_DRESSING_PUMP_SKIP_DELTA,
   StaticDungeonScene,
   type StaticChestActor,
   type StaticDungeonSceneHandles,
@@ -649,12 +650,14 @@ export class DungeonWorld {
     stack?: readonly DungeonData[],
     loadTrace?: DungeonLoadPhaseObserver,
   ): Promise<void> {
+    await yieldToMain();
     const { residentFloors, residentPlan } = this.prepareDungeonPopulation(
       dungeon,
       mood,
       stack,
       loadTrace,
     );
+    await yieldToMain();
     loadTrace?.begin("sceneCommit");
     try {
       const staticHandles =
@@ -677,7 +680,7 @@ export class DungeonWorld {
     } finally {
       loadTrace?.end("sceneCommit");
     }
-    this.finishDungeonPopulation(dungeon, residentFloors, loadTrace);
+    await this.finishDungeonPopulationWithYield(dungeon, residentFloors, loadTrace, yieldToMain);
   }
 
   private prepareDungeonPopulation(
@@ -748,33 +751,68 @@ export class DungeonWorld {
     this.stats.pickups = this.pickups.length;
   }
 
+  private async finishDungeonPopulationWithYield(
+    dungeon: DungeonData,
+    residentFloors: readonly DungeonData[],
+    loadTrace: DungeonLoadPhaseObserver | undefined,
+    yieldToMain: () => Promise<void>,
+  ): Promise<void> {
+    loadTrace?.begin("actors");
+    try {
+      for (const floor of residentFloors) {
+        this.buildResidentEnemyRuntime(floor);
+        await yieldToMain();
+      }
+      this.createSharedEnemyPresentation();
+      this.bindActiveEnemyRuntime(dungeon.floor?.index ?? 0);
+    } catch (error) {
+      try {
+        this.clear();
+      } catch {
+        // Cleanup is best-effort. The original build error remains authoritative.
+      }
+      throw error;
+    } finally {
+      loadTrace?.end("actors");
+    }
+    this.refreshMinimapFeatures();
+    const pickupBurstAnchor = gridToWorld(dungeon, dungeon.spawn, this.tileSize);
+    this.pickupBurstWarmupPosition.set(pickupBurstAnchor.x, 0.4, pickupBurstAnchor.z);
+    this.pickupBurstPool = new PickupBurstPool(6);
+    this.group.add(this.pickupBurstPool.root);
+    this.refreshDifficultyState();
+    this.stats.pickups = this.pickups.length;
+  }
+
   /** Build every enemy owner after the static stack owns its floor runtimes. */
   private buildResidentEnemyRuntimes(floors: readonly DungeonData[]): void {
-    for (const floor of floors) {
-      const floorIndex = floor.floor?.index ?? 0;
-      const floorRuntime = this.residentFloorRuntimesByIndex.get(floorIndex);
-      if (!floorRuntime) {
-        throw new Error(`Enemy actor build requires resident floor ${floorIndex + 1}.`);
-      }
-      if (floorRuntime.enemyRuntime) {
-        throw new Error(`Resident floor ${floorIndex + 1} already owns enemy actors.`);
-      }
-      const runtime = new ResidentEnemyRuntimeOwner({
-        dungeon: floor,
-        floorRuntime,
-        assets: this.assets,
-        mood: this.activeMood,
-        shadowMaterial: this.enemyShadowMaterial,
-        tileSize: this.tileSize,
-        wallHeight: this.wallHeight,
-        difficulty: this.difficulty,
-      });
-      // Register and attach before population so an exception on floor N is
-      // released through the same exact-once static runtime transaction.
-      this.residentEnemyRuntimesByIndex.set(floorIndex, runtime);
-      (floorRuntime as ResidentFloorRuntimeOwner).attachEnemyRuntime(runtime);
-      runtime.build();
+    for (const floor of floors) this.buildResidentEnemyRuntime(floor);
+  }
+
+  private buildResidentEnemyRuntime(floor: DungeonData): void {
+    const floorIndex = floor.floor?.index ?? 0;
+    const floorRuntime = this.residentFloorRuntimesByIndex.get(floorIndex);
+    if (!floorRuntime) {
+      throw new Error(`Enemy actor build requires resident floor ${floorIndex + 1}.`);
     }
+    if (floorRuntime.enemyRuntime) {
+      throw new Error(`Resident floor ${floorIndex + 1} already owns enemy actors.`);
+    }
+    const runtime = new ResidentEnemyRuntimeOwner({
+      dungeon: floor,
+      floorRuntime,
+      assets: this.assets,
+      mood: this.activeMood,
+      shadowMaterial: this.enemyShadowMaterial,
+      tileSize: this.tileSize,
+      wallHeight: this.wallHeight,
+      difficulty: this.difficulty,
+    });
+    // Register and attach before population so an exception on floor N is
+    // released through the same exact-once static runtime transaction.
+    this.residentEnemyRuntimesByIndex.set(floorIndex, runtime);
+    (floorRuntime as ResidentFloorRuntimeOwner).attachEnemyRuntime(runtime);
+    runtime.build();
   }
 
   /**
@@ -913,7 +951,7 @@ export class DungeonWorld {
     firePressed = false,
     aim?: { x: number; y: number; z: number },
   ): WorldUpdate {
-    this.staticScene.pumpDeferredFloorDressing(1);
+    if (delta < PLAY_DRESSING_PUMP_SKIP_DELTA) this.staticScene.pumpDeferredFloorDressing();
     this.lockedExitCooldown = Math.max(0, this.lockedExitCooldown - delta);
     const { pulseCount } = tickRunPowerRuntime(this.powers, delta);
     const enemiesFrozen = isTimeFreezeOn(this.powers);

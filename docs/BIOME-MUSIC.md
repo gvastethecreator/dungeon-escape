@@ -1,62 +1,56 @@
-# Biome music
+# Game music
 
-Dungeon Escape uses one original looping exploration cue per campaign biome, plus a denser portal variant that starts after all four stones bind. `GameAudio` resolves the active cue from the biome id and portal state, and keeps the existing music mute preference and decode-failure fallback.
+Dungeon Escape uses original Neo-SPC looping beds that stay behind play: low energy, long rests, and no chase or fanfare writing. `GameAudio` resolves the active cue from the screen, biome, and portal state. Music group gain is 40% below the previous mix (`0.48` → `0.288`).
 
-Death uses a separate melancholic bed (`Last Lantern` → `music-lose.ogg`) on the lose end screen.
+## Screen beds
+
+| Screen            | Cue                 | Runtime asset             | Job                                      |
+| ----------------- | ------------------- | ------------------------- | ---------------------------------------- |
+| Welcome home      | Threshold Ember     | `music-menu.ogg`          | Invite, then hush under the menu         |
+| Hall of Escapes   | Names in Stone      | `music-hall.ogg`          | Honor recorded names without a march     |
+| Biome picker      | Choose the Descent  | `music-biome-select.ogg`  | Curious, still behind the list           |
+| Win               | Open Air            | `music-win.ogg`           | Relief after escape, not a fanfare       |
+| Lose              | Last Wick           | `music-lose.ogg`          | Lantern failing; death SFX stay in front |
 
 ## Exploration beds
 
-| Biome     | Cue                    | Runtime asset               |
-| --------- | ---------------------- | --------------------------- |
-| Ancient   | Buried Oath            | `music-biome-ancient.ogg`   |
-| Molten    | Cinder Pursuit         | `music-biome-molten.ogg`    |
-| Frost     | Glass Underfoot        | `music-biome-frost.ogg`     |
-| Grim      | Grave Procession       | `music-biome-grim.ogg`      |
-| Verdant   | Rootbound Lanterns     | `music-biome-verdant.ogg`   |
-| Ash       | After the Pyre         | `music-biome-ash.ogg`       |
-| Iron      | Chainworks             | `music-biome-iron.ogg`      |
-| Obsidian  | Black Glass Pulse      | `music-biome-obsidian.ogg`  |
-| Sunken    | Pressure Below         | `music-biome-sunken.ogg`    |
-| Fungal    | Spore Choir            | `music-biome-fungal.ogg`    |
-| Backrooms | Fluorescent Recurrence | `music-biome-backrooms.ogg` |
+| Biome     | Cue                  | Runtime asset               |
+| --------- | -------------------- | --------------------------- |
+| Ancient   | Dust Litany          | `music-biome-ancient.ogg`   |
+| Molten    | Slag Breath          | `music-biome-molten.ogg`    |
+| Frost     | Still Glass          | `music-biome-frost.ogg`     |
+| Grim      | Bone Interval        | `music-biome-grim.ogg`      |
+| Verdant   | Root Hum             | `music-biome-verdant.ogg`   |
+| Ash       | Cinder Veil          | `music-biome-ash.ogg`       |
+| Iron      | Bolt Murmur          | `music-biome-iron.ogg`      |
+| Obsidian  | Mirror Undercurrent  | `music-biome-obsidian.ogg`  |
+| Sunken    | Pressure Drift       | `music-biome-sunken.ogg`    |
+| Fungal    | Spore Drift          | `music-biome-fungal.ogg`    |
+| Backrooms | Fluorescent Hum      | `music-biome-backrooms.ogg` |
 
 ## Portal beds (four stones bound)
 
-Escape-rush rearrangements of each biome cue: same key/mode/lead colors, but nearly double BPM, `symphonic_32` voice ceiling, 16 bars, 16th-note motors, stacked countermelodies, and dense kit writing so the phase clearly hurries the player to the portal.
+Same key, mode, and motif as the biome's exploration bed. Tempo rises by 16 BPM and the inner pulse thickens slightly so the open portal feels urgent without covering footsteps or threats.
 
-| Biome     | Cue                  | Runtime asset                      | BPM (explore → portal) |
-| --------- | -------------------- | ---------------------------------- | ---------------------- |
-| Ancient   | Oath Unsealed        | `music-biome-ancient-portal.ogg`   | 72 → 154               |
-| Molten    | Cinder Breakout      | `music-biome-molten-portal.ogg`    | 96 → 176               |
-| Frost     | Shatter Sprint       | `music-biome-frost-portal.ogg`     | 66 → 143               |
-| Grim      | Procession Breaks    | `music-biome-grim-portal.ogg`      | 74 → 158               |
-| Verdant   | Lanterns Ignite      | `music-biome-verdant-portal.ogg`   | 82 → 174               |
-| Ash       | Pyre Surge           | `music-biome-ash-portal.ogg`       | 70 → 150               |
-| Iron      | Chainworks Overdrive | `music-biome-iron-portal.ogg`      | 92 → 176               |
-| Obsidian  | Black Glass Charge   | `music-biome-obsidian-portal.ogg`  | 78 → 166               |
-| Sunken    | Pressure Breach      | `music-biome-sunken-portal.ogg`    | 68 → 147               |
-| Fungal    | Spore Uprising       | `music-biome-fungal-portal.ogg`    | 76 → 162               |
-| Backrooms | Fluorescent Pursuit  | `music-biome-backrooms-portal.ogg` | 88 → 176               |
-
-## End-screen beds
-
-| State | Cue                                | Runtime asset    |
-| ----- | ---------------------------------- | ---------------- |
-| Win   | existing chiptune bed              | `music-win.opus` |
-| Lose  | Last Lantern (melancholic Neo-SPC) | `music-lose.ogg` |
+| Biome     | Cue             | Runtime asset                      | BPM (explore → portal) |
+| --------- | --------------- | ---------------------------------- | ---------------------- |
+| Ancient   | Unsealed Dust   | `music-biome-ancient-portal.ogg`   | 62 → 78                |
+| Molten    | Ember Path      | `music-biome-molten-portal.ogg`    | 70 → 86                |
+| Frost     | Fracture Light  | `music-biome-frost-portal.ogg`     | 58 → 74                |
+| Grim      | Procession Stir | `music-biome-grim-portal.ogg`      | 64 → 80                |
+| Verdant   | Canopy Wake     | `music-biome-verdant-portal.ogg`   | 68 → 84                |
+| Ash       | Buried Glow     | `music-biome-ash-portal.ogg`       | 60 → 76                |
+| Iron      | Gear Lift       | `music-biome-iron-portal.ogg`      | 72 → 88                |
+| Obsidian  | Glass Tilt      | `music-biome-obsidian-portal.ogg`  | 66 → 82                |
+| Sunken    | Surface Pull    | `music-biome-sunken-portal.ogg`    | 58 → 74                |
+| Fungal    | Bloom Pulse     | `music-biome-fungal-portal.ogg`    | 64 → 80                |
+| Backrooms | Exit Flicker    | `music-biome-backrooms-portal.ogg` | 70 → 86                |
 
 ## Production record
 
-### Exploration
-
-- Source: from-scratch deterministic Neo-SPC compositions, 8 bars, `expanded_16` voice profile.
-- Editable evidence: `.scratch/audio/biome-music/<biome>/`.
-
-### Portal + death
-
-- Source: Neo-SPC escape-rush rearrangements / melancholic defeat bed; portal is 16 bars, `symphonic_32`.
-- Rebuild portal only: `python .scratch/audio/generate-portal-and-death-music.py --portal-only` (needs Neo-SPC skill + FFmpeg on `PATH`).
-- Editable evidence: `.scratch/audio/portal-music/<biome>/` and `.scratch/audio/death-music/`.
+- Source: from-scratch deterministic Neo-SPC compositions. Screens and exploration use `legacy_8` or `compact_12`. Portal uses `expanded_16`.
+- Rebuild: `python scripts/generate-game-music.py` (needs the Neo-SPC skill, FFmpeg on `PATH`, and the render Python extras).
+- Editable evidence: `.scratch/audio/soundtrack-v2/<cue>/`.
 - Samples: Neo-SPC Factory Bank, CC0-1.0, procedurally synthesized; no game samples or third-party recordings.
 - Runtime format: Ogg Vorbis under `public/assets/audio/dungeon/`.
 

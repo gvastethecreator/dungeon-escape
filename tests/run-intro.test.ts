@@ -62,6 +62,10 @@ describe("new-game map theater intro", () => {
 
   test("copy exposes forging and entering status lines", async () => {
     const copy = await Bun.file(new URL("../src/ui/copy.ts", import.meta.url)).text();
+    expect(copy).toContain("pleaseWait:");
+    expect(copy).toContain("preparingDungeon:");
+    expect(copy).toContain("restoringDungeon:");
+    expect(copy).toContain("creatingCustomDungeon:");
     expect(copy).toContain("forgingMap:");
     expect(copy).toContain("enteringDungeon:");
   });

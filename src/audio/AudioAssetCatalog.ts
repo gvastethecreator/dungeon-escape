@@ -52,7 +52,19 @@ export type CreatureVoice =
   | "white-eyed-shadow"
   | "carrion-stalker";
 
-export type CreatureTone = "base" | "cold" | "wet" | "fire" | "weird";
+export const CREATURE_TONES = [
+  "molten",
+  "frost",
+  "grim",
+  "verdant",
+  "ash",
+  "iron",
+  "obsidian",
+  "sunken",
+  "fungal",
+  "backrooms",
+] as const;
+export type CreatureTone = "base" | (typeof CREATURE_TONES)[number];
 export type CreatureRole = "voice" | "attack";
 export type AudioAssetId = string;
 export type CollectedPickupKind =
@@ -99,11 +111,6 @@ export const CREATURE_VOICES = [
   "white-eyed-shadow",
   "carrion-stalker",
 ] as const satisfies readonly CreatureVoice[];
-
-export const CREATURE_TONES = ["cold", "wet", "fire", "weird"] as const satisfies readonly Exclude<
-  CreatureTone,
-  "base"
->[];
 
 const THREAT_PRESENCE_SPATIAL = {
   refDistance: 1.8,
@@ -349,8 +356,10 @@ const AUDIO_ASSETS: Readonly<Record<AudioAssetId, AudioAssetDefinition>> = {
     gain: 1,
     spatial: { refDistance: 3.5, maxDistance: 28, rolloff: 1.2 },
   },
-  "music-menu": { file: "music-menu.opus", group: "music", gain: 0.55 },
-  "music-win": { file: "music-win.opus", group: "music", gain: 0.52 },
+  "music-menu": { file: "music-menu.ogg", group: "music", gain: 0.55 },
+  "music-hall": { file: "music-hall.ogg", group: "music", gain: 0.46 },
+  "music-biome-select": { file: "music-biome-select.ogg", group: "music", gain: 0.5 },
+  "music-win": { file: "music-win.ogg", group: "music", gain: 0.52 },
   "music-lose": { file: "music-lose.ogg", group: "music", gain: 0.48 },
   "music-biome-ancient": { file: "music-biome-ancient.ogg", group: "music", gain: 0.34 },
   "music-biome-molten": { file: "music-biome-molten.ogg", group: "music", gain: 0.32 },
@@ -481,7 +490,7 @@ const GROUP_LEVELS: Readonly<Record<AudioGroup, number>> = {
   sfx: 0.84,
   threat: 0.72,
   ui: 0.28,
-  music: 0.48,
+  music: 0.288,
 };
 
 const AUDIO_ASSET_ENTRIES = Object.entries(AUDIO_ASSETS) as [AudioAssetId, AudioAssetDefinition][];

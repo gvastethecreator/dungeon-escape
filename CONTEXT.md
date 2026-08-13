@@ -152,10 +152,10 @@ The single positive kill/pressure chest slot per floor. Deterministically rolls 
 A timed cursed chest effect that remaps look and/or movement (mirror invert, spin yaw bias). Newest control curse clears the other so mirror and spin never stack.
 
 **Biome loot plan**:
-Deterministic per-floor budgets for health chests, free corridor/room flasks, free support powers, extra support chests on high ranks, guaranteed pump shotguns, and whether a phoenix egg may spawn. Scales with campaign biome rank. Every floor places at least two shotguns; harder biomes place more.
+Deterministic per-floor budgets for health chests, free corridor/room flasks, free support powers, extra support chests on high ranks, guaranteed pump shotguns, and whether a phoenix egg may spawn. Scales with campaign biome rank. Every floor places at least two shotguns; harder biomes place more. Floor shotguns prefer hall tiles along the route; chests are not required.
 
 **Floor free pickup**:
-A collectible reward placed on the floor without a chest (resolve flasks, ranked support powers such as time-freeze, ward, clarity, and guaranteed pump shotguns).
+A collectible reward placed on the floor without a chest (resolve flasks, ranked support powers such as time-freeze, ward, clarity, and guaranteed pump shotguns). Shotguns spawn in corridors when a free hall seat exists.
 
 **Phoenix egg**:
 A map-found floor pickup (never inside a chest). Placed in a free room corner when possible, far from player spawn, and never stacked on props, chests, stones, or other loot. Picking it up only equips a silent HUD state (no ambient particles). Lethal damage spends the charge to revive at fixed resolve and ignite an annihilation pulse for the rebirth visuals. At most one charge; a second egg does not spawn while armed. New runs never start with the egg active.
