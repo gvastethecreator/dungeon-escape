@@ -205,7 +205,6 @@ export function applyWorldUpdate(
     effects.damageHit = true;
     effects.playEnemyHit = true;
     effects.flash = "damage";
-    effects.status = `Hostile contact −${update.damage} health.`;
     effects.sessionChanged = true;
     if (session.resolve <= 0) {
       const phoenix = tryConsumePhoenixCharge(update.phoenixCharges ?? 0);

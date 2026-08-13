@@ -69,7 +69,7 @@ export const COPY = {
     forgingMap: "Forging the dungeon…",
     enteringDungeon: "Entering the depths…",
     exploring:
-      "WASD move · Left-click or G fire · Right-click or SPACE jump · SHIFT sprint · Q/E snap 90° · F interact · ESC options.",
+      "WASD move · Left-click or G fire · in reach, click opens chests and takes torches · Right-click or SPACE jump · SHIFT sprint · Q/E snap 90° · F interact · ESC options.",
     pointerReleased: "Paused. ESC or RESUME to continue.",
     pointerFailed: "Could not capture the pointer. Click the scene to retry.",
     pointerBlocked: "The browser blocked the pointer. Click the scene to retry.",
@@ -86,7 +86,7 @@ export const COPY = {
     map: "Dungeon map found. Every room and route is now visible.",
     mobility: "Speed and stamina boosted. Floor traps cannot harm you for 14 seconds.",
     clarity: `Fog thins for ${FOG_CLEAR_DURATION_SECONDS} seconds.`,
-    handTorch: `Torch lit for ${HAND_TORCH_DURATION_SECONDS} seconds.`,
+    handTorch: `Torch lit for ${HAND_TORCH_DURATION_SECONDS} seconds. Nearby enemies flee or slow.`,
     swarmCurse: "The dungeon swarms. Monster pressure doubles on this floor.",
     slowCurse: `Your limbs are heavy for ${SLOW_CURSE_DURATION_SECONDS} seconds.`,
     frenzyCurse: `Enemies hunt harder for ${FRENZY_CURSE_DURATION_SECONDS} seconds.`,

@@ -4,6 +4,7 @@ import {
   planBiomeLootBudget,
   spreadDepthFractions,
   FLOOR_LOOT_HARD_CAP,
+  FLOOR_SHOTGUN_MIN,
 } from "../src/game/BiomeLootPlan";
 import {
   armPhoenixCharge,
@@ -26,6 +27,8 @@ describe("biome loot plan", () => {
     expect(soft.extraSupportChests.length).toBe(0);
     expect(hard.extraSupportChests.length).toBe(2);
     expect(hard.freePowers.length).toBeGreaterThan(0);
+    expect(soft.shotguns).toBe(FLOOR_SHOTGUN_MIN);
+    expect(hard.shotguns).toBeGreaterThan(soft.shotguns);
   });
 
   test("is deterministic and respects hard cap projection", () => {
@@ -37,6 +40,7 @@ describe("biome loot plan", () => {
       a.freeFlasks +
       a.freePowers.length +
       a.extraSupportChests.length +
+      a.shotguns +
       (a.placePhoenix ? 1 : 0);
     expect(projected).toBeLessThanOrEqual(FLOOR_LOOT_HARD_CAP);
   });
@@ -137,6 +141,7 @@ describe("host wiring smoke", () => {
     ]);
     expect(scene).toContain("planBiomeLootBudget");
     expect(scene).toContain("addFloorPickup");
+    expect(scene).toContain('source === "shotgun"');
     expect(scene).toContain("selectPhoenixEggSeat");
     expect(scene).toContain("phoenix-egg");
     expect(scene).not.toContain('placePowerChest("phoenix-egg"');

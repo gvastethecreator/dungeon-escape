@@ -483,6 +483,8 @@ export class StaticDungeonScene {
     ResidentFloorRuntimeOwner,
     DeferredFloorPresentation
   >();
+  /** Interactable hydration queued so neighbor floors can finish before a climb. */
+  private readonly pendingFloorHydration = new Map<ResidentFloorRuntimeOwner, Array<() => void>>();
   /** Visual dressing queued after interactables so climb frames stay short. */
   private readonly pendingFloorDressing = new Map<ResidentFloorRuntimeOwner, Array<() => void>>();
   /** Build-only owner for render roots and collider publication. */
@@ -1140,6 +1142,7 @@ export class StaticDungeonScene {
     }
     this.residentFloorsByIndex.clear();
     this.deferredFloorPresentations.clear();
+    this.pendingFloorHydration.clear();
     this.pendingFloorDressing.clear();
     this.floorRenderGroups.length = 0;
     for (const root of this.buildRoots.splice(0)) {
@@ -1278,10 +1281,8 @@ export class StaticDungeonScene {
       : Math.min(this.residentFloorsByIndex.size - 1, Math.max(0, requested));
     const activeRuntime = this.residentFloorsByIndex.get(active);
     if (!activeRuntime) return;
-    // Finish previously queued dressing before this climb's interactables so
-    // occupancy and seeded placement stay floor-local (PERF-08). A long stay
-    // on the previous floor already pumped this queue through update().
-    this.flushDeferredFloorPresentation();
+    // Finish this floor's remaining interactables only. Neighbor dressing keeps
+    // pumping on later frames so a climb does not dump every pending sprite pass.
     this.hydrateDeferredFloorPresentation(activeRuntime);
     this.activeResidentFloor = activeRuntime;
     // Transitional scene handles are active-owner aliases, never a latest
@@ -1289,6 +1290,17 @@ export class StaticDungeonScene {
     this.handles.hazardTiles = activeRuntime.hazardTileSystem;
     this.handles.hazardCells = activeRuntime.hazardCells;
     this.handles.liquidKit = activeRuntime.liquidKit;
+    this.syncResidentFloorVisibility();
+  }
+
+  /**
+   * Keep the active slab fully shown and trim neighbor dressing to the shaft
+   * ring. Background hydration can add chunks after the last climb, so pumps
+   * and flushes re-run this instead of leaving new dressing unculled.
+   */
+  private syncResidentFloorVisibility(): void {
+    const activeRuntime = this.activeResidentFloor;
+    if (!activeRuntime) return;
     for (const runtime of this.residentFloorsByIndex.values()) {
       const delta = Math.abs(runtime.floorIndex - activeRuntime.floorIndex);
       const visible = delta <= 1;
@@ -1385,29 +1397,27 @@ export class StaticDungeonScene {
   }
 
   /**
-   * Run queued dressing for previously bound floors. Climb hydrates
-   * interactables immediately; godrays/sprites land on later pumps.
+   * Run queued neighbor hydration first, then dressing. Climb still finishes the
+   * destination floor immediately; this pump makes that finish cheap after a
+   * short stay on the previous slab.
    */
   pumpDeferredFloorDressing(maxSteps = 1): number {
-    let remaining = Math.max(0, Math.floor(maxSteps));
-    let ran = 0;
-    for (const [runtime, steps] of this.pendingFloorDressing) {
-      if (remaining <= 0) break;
-      this.withFloorBuildContext(runtime, () => {
-        while (remaining > 0 && steps.length > 0) {
-          steps.shift()!();
-          remaining -= 1;
-          ran += 1;
-        }
-      });
-      if (steps.length === 0) this.pendingFloorDressing.delete(runtime);
-    }
+    const budget = Math.max(0, Math.floor(maxSteps));
+    const hydrated = this.pumpDeferredFloorHydration(budget);
+    const ran =
+      hydrated >= budget ? hydrated : hydrated + this.pumpFloorDressingOnly(budget - hydrated);
+    if (ran > 0) this.syncResidentFloorVisibility();
     return ran;
   }
 
-  /** Tests and load barriers finish remaining dressing without waiting for play frames. */
+  /** Tests and load barriers finish remaining hydration and dressing. */
   flushDeferredFloorPresentation(): void {
-    this.pumpDeferredFloorDressing(Number.POSITIVE_INFINITY);
+    for (const runtime of this.deferredFloorPresentations.keys()) {
+      this.queueFloorHydration(runtime);
+    }
+    this.pumpDeferredFloorHydration(Number.POSITIVE_INFINITY);
+    this.pumpFloorDressingOnly(Number.POSITIVE_INFINITY);
+    this.syncResidentFloorVisibility();
   }
 
   private withFloorBuildContext(runtime: ResidentFloorRuntimeOwner, work: () => void): void {
@@ -1433,63 +1443,161 @@ export class StaticDungeonScene {
   }
 
   /**
-   * Deferred dressing belongs to its original resident runtime. Rebinding never
-   * replaces the scene, so player pose and active-floor collision remain intact.
-   * Interactables (doors, chests, takeable lights) land on the climb frame;
-   * heavier dressing is pumped on later frames (PERF-08).
+   * Deferred interactables belong to their original resident runtime. Climb
+   * finishes remaining steps for the destination floor; neighbor floors keep
+   * hydrating one step per play frame so that finish stays short.
    */
   private hydrateDeferredFloorPresentation(runtime: ResidentFloorRuntimeOwner): void {
-    if (this.pendingFloorDressing.has(runtime)) return;
+    if (this.pendingFloorDressing.has(runtime) && !this.pendingFloorHydration.has(runtime)) {
+      return;
+    }
+    this.queueFloorHydration(runtime);
+    this.finishFloorHydration(runtime);
+  }
+
+  private queueFloorHydration(runtime: ResidentFloorRuntimeOwner): void {
+    if (this.pendingFloorHydration.has(runtime) || this.pendingFloorDressing.has(runtime)) return;
     const deferred = this.deferredFloorPresentations.get(runtime);
     if (!deferred) return;
     const { dungeon, floorBuild, stonePlacements } = deferred;
-    this.withFloorBuildContext(runtime, () => {
-      if (dungeon.forge) {
-        this.addDoorsAndRoomProps(dungeon, floorBuild, floorBuild.plan);
-        this.addLightProps(dungeon, floorBuild.plan);
-      } else {
-        this.addCaveProps(dungeon);
-        this.addLightProps(dungeon, floorBuild.plan);
-        this.addDoorsAndRoomProps(dungeon, floorBuild, floorBuild.plan);
-      }
-      this.commitWallFireBatches();
-      this.applyMoodToPracticalLights(this.activeMood);
-      this.addStaticObjectives(dungeon, stonePlacements, floorBuild.plan, false, true);
-      this.commitDoorFrameBatches(runtime);
-      this.commitChestBatches(runtime);
-      this.cacheResidentMinimapProjection(dungeon, runtime);
-      this.deferredFloorPresentations.delete(runtime);
-      this.refreshResidentAggregateHandles();
-      this.pendingFloorDressing.set(runtime, [
-        () => {
-          this.commitStaticContactShadows();
-        },
-        () => {
-          const specialSignals = createSpecialRoomSignals(dungeon, this.materials, this.tileSize);
-          if (specialSignals) {
-            this.add(specialSignals);
-            this.stats.props += specialSignals.children.length;
-            for (const signal of specialSignals.children) {
-              const room = dungeon.rooms.find(
-                (candidate) => candidate.id === signal.userData.roomId,
-              );
-              if (room) this.reserveObjectCell(room.center);
+    const steps: Array<() => void> = dungeon.forge
+      ? [
+          () => this.addDoorsAndRoomProps(dungeon, floorBuild, floorBuild.plan),
+          () => this.addLightProps(dungeon, floorBuild.plan),
+        ]
+      : [
+          () => this.addCaveProps(dungeon),
+          () => this.addLightProps(dungeon, floorBuild.plan),
+          () => this.addDoorsAndRoomProps(dungeon, floorBuild, floorBuild.plan),
+        ];
+    steps.push(
+      () => {
+        this.commitWallFireBatches();
+        this.applyMoodToPracticalLights(this.activeMood);
+      },
+      () => {
+        this.addStaticObjectives(dungeon, stonePlacements, floorBuild.plan, false, true);
+        this.commitDoorFrameBatches(runtime);
+        this.commitChestBatches(runtime);
+        this.cacheResidentMinimapProjection(dungeon, runtime);
+        this.deferredFloorPresentations.delete(runtime);
+        this.refreshResidentAggregateHandles();
+        this.pendingFloorDressing.set(runtime, [
+          () => {
+            this.commitStaticContactShadows();
+          },
+          () => {
+            const specialSignals = createSpecialRoomSignals(dungeon, this.materials, this.tileSize);
+            if (specialSignals) {
+              this.add(specialSignals);
+              this.stats.props += specialSignals.children.length;
+              for (const signal of specialSignals.children) {
+                const room = dungeon.rooms.find(
+                  (candidate) => candidate.id === signal.userData.roomId,
+                );
+                if (room) this.reserveObjectCell(room.center);
+              }
             }
-          }
-        },
-        () => {
-          this.addAmbientGodrays(dungeon, this.activeMood, floorBuild.plan);
-        },
-        () => {
-          this.addAtmosphereProps(dungeon, floorBuild.plan);
-          this.scatterBiomeSpriteProps(dungeon);
-        },
-        () => {
-          this.cacheResidentMinimapProjection(dungeon, runtime);
-          this.refreshResidentAggregateHandles();
-        },
-      ]);
+          },
+          () => {
+            this.addAmbientGodrays(dungeon, this.activeMood, floorBuild.plan);
+          },
+          () => {
+            this.addAtmosphereProps(dungeon, floorBuild.plan);
+            this.scatterBiomeSpriteProps(dungeon);
+          },
+          () => {
+            this.cacheResidentMinimapProjection(dungeon, runtime);
+            this.refreshResidentAggregateHandles();
+          },
+        ]);
+      },
+    );
+    this.pendingFloorHydration.set(runtime, steps);
+  }
+
+  private finishFloorHydration(runtime: ResidentFloorRuntimeOwner): void {
+    const steps = this.pendingFloorHydration.get(runtime);
+    if (!steps || steps.length === 0) {
+      this.pendingFloorHydration.delete(runtime);
+      return;
+    }
+    this.withFloorBuildContext(runtime, () => {
+      while (steps.length > 0) steps.shift()!();
     });
+    this.pendingFloorHydration.delete(runtime);
+  }
+
+  private selectBackgroundHydrationRuntime(
+    skipped?: ReadonlySet<ResidentFloorRuntimeOwner>,
+  ): ResidentFloorRuntimeOwner | null {
+    const active = this.activeResidentFloor?.floorIndex ?? 0;
+    const score = (runtime: ResidentFloorRuntimeOwner): number =>
+      Math.abs(runtime.floorIndex - active) * 100 + runtime.floorIndex;
+    let best: ResidentFloorRuntimeOwner | null = null;
+    let bestScore = Number.POSITIVE_INFINITY;
+    for (const runtime of this.pendingFloorHydration.keys()) {
+      if (skipped?.has(runtime)) continue;
+      const next = score(runtime);
+      if (next >= bestScore) continue;
+      best = runtime;
+      bestScore = next;
+    }
+    if (best) return best;
+    for (const runtime of this.deferredFloorPresentations.keys()) {
+      if (skipped?.has(runtime)) continue;
+      if (this.pendingFloorDressing.has(runtime)) continue;
+      const next = score(runtime);
+      if (next >= bestScore) continue;
+      best = runtime;
+      bestScore = next;
+    }
+    return best;
+  }
+
+  private pumpDeferredFloorHydration(maxSteps: number): number {
+    let remaining = Math.max(0, maxSteps);
+    let ran = 0;
+    const skipped = new Set<ResidentFloorRuntimeOwner>();
+    while (remaining > 0) {
+      const runtime = this.selectBackgroundHydrationRuntime(skipped);
+      if (!runtime) break;
+      this.queueFloorHydration(runtime);
+      let steps = this.pendingFloorHydration.get(runtime);
+      if (!steps || steps.length === 0) {
+        this.pendingFloorHydration.delete(runtime);
+        this.queueFloorHydration(runtime);
+        steps = this.pendingFloorHydration.get(runtime);
+      }
+      if (!steps || steps.length === 0) {
+        skipped.add(runtime);
+        continue;
+      }
+      this.withFloorBuildContext(runtime, () => {
+        steps.shift()!();
+      });
+      remaining -= 1;
+      ran += 1;
+      if (steps.length === 0) this.pendingFloorHydration.delete(runtime);
+    }
+    return ran;
+  }
+
+  private pumpFloorDressingOnly(maxSteps: number): number {
+    let remaining = Math.max(0, maxSteps);
+    let ran = 0;
+    for (const [runtime, steps] of this.pendingFloorDressing) {
+      if (remaining <= 0) break;
+      this.withFloorBuildContext(runtime, () => {
+        while (remaining > 0 && steps.length > 0) {
+          steps.shift()!();
+          remaining -= 1;
+          ran += 1;
+        }
+      });
+      if (steps.length === 0) this.pendingFloorDressing.delete(runtime);
+    }
+    return ran;
   }
 
   /** Keep compatibility arrays in canonical floor order after lazy hydration. */
@@ -5337,8 +5445,8 @@ export class StaticDungeonScene {
       placePowerChest(slot.kind, slot.depthFraction, slot.salt, "id" in slot ? slot.id : undefined);
     }
 
-    // Rank-scaled free loot + health: harder biomes get more recoverability.
-    // Forge imports keep authored layout only (no free floor spray).
+    // Rank-scaled free loot + health: harder biomes get more recoverability
+    // and more guaranteed floor shotguns. Forge imports keep authored layout only.
     if (!dungeon.forge) {
       const fallbackLoot = planBiomeLootBudget(this.activeMood.id, dungeon.seed, {
         // World may already hold a phoenix charge from a prior floor; skip spawn then.
@@ -5350,6 +5458,7 @@ export class StaticDungeonScene {
             freeFlasks: floorPlan.rewards.freeFlasks,
             corridorFlasks: floorPlan.rewards.corridorFlasks,
             freePowers: floorPlan.rewards.freePowers,
+            shotguns: floorPlan.rewards.shotguns,
             placePhoenix: floorPlan.rewards.placePhoenix,
           }
         : fallbackLoot;
@@ -5425,6 +5534,37 @@ export class StaticDungeonScene {
           roomFreeCells.push(seat);
         }
       }
+
+      const shotgunDepths = spreadDepthFractions(loot.shotguns, 0.16, 0.72);
+      const shotgunPickups = floorPlan?.rewards.freePickups.filter(
+        (pickup) => pickup.source === "shotgun",
+      );
+      shotgunDepths.forEach((depth, index) => {
+        const preferCorridor = index % 2 === 0;
+        if (preferCorridor) {
+          const fromCorridor = pickSpreadSeats(
+            corridorCells.filter((cell) => !pickupExcluded.isOccupied(cell.x, cell.y)),
+            1,
+            dungeon.seedHash + 511 + index * 19,
+          )[0];
+          if (fromCorridor) {
+            placeFloor("shotgun", fromCorridor, shotgunPickups?.[index]);
+            return;
+          }
+        }
+        const room = healthRooms[Math.floor(healthRooms.length * depth)] ?? healthRooms[0] ?? null;
+        if (!room) return;
+        const seat = pickSpreadSeats(
+          this.getRoomInteriorSeats(dungeon, room).filter(
+            (cell) =>
+              !pickupExcluded.isOccupied(cell.x, cell.y) &&
+              !isProtectedTraversalCell(dungeon, cell),
+          ),
+          1,
+          dungeon.seedHash + room.id * 67 + index,
+        )[0];
+        placeFloor("shotgun", seat, shotgunPickups?.[index]);
+      });
 
       const corridorFlaskCells = pickSpreadSeats(
         corridorCells,
@@ -5720,6 +5860,9 @@ export class StaticDungeonScene {
     }
     if (reward.phoenixEggSignal) {
       reward.phoenixEggSignal.light.intensity = reward.phoenixEggSignal.baseIntensity * 0.9;
+    }
+    if (reward.shotgunSignal) {
+      reward.shotgunSignal.light.intensity = reward.shotgunSignal.baseIntensity * 0.85;
     }
     runtime.registerPickup(reward);
     this.pickups.push(reward);

@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#141618" />
+    <link rel="icon" href="data:," />
+    <meta
+      name="description"
+      content="Interactive orbit viewer for Dungeon Escape runtime models."
+    />
+    <title>Dungeon Escape · Model Playground</title>
+    <link rel="stylesheet" href="/src/model-playground.css" />
+  </head>
+  <body>
+    <main class="model-playground" aria-label="Dungeon Escape model playground">
+      <canvas
+        id="model-playground-canvas"
+        aria-label="Orbit the selected runtime model"
+        tabindex="0"
+      ></canvas>
+      <aside class="model-playground__dock">
+        <p class="model-playground__eyebrow">MODEL PLAYGROUND</p>
+        <h1 id="model-playground-title">Treasure chest</h1>
+        <label class="model-playground__field" for="model-playground-search">
+          Search
+          <input
+            id="model-playground-search"
+            type="search"
+            placeholder="chest, door, relic…"
+            autocomplete="off"
+            spellcheck="false"
+          />
+        </label>
+        <label
+          class="model-playground__field model-playground__select-wrap"
+          for="model-playground-select"
+        >
+          Model
+          <select id="model-playground-select"></select>
+        </label>
+        <nav
+          id="model-playground-catalog"
+          class="model-playground__catalog"
+          aria-label="Runtime models"
+        ></nav>
+      </aside>
+      <section class="model-playground__toolbar" aria-label="Viewer controls">
+        <label class="model-playground__field" for="model-playground-mood">
+          Mood
+          <select id="model-playground-mood"></select>
+        </label>
+        <div
+          class="model-playground__views"
+          id="model-playground-views"
+          role="group"
+          aria-label="Camera views"
+        ></div>
+        <div class="model-playground__toggles">
+          <button type="button" id="model-playground-grid" aria-pressed="true">Grid</button>
+          <button type="button" id="model-playground-axes" aria-pressed="false">Axes</button>
+          <button type="button" id="model-playground-wire" aria-pressed="false">Wire</button>
+          <button type="button" id="model-playground-spin" aria-pressed="false">Spin</button>
+          <button type="button" id="model-playground-fit">Fit</button>
+        </div>
+      </section>
+      <footer class="model-playground__status">
+        <p id="model-playground-metrics">Preparing model…</p>
+        <p id="model-playground-state">loading</p>
+        <p id="model-playground-error" hidden></p>
+        <p id="model-playground-hint">
+          LMB orbit · RMB pan · wheel zoom · dblclick fit · ← → models · 1–6 views · R fit · G grid
+          · W wire · A spin
+        </p>
+      </footer>
+    </main>
+    <script type="module" src="/src/model-playground.ts"></script>
+  </body>
+</html>

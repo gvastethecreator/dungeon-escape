@@ -26,9 +26,9 @@ export function canTakeWallTorch(
   return true;
 }
 
-/** Wall torches require an explicit interact (F / UI) — not hold-to-walk click. */
-export function shouldTakeWallTorch(interactPressed: boolean): boolean {
-  return Boolean(interactPressed);
+/** Wall torches take F, the on-screen prompt, or left-click while in reach. */
+export function shouldTakeWallTorch(interactPressed: boolean, firePressed = false): boolean {
+  return Boolean(interactPressed || firePressed);
 }
 
 /** Kill flame, glow, and point light; leave the empty sconce mesh in place. */

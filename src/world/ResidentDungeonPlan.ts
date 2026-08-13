@@ -23,7 +23,7 @@ import type {
   GridCell,
 } from "../dungeon/types";
 
-export const RESIDENT_DUNGEON_PLAN_VERSION = "rdl17-v2";
+export const RESIDENT_DUNGEON_PLAN_VERSION = "rdl17-v3";
 
 export interface ResidentDungeonStairPlan {
   readonly id: string;
@@ -151,7 +151,7 @@ export interface ResidentDungeonFreePickupPlan {
     ChestRewardKind,
     "swarm-curse" | "slow-curse" | "frenzy-curse" | "gloom-curse" | "mirror-curse" | "spin-curse"
   >;
-  readonly source: "phoenix" | "corridor-flask" | "room-flask" | "free-power";
+  readonly source: "phoenix" | "corridor-flask" | "room-flask" | "free-power" | "shotgun";
   readonly catalogKey: string;
 }
 
@@ -163,6 +163,7 @@ export interface ResidentDungeonRewardPlan {
   readonly freeFlasks: number;
   readonly corridorFlasks: number;
   readonly freePowers: readonly FloorFreePowerKind[];
+  readonly shotguns: number;
   readonly placePhoenix: boolean;
 }
 
@@ -455,6 +456,9 @@ function planRewards(
     });
   };
   if (loot.placePhoenix) addFreePickup("phoenix-egg", "phoenix", 0);
+  for (let index = 0; index < loot.shotguns; index += 1) {
+    addFreePickup("shotgun", "shotgun", index);
+  }
   for (let index = 0; index < loot.corridorFlasks; index += 1) {
     addFreePickup("resolve", "corridor-flask", index);
   }
@@ -476,6 +480,7 @@ function planRewards(
     freeFlasks: loot.freeFlasks,
     corridorFlasks: loot.corridorFlasks,
     freePowers: Object.freeze([...loot.freePowers]),
+    shotguns: loot.shotguns,
     placePhoenix: loot.placePhoenix,
   };
 }
@@ -623,7 +628,7 @@ function computePlanHash(
       `lightTargets:${floor.light.torchTarget}:${floor.light.floorFireTarget}:fixtures:${floor.light.fixtures.length}`,
       `atmosphere:${floor.atmosphere.seed}:${floor.atmosphere.ambientSeed}:${floor.atmosphere.roomCount}:${floor.atmosphere.floorCellCount}:${floor.atmosphere.boundaryWallCount}:${floor.atmosphere.profileKey}`,
       `portal:${floor.portal.required}:${floor.portal.cell.x},${floor.portal.cell.y}:${floor.portal.catalogKey}`,
-      `rewards:${floor.rewards.slots.length}:${floor.rewards.healthDepths.length}:${floor.rewards.freeFlasks}:${floor.rewards.corridorFlasks}:${floor.rewards.placePhoenix}:${floor.rewards.freePowers.join(",")}`,
+      `rewards:${floor.rewards.slots.length}:${floor.rewards.healthDepths.length}:${floor.rewards.freeFlasks}:${floor.rewards.corridorFlasks}:${floor.rewards.shotguns}:${floor.rewards.placePhoenix}:${floor.rewards.freePowers.join(",")}`,
       `healthIds:${floor.rewards.healthChestIds.join(",")}:freePickups:${floor.rewards.freePickups.length}`,
     );
     for (const fixture of floor.light.fixtures) {
@@ -1076,11 +1081,14 @@ export function deserializeResidentDungeonPlan(serialized: string): ResidentDung
         throw new Error(`ResidentDungeonPlan free pickup kind ${kind} is unsupported.`);
       }
       const source = asString(pickup.source, `rewards.freePickups[${index}].source`);
-      if (
-        !("phoenix corridor-flask room-flask free-power".split(" ") as readonly string[]).includes(
-          source,
-        )
-      ) {
+      const allowedSources: readonly ResidentDungeonFreePickupPlan["source"][] = [
+        "phoenix",
+        "corridor-flask",
+        "room-flask",
+        "free-power",
+        "shotgun",
+      ];
+      if (!(allowedSources as readonly string[]).includes(source)) {
         throw new Error(`ResidentDungeonPlan free pickup source ${source} is unsupported.`);
       }
       return {
@@ -1164,6 +1172,7 @@ export function deserializeResidentDungeonPlan(serialized: string): ResidentDung
             (entry, index) => asString(entry, `rewards.freePowers[${index}]`) as FloorFreePowerKind,
           ),
         ),
+        shotguns: asNumber(rewards.shotguns, "rewards.shotguns"),
         placePhoenix: asBoolean(rewards.placePhoenix, "rewards.placePhoenix"),
       },
       catalogKeys: Object.freeze(

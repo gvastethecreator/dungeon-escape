@@ -8,6 +8,9 @@ import {
 } from "./EnemyArchetypes";
 import { ENEMY_ROSTER } from "./EnemySpriteAtlas";
 
+/** Live pursuit is 20% slower than the authored catalog speeds. */
+export const ENEMY_SPEED_SCALE = 0.8;
+
 /**
  * Per-biome combat profile. Multipliers apply to the base archetype (1 = same).
  * `attackCooldown` > 1 means slower hits; < 1 means snappier strikes.
@@ -312,7 +315,7 @@ export function applyBiomeEnemyMods(
 
   return {
     ...base,
-    speed: base.speed * speedMul,
+    speed: base.speed * speedMul * ENEMY_SPEED_SCALE,
     detectionRange: base.detectionRange * detectionMul,
     attackRange: base.attackRange * attackRangeMul,
     preferredRange: base.preferredRange * preferredMul,

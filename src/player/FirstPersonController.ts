@@ -1174,7 +1174,7 @@ export class FirstPersonController {
     this.onLockChange(
       this.locked,
       this.locked
-        ? "Pointer active. WASD moves. Left-click or G fires. Right-click or SPACE jumps. SHIFT sprints. Q/E snap 90°. F interacts."
+        ? "Pointer active. WASD moves. Left-click or G fires. In reach, click opens chests and takes torches. Right-click or SPACE jumps. SHIFT sprints. Q/E snap 90°. F interacts."
         : "Pointer released. The run is paused.",
     );
   };

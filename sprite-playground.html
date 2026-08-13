@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#141618" />
+    <link rel="icon" href="data:," />
+    <meta
+      name="description"
+      content="Interactive viewer for Dungeon Escape sprites and animated enemies."
+    />
+    <title>Dungeon Escape · Sprite Playground</title>
+    <link rel="stylesheet" href="/src/sprite-playground.css" />
+  </head>
+  <body>
+    <main class="sprite-playground" aria-label="Dungeon Escape sprite playground">
+      <canvas
+        id="sprite-playground-canvas"
+        aria-label="Orbit the selected sprite"
+        tabindex="0"
+      ></canvas>
+      <aside class="sprite-playground__dock">
+        <p class="sprite-playground__eyebrow">SPRITE PLAYGROUND</p>
+        <h1 id="sprite-playground-title">Goblin</h1>
+        <label class="sprite-playground__field" for="sprite-playground-search">
+          Search
+          <input
+            id="sprite-playground-search"
+            type="search"
+            placeholder="goblin, banner, flask…"
+            autocomplete="off"
+            spellcheck="false"
+          />
+        </label>
+        <label
+          class="sprite-playground__field sprite-playground__select-wrap"
+          for="sprite-playground-select"
+        >
+          Sprite
+          <select id="sprite-playground-select"></select>
+        </label>
+        <nav
+          id="sprite-playground-catalog"
+          class="sprite-playground__catalog"
+          aria-label="Runtime sprites"
+        ></nav>
+      </aside>
+      <section class="sprite-playground__toolbar" aria-label="Viewer controls">
+        <label class="sprite-playground__field" for="sprite-playground-mood">
+          Mood
+          <select id="sprite-playground-mood"></select>
+        </label>
+        <div
+          class="sprite-playground__views"
+          id="sprite-playground-clips"
+          role="group"
+          aria-label="Animation clip"
+        >
+          <button
+            type="button"
+            id="sprite-playground-clip-move"
+            data-clip="movement"
+            aria-pressed="true"
+          >
+            Move
+          </button>
+          <button
+            type="button"
+            id="sprite-playground-clip-attack"
+            data-clip="attack"
+            aria-pressed="false"
+          >
+            Attack
+          </button>
+        </div>
+        <div class="sprite-playground__toggles">
+          <button type="button" id="sprite-playground-play" aria-pressed="true">Play</button>
+          <button type="button" id="sprite-playground-prev">Prev</button>
+          <button type="button" id="sprite-playground-next">Next</button>
+          <button type="button" id="sprite-playground-grid" aria-pressed="true">Grid</button>
+          <button type="button" id="sprite-playground-billboard" aria-pressed="true">Face</button>
+          <button type="button" id="sprite-playground-fit">Fit</button>
+        </div>
+        <label class="sprite-playground__field" for="sprite-playground-speed">
+          Speed
+          <input
+            id="sprite-playground-speed"
+            type="range"
+            min="0.25"
+            max="2"
+            step="0.25"
+            value="1"
+          />
+        </label>
+      </section>
+      <footer class="sprite-playground__status">
+        <p id="sprite-playground-metrics">Preparing sprite…</p>
+        <p id="sprite-playground-state">loading</p>
+        <p id="sprite-playground-error" hidden></p>
+        <p id="sprite-playground-hint">
+          LMB orbit · RMB pan · wheel zoom · space play · A attack · ← → sprites · [ ] frame · F
+          face · G grid
+        </p>
+      </footer>
+    </main>
+    <script type="module" src="/src/sprite-playground.ts"></script>
+  </body>
+</html>

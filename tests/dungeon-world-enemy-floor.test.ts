@@ -45,12 +45,12 @@ type EnemyActor = {
 const ENEMY_FLOOR_FIXTURE = Object.freeze([
   {
     floorIndex: 0,
-    count: 141,
+    count: 138,
     active: 44,
-    reserve: 97,
-    billboardKinds: 11,
-    rawBatches: 12,
-    hash: "3ab798c4",
+    reserve: 94,
+    billboardKinds: 10,
+    rawBatches: 11,
+    hash: "98ea4250",
   },
   {
     floorIndex: 1,
@@ -308,7 +308,7 @@ describe("DungeonWorld per-floor enemy occupancy", () => {
         stackedWorld
           .getResidentEnemyBuildDiagnostics()
           .reduce((total, runtime) => total + runtime.seats, 0),
-      ).toBe(591);
+      ).toBe(588);
       expect(
         stackedWorld
           .getResidentEnemyBuildDiagnostics()
@@ -564,7 +564,7 @@ describe("DungeonWorld per-floor enemy occupancy", () => {
       }).toEqual({
         doors: 20,
         chests: 13,
-        pickups: 23,
+        pickups: 26,
       });
 
       let doorIterations = 0;
@@ -583,7 +583,7 @@ describe("DungeonWorld per-floor enemy occupancy", () => {
       expect({ doorIterations, chestIterations, pickupIterations }).toEqual({
         doorIterations: 20,
         chestIterations: 13,
-        pickupIterations: 23,
+        pickupIterations: 26,
       });
 
       const lowerDoor = floor0.doors[0]!;
