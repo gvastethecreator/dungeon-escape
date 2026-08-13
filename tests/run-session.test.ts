@@ -153,7 +153,7 @@ describe("RunSession applyWorldUpdate", () => {
 
     expect(session.resolve).toBe(64);
     expect(fx.pickup).toEqual({ label: COPY.pickup.timeFreeze, timeFreeze: true });
-    expect(fx.status).toBe(COPY.status.timeFreeze);
+    expect(fx.status).toBeUndefined();
     expect(fx.playPickup).toBe(true);
     expect(fx.flash).toBe("event");
   });
@@ -170,7 +170,7 @@ describe("RunSession applyWorldUpdate", () => {
 
     expect(session.resolve).toBe(64);
     expect(fx.pickup).toEqual({ label: COPY.pickup.luminousWard, luminousWard: true });
-    expect(fx.status).toBe(COPY.status.luminousWard);
+    expect(fx.status).toBeUndefined();
     expect(fx.playPickup).toBe(true);
     expect(fx.flash).toBe("event");
   });
@@ -190,7 +190,7 @@ describe("RunSession applyWorldUpdate", () => {
       label: COPY.pickup.annihilationPulse,
       annihilationPulse: true,
     });
-    expect(fx.status).toBe(COPY.status.annihilationPulse);
+    expect(fx.status).toBeUndefined();
     expect(fx.playPickup).toBe(true);
     expect(fx.flash).toBe("event");
   });
@@ -207,7 +207,6 @@ describe("RunSession applyWorldUpdate", () => {
     );
     expect(session.resolve).toBe(70);
     expect(swarm.pickup).toEqual({ label: COPY.pickup.swarmCurse, swarmCurse: true });
-    expect(swarm.status).toBe(COPY.status.swarmCurse);
     expect(swarm.flash).toBe("damage");
     expect(swarm.sessionChanged).toBe(true);
 
@@ -241,7 +240,6 @@ describe("RunSession applyWorldUpdate", () => {
 
     const map = applyWorldUpdate(session, quest, emptyUpdate({ collectedPickupKind: "map" }));
     expect(map).toMatchObject({
-      status: COPY.status.map,
       pickup: { label: COPY.pickup.map, mapReveal: true },
       playPickup: true,
       sessionChanged: true,
@@ -253,7 +251,6 @@ describe("RunSession applyWorldUpdate", () => {
       emptyUpdate({ collectedPickupKind: "mobility" }),
     );
     expect(mobility).toMatchObject({
-      status: COPY.status.mobility,
       pickup: { label: COPY.pickup.mobility, mobilityBoost: true },
       playPickup: true,
       sessionChanged: true,
@@ -265,7 +262,6 @@ describe("RunSession applyWorldUpdate", () => {
       emptyUpdate({ collectedPickupKind: "clarity" }),
     );
     expect(clarity).toMatchObject({
-      status: COPY.status.clarity,
       pickup: { label: COPY.pickup.clarity, fogClear: true },
       playPickup: true,
       sessionChanged: true,
@@ -283,7 +279,7 @@ describe("RunSession applyWorldUpdate", () => {
     expect(session.runMode).toBe("playing");
     expect(session.exitReached).toBe(false);
     expect(fx.endOverlay).toBeUndefined();
-    expect(fx.status).toBe(COPY.status.portalSealed);
+    expect(fx.status).toBeUndefined();
     expect(quest.escaped).toBe(false);
   });
 
@@ -313,7 +309,7 @@ describe("RunSession applyWorldUpdate", () => {
     const fx = applyWorldUpdate(session, quest, emptyUpdate({ reachedLockedExit: true }));
     expect(session.runMode).toBe("playing");
     expect(fx.endOverlay).toBeUndefined();
-    expect(fx.status).toBeTruthy();
+    expect(fx.status).toBeUndefined();
   });
 
   test("reset restores playing vitals", () => {

@@ -2,12 +2,10 @@ import { describe, expect, test } from "bun:test";
 
 import { applyPickupSessionEffects, pickupSessionEffects } from "../src/game/PickupSessionEffects";
 import type { RunSessionEffects } from "../src/game/RunSession";
-import { COPY } from "../src/ui/copy";
 
 describe("PickupSessionEffects", () => {
   test("maps time freeze without sessionChanged", () => {
     const row = pickupSessionEffects("time-freeze");
-    expect(row?.status).toBe(COPY.status.timeFreeze);
     expect(row?.pickup.timeFreeze).toBe(true);
     expect(row?.flash).toBe("event");
     expect(row?.sessionChanged).toBeUndefined();
@@ -37,6 +35,8 @@ describe("PickupSessionEffects", () => {
     expect(applyPickupSessionEffects(effects, "mobility")).toBe(true);
     expect(effects.playPickup).toBe(true);
     expect(effects.sessionChanged).toBe(true);
+    expect(effects.status).toBeUndefined();
+    expect("status" in (pickupSessionEffects("time-freeze") ?? {})).toBe(false);
     expect(applyPickupSessionEffects(effects, "stone")).toBe(false);
     expect(applyPickupSessionEffects(effects, null)).toBe(false);
   });

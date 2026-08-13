@@ -7,7 +7,7 @@ import type { StaticFireEffect } from "./StaticDungeonScene";
 import { INTERACTION_VERTICAL_BAND } from "./InteractionReach";
 
 /** Reach for F-take on wall torches / lanterns (slightly past chest grab). */
-export const WALL_TORCH_INTERACTION_DISTANCE = 2.05;
+export const WALL_TORCH_INTERACTION_DISTANCE = 2.7;
 
 export function canTakeWallTorch(
   distance: number,

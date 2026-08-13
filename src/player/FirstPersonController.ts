@@ -82,6 +82,21 @@ const KEY_ACTIONS: Readonly<Record<string, PlayerAction>> = {
   KeyF: "interact",
   KeyG: "fire",
 };
+
+/**
+ * Pointer-lock mouse buttons. Left-click always queues fire; DungeonWorld
+ * spends that click as interact when a chest or wall torch is in reach.
+ * `button === -1` covers browsers that omit the button index while locked.
+ */
+export function pointerLockClickActions(
+  button: number,
+  buttons = 0,
+): readonly PlayerAction[] | null {
+  const primary = button === 0 || (button < 0 && (buttons & 1) === 1);
+  if (primary) return ["fire", "interact"];
+  if (button === 2) return ["jump"];
+  return null;
+}
 const MAX_LOOK_PITCH = 1.18;
 const MOBILITY_STAMINA_CONFIG = Object.freeze({
   ...DEFAULT_STAMINA_CONFIG,
@@ -430,7 +445,11 @@ export class FirstPersonController {
     window.addEventListener("blur", this.handleBlur);
     this.domElement.addEventListener("click", this.handleSceneClick);
     this.domElement.addEventListener("pointerdown", this.handlePointerDown);
+    this.domElement.addEventListener("mousedown", this.handleMouseDown);
     this.domElement.addEventListener("contextmenu", this.handleContextMenu);
+    // Locked clicks sometimes miss the canvas; capture on document still sees them.
+    document.addEventListener("pointerdown", this.handlePointerDown, true);
+    document.addEventListener("mousedown", this.handleMouseDown, true);
     // Release may happen outside the canvas while pointer-locked.
     document.addEventListener("pointerup", this.handlePointerUp);
     document.addEventListener("pointercancel", this.handlePointerUp);
@@ -1005,7 +1024,10 @@ export class FirstPersonController {
     window.removeEventListener("blur", this.handleBlur);
     this.domElement.removeEventListener("click", this.handleSceneClick);
     this.domElement.removeEventListener("pointerdown", this.handlePointerDown);
+    this.domElement.removeEventListener("mousedown", this.handleMouseDown);
     this.domElement.removeEventListener("contextmenu", this.handleContextMenu);
+    document.removeEventListener("pointerdown", this.handlePointerDown, true);
+    document.removeEventListener("mousedown", this.handleMouseDown, true);
   }
 
   /**
@@ -1199,16 +1221,28 @@ export class FirstPersonController {
   private readonly handleContextMenu = (event: Event): void => {
     event.preventDefault();
   };
-  private readonly handlePointerDown = (event: PointerEvent): void => {
+  private queuePointerLockActions(actions: readonly PlayerAction[]): void {
+    for (const action of actions) this.justPressed.add(action);
+  }
+  private applyLockedClick(event: MouseEvent): void {
     if (!this.enabled || !this.locked) return;
-    if (event.button === 0) {
-      this.justPressed.add("fire");
+    if (
+      event.target instanceof Node &&
+      event.target !== this.domElement &&
+      !this.domElement.contains(event.target)
+    ) {
       return;
     }
-    if (event.button === 2) {
-      event.preventDefault();
-      this.justPressed.add("jump");
-    }
+    const actions = pointerLockClickActions(event.button, event.buttons);
+    if (!actions) return;
+    if (actions.includes("jump")) event.preventDefault();
+    this.queuePointerLockActions(actions);
+  }
+  private readonly handlePointerDown = (event: PointerEvent): void => {
+    this.applyLockedClick(event);
+  };
+  private readonly handleMouseDown = (event: MouseEvent): void => {
+    this.applyLockedClick(event);
   };
   private readonly handlePointerUp = (_event: PointerEvent): void => {
     /* Fire is edge-triggered on pointerdown; nothing to release. */

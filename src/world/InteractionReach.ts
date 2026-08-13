@@ -4,7 +4,7 @@
  */
 
 /** Chest open prompt and interact radius. */
-export const CHEST_INTERACTION_DISTANCE = 1.9;
+export const CHEST_INTERACTION_DISTANCE = 2.55;
 /** Default pickup grab radius (health flasks, power rewards). */
 export const PICKUP_COLLECTION_DISTANCE = 1.18;
 /** Magic stones get a wider grab so dense props near the seat cannot softlock a run. */

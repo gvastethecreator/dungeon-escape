@@ -4,7 +4,7 @@ describe("Play HUD structure (Ash Binding)", () => {
   test("keeps health left, timer top-center, and stones bottom-right", async () => {
     const host = await Bun.file(new URL("../index.html", import.meta.url)).text();
     expect(host).toContain('id="play-objective"');
-    expect(host).toContain('id="play-toast"');
+    expect(host).not.toContain('id="play-toast"');
     expect(host).toContain('data-move="fire"');
     expect(host).toContain("interaction-prompt__coarse");
     expect(host).toContain('id="look-sensitivity"');
@@ -388,7 +388,8 @@ describe("Play HUD structure (Ash Binding)", () => {
     expect(source).toContain('elements.optionsSettingsBack.addEventListener("click"');
     expect(source).toContain('elements.endHome.addEventListener("click"');
     expect(source).toContain("isPlayerFacingStatus");
-    expect(source).toContain("function showPlayToast");
+    expect(source).not.toContain("function showPlayToast");
+    expect(source).not.toContain("playToast");
     expect(source).not.toContain("Press Enter to retry");
     expect(source).toContain("COPY.pause.restarted");
     expect(source).toContain("COPY.pause.returnedHome");
