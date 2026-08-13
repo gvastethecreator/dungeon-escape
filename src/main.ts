@@ -344,7 +344,6 @@ const elements = {
   hazardStatus: requireElement<HTMLElement>("#hazard-status"),
   hazardOverlay: requireElement<HTMLElement>("#hazard-overlay"),
   playObjective: requireElement<HTMLElement>("#play-objective"),
-  playToast: requireElement<HTMLElement>("#play-toast"),
   stoneCount: requireElement<HTMLElement>("#stone-count"),
   stoneSockets: [...document.querySelectorAll<HTMLElement>(".stone-socket")],
   damage: requireElement<HTMLElement>("#damage-vignette"),
@@ -915,28 +914,7 @@ const debugTelemetry = new EditorDebugTelemetry(
 
 let objectiveBannerTimer: ReturnType<typeof setTimeout> | null = null;
 let objectiveFadeTimer: ReturnType<typeof setTimeout> | null = null;
-let playToastTimer: ReturnType<typeof setTimeout> | null = null;
-let playToastHideTimer: ReturnType<typeof setTimeout> | null = null;
 let lastPortalBanner = false;
-
-const PLAY_TOAST_HOLD_MS = 1800;
-
-function showPlayToast(message: string): void {
-  const el = elements.playToast;
-  el.hidden = false;
-  el.textContent = message;
-  el.classList.add("is-visible");
-  if (playToastTimer !== null) clearTimeout(playToastTimer);
-  if (playToastHideTimer !== null) clearTimeout(playToastHideTimer);
-  playToastTimer = setTimeout(() => {
-    el.classList.remove("is-visible");
-    playToastHideTimer = setTimeout(() => {
-      el.hidden = true;
-      playToastHideTimer = null;
-    }, 240);
-    playToastTimer = null;
-  }, PLAY_TOAST_HOLD_MS);
-}
 
 /**
  * Player-facing status stays short. Tech telemetry (renderer ms, profile keys)
@@ -959,7 +937,6 @@ function setStatus(message: string, options: { forceDev?: boolean } = {}): void 
     return;
   }
   elements.status.textContent = message;
-  if (engineMode === "play" && isPlayerFacingStatus(message)) showPlayToast(message);
 }
 
 function setToggleValue(

@@ -1,4 +1,4 @@
-import { COPY, stoneLabel, type StoneId } from "../ui/copy";
+import { stoneLabel, type StoneId } from "../ui/copy";
 import { hasPhoenixCharge, phoenixReviveResolve, tryConsumePhoenixCharge } from "./PhoenixEgg";
 import { applyPickupSessionEffects } from "./PickupSessionEffects";
 import type { QuestState } from "./QuestState";
@@ -173,13 +173,6 @@ export function applyWorldUpdate(
     effects.questPortalOpen = quest.portalOpen;
     effects.questStonesFound = quest.stonesFound;
     effects.questStonesTotal = quest.totalStones;
-    effects.status = quest.portalOpen
-      ? COPY.status.portalOpen
-      : COPY.status.stoneFound(
-          stoneLabel(lastCollectedStoneId),
-          quest.stonesFound,
-          quest.totalStones,
-        );
     effects.pickup = {
       label: stoneLabel(lastCollectedStoneId),
       stoneId: lastCollectedStoneId,
@@ -193,7 +186,6 @@ export function applyWorldUpdate(
 
   if (update.resolveGain > 0) {
     session.resolve = Math.min(100, session.resolve + update.resolveGain);
-    effects.status = `Health restored +${update.resolveGain}.`;
     effects.pickup = { label: `Health +${update.resolveGain}`, restoreResolve: true };
     effects.playPickup = true;
     effects.flash = "event";
@@ -215,7 +207,6 @@ export function applyWorldUpdate(
         effects.phoenixCharges = phoenix.charges;
         effects.endOverlay = undefined;
         effects.flash = "event";
-        effects.status = COPY.status.phoenixRevive;
         effects.damageHit = false;
       } else {
         session.runMode = "dead";
@@ -229,9 +220,6 @@ export function applyWorldUpdate(
   }
 
   const questPortalOpen = quest.portalOpen;
-  if (update.reachedLockedExit || (update.reachedOpenExit && !questPortalOpen)) {
-    effects.status = COPY.status.portalSealed;
-  }
 
   if (
     session.runMode === "playing" &&
