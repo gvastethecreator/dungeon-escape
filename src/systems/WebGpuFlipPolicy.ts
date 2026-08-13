@@ -1,8 +1,8 @@
 /**
  * Staged WebGPU default-flip policy (WGP-23).
  *
- * Armed: `?renderer=auto` prefers WebGPU when an adapter exists.
- * PlayRendererFactory still falls back to WebGL when the probe or init fails.
+ * Disarmed: `?renderer=auto` stays on WebGL2. Opt in with `?renderer=webgpu`.
+ * Re-arm only after the TSL path samples maps and IBL without dropping albedo.
  */
 
 export interface WebGpuFlipPolicy {
@@ -14,11 +14,11 @@ export interface WebGpuFlipPolicy {
   readonly stagedFlipArmed: boolean;
 }
 
-/** Compile-time / runtime switch — Chrome/Edge WebGPU cohort with WebGL fallback. */
+/** Compile-time / runtime switch — WebGL2 default until the WebGPU TSL path is stable. */
 export const WEBGPU_FLIP_POLICY: WebGpuFlipPolicy = Object.freeze({
-  preferWebGpuWhenAuto: true,
-  cohort: "chrome-edge-webgpu",
-  stagedFlipArmed: true,
+  preferWebGpuWhenAuto: false,
+  cohort: "webgl-default",
+  stagedFlipArmed: false,
 });
 
 export function resolvePreferWebGpuWhenAuto(

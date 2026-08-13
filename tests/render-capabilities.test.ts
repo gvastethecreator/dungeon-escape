@@ -203,9 +203,10 @@ describe("render capabilities", () => {
     expect(warmup).toContain("world.prepareVisibleZone(camera.position)");
     expect(warmup).toContain("world.setPickupEffectsWarmupVisible(true)");
     expect(warmup).toContain("povPost.render(renderer, scene, camera);");
+    expect(warmup).toContain("povPost.warmup(renderer, scene, camera);");
     expect(warmup).toContain("window.setTimeout(runWarmup, 250)");
-    expect(warmup).not.toContain("povPost.warmup(renderer, scene, camera);");
-    expect(source).not.toContain("ASYNC_SHADER_WARMUP_BUDGET_MS");
+    expect(warmup).toContain("renderer.compileAsync(scene, camera)");
+    expect(warmup).toContain("lighting.bindEnvironment(renderer)");
     expect(warmup).not.toContain("compileScene(");
     expect(warmup).not.toContain("rendererWarmupQueue");
     expect(warmup).toContain("isCurrentRendererWarmup(sequence, trace)");

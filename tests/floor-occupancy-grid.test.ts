@@ -417,20 +417,41 @@ function splitStairColliders(
   return snapshots;
 }
 
+interface FloorBuildStateRecorder {
+  readonly snapshots: Map<number, FloorBuildStateSnapshot>;
+  recapture(): void;
+}
+
+function hydrateResidentFloors(scene: StaticDungeonScene, floorCount: number): void {
+  for (let index = 0; index < floorCount; index += 1) {
+    scene.setActiveFloor(index);
+  }
+  scene.flushDeferredFloorPresentation();
+}
+
 function recordFloorBuildState(
   scene: StaticDungeonScene,
   normalizeStackFloorY: boolean,
-): Map<number, FloorBuildStateSnapshot> {
+): FloorBuildStateRecorder {
   const snapshots = new Map<number, FloorBuildStateSnapshot>();
+  const contexts = new Map<number, TestFloorBuildContext>();
   const classicColliders = new Map<number, ReturnType<typeof colliderSnapshot>>();
   const stairColliders = new Map<number, readonly StairColliderSnapshot[]>();
   const internals = sceneInternals(scene);
   const originalBuildFloorContents = internals.buildFloorContents;
   const originalAddDoorsAndRoomProps = internals.addDoorsAndRoomProps;
   const originalAddStaircases = internals.addStaircases;
-  internals.addDoorsAndRoomProps = (dungeon, floorBuild) => {
+  const recaptureFloor = (floorIndex: number, context: TestFloorBuildContext): void => {
+    snapshots.set(floorIndex, {
+      masks: orderedOccupancyMasks(context.occupancy),
+      reservations: reservationSnapshot(context),
+      classicColliders: classicColliders.get(floorIndex) ?? [],
+      stairColliders: stairColliders.get(floorIndex) ?? [],
+    });
+  };
+  internals.addDoorsAndRoomProps = (dungeon, floorBuild, floorPlan) => {
     const start = scene.currentHandles.solidColliders.length;
-    originalAddDoorsAndRoomProps.call(scene, dungeon, floorBuild);
+    originalAddDoorsAndRoomProps.call(scene, dungeon, floorBuild, floorPlan);
     const floorIndex = dungeon.floor?.index ?? 0;
     const floorY = normalizeStackFloorY ? floorIndex * STORY_HEIGHT : 0;
     classicColliders.set(
@@ -438,9 +459,9 @@ function recordFloorBuildState(
       colliderSnapshot(scene.currentHandles.solidColliders.slice(start), floorY),
     );
   };
-  internals.addStaircases = (dungeon) => {
+  internals.addStaircases = (dungeon, floorPlan) => {
     const start = scene.currentHandles.solidColliders.length;
-    originalAddStaircases.call(scene, dungeon);
+    originalAddStaircases.call(scene, dungeon, floorPlan);
     const floorIndex = dungeon.floor?.index ?? 0;
     const floorY = normalizeStackFloorY ? floorIndex * STORY_HEIGHT : 0;
     const physicalStairs = (dungeon.floor?.stairs ?? []).filter(
@@ -454,19 +475,20 @@ function recordFloorBuildState(
       ),
     );
   };
-  internals.buildFloorContents = (dungeon, mood, floorBuild) => {
-    const result = originalBuildFloorContents.call(scene, dungeon, mood, floorBuild);
+  internals.buildFloorContents = function* (dungeon, mood, floorBuild) {
+    const result = yield* originalBuildFloorContents.call(scene, dungeon, mood, floorBuild);
     const floorIndex = dungeon.floor?.index ?? 0;
     const context = floorBuild as TestFloorBuildContext;
-    snapshots.set(floorIndex, {
-      masks: orderedOccupancyMasks(context.occupancy),
-      reservations: reservationSnapshot(context),
-      classicColliders: classicColliders.get(floorIndex) ?? [],
-      stairColliders: stairColliders.get(floorIndex) ?? [],
-    });
+    contexts.set(floorIndex, context);
+    recaptureFloor(floorIndex, context);
     return result;
   };
-  return snapshots;
+  return {
+    snapshots,
+    recapture() {
+      for (const [floorIndex, context] of contexts) recaptureFloor(floorIndex, context);
+    },
+  };
 }
 
 function collectClassicPlacementCells(
@@ -550,12 +572,16 @@ function classicPlacementChanges(
   return changes;
 }
 
-type TestBuildFloorContents = (dungeon: DungeonData, mood: unknown, floorBuild: unknown) => unknown;
+type TestBuildFloorContents = (
+  dungeon: DungeonData,
+  mood: unknown,
+  floorBuild: unknown,
+) => Generator<void, unknown, void>;
 
 interface TestSceneInternals {
   buildFloorContents: TestBuildFloorContents;
-  addDoorsAndRoomProps(dungeon: DungeonData, floorBuild: unknown): void;
-  addStaircases(dungeon: DungeonData): void;
+  addDoorsAndRoomProps(dungeon: DungeonData, floorBuild?: unknown, floorPlan?: unknown): void;
+  addStaircases(dungeon: DungeonData, floorPlan?: unknown): void;
   add(...objects: THREE.Object3D[]): void;
   clear(): void;
   activeFloorOccupancy: FloorOccupancyGrid | null;
@@ -690,7 +716,7 @@ describe("FloorOccupancyGrid", () => {
       scene.build(dungeon, getDungeonMood("ash"), 0.6);
       const catalogBeforeFailure = catalog.snapshot();
       const constructionError = new Error("RDL10 early construction failure");
-      internals.buildFloorContents = () => {
+      internals.buildFloorContents = function* () {
         throw constructionError;
       };
 
@@ -747,8 +773,8 @@ describe("FloorOccupancyGrid", () => {
       const cleanupError = new Error("RDL10 cleanup failure");
       let cleanupDisposeCalls = 0;
       let completedFloors = 0;
-      internals.buildFloorContents = (dungeon, mood, floorBuild) => {
-        const result = originalBuildFloorContents.call(scene, dungeon, mood, floorBuild);
+      internals.buildFloorContents = function* (dungeon, mood, floorBuild) {
+        const result = yield* originalBuildFloorContents.call(scene, dungeon, mood, floorBuild);
         completedFloors += 1;
         if (completedFloors === 2) {
           const cleanupRoot = new THREE.Group();
@@ -813,6 +839,8 @@ describe("FloorOccupancyGrid", () => {
         stackScene.buildStack(floors, getDungeonMood("ash"), 0.63),
       );
       const stacked = occupancyAllocationSample.result;
+      hydrateResidentFloors(stackScene, floors.length);
+      stackFloorBuildStates.recapture();
       const placementChanges: FloorOccupancyPlacementChange[] = [];
 
       expect(occupancyAllocationSample.coordinateKeySetCopies).toBe(0);
@@ -832,10 +860,11 @@ describe("FloorOccupancyGrid", () => {
           height: floor.height,
         })),
       );
+      const occupancyReport = createFloorOccupancyReport(stacked.floorOccupancyGrids);
       expect(stacked.occupancyReport.memoryBytes).toBe(base.width * base.height * 4);
-      expect(stacked.occupancyReport.legacyFlatKeyCollisions.length).toBeGreaterThan(0);
-      expect(stacked.occupancyReport.placementChanges).toEqual([]);
-      const sameXzSolid = stacked.occupancyReport.legacyFlatKeyCollisions.find(
+      expect(occupancyReport.legacyFlatKeyCollisions.length).toBeGreaterThan(0);
+      expect(occupancyReport.placementChanges).toEqual([]);
+      const sameXzSolid = occupancyReport.legacyFlatKeyCollisions.find(
         (collision) => collision.category === "solid" && collision.floorIndices.length === 4,
       );
       expect(sameXzSolid).toBeDefined();
@@ -875,8 +904,8 @@ describe("FloorOccupancyGrid", () => {
         expect(doorSnapshot(stacked.doors, floorIndex * STORY_HEIGHT)).toEqual(
           doorSnapshot(isolated.doors, 0),
         );
-        const stackedState = stackFloorBuildStates.get(floorIndex);
-        const isolatedState = isolatedFloorBuildStates.get(floorIndex);
+        const stackedState = stackFloorBuildStates.snapshots.get(floorIndex);
+        const isolatedState = isolatedFloorBuildStates.snapshots.get(floorIndex);
         expect(stackedState).toBeDefined();
         expect(isolatedState).toBeDefined();
         expect(stackedState!.masks).toEqual(isolatedState!.masks);
@@ -892,9 +921,7 @@ describe("FloorOccupancyGrid", () => {
         stacked.floorOccupancyGrids,
         placementChanges,
       );
-      expect(parityReport.legacyFlatKeyCollisions).toEqual(
-        stacked.occupancyReport.legacyFlatKeyCollisions,
-      );
+      expect(parityReport.legacyFlatKeyCollisions).toEqual(occupancyReport.legacyFlatKeyCollisions);
       expect(parityReport.placementChanges).toEqual([]);
 
       const gridsBeforeSwitch = stacked.floorOccupancyGrids;
@@ -925,6 +952,8 @@ describe("FloorOccupancyGrid", () => {
 
       const stackFloorBuildStates = recordFloorBuildState(stackScene, true);
       const stacked = stackScene.buildStack(floors, getDungeonMood("ash"), 0.58);
+      hydrateResidentFloors(stackScene, floors.length);
+      stackFloorBuildStates.recapture();
       const placementChanges: FloorOccupancyPlacementChange[] = [];
 
       for (const floor of floors) {
@@ -939,8 +968,8 @@ describe("FloorOccupancyGrid", () => {
         isolatedScenes.push(isolatedScene);
         const isolatedFloorBuildStates = recordFloorBuildState(isolatedScene, false);
         const isolated = isolatedScene.build(floor, getDungeonMood("ash"), 0.58);
-        const stackedState = stackFloorBuildStates.get(floorIndex);
-        const isolatedState = isolatedFloorBuildStates.get(floorIndex);
+        const stackedState = stackFloorBuildStates.snapshots.get(floorIndex);
+        const isolatedState = isolatedFloorBuildStates.snapshots.get(floorIndex);
         expect(stackedState).toBeDefined();
         expect(isolatedState).toBeDefined();
 

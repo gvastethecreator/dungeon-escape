@@ -45,6 +45,7 @@ interface MistBank {
   baseY: number;
   phase: number;
   baseOpacity: number;
+  currentOpacity: number;
 }
 
 interface SoftGroundFog {
@@ -216,6 +217,7 @@ export class AtmosphereSystem {
   private readonly mistTexture: THREE.Texture;
   private readonly dustTexture: THREE.Texture;
   private readonly mistBanks: MistBank[] = [];
+  private mistBankMaterial: THREE.SpriteMaterial | null = null;
   private softGroundFog: SoftGroundFog | null = null;
   private supportParticles: THREE.Points | THREE.Sprite | null = null;
   private signatureParticles: THREE.Points | THREE.Sprite | null = null;
@@ -275,6 +277,17 @@ export class AtmosphereSystem {
     // Soft wisps through the column — dual-layer height bias (ground + air).
     const bankCount = Math.min(18, Math.max(9, Math.round(rooms.length * 0.6)));
     const wispColor = fogVolumeColor(mood);
+    this.mistBankMaterial = new THREE.SpriteMaterial({
+      map: this.mistTexture,
+      color: wispColor,
+      transparent: true,
+      opacity: 1,
+      depthWrite: false,
+      depthTest: true,
+      fog: false,
+      toneMapped: false,
+      blending: THREE.NormalBlending,
+    });
     for (let index = 0; index < bankCount; index += 1) {
       const room = rooms[index % Math.max(1, rooms.length)];
       if (!room) continue;
@@ -286,18 +299,7 @@ export class AtmosphereSystem {
         0.52 * Math.exp(-SOFT_FOG_HEIGHT_FALLOFF_GROUND * baseY) +
         0.48 * Math.exp(-SOFT_FOG_HEIGHT_FALLOFF_AIR * baseY);
       const baseOpacity = (0.018 + heightFade * 0.055) * mood.dustOpacityScale;
-      const material = new THREE.SpriteMaterial({
-        map: this.mistTexture,
-        color: wispColor,
-        transparent: true,
-        opacity: baseOpacity,
-        depthWrite: false,
-        depthTest: true,
-        fog: false,
-        toneMapped: false,
-        blending: THREE.NormalBlending,
-      });
-      const sprite = new THREE.Sprite(material);
+      const sprite = new THREE.Sprite(this.mistBankMaterial);
       sprite.position.set(
         center.x + (random.next() - 0.5) * room.width * this.tileSize * 0.48,
         baseY,
@@ -306,8 +308,19 @@ export class AtmosphereSystem {
       const scale = 4.0 + random.next() * 3.8 + heightFade * 2.0;
       sprite.scale.set(scale, scale * (0.42 + heightFade * 0.28), 1);
       sprite.renderOrder = 1;
+      const bank: MistBank = {
+        sprite,
+        baseY,
+        phase: index * 1.71,
+        baseOpacity,
+        currentOpacity: baseOpacity,
+      };
+      sprite.onBeforeRender = () => {
+        const material = this.mistBankMaterial;
+        if (material) material.opacity = bank.currentOpacity;
+      };
       this.group.add(sprite);
-      this.mistBanks.push({ sprite, baseY, phase: index * 1.71, baseOpacity });
+      this.mistBanks.push(bank);
     }
 
     const floorCells: GridCell[] = [];
@@ -363,7 +376,7 @@ export class AtmosphereSystem {
     const clearFade = 1 - this.fogClearPulse * 0.94;
     for (const bank of this.mistBanks) {
       bank.sprite.position.y = bank.baseY + Math.sin(this.elapsed * 0.34 + bank.phase) * 0.1;
-      bank.sprite.material.opacity =
+      bank.currentOpacity =
         (bank.baseOpacity + (Math.sin(this.elapsed * 0.47 + bank.phase) * 0.5 + 0.5) * 0.02) *
         clearFade;
     }
@@ -546,9 +559,13 @@ export class AtmosphereSystem {
       const object = child as THREE.Points | THREE.Sprite;
       if ((object as THREE.Points).isPoints) (object as THREE.Points).geometry.dispose();
       const material = object.material;
-      if (Array.isArray(material)) material.forEach((entry) => entry.dispose());
-      else material?.dispose();
+      const materials = Array.isArray(material) ? material : material ? [material] : [];
+      for (const entry of materials) {
+        if (entry !== this.mistBankMaterial) entry.dispose();
+      }
     }
+    this.mistBankMaterial?.dispose();
+    this.mistBankMaterial = null;
     this.mistBanks.length = 0;
     this.supportParticles = null;
     this.signatureParticles = null;

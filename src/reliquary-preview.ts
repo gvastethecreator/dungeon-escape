@@ -6,11 +6,7 @@ import {
   readPlayRendererBackendName,
   type PlayRendererHandle,
 } from "./systems/PlayRendererFactory";
-import {
-  createShaderProgramModeRegistry,
-  setShaderProgramModeRegistry,
-} from "./systems/ShaderProgramMode";
-import { loadTslMaterialModules } from "./systems/TslMaterialModules";
+import { bootPlayShaderMode } from "./systems/PlayShaderBoot";
 import { createDungeonMaterials } from "./world/MaterialLibrary";
 import { createReliquaryAltar } from "./world/ReliquaryAltar";
 
@@ -34,10 +30,7 @@ async function boot(): Promise<void> {
   renderer.toneMappingExposure = 1.08;
   renderer.outputColorSpace = THREE.SRGBColorSpace;
 
-  setShaderProgramModeRegistry(
-    createShaderProgramModeRegistry(handle.isWebGpuRenderer ? "tsl" : "glsl"),
-  );
-  if (handle.isWebGpuRenderer) await loadTslMaterialModules();
+  await bootPlayShaderMode(handle.shaderProgramMode);
 
   (globalThis as { __rendererInfo?: unknown }).__rendererInfo = {
     app: "reliquary-preview",

@@ -17,7 +17,7 @@ The campaign that generates every floor of the `Dungeon floor stack` from one ro
 The pure owner of topology settings, single-floor generation, and resident-stack generation. It has no DOM, editor, Three.js, or world dependency.
 
 **Creation adapter**:
-The boundary that copies Creation controls into one `DungeonParams` snapshot and loads the plan-view renderer on demand. Play never reads these controls.
+The boundary that copies Creation controls into one `DungeonParams` snapshot and loads the plan-view renderer on demand. Play never reads these controls. The module is `src/editor/CreationParamsAdapter.ts`.
 
 **Stair shaft**:
 An aligned vertical opening with walkable tread colliders linking floor `i` to `i+1`. Players climb the steps; there is no interact prompt and no floor-load transition.
@@ -49,7 +49,7 @@ highest unlocked biome rank, and per-biome clears. It is separate from the activ
 of Escapes stays hidden until this profile has reached its first win or loss ending.
 
 **User settings**:
-Browser-local music volume, effects volume, and texture-smoothing preference. Texture smoothing is off by default; audio mute state remains separate.
+Browser-local music volume, effects volume, master mute, CRT enabled state, look sensitivity, and texture-smoothing preference. Texture smoothing is off by default. Look sensitivity uses the range 0.5–1.5. Master mute is separate from music volume. CRT `null` means follow the adaptive policy.
 
 **Custom run**:
 Custom Run, Forge apply, or Map Tools generation. Fully playable. **Never ranks** — victory shows a practice score only.

@@ -7,11 +7,11 @@ import {
 } from "../src/systems/WebGpuFlipPolicy";
 
 describe("WebGPU flip policy (WGP-23)", () => {
-  test("armed policy prefers WebGPU on auto, with WebGL still the factory fallback", () => {
-    expect(WEBGPU_FLIP_POLICY.preferWebGpuWhenAuto).toBe(true);
-    expect(WEBGPU_FLIP_POLICY.stagedFlipArmed).toBe(true);
-    expect(WEBGPU_FLIP_POLICY.cohort).toBe("chrome-edge-webgpu");
-    expect(resolvePreferWebGpuWhenAuto()).toBe(true);
+  test("disarmed policy keeps WebGL2 on auto", () => {
+    expect(WEBGPU_FLIP_POLICY.preferWebGpuWhenAuto).toBe(false);
+    expect(WEBGPU_FLIP_POLICY.stagedFlipArmed).toBe(false);
+    expect(WEBGPU_FLIP_POLICY.cohort).toBe("webgl-default");
+    expect(resolvePreferWebGpuWhenAuto()).toBe(false);
   });
 
   test("resolves preferWebGpuWhenAuto from an armed policy object", () => {

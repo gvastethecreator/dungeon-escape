@@ -2,6 +2,7 @@ import * as THREE from "three";
 import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 
 import { getDungeonMaterialVariant, type DungeonMaterials } from "./MaterialLibrary";
+import { normalizeGeometryForMerge } from "./MergeGeometryNormalize";
 import { createReliquaryAltar } from "./ReliquaryAltar";
 import type { RoomTheme } from "./RoomArtDirection";
 import { createImageSculptedClutter } from "./ImageSculptedClutterKit";
@@ -220,30 +221,7 @@ function mergeArchitectureProp(root: THREE.Group): THREE.Group {
   for (const child of root.children) {
     if (!(child instanceof THREE.Mesh)) continue;
     child.updateMatrix();
-    const geometry = (
-      child.geometry.index ? child.geometry.toNonIndexed() : child.geometry.clone()
-    ).applyMatrix4(child.matrix);
-    if (!geometry.getAttribute("normal")) geometry.computeVertexNormals();
-    if (!geometry.getAttribute("uv")) {
-      geometry.setAttribute(
-        "uv",
-        new THREE.Float32BufferAttribute(
-          new Float32Array(geometry.getAttribute("position").count * 2),
-          2,
-        ),
-      );
-    }
-    for (const attribute of Object.keys(geometry.attributes)) {
-      if (
-        attribute !== "position" &&
-        attribute !== "normal" &&
-        attribute !== "uv" &&
-        attribute !== "color"
-      ) {
-        geometry.deleteAttribute(attribute);
-      }
-    }
-    geometry.clearGroups();
+    const geometry = normalizeGeometryForMerge(child.geometry, child.matrix, { keepColor: true });
     const list = batches.get(child.material) ?? [];
     list.push(geometry);
     batches.set(child.material, list);

@@ -541,8 +541,10 @@ describe("StaticDungeonScene", () => {
       expect(inactiveRuntime.staircases).toHaveLength(1);
       staticScene.setActiveFloor(2);
       expect(residentFloors.map((floor) => floor.visible)).toEqual([false, true, true, true]);
-      expect(handles.residentFloors[2]!.floorBiomeSprites.length).toBeGreaterThan(0);
       expect(handles.residentFloors[2]!.doors.length).toBeGreaterThan(0);
+      expect(handles.residentFloors[2]!.floorBiomeSprites).toHaveLength(0);
+      staticScene.flushDeferredFloorPresentation();
+      expect(handles.residentFloors[2]!.floorBiomeSprites.length).toBeGreaterThan(0);
       // PERF-38: active floor shows every tagged chunk; neighbor keeps shaft-near
       // chunks visible (small maps may still show every chunk).
       const neighbor = handles.residentFloors[1]!;
@@ -732,6 +734,7 @@ describe("StaticDungeonScene", () => {
       staticScene.setActiveFloor(2);
       staticScene.setActiveFloor(3);
       staticScene.setActiveFloor(0);
+      staticScene.flushDeferredFloorPresentation();
       const internals = staticScene as unknown as { floorRenderGroups: THREE.Group[] };
       expect(runtimes.map((runtime) => runtime.floorIndex)).toEqual([0, 1, 2, 3]);
       expect(new Set(runtimes).size).toBe(4);
@@ -740,7 +743,7 @@ describe("StaticDungeonScene", () => {
       });
       expect(runtimes.every((runtime) => runtime.root.children.length > 0)).toBe(true);
       expect(runtimes.map((runtime) => runtime.occupancy.diagnostics().occupiedCells)).toEqual([
-        248, 259, 237, 266,
+        245, 259, 235, 271,
       ]);
       expect(runtimes.map((runtime) => runtime.occupancy.memoryBytes)).toEqual([
         5329, 5329, 5329, 5329,
@@ -762,7 +765,7 @@ describe("StaticDungeonScene", () => {
         pickups: 96,
         chests: 56,
         staircases: 3,
-        fireEffects: 35,
+        fireEffects: 53,
         floorBiomeSprites: 120,
         ceilingBiomeSprites: 128,
         solidColliders: 172,
@@ -784,7 +787,7 @@ describe("StaticDungeonScene", () => {
       expect(
         new Set(runtimes.flatMap((runtime) => runtime.chests.map((chest) => chest.id))).size,
       ).toBe(handles.chests.length);
-      expect(runtimes.map((runtime) => runtime.fires.length)).toEqual([8, 9, 9, 9]);
+      expect(runtimes.map((runtime) => runtime.fires.length)).toEqual([13, 13, 13, 14]);
       expect(runtimes.map((runtime) => runtime.floorBiomeSprites.length)).toEqual([30, 30, 30, 30]);
       expect(runtimes.map((runtime) => runtime.ceilingBiomeSprites.length)).toEqual([
         32, 32, 32, 32,
@@ -929,13 +932,13 @@ describe("StaticDungeonScene", () => {
           ),
         ),
       ).toBe("a10d8d4a");
-      expect(colliderFingerprint(handles.solidColliders)).toBe("184a46c");
+      expect(colliderFingerprint(handles.solidColliders)).toBe("ac503f8e");
       expect(
         runtimes.map((runtime) => instancedWorldFingerprint(runtime.doorBatchRoots[0]!)),
       ).toEqual(["a52de80e", "70235d79", "14193e10", "3d075624"]);
       expect(
         runtimes.map((runtime) => instancedWorldFingerprint(runtime.chestBatchRoots[0]!)),
-      ).toEqual(["e90ecee7", "16060f91", "f46929cc", "cfeeb5a1"]);
+      ).toEqual(["e90ecee7", "16060f91", "f46929cc", "fa53e9c1"]);
       expect(
         runtimes.map((runtime) => runtime.doorBatchRoots[0]!.userData.runtimeBatching),
       ).toEqual([
@@ -1210,8 +1213,8 @@ describe("StaticDungeonScene", () => {
         hazardTiles: 4,
         pickups: 26,
         beams: 7,
-        lights: 12,
-        props: 320,
+        lights: 16,
+        props: 324,
       });
       expect(classic.ambientBeams).toHaveLength(2);
       expect(group.getObjectByName("Ambient godray 1")).toBeDefined();
@@ -1273,8 +1276,8 @@ describe("StaticDungeonScene", () => {
         hazardTiles: 4,
         pickups: 14,
         beams: 7,
-        lights: 12,
-        props: 259,
+        lights: 13,
+        props: 260,
       });
       expect(backrooms.solidCells.size).toBe(43);
       expect(backrooms.solidColliders).toHaveLength(43);
@@ -1386,8 +1389,8 @@ describe("StaticDungeonScene", () => {
         hazardTiles: 4,
         pickups: 26,
         beams: 7,
-        lights: 12,
-        props: 320,
+        lights: 16,
+        props: 324,
         reserveEnemies: 20,
       });
       expect(world.getSolidCells()).toHaveLength(27);

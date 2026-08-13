@@ -54,6 +54,7 @@ export const COPY = {
   interaction: {
     openChest: "OPEN CHEST",
     takeTorch: "TAKE TORCH",
+    tap: "TAP",
   },
   stones: {
     ember: "Ember core",
@@ -116,7 +117,9 @@ export const COPY = {
       `Escape in ${formatTime(totalSec)}. Stones: ${stones}`,
     loseKicker: "The dungeon keeps its dead",
     loseTitle: "You Died",
-    loseCopy: "",
+    loseCopy: "The stones remain unbound.",
+    loseProgress: (stones: number, total: number, totalSec: number) =>
+      `${stones}/${total} stones · ${formatTime(totalSec)}`,
     retry: "Try again",
     newDungeon: "New dungeon",
     next: "Another run",

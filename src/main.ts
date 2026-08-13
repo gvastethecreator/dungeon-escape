@@ -74,7 +74,6 @@ import {
   type DungeonLoadTraceSnapshot,
 } from "./systems/DungeonLoadTrace";
 import { computeHazardFeel, decayHazardHitBoost, type DamageWashKind } from "./systems/HazardFeel";
-import { projectPlayStepDamage } from "./systems/PlayStepEffects";
 import { stepAdaptiveCrt } from "./systems/AdaptiveCrtPolicy";
 import { PlayStatusHud } from "./ui/PlayStatusHud";
 import { SceneLoaderEnemy } from "./ui/SceneLoaderEnemy";
@@ -95,12 +94,16 @@ import {
 import { resolvePreferWebGpuWhenAuto, WEBGPU_FLIP_POLICY } from "./systems/WebGpuFlipPolicy";
 import { collectVisibleRenderInventory } from "./systems/RenderInventory";
 import { resolveRenderPixelRatio } from "./systems/RenderScale";
+import { bootPlayShaderMode } from "./systems/PlayShaderBoot";
 import {
-  createShaderProgramModeRegistry,
-  setShaderProgramModeRegistry,
-  type ShaderProgramMode,
-} from "./systems/ShaderProgramMode";
-import { loadTslMaterialModules } from "./systems/TslMaterialModules";
+  applyCreationParamsToForm,
+  readCreationParams,
+} from "./editor/CreationParamsAdapter";
+import {
+  applyPlayStepPresentation,
+  collectPlayStepPresentation,
+  type PlayStepPresentationHost,
+} from "./game/PlayStepPresentation";
 
 /** Play renderer surface used by the host after backend selection. */
 type PlayHostRenderer = DungeonRenderer & {
@@ -125,6 +128,7 @@ type PlayHostRenderer = DungeonRenderer & {
     programs: unknown[] | null;
   };
   properties?: { get(material: THREE.Material): unknown };
+  compileAsync?(scene: THREE.Object3D, camera: THREE.Camera): Promise<unknown>;
   renderLists?: {
     get(scene: THREE.Scene, cameraIndex: number): { opaque: unknown[]; transparent: unknown[] };
   };
@@ -340,6 +344,7 @@ const elements = {
   hazardStatus: requireElement<HTMLElement>("#hazard-status"),
   hazardOverlay: requireElement<HTMLElement>("#hazard-overlay"),
   playObjective: requireElement<HTMLElement>("#play-objective"),
+  playToast: requireElement<HTMLElement>("#play-toast"),
   stoneCount: requireElement<HTMLElement>("#stone-count"),
   stoneSockets: [...document.querySelectorAll<HTMLElement>(".stone-socket")],
   damage: requireElement<HTMLElement>("#damage-vignette"),
@@ -398,6 +403,8 @@ const elements = {
   musicVolumeValue: requireElement<HTMLOutputElement>("#music-volume-value"),
   effectsVolume: requireElement<HTMLInputElement>("#effects-volume"),
   effectsVolumeValue: requireElement<HTMLOutputElement>("#effects-volume-value"),
+  lookSensitivity: requireElement<HTMLInputElement>("#look-sensitivity"),
+  lookSensitivityValue: requireElement<HTMLOutputElement>("#look-sensitivity-value"),
   textureSmoothingToggle: requireElement<HTMLButtonElement>("#texture-smoothing-toggle"),
   displayPostFxLayer: requireElement<HTMLElement>("#display-post-fx-layer"),
   displayPostFxLab: requireElement<HTMLDetailsElement>("#display-post-fx-lab"),
@@ -534,44 +541,12 @@ const renderer = playRendererHandle.renderer as PlayHostRenderer;
 const webGlRenderer =
   playRendererHandle.backend === "webgl" ? (playRendererHandle.raw as THREE.WebGLRenderer) : null;
 const rendererInitDurationMs = playRendererHandle.initDurationMs;
-const shaderProgramMode: ShaderProgramMode = playRendererHandle.isWebGpuRenderer ? "tsl" : "glsl";
+const shaderProgramMode = playRendererHandle.shaderProgramMode;
 const calibratedRenderPathCaps = recalibrateRenderCapabilitiesForBackend(
   renderPathCaps,
   playRendererHandle.backend,
 );
-setShaderProgramModeRegistry(createShaderProgramModeRegistry(shaderProgramMode));
-if (shaderProgramMode === "tsl") {
-  // `three/webgpu` is only pulled in here; the WebGL fallback never loads it.
-  await loadTslMaterialModules();
-}
-const { registerDungeonSurfaceShaderFactory } = await import("./world/TextureTreatment");
-const { registerNoiseFlameShaderFactory } = await import("./world/ProceduralFlameVfx");
-const { registerVolumetricBeamShaderFactory } = await import("./world/VolumetricBeam");
-const { registerEnemyBillboardShaderFactory } = await import("./world/EnemyBillboardMaterial");
-const { registerEnemyMotionTrailShaderFactory } = await import("./world/EnemyMotionTrailVfx");
-const { registerLiquidShaderFactory } = await import("./world/LiquidSectionKit");
-const { registerCobwebSilkShaderFactory } = await import("./world/AtmospherePropsKit");
-const { registerUncannyWallShaderFactory } = await import("./world/UncannyWallRuntime");
-const { registerAnnihilationBurstShaderFactory } = await import("./world/AnnihilationPulseVfx");
-const { registerPickupBurstSparksShaderFactory } = await import("./world/PickupBurstPool");
-const { registerSoftGroundFogShaderFactory } = await import("./systems/SoftGroundFogMaterial");
-const { registerBiomeParticleShaderFactory } = await import("./systems/BiomeParticleMaterial");
-const { registerLuminousWardShaderFactories } = await import("./world/LuminousWardVfx");
-const { registerBiomeDecorShaderFactories } = await import("./world/BiomeDecorMaterial");
-registerDungeonSurfaceShaderFactory();
-registerNoiseFlameShaderFactory();
-registerVolumetricBeamShaderFactory();
-registerEnemyBillboardShaderFactory();
-registerEnemyMotionTrailShaderFactory();
-registerLiquidShaderFactory();
-registerCobwebSilkShaderFactory();
-registerUncannyWallShaderFactory();
-registerAnnihilationBurstShaderFactory();
-registerPickupBurstSparksShaderFactory();
-registerSoftGroundFogShaderFactory();
-registerBiomeParticleShaderFactory();
-registerLuminousWardShaderFactories();
-registerBiomeDecorShaderFactories();
+await bootPlayShaderMode(shaderProgramMode);
 console.info("[renderer-init]", {
   durationMs: Math.round(rendererInitDurationMs),
   requestedRenderer: calibratedRenderPathCaps.requestedRenderer,
@@ -636,13 +611,6 @@ let displayPostFxTuning: DisplayPostFxTuning = localDevTools
   : { ...DEFAULT_DISPLAY_POST_FX_TUNING };
 const textureRegistry = new SceneTextureRegistry(userSettings.textureSmoothing);
 const lighting = new LightingRig(scene);
-// Neutral IBL so MeshStandard metals leave flat gray (low mood intensity keeps interiors grim).
-try {
-  lighting.bindEnvironment(renderer);
-} catch (error) {
-  // PMREM/RoomEnvironment can fail on broken Firefox WebGL adapters; continue without IBL.
-  console.warn("Environment bind failed; continuing without IBL", error);
-}
 const world = new DungeonWorld(scene, {
   tileSize: TILE_SIZE,
   wallHeight: WORLD_WALL_HEIGHT,
@@ -653,11 +621,11 @@ const dungeonLoadTraces = new DungeonLoadTraceController();
 // Fog column shares WorldMetrics with the architecture stack.
 const atmosphere = new AtmosphereSystem(scene, TILE_SIZE, WORLD_WALL_HEIGHT, textureRegistry);
 const povPost = new PovPostFx({
-  programMode: playRendererHandle.isWebGpuRenderer ? "tsl" : "glsl",
+  programMode: playRendererHandle.shaderProgramMode,
 });
 povPost.setDisplayTuning(displayPostFxTuning);
 // CRT history + multi-sample composite is the usual Firefox stutter source.
-povPost.setCrtEnabled(renderCaps.enableCrtByDefault);
+povPost.setCrtEnabled(userSettings.crtEnabled ?? renderCaps.enableCrtByDefault);
 if (playRendererHandle.isWebGpuRenderer) {
   console.info("[renderer] WebGPU path: PovPostFx TSL RenderPipeline enabled.");
 }
@@ -665,8 +633,10 @@ const povFeel = new PovFeelState();
 const audio = new GameAudio();
 audio.setMusicVolume(userSettings.musicVolume);
 audio.setEffectsVolume(userSettings.effectsVolume);
+if (userSettings.audioMuted) audio.setMuted(true);
 const playerPosition = new THREE.Vector3();
 const audioForward = new THREE.Vector3();
+const aimScratch = { x: 0, y: 0, z: 0 };
 const lanternForward = new THREE.Vector3();
 const cameraShakeEuler = new THREE.Euler(0, 0, 0, "YXZ");
 // Cached once — reading matchMedia every frame is wasteful and some browsers do
@@ -767,6 +737,7 @@ let hazardHitBoost = 0;
 let activeHazardKind: HazardSurfaceEffect["kind"] = null;
 /** Residual camera trauma after a hit (0..1); keeps shaking for a few seconds. */
 let hitTrauma = 0;
+let lastShotgunPumpRemaining = 0;
 /** Residual camera wobble after sprint stamina empties (0..1). */
 let exhaustionTrauma = 0;
 /** Dirty cache for stamina HUD updates. */
@@ -776,7 +747,7 @@ let touchSessionActive = false;
 let resumeTouchControls = false;
 let uiInteractQueued = false;
 let engineMode: EngineMode = "editor";
-let crtEnabled = renderCaps.enableCrtByDefault;
+let crtEnabled = userSettings.crtEnabled ?? renderCaps.enableCrtByDefault;
 /** When frame time stays above budget, drop CRT without fighting a manual toggle. */
 let crtAutoDisabled = false;
 let crtManualOverride = false;
@@ -902,6 +873,7 @@ const controller = new FirstPersonController(camera, elements.scene, {
     }
   },
 });
+controller.setLookFeelScale(userSettings.lookSensitivity);
 
 /** Authored wall-torch sculpt adapted as a right-hand FP viewmodel. */
 const handTorch = createFirstPersonTorch();
@@ -943,7 +915,28 @@ const debugTelemetry = new EditorDebugTelemetry(
 
 let objectiveBannerTimer: ReturnType<typeof setTimeout> | null = null;
 let objectiveFadeTimer: ReturnType<typeof setTimeout> | null = null;
+let playToastTimer: ReturnType<typeof setTimeout> | null = null;
+let playToastHideTimer: ReturnType<typeof setTimeout> | null = null;
 let lastPortalBanner = false;
+
+const PLAY_TOAST_HOLD_MS = 1800;
+
+function showPlayToast(message: string): void {
+  const el = elements.playToast;
+  el.hidden = false;
+  el.textContent = message;
+  el.classList.add("is-visible");
+  if (playToastTimer !== null) clearTimeout(playToastTimer);
+  if (playToastHideTimer !== null) clearTimeout(playToastHideTimer);
+  playToastTimer = setTimeout(() => {
+    el.classList.remove("is-visible");
+    playToastHideTimer = setTimeout(() => {
+      el.hidden = true;
+      playToastHideTimer = null;
+    }, 240);
+    playToastTimer = null;
+  }, PLAY_TOAST_HOLD_MS);
+}
 
 /**
  * Player-facing status stays short. Tech telemetry (renderer ms, profile keys)
@@ -966,6 +959,7 @@ function setStatus(message: string, options: { forceDev?: boolean } = {}): void 
     return;
   }
   elements.status.textContent = message;
+  if (engineMode === "play" && isPlayerFacingStatus(message)) showPlayToast(message);
 }
 
 function setToggleValue(
@@ -1015,7 +1009,7 @@ function captureLocalRunResume(): LocalRunResumeState | undefined {
       swarmCurseActive: world.isSwarmCurseActive,
       cullBrandRemaining: world.cullBrandRemaining,
       shotgunShells: world.shotgunShells,
-      shotgunPumpRemaining: world.shotgunPumpRemaining,
+      shotgunPumpRemaining: lastShotgunPumpRemaining,
       mirrorCurseRemaining: world.mirrorCurseRemaining,
       spinCurseRemaining: world.spinCurseRemaining,
       phoenixCharges: world.phoenixChargeCount,
@@ -2051,6 +2045,15 @@ function startRendererWarmup(
         handTorch.setWarmupVisible(true);
         handShotgun.setWarmupVisible(true);
         const drawStartedAt = performance.now();
+        await lighting.bindEnvironment(renderer);
+        if (
+          renderCaps.canCompileAsync &&
+          renderCaps.allowAsyncShaderWarmup &&
+          typeof renderer.compileAsync === "function"
+        ) {
+          await renderer.compileAsync(scene, camera);
+        }
+        povPost.warmup(renderer, scene, camera);
         povPost.render(renderer, scene, camera);
         warmupWorkMs += performance.now() - drawStartedAt;
         trace?.markFirstUsableFrame();
@@ -2469,7 +2472,7 @@ function syncPlayStatusHud(
     annihilationPulse: remaining.annihilationPulse ?? world.annihilationPulseRemaining,
     cullBrand: remaining.cullBrand ?? world.cullBrandRemaining,
     shotgunShells: remaining.shotgunShells ?? world.shotgunShells,
-    shotgunPumpRemaining: remaining.shotgunPumpRemaining ?? world.shotgunPumpRemaining,
+        shotgunPumpRemaining: remaining.shotgunPumpRemaining ?? lastShotgunPumpRemaining,
     fogClear: remaining.fogClear ?? world.fogClearRemaining,
     mobility: remaining.mobility ?? world.mobilityBoostRemaining,
     handTorch: remaining.handTorch ?? world.handTorchRemaining,
@@ -2526,60 +2529,17 @@ function formatCell(cell: { x: number; y: number }): string {
   return `${cell.x + 1}.${cell.y + 1}`;
 }
 
-function readEditorParams(): DungeonParams {
-  return {
-    roomTarget: Number(elements.roomCount.value),
-    loopRate: Number(elements.loopRate.value),
-    decorDensity: Number(elements.decorDensity.value),
-    mapWidth: Number(elements.mapWidth.value),
-    mapHeight: Number(elements.mapHeight.value),
-    minRoomSize: Number(elements.minRoom.value),
-    maxRoomSize: Number(elements.maxRoom.value),
-    corridorRadius: Number(elements.corridorRadius.value),
-    roomPadding: Number(elements.roomPadding.value),
-    enemyDensity: Number(elements.enemyDensity.value),
-    lightLevel: Number(elements.lightLevel.value),
-    profile: elements.profileSelect.value || "custom",
-  };
-}
-
-function applyEditorParamsToForm(params: Readonly<DungeonParams>): void {
-  elements.roomCount.value = String(params.roomTarget);
-  elements.roomCountLabel.value = String(params.roomTarget);
-  elements.loopRate.value = String(params.loopRate);
-  elements.loopRateLabel.value = `${params.loopRate}%`;
-  elements.decorDensity.value = String(params.decorDensity);
-  elements.decorDensityLabel.value = `${params.decorDensity}%`;
-  elements.mapWidth.value = String(params.mapWidth);
-  elements.mapWidthLabel.value = String(params.mapWidth);
-  elements.mapHeight.value = String(params.mapHeight);
-  elements.mapHeightLabel.value = String(params.mapHeight);
-  elements.minRoom.value = String(params.minRoomSize);
-  elements.minRoomLabel.value = String(params.minRoomSize);
-  elements.maxRoom.value = String(params.maxRoomSize);
-  elements.maxRoomLabel.value = String(params.maxRoomSize);
-  elements.corridorRadius.value = String(params.corridorRadius);
-  elements.corridorLabel.value = String(params.corridorRadius);
-  elements.roomPadding.value = String(params.roomPadding);
-  elements.paddingLabel.value = String(params.roomPadding);
-  elements.enemyDensity.value = String(params.enemyDensity);
-  syncDifficultyLabel();
-  elements.lightLevel.value = String(params.lightLevel);
-  elements.lightLevelLabel.value = `${params.lightLevel}%`;
-  elements.profileSelect.value = [...elements.profileSelect.options].some(
-    (option) => option.value === params.profile,
-  )
-    ? params.profile
-    : "custom";
-}
-
 function setGenerationParams(params: Readonly<DungeonParams>): DungeonParams {
   generationParams = { ...params };
   return generationParams;
 }
 
 function captureEditorParams(): DungeonParams {
-  return setGenerationParams(readEditorParams());
+  return setGenerationParams(readCreationParams(elements));
+}
+
+function syncCreationForm(params: Readonly<DungeonParams>): void {
+  applyCreationParamsToForm(elements, params, { syncDifficultyLabel });
 }
 
 /** Resolve active mood: forced NEW GAME biome, URL, forge/profile, or seed. */
@@ -3118,7 +3078,12 @@ function showEndOverlay(mode: "dead" | "won"): void {
     setMusicBed("lose");
     elements.endKicker.textContent = COPY.end.loseKicker;
     elements.endTitle.textContent = COPY.end.loseTitle;
-    elements.endCopy.textContent = COPY.end.loseCopy;
+    const deathQuest = playRuntime.state().quest;
+    elements.endCopy.textContent = `${COPY.end.loseCopy} ${COPY.end.loseProgress(
+      deathQuest.stonesFound,
+      deathQuest.stonesTotal,
+      playRuntime.snapshot().runSeconds,
+    )}`;
     elements.endResults.hidden = true;
     elements.endLeaderboardForm.hidden = true;
     elements.endLeaderboardNote.hidden = true;
@@ -3614,7 +3579,7 @@ function applyForgeDungeon(): void {
       const imported = forgePreviewDungeon ?? forgeIntake.dungeon;
       const { params } = forgeIntake;
       setGenerationParams(params);
-      applyEditorParamsToForm(params);
+      syncCreationForm(params);
       const mood = resolveActiveMood(imported);
       setRunSource("custom", true);
       await activateDungeon(
@@ -3712,7 +3677,7 @@ function setEngineMode(
   const initialized = Boolean(elements.shell.dataset.engineMode);
   if (engineMode === nextMode && initialized) {
     if (nextMode !== "play" && options.loadEditor !== false) {
-      applyEditorParamsToForm(generationParams);
+      syncCreationForm(generationParams);
       setEditorSurface(editorSurface);
     }
     return;
@@ -3776,7 +3741,7 @@ function setEngineMode(
   elements.debugMode.textContent = nextMode.toUpperCase();
   debugTelemetry.setActive(nextMode === "debug");
   if (nextMode !== "play") {
-    applyEditorParamsToForm(generationParams);
+    syncCreationForm(generationParams);
     const editorDungeon = forgePreviewDungeon ?? dungeon;
     if (editorDungeon) editorView.setDungeon(editorDungeon, resolveActiveMood(editorDungeon));
     editorView.setDebug(nextMode === "debug");
@@ -4344,7 +4309,7 @@ elements.profileSelect.addEventListener("change", () => {
   const id = elements.profileSelect.value as DungeonPresetId;
   if (id in DUNGEON_PRESETS) {
     const params = setGenerationParams(DUNGEON_PRESETS[id]);
-    applyEditorParamsToForm(params);
+    syncCreationForm(params);
     scheduleEditorRegeneration();
   } else {
     pushParamsToDomain(captureEditorParams());
@@ -4357,7 +4322,7 @@ elements.presetButtons.forEach((button) => {
     const preset = DUNGEON_PRESETS[id];
     if (!preset) return;
     const params = setGenerationParams(preset);
-    applyEditorParamsToForm(params);
+    syncCreationForm(params);
     setRunSource("custom", false);
     void rebuildDungeonCovered(async () => {
       await buildDungeon(elements.seed.value, { params });
@@ -4657,7 +4622,9 @@ forgeFrameClient.onTrustedMessage((data) => {
 
 function updateUserSettings(patch: Partial<UserSettings>): void {
   userSettings = { ...userSettings, ...patch };
-  writeUserSettings(userSettings);
+  if (!writeUserSettings(userSettings)) {
+    setStatus("Could not save settings.");
+  }
 }
 
 function syncVolumeControl(
@@ -4675,6 +4642,19 @@ function syncTextureSmoothingUi(): void {
   elements.textureSmoothingToggle.title = userSettings.textureSmoothing
     ? "Use crisp texture filtering"
     : "Use smooth texture filtering";
+}
+
+function syncLookSensitivityUi(): void {
+  const percent = Math.round(userSettings.lookSensitivity * 100);
+  elements.lookSensitivity.value = String(percent);
+  elements.lookSensitivityValue.value = `${percent}%`;
+}
+
+function applyLookSensitivityInput(): void {
+  const lookSensitivity = Math.max(0.5, Math.min(1.5, Number(elements.lookSensitivity.value) / 100));
+  controller.setLookFeelScale(lookSensitivity);
+  updateUserSettings({ lookSensitivity });
+  syncLookSensitivityUi();
 }
 
 function applyVolumeInputs(): void {
@@ -4696,6 +4676,7 @@ function syncAudioToggleUi(): void {
 elements.audioToggle.addEventListener("click", () => {
   void audio.unlock().then(() => {
     const muted = audio.toggleMuted();
+    updateUserSettings({ audioMuted: muted });
     syncAudioToggleUi();
     setStatus(muted ? "Audio off." : "Audio on.");
   });
@@ -4710,6 +4691,7 @@ elements.musicToggle.addEventListener("click", onMusicToggleClick);
 elements.welcomeMusicToggle.addEventListener("click", onMusicToggleClick);
 elements.musicVolume.addEventListener("input", applyVolumeInputs);
 elements.effectsVolume.addEventListener("input", applyVolumeInputs);
+elements.lookSensitivity.addEventListener("input", applyLookSensitivityInput);
 elements.effectsVolume.addEventListener("change", () => playCue("uiTick"));
 elements.textureSmoothingToggle.addEventListener("click", () => {
   const textureSmoothing = !userSettings.textureSmoothing;
@@ -4808,6 +4790,7 @@ syncDisplayPostFxLabUi();
 syncAudioToggleUi();
 syncVolumeControl(elements.musicVolume, elements.musicVolumeValue, userSettings.musicVolume);
 syncVolumeControl(elements.effectsVolume, elements.effectsVolumeValue, userSettings.effectsVolume);
+syncLookSensitivityUi();
 syncTextureSmoothingUi();
 
 elements.crtToggle.addEventListener("click", () => {
@@ -4817,6 +4800,7 @@ elements.crtToggle.addEventListener("click", () => {
   povPost.setCrtEnabled(crtEnabled);
   syncCrtToggleUi();
   markDisplayPostFxCustom();
+  updateUserSettings({ crtEnabled });
   setStatus(crtEnabled ? "CRT on." : "CRT off.");
 });
 
@@ -5178,13 +5162,16 @@ function frame(now: number): void {
   if (simulationActive && document.visibilityState === "visible") {
     world.setPlayerTraversalState({ jumpHeight: player.jumpHeight });
     camera.getWorldDirection(audioForward);
+    aimScratch.x = audioForward.x;
+    aimScratch.y = audioForward.y;
+    aimScratch.z = audioForward.z;
     const step = playRuntime.step({
       delta,
       player: playerPosition,
       atExit: result.atExit,
       interactPressed: result.interactPressed || uiInteractQueued,
       firePressed: result.firePressed,
-      aim: { x: audioForward.x, y: audioForward.y, z: audioForward.z },
+      aim: aimScratch,
     });
     uiInteractQueued = false;
     const { worldUpdate, effects, state } = step;
@@ -5195,7 +5182,7 @@ function frame(now: number): void {
         annihilationPulse: worldUpdate.annihilationPulseRemaining,
         cullBrand: worldUpdate.cullBrandRemaining,
         shotgunShells: worldUpdate.shotgunShells,
-        shotgunPumpRemaining: world.shotgunPumpRemaining,
+        shotgunPumpRemaining: worldUpdate.shotgunPumpRemaining,
         fogClear: worldUpdate.fogClearRemaining,
         mobility: worldUpdate.mobilityBoostRemaining,
         handTorch: worldUpdate.handTorchRemaining,
@@ -5243,81 +5230,50 @@ function frame(now: number): void {
         elements.shell.dataset.stones = String(effects.questStonesFound);
         updateObjective();
       }
+      lastShotgunPumpRemaining = worldUpdate.shotgunPumpRemaining;
       if (effects.sessionChanged) {
         domainBridge.syncSession(playRuntime.snapshot());
         localRunSave.schedule();
       }
-      if (effects.status) setStatus(effects.status);
-      if (effects.playPickup && effects.pickup) {
-        audio.playPickup(worldUpdate.collectedPickup);
-        if (effects.questPortalOpen) audio.playPortal(world.getAudioFrame().portal);
-        showPickupFeedback(effects.pickup.label, effects.pickup);
-      }
-      if (worldUpdate.annihilationPulse) {
-        audio.playAnnihilationPulse(worldUpdate.annihilationPulse.position);
-        if (worldUpdate.annihilationPulse.hits > 0) {
-          hitTrauma = Math.max(
-            hitTrauma,
-            Math.min(0.72, 0.18 + worldUpdate.annihilationPulse.hits * 0.03),
-          );
-          flash("event");
-        }
-      }
-      if (worldUpdate.cullBrandKill) {
-        audio.playCullBrandKill(worldUpdate.cullBrandKill.position);
-        hitTrauma = Math.max(hitTrauma, 0.42);
-        flash("event");
-      }
-      if (worldUpdate.shotgunFire) {
-        handShotgun.kick();
-        audio.playShotgunFire(worldUpdate.shotgunFire.position, {
-          pump: worldUpdate.shotgunFire.pump,
-        });
-        if (worldUpdate.shotgunFire.hits > 0) {
-          hitTrauma = Math.max(
-            hitTrauma,
-            Math.min(0.62, 0.16 + worldUpdate.shotgunFire.hits * 0.04),
-          );
-          flash("event");
-        }
-      }
-      if (worldUpdate.shotgunDryFire) {
-        audio.playShotgunDry(worldUpdate.shotgunDryFire.position);
-      }
-      if (effects.phoenixRevive) {
-        world.applyPhoenixRevive(playerPosition);
-        if (effects.phoenixCharges !== undefined) world.setPhoenixCharges(effects.phoenixCharges);
-        syncPhoenixHud(0);
-        audio.playPhoenixRevive(playerPosition);
-        hitTrauma = Math.max(hitTrauma, 0.55);
-        flash("event");
-        updateResolve();
-      } else if (effects.phoenixCharges !== undefined) {
-        world.setPhoenixCharges(effects.phoenixCharges);
-        syncPhoenixHud(effects.phoenixCharges);
-      }
       if (effects.playEnemyHit) {
         elements.shell.dataset.resolve = String(Math.ceil(state.resolve));
-        const damageIntent = projectPlayStepDamage({
-          enemyDamage: Math.max(0, worldUpdate.damage - worldUpdate.surfaceEffect.damage),
-          surface: worldUpdate.surfaceEffect,
-          hasAttacker: Boolean(worldUpdate.damageSource),
-        });
-        triggerDamageFeedback(worldUpdate.knockback, damageIntent.washKind);
-        if (damageIntent.useAttackerAudio && worldUpdate.damageSource) {
-          audio.playEnemyHit(worldUpdate.damageSource.position, worldUpdate.damageSource.voice);
-        } else {
-          // Hazard floor damage: hit sting only (no creature bark).
-          audio.play("damage");
-        }
       }
-      if (worldUpdate.doorSound) {
-        audio.playDoor(worldUpdate.doorSound.kind, worldUpdate.doorSound.position);
-      }
-      if (worldUpdate.chestSound) {
-        audio.playChest(worldUpdate.chestSound.position);
-      }
-      if (effects.flash) flash(effects.flash);
+      const presentationHost: PlayStepPresentationHost = {
+        setStatus,
+        playPickup: () => audio.playPickup(worldUpdate.collectedPickup),
+        playPortal: () => audio.playPortal(world.getAudioFrame().portal),
+        showPickupFeedback,
+        playAnnihilationPulse: (position) => audio.playAnnihilationPulse(position),
+        playCullBrandKill: (position) => audio.playCullBrandKill(position),
+        playShotgunFire: (position, pump) => audio.playShotgunFire(position, { pump }),
+        playShotgunDry: (position) => audio.playShotgunDry(position),
+        kickShotgun: () => handShotgun.kick(),
+        applyPhoenixRevive: () => {
+          world.applyPhoenixRevive(playerPosition);
+          if (effects.phoenixCharges !== undefined) world.setPhoenixCharges(effects.phoenixCharges);
+        },
+        setPhoenixCharges: (charges) => world.setPhoenixCharges(charges),
+        syncPhoenixHud,
+        playPhoenixRevive: () => audio.playPhoenixRevive(playerPosition),
+        showPhoenixBanner: () =>
+          showObjectiveBanner(COPY.status.phoenixRevive, "hunt", 2800, 1200),
+        addHitTrauma: (amount) => {
+          hitTrauma = Math.max(hitTrauma, amount);
+        },
+        flash,
+        playDoor: (kind, position) => audio.playDoor(kind, position),
+        playChest: (position) => audio.playChest(position),
+        playEnemyHit: (position, voice) =>
+          audio.playEnemyHit(position, voice as Parameters<GameAudio["playEnemyHit"]>[1]),
+        playHazardDamage: () => audio.play("damage"),
+        triggerDamageFeedback,
+        updateResolve,
+      };
+      applyPlayStepPresentation(
+        collectPlayStepPresentation(worldUpdate, effects),
+        presentationHost,
+        effects.pickup ?? null,
+      );
       if (
         effects.damageHit ||
         effects.pickup?.restoreResolve ||
@@ -5427,7 +5383,7 @@ function frame(now: number): void {
         velocityX: player.velocityX,
         velocityZ: player.velocityZ,
       },
-      world.shotgunPumpRemaining,
+      lastShotgunPumpRemaining,
     );
   }
 

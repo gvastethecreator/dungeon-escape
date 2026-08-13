@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
+import { FIRE_LIGHT_TUNING } from "../src/systems/LightTuning";
 import {
   ENEMY_ARCHETYPES,
   enemyGroundY,
@@ -48,10 +49,10 @@ describe("world scale and behavior contracts", () => {
       haloVisible: true,
       lightFactor: 1,
     });
-    expect(computeTorchLod(14).lightFactor).toBe(1);
+    expect(computeTorchLod(FIRE_LIGHT_TUNING.fullLodDistance).lightFactor).toBe(1);
     expect(computeTorchLod(18).lightFactor).toBeGreaterThan(0);
     expect(computeTorchLod(18).lightFactor).toBeLessThan(1);
-    expect(computeTorchLod(20).lightFactor).toBe(0);
+    expect(computeTorchLod(FIRE_LIGHT_TUNING.cutoffLodDistance).lightFactor).toBe(0);
     expect(computeTorchLod(18).haloVisible).toBe(false);
     expect(computeTorchLod(30)).toEqual({
       rootVisible: true,

@@ -214,6 +214,8 @@ export interface WorldUpdate {
   } | null;
   chestSound: { position: { x: number; y: number; z: number } } | null;
   interactionPrompt: "open-chest" | "take-torch" | null;
+  /** Remaining shotgun pump seconds after this update. HUD and save read this. */
+  shotgunPumpRemaining: number;
   /** @deprecated Walkable stairs no longer emit transitions. Always null. */
   floorTransition: {
     direction: "up" | "down";
@@ -289,6 +291,10 @@ export class DungeonWorld {
   private readonly pickupBurstWarmupPosition = new THREE.Vector3();
   /** Reused only for immediate world-coordinate reads from resident floor roots. */
   private readonly residentWorldPosition = new THREE.Vector3();
+  /** Static interact XZ/Y; invalidated on open/take and dungeon clear. */
+  private interactAnchorCache = new WeakMap<THREE.Object3D, { x: number; y: number; z: number }>();
+  private readonly collectedStoneIdsScratch: StoneId[] = [];
+  private readonly worldUpdateScratch = {} as WorldUpdate;
   private dungeon: DungeonData | null = null;
   private readonly emptyMinimapFeatures: MinimapFeatures = {
     doors: [],
@@ -535,6 +541,23 @@ export class DungeonWorld {
     return object.getWorldPosition(this.residentWorldPosition);
   }
 
+  private cachedInteractPosition(object: THREE.Object3D): { x: number; y: number; z: number } {
+    const cached = this.interactAnchorCache.get(object);
+    if (cached) return cached;
+    object.getWorldPosition(this.residentWorldPosition);
+    const snapshot = {
+      x: this.residentWorldPosition.x,
+      y: this.residentWorldPosition.y,
+      z: this.residentWorldPosition.z,
+    };
+    this.interactAnchorCache.set(object, snapshot);
+    return snapshot;
+  }
+
+  private invalidateInteractAnchor(object: THREE.Object3D): void {
+    this.interactAnchorCache.delete(object);
+  }
+
   /**
    * Replace the active floor. Sync path for tests and callers that already
    * own their own frame scheduling.
@@ -558,6 +581,11 @@ export class DungeonWorld {
   rebindActiveDungeon(dungeon: DungeonData): void {
     this.dungeon = dungeon;
     this.bindActiveFloorRuntime(dungeon.floor?.index ?? 0);
+  }
+
+  /** Tests and load barriers finish queued floor dressing without waiting for play frames. */
+  flushDeferredFloorPresentation(): void {
+    this.staticScene.flushDeferredFloorPresentation();
   }
 
   /**
@@ -878,6 +906,7 @@ export class DungeonWorld {
     firePressed = false,
     aim?: { x: number; y: number; z: number },
   ): WorldUpdate {
+    this.staticScene.pumpDeferredFloorDressing(1);
     this.lockedExitCooldown = Math.max(0, this.lockedExitCooldown - delta);
     const { pulseCount } = tickRunPowerRuntime(this.powers, delta);
     const enemiesFrozen = isTimeFreezeOn(this.powers);
@@ -890,7 +919,8 @@ export class DungeonWorld {
     if (!enemiesFrozen && activeEnemyRuntime) this.updateDifficulty(enemyPlayer);
     let resolveGain = 0;
     let collectedStoneId: StoneId | null = null;
-    const collectedStoneIds: StoneId[] = [];
+    this.collectedStoneIdsScratch.length = 0;
+    const collectedStoneIds = this.collectedStoneIdsScratch;
     let collectedPickup: WorldUpdate["collectedPickup"] = null;
     let doorSound: WorldUpdate["doorSound"] = null;
     let chestSound: WorldUpdate["chestSound"] = null;
@@ -1048,7 +1078,7 @@ export class DungeonWorld {
     const activeFloorRuntime = this.activeFloorRuntime;
     if (activeFloorRuntime) {
       for (const door of activeFloorRuntime.doors) {
-        const doorPosition = this.worldPositionOf(door.root);
+        const doorPosition = this.cachedInteractPosition(door.root);
         const distance = horizontalDistance(doorPosition, player);
         const verticalDelta = Math.abs(player.y - doorPosition.y);
         const openDistance =
@@ -1081,7 +1111,7 @@ export class DungeonWorld {
     let nearestTorchDistance = Number.POSITIVE_INFINITY;
     if (activeFloorRuntime) {
       for (const chest of activeFloorRuntime.chests) {
-        const chestPosition = this.worldPositionOf(chest.root);
+        const chestPosition = this.cachedInteractPosition(chest.root);
         const distance = horizontalDistance(chestPosition, player);
         const verticalDelta = player.y - chestPosition.y;
         if (
@@ -1095,7 +1125,7 @@ export class DungeonWorld {
       }
       for (const fire of activeFloorRuntime.fires) {
         if (!fire.takeable || fire.taken) continue;
-        const torchPosition = this.worldPositionOf(fire.root);
+        const torchPosition = this.cachedInteractPosition(fire.root);
         const distance = horizontalDistance(torchPosition, player);
         const verticalDelta = player.y - torchPosition.y;
         if (canTakeWallTorch(distance, fire, verticalDelta) && distance < nearestTorchDistance) {
@@ -1112,9 +1142,10 @@ export class DungeonWorld {
       interactionPrompt = "open-chest";
       if (shouldOpenChest(interactPressed)) {
         nearestChest.opened = true;
+        this.invalidateInteractAnchor(nearestChest.root);
         setPickupDormant(nearestChest.reward.object, false);
         beginChestRewardReveal(nearestChest);
-        const chestPosition = this.worldPositionOf(nearestChest.root);
+        const chestPosition = this.cachedInteractPosition(nearestChest.root);
         chestSound = {
           position: {
             x: chestPosition.x,
@@ -1128,8 +1159,9 @@ export class DungeonWorld {
       interactionPrompt = "take-torch";
       if (shouldTakeWallTorch(interactPressed)) {
         extinguishTakenWallTorch(nearestTorch);
+        this.invalidateInteractAnchor(nearestTorch.root);
         equipHandTorchFromWall(this.powers);
-        const torchPosition = this.worldPositionOf(nearestTorch.root);
+        const torchPosition = this.cachedInteractPosition(nearestTorch.root);
         collectedPickup = {
           kind: "hand-torch",
           position: {
@@ -1224,48 +1256,50 @@ export class DungeonWorld {
       const len = Math.hypot(knockX, knockZ);
       knockback = len > 1e-4 ? { x: knockX / len, z: knockZ / len } : { x: 0, z: 1 };
     }
-    return {
-      collectedRelic: this.collectedStones.size >= STONE_ORDER.length && collectedStoneId !== null,
-      collectedStoneId,
-      collectedStoneIds,
-      collectedPickup,
-      timeFreezeRemaining: this.powers.timeFreezeSeconds,
-      luminousWardRemaining: this.powers.luminousWardSeconds,
-      annihilationPulseRemaining: this.powers.annihilationPulse.remaining,
-      mapRevealed: this.powers.mapRevealed,
-      mobilityBoostRemaining: this.powers.mobilityBoostSeconds,
-      fogClearRemaining: this.powers.fogClearSeconds,
-      handTorchRemaining: this.powers.handTorchSeconds,
-      slowCurseRemaining: this.powers.slowCurseSeconds,
-      frenzyCurseRemaining: this.powers.frenzyCurseSeconds,
-      gloomCurseRemaining: this.powers.gloomCurseSeconds,
-      swarmCurseActive: this.powers.swarmCurseActive,
-      cullBrandRemaining: this.powers.cullBrand.remaining,
-      shotgunFire,
-      shotgunDryFire,
-      shotgunShells: this.powers.shotgun.shells,
-      mirrorCurseRemaining: this.powers.mirrorCurseSeconds,
-      spinCurseRemaining: this.powers.spinCurseSeconds,
-      annihilationPulse,
-      cullBrandKill,
-      phoenixCharges: this.powers.phoenixCharges,
-      stonesFound: this.collectedStones.size,
-      stonesTotal: STONE_ORDER.length,
-      portalOpen: this.portalOpen,
-      resolveGain,
-      damage,
-      damageSource,
-      surfaceEffect,
-      doorSound,
-      chestSound,
-      interactionPrompt,
-      floorTransition,
-      biomeEvent,
-      knockback,
-      reachedLockedExit,
-      reachedOpenExit,
-      nearestThreat: Number.isFinite(nearestThreat) ? nearestThreat : null,
-    };
+    const out = this.worldUpdateScratch;
+    out.collectedRelic =
+      this.collectedStones.size >= STONE_ORDER.length && collectedStoneId !== null;
+    out.collectedStoneId = collectedStoneId;
+    out.collectedStoneIds = collectedStoneIds;
+    out.collectedPickup = collectedPickup;
+    out.timeFreezeRemaining = this.powers.timeFreezeSeconds;
+    out.luminousWardRemaining = this.powers.luminousWardSeconds;
+    out.annihilationPulseRemaining = this.powers.annihilationPulse.remaining;
+    out.mapRevealed = this.powers.mapRevealed;
+    out.mobilityBoostRemaining = this.powers.mobilityBoostSeconds;
+    out.fogClearRemaining = this.powers.fogClearSeconds;
+    out.handTorchRemaining = this.powers.handTorchSeconds;
+    out.slowCurseRemaining = this.powers.slowCurseSeconds;
+    out.frenzyCurseRemaining = this.powers.frenzyCurseSeconds;
+    out.gloomCurseRemaining = this.powers.gloomCurseSeconds;
+    out.swarmCurseActive = this.powers.swarmCurseActive;
+    out.cullBrandRemaining = this.powers.cullBrand.remaining;
+    out.shotgunFire = shotgunFire;
+    out.shotgunDryFire = shotgunDryFire;
+    out.shotgunShells = this.powers.shotgun.shells;
+    out.shotgunPumpRemaining = this.powers.shotgun.pumpSeconds;
+    out.mirrorCurseRemaining = this.powers.mirrorCurseSeconds;
+    out.spinCurseRemaining = this.powers.spinCurseSeconds;
+    out.annihilationPulse = annihilationPulse;
+    out.cullBrandKill = cullBrandKill;
+    out.phoenixCharges = this.powers.phoenixCharges;
+    out.stonesFound = this.collectedStones.size;
+    out.stonesTotal = STONE_ORDER.length;
+    out.portalOpen = this.portalOpen;
+    out.resolveGain = resolveGain;
+    out.damage = damage;
+    out.damageSource = damageSource;
+    out.surfaceEffect = surfaceEffect;
+    out.doorSound = doorSound;
+    out.chestSound = chestSound;
+    out.interactionPrompt = interactionPrompt;
+    out.floorTransition = floorTransition;
+    out.biomeEvent = biomeEvent;
+    out.knockback = knockback;
+    out.reachedLockedExit = reachedLockedExit;
+    out.reachedOpenExit = reachedOpenExit;
+    out.nearestThreat = Number.isFinite(nearestThreat) ? nearestThreat : null;
+    return out;
   }
 
   private nearestThreatDistance(player: THREE.Vector3): number {
@@ -1828,6 +1862,7 @@ export class DungeonWorld {
   }
 
   private clear(): void {
+    this.interactAnchorCache = new WeakMap();
     // Floor transitions restore phoenix via restoreRuntimeProgress after clear.
     resetRunPowerRuntime(this.powers);
     this.playerAirborne = false;
@@ -1891,7 +1926,9 @@ export class DungeonWorld {
     this.staticScene.clear();
     this.collectedStones.clear();
     this.portalOpen = false;
-    const resourceDisposer = new ThreeResourceDisposer();
+    const resourceDisposer = new ThreeResourceDisposer((geometry) =>
+      this.staticScene.isBorrowedGeometry(geometry),
+    );
     while (this.group.children.length > 0) {
       const child = this.group.children[0] as THREE.Object3D;
       this.group.remove(child);

@@ -27,6 +27,9 @@ describe("persistent user settings", () => {
           musicVolume: 0.35,
           effectsVolume: 0.8,
           textureSmoothing: true,
+          audioMuted: true,
+          crtEnabled: false,
+          lookSensitivity: 1.25,
         },
         storage,
       ),
@@ -35,6 +38,9 @@ describe("persistent user settings", () => {
       musicVolume: 0.35,
       effectsVolume: 0.8,
       textureSmoothing: true,
+      audioMuted: true,
+      crtEnabled: false,
+      lookSensitivity: 1.25,
     });
     storage.setItem(
       USER_SETTINGS_KEY,
@@ -44,6 +50,9 @@ describe("persistent user settings", () => {
       musicVolume: 1,
       effectsVolume: 0,
       textureSmoothing: false,
+      audioMuted: false,
+      crtEnabled: null,
+      lookSensitivity: 1,
     });
   });
 

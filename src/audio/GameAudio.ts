@@ -116,9 +116,6 @@ const PLAY_AUDIO_PREFETCH_ASSETS: readonly AudioAssetId[] = [
   "enemy-growl",
   "enemy-attack",
   "torch-crackle",
-  "shotgun-fire",
-  "shotgun-pump",
-  "shotgun-dry",
 ];
 
 const BACKGROUND_PREFETCH_YIELD_MS = 16;

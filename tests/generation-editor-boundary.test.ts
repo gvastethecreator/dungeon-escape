@@ -22,6 +22,7 @@ describe("generation and editor boundary", () => {
     expect(build).toContain("generateDungeonBuild");
     expect(build).not.toContain("readEditorParams");
     expect(floorRebind).not.toContain("readEditorParams");
+    expect(main).not.toContain("function readEditorParams");
     expect(main).toContain("loadEditor: false");
   });
 });

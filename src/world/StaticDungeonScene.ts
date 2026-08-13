@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
+import { normalizeGeometryForMerge } from "./MergeGeometryNormalize";
 
 import { createSeededRandom } from "../core/random";
 import { MAX_DUNGEON_FLOORS } from "../dungeon/generateDungeonFloors";
@@ -445,12 +446,15 @@ export class StaticDungeonScene {
   private readonly buildRoots: THREE.Object3D[] = [];
   private readonly biomeWallDecalMaterials = new Map<string, BiomeDecorMaterial>();
   private readonly biomeFloorSpriteMaterials = new Map<string, BiomeDecorMaterial>();
-  private readonly staticContactShadowPlacements: Array<{
-    x: number;
-    z: number;
-    width: number;
-    depth: number;
-  }> = [];
+  private readonly staticContactShadowPlacementsByRuntime = new Map<
+    ResidentFloorRuntimeOwner,
+    Array<{
+      x: number;
+      z: number;
+      width: number;
+      depth: number;
+    }>
+  >();
   /** Seat topology is immutable for a generated dungeon; reuse it across
    * doors, objectives and atmosphere passes instead of rescanning each room. */
   private readonly roomWallSeatCache = new WeakMap<
@@ -479,6 +483,8 @@ export class StaticDungeonScene {
     ResidentFloorRuntimeOwner,
     DeferredFloorPresentation
   >();
+  /** Visual dressing queued after interactables so climb frames stay short. */
+  private readonly pendingFloorDressing = new Map<ResidentFloorRuntimeOwner, Array<() => void>>();
   /** Build-only owner for render roots and collider publication. */
   private currentResidentFloor: ResidentFloorRuntimeOwner | null = null;
   /** Last logical active floor, retained without scanning aggregate adapters. */
@@ -605,10 +611,23 @@ export class StaticDungeonScene {
   }
 
   private isBorrowedStaticGeometry(geometry: THREE.BufferGeometry): boolean {
-    return (
-      this.resourceCatalog.ownsGeometry(geometry) ||
-      this.runtimeDoorTemplateGeometries.has(geometry)
-    );
+    if (this.resourceCatalog.ownsGeometry(geometry) || this.runtimeDoorTemplateGeometries.has(geometry)) {
+      return true;
+    }
+    for (const batches of this.runtimeClassicPropBatches.values()) {
+      if (batches.some((part) => part.geometry === geometry)) return true;
+    }
+    for (const batches of this.runtimeWeaponRackBatches.values()) {
+      if (batches.some((part) => part.geometry === geometry)) return true;
+    }
+    for (const cached of this.runtimeForgePropBatches.values()) {
+      if (cached.batches.some((part) => part.geometry === geometry)) return true;
+    }
+    return false;
+  }
+
+  isBorrowedGeometry(geometry: THREE.BufferGeometry): boolean {
+    return this.isBorrowedStaticGeometry(geometry);
   }
 
   static emptyHandles(): StaticDungeonSceneHandles {
@@ -779,7 +798,7 @@ export class StaticDungeonScene {
       const floorBuild = this.createFloorBuildContext(dungeon, this.floorWorldY, floorPlan);
       this.currentResidentFloor = floorBuild.runtime;
       this.currentFloorRenderGroup = floorBuild.runtime.root;
-      yield* this.buildFloorContentsSteps(dungeon, mood, floorBuild);
+      yield* this.buildFloorContents(dungeon, mood, floorBuild);
       this.currentResidentFloor = null;
       this.currentFloorRenderGroup = null;
       this.commitResidentInteractiveBatches();
@@ -884,7 +903,7 @@ export class StaticDungeonScene {
         this.currentResidentFloor = floorBuild.runtime;
         this.currentFloorRenderGroup = floorBuild.runtime.root;
         this.stackBuildActive = true;
-        const counts = yield* this.buildFloorContentsSteps(dungeon, mood, floorBuild);
+        const counts = yield* this.buildFloorContents(dungeon, mood, floorBuild);
         totalFloorCells += counts.floorCells;
         totalWallCells += counts.wallCells;
         yield;
@@ -930,7 +949,7 @@ export class StaticDungeonScene {
     );
   }
 
-  private *buildFloorContentsSteps(
+  private *buildFloorContents(
     dungeon: DungeonData,
     mood: DungeonMood,
     floorBuild: FloorBuildContext,
@@ -1016,6 +1035,7 @@ export class StaticDungeonScene {
           floorBuild,
           stonePlacements,
         });
+        this.cacheResidentMinimapProjection(dungeon, floorBuild.runtime);
       } else {
         if (!dungeon.forge) {
           this.addCaveProps(dungeon);
@@ -1120,6 +1140,7 @@ export class StaticDungeonScene {
     }
     this.residentFloorsByIndex.clear();
     this.deferredFloorPresentations.clear();
+    this.pendingFloorDressing.clear();
     this.floorRenderGroups.length = 0;
     for (const root of this.buildRoots.splice(0)) {
       root.parent?.remove(root);
@@ -1162,7 +1183,7 @@ export class StaticDungeonScene {
     // arrays are compatibility adapters, so clear them only after their owners.
     expired.residentFloors.length = 0;
     expired.floorOccupancyGrids.length = 0;
-    this.staticContactShadowPlacements.length = 0;
+    this.staticContactShadowPlacementsByRuntime.clear();
     this.pendingChestBatchesByRuntime.clear();
     this.pendingDoorActorsByRuntime.clear();
     this.pendingWallFireFixtures.length = 0;
@@ -1257,6 +1278,10 @@ export class StaticDungeonScene {
       : Math.min(this.residentFloorsByIndex.size - 1, Math.max(0, requested));
     const activeRuntime = this.residentFloorsByIndex.get(active);
     if (!activeRuntime) return;
+    // Finish previously queued dressing before this climb's interactables so
+    // occupancy and seeded placement stay floor-local (PERF-08). A long stay
+    // on the previous floor already pumped this queue through update().
+    this.flushDeferredFloorPresentation();
     this.hydrateDeferredFloorPresentation(activeRuntime);
     this.activeResidentFloor = activeRuntime;
     // Transitional scene handles are active-owner aliases, never a latest
@@ -1360,12 +1385,32 @@ export class StaticDungeonScene {
   }
 
   /**
-   * Deferred dressing belongs to its original resident runtime. Rebinding never
-   * replaces the scene, so player pose and active-floor collision remain intact.
+   * Run queued dressing for previously bound floors. Climb hydrates
+   * interactables immediately; godrays/sprites land on later pumps.
    */
-  private hydrateDeferredFloorPresentation(runtime: ResidentFloorRuntimeOwner): void {
-    const deferred = this.deferredFloorPresentations.get(runtime);
-    if (!deferred) return;
+  pumpDeferredFloorDressing(maxSteps = 1): number {
+    let remaining = Math.max(0, Math.floor(maxSteps));
+    let ran = 0;
+    for (const [runtime, steps] of this.pendingFloorDressing) {
+      if (remaining <= 0) break;
+      this.withFloorBuildContext(runtime, () => {
+        while (remaining > 0 && steps.length > 0) {
+          steps.shift()!();
+          remaining -= 1;
+          ran += 1;
+        }
+      });
+      if (steps.length === 0) this.pendingFloorDressing.delete(runtime);
+    }
+    return ran;
+  }
+
+  /** Tests and load barriers finish remaining dressing without waiting for play frames. */
+  flushDeferredFloorPresentation(): void {
+    this.pumpDeferredFloorDressing(Number.POSITIVE_INFINITY);
+  }
+
+  private withFloorBuildContext(runtime: ResidentFloorRuntimeOwner, work: () => void): void {
     const previousRuntime = this.currentResidentFloor;
     const previousRenderGroup = this.currentFloorRenderGroup;
     const previousFloorWorldY = this.floorWorldY;
@@ -1377,7 +1422,28 @@ export class StaticDungeonScene {
     this.activeFloorOccupancy = runtime.occupancy;
     this.stackBuildActive = true;
     try {
-      const { dungeon, floorBuild, stonePlacements } = deferred;
+      work();
+    } finally {
+      this.currentResidentFloor = previousRuntime;
+      this.currentFloorRenderGroup = previousRenderGroup;
+      this.floorWorldY = previousFloorWorldY;
+      this.activeFloorOccupancy = previousOccupancy;
+      this.stackBuildActive = previousStackBuildActive;
+    }
+  }
+
+  /**
+   * Deferred dressing belongs to its original resident runtime. Rebinding never
+   * replaces the scene, so player pose and active-floor collision remain intact.
+   * Interactables (doors, chests, takeable lights) land on the climb frame;
+   * heavier dressing is pumped on later frames (PERF-08).
+   */
+  private hydrateDeferredFloorPresentation(runtime: ResidentFloorRuntimeOwner): void {
+    if (this.pendingFloorDressing.has(runtime)) return;
+    const deferred = this.deferredFloorPresentations.get(runtime);
+    if (!deferred) return;
+    const { dungeon, floorBuild, stonePlacements } = deferred;
+    this.withFloorBuildContext(runtime, () => {
       if (dungeon.forge) {
         this.addDoorsAndRoomProps(dungeon, floorBuild, floorBuild.plan);
         this.addLightProps(dungeon, floorBuild.plan);
@@ -1386,34 +1452,44 @@ export class StaticDungeonScene {
         this.addLightProps(dungeon, floorBuild.plan);
         this.addDoorsAndRoomProps(dungeon, floorBuild, floorBuild.plan);
       }
-      this.commitStaticContactShadows();
-      const specialSignals = createSpecialRoomSignals(dungeon, this.materials, this.tileSize);
-      if (specialSignals) {
-        this.add(specialSignals);
-        this.stats.props += specialSignals.children.length;
-        for (const signal of specialSignals.children) {
-          const room = dungeon.rooms.find((candidate) => candidate.id === signal.userData.roomId);
-          if (room) this.reserveObjectCell(room.center);
-        }
-      }
       this.commitWallFireBatches();
-      this.addAmbientGodrays(dungeon, this.activeMood, floorBuild.plan);
-      this.addStaticObjectives(dungeon, stonePlacements, floorBuild.plan, false, true);
-      this.addAtmosphereProps(dungeon, floorBuild.plan);
-      this.scatterBiomeSpriteProps(dungeon);
       this.applyMoodToPracticalLights(this.activeMood);
-      this.cacheResidentMinimapProjection(dungeon, runtime);
+      this.addStaticObjectives(dungeon, stonePlacements, floorBuild.plan, false, true);
       this.commitDoorFrameBatches(runtime);
       this.commitChestBatches(runtime);
+      this.cacheResidentMinimapProjection(dungeon, runtime);
       this.deferredFloorPresentations.delete(runtime);
       this.refreshResidentAggregateHandles();
-    } finally {
-      this.currentResidentFloor = previousRuntime;
-      this.currentFloorRenderGroup = previousRenderGroup;
-      this.floorWorldY = previousFloorWorldY;
-      this.activeFloorOccupancy = previousOccupancy;
-      this.stackBuildActive = previousStackBuildActive;
-    }
+      this.pendingFloorDressing.set(runtime, [
+        () => {
+          this.commitStaticContactShadows();
+        },
+        () => {
+          const specialSignals = createSpecialRoomSignals(dungeon, this.materials, this.tileSize);
+          if (specialSignals) {
+            this.add(specialSignals);
+            this.stats.props += specialSignals.children.length;
+            for (const signal of specialSignals.children) {
+              const room = dungeon.rooms.find(
+                (candidate) => candidate.id === signal.userData.roomId,
+              );
+              if (room) this.reserveObjectCell(room.center);
+            }
+          }
+        },
+        () => {
+          this.addAmbientGodrays(dungeon, this.activeMood, floorBuild.plan);
+        },
+        () => {
+          this.addAtmosphereProps(dungeon, floorBuild.plan);
+          this.scatterBiomeSpriteProps(dungeon);
+        },
+        () => {
+          this.cacheResidentMinimapProjection(dungeon, runtime);
+          this.refreshResidentAggregateHandles();
+        },
+      ]);
+    });
   }
 
   /** Keep compatibility arrays in canonical floor order after lazy hydration. */
@@ -3173,7 +3249,7 @@ export class StaticDungeonScene {
       maxZ,
     });
     if (maxY > 0.14) {
-      this.staticContactShadowPlacements.push({
+      this.queueStaticContactShadowPlacement({
         x: (minX + maxX) * 0.5,
         z: (minZ + maxZ) * 0.5,
         width: maxX - minX,
@@ -3182,9 +3258,26 @@ export class StaticDungeonScene {
     }
   }
 
+  private queueStaticContactShadowPlacement(placement: {
+    x: number;
+    z: number;
+    width: number;
+    depth: number;
+  }): void {
+    const runtime = this.currentResidentFloor;
+    if (!runtime) return;
+    const placements = this.staticContactShadowPlacementsByRuntime.get(runtime);
+    if (placements) placements.push(placement);
+    else this.staticContactShadowPlacementsByRuntime.set(runtime, [placement]);
+  }
+
   private commitStaticContactShadows(): void {
-    const placements = this.staticContactShadowPlacements.splice(0);
+    const runtime = this.currentResidentFloor;
+    const placements = runtime
+      ? (this.staticContactShadowPlacementsByRuntime.get(runtime) ?? [])
+      : [];
     if (placements.length === 0) return;
+    this.staticContactShadowPlacementsByRuntime.delete(runtime!);
     const geometry = this.resourceCatalog.borrowGeometry(
       "rigid-prop/v2:family:contact-shadow:topology:circle:radius:0.5000:segments:18",
       () => new THREE.CircleGeometry(0.5, 18),
@@ -6077,27 +6170,7 @@ function borrowStaticPropTemplateBatches(
 }
 
 function prepareStaticPropGeometry(part: THREE.Mesh): THREE.BufferGeometry {
-  const geometry = part.geometry.index ? part.geometry.toNonIndexed() : part.geometry.clone();
-  geometry.applyMatrix4(part.matrixWorld);
-  if (!geometry.getAttribute("normal")) geometry.computeVertexNormals();
-  if (!geometry.getAttribute("uv")) {
-    geometry.setAttribute(
-      "uv",
-      new THREE.Float32BufferAttribute(
-        new Float32Array(geometry.getAttribute("position").count * 2),
-        2,
-      ),
-    );
-  }
-  // Stock primitives sometimes carry extra attributes or mixed index modes.
-  // Static props only need this common surface contract; normalizing it lets
-  // wood, iron, brass, and bone parts merge into one draw each.
-  for (const attribute of Object.keys(geometry.attributes)) {
-    if (attribute !== "position" && attribute !== "normal" && attribute !== "uv")
-      geometry.deleteAttribute(attribute);
-  }
-  geometry.clearGroups();
-  return geometry;
+  return normalizeGeometryForMerge(part.geometry, part.matrixWorld);
 }
 
 function buildStaticPropTemplateBatches(template: THREE.Object3D): StaticPropTemplateBatch[] {

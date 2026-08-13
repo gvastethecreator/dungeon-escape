@@ -163,7 +163,7 @@ describe("texture seam treatment", () => {
     expect(material.userData.dungeonSurfaceShaderMode).toBe("glsl");
   });
 
-  test("TSL surface shader registers dual-mode factory and wires node properties", () => {
+  test("TSL surface shader registers dual-mode factory and wires node properties", async () => {
     resetShaderProgramModeRegistryForTests();
     setShaderProgramModeRegistry(createShaderProgramModeRegistry("tsl"));
     registerDungeonSurfaceShaderFactory();
@@ -173,12 +173,17 @@ describe("texture seam treatment", () => {
     expect(material.userData.dungeonSurfaceShaderMode).toBe("tsl");
     expect(material.colorNode).toBeTruthy();
     expect(material.contextNode).toBeTruthy();
-    expect(material.customProgramCacheKey()).toBe("dungeon-surface-tsl-v1");
+    expect(material.customProgramCacheKey()).toBe("dungeon-surface-tsl-v2");
     expect(material.onBeforeCompile).toBe(THREE.Material.prototype.onBeforeCompile);
 
     const again = new MeshStandardNodeMaterial();
     enableDungeonSurfaceShaderTsl(again);
     expect(again.userData.dungeonSurfaceShader).toBe(true);
+
+    const tsl = await Bun.file(new URL("../src/world/TextureTreatment.tsl.ts", import.meta.url)).text();
+    expect(tsl).toContain("material.colorNode = materialColor.mul(dungeonSurfaceMacroVariation())");
+    expect(tsl).toContain('attribute("aTileUvOffset", "vec2" as const)');
+    expect(tsl).toContain("materialColor");
 
     const registry = createShaderProgramModeRegistry("glsl");
     registerDungeonSurfaceShaderFactory(registry);

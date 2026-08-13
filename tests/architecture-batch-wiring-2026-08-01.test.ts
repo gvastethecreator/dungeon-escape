@@ -51,7 +51,8 @@ describe("architecture batch wiring 2026-08-01", () => {
   test("main wires pickup feedback and adaptive CRT pure owners", async () => {
     const main = await Bun.file(new URL("../src/main.ts", import.meta.url)).text();
     expect(main).toContain("projectPickupFeedback");
-    expect(main).toContain("showPickupFeedback(effects.pickup.label, effects.pickup)");
+    expect(main).toContain("applyPlayStepPresentation");
+    expect(main).toContain("collectPlayStepPresentation");
     expect(main).toContain("stepAdaptiveCrt");
     expect(main).toContain("renderCaps.adaptiveCrtDisableMs");
     expect(main).not.toContain("adaptiveCrtDisableMs - 8");

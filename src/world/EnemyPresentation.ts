@@ -21,9 +21,9 @@ import {
   enemyAttackFrameIndex,
   type EnemyAnimationDefinition,
 } from "./EnemySpriteAtlas";
-import type { EnemySimBody } from "./EnemySim";
 
-export interface EnemyPresentationActor extends EnemySimBody {
+export interface EnemyPresentationActor {
+  kind: EnemyKind;
   position: THREE.Vector3;
   baseScale: THREE.Vector2;
   batch: THREE.InstancedMesh;
@@ -31,11 +31,18 @@ export interface EnemyPresentationActor extends EnemySimBody {
   instanceIndex: number;
   shadowInstanceIndex: number;
   yaw: number;
+  roll: number;
+  scaleX: number;
+  scaleY: number;
   spawnReveal: number;
   startsActive: boolean;
   visibilityAttribute: THREE.InstancedBufferAttribute;
   tier: number;
   defeated: boolean;
+  phaseVisibility: number;
+  moving: boolean;
+  /** Attack flash used to pick the strike atlas frame. */
+  attackPulse: number;
 }
 
 export interface EnemyAnimationBatch {
