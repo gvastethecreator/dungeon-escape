@@ -32,7 +32,7 @@ import {
   DUNGEON_SURFACE_WORLD_UV_SCALE,
 } from "./TextureTreatment";
 
-const DUNGEON_SURFACE_TSL_CACHE_KEY = "dungeon-surface-tsl-v1";
+const DUNGEON_SURFACE_TSL_CACHE_KEY = "dungeon-surface-tsl-v2";
 
 /**
  * Literal port of the GLSL bfHash21 / bfValueNoise / bfFbm helpers.
@@ -98,12 +98,15 @@ export function enableDungeonSurfaceShaderTsl(material: MeshStandardNodeMaterial
   material.userData.dungeonSurfaceShader = true;
   material.userData.dungeonSurfaceShaderMode = "tsl";
 
-  const tileUvOffset = attribute<"vec2">("aTileUvOffset", "vec2");
+  const tileUvOffset = attribute("aTileUvOffset", "vec2" as const);
   const uvScale = float(DUNGEON_SURFACE_WORLD_UV_SCALE);
 
   // Match GLSL: (mapUv + aTileUvOffset) * world scale on map/normal/rough/metal/ao.
+  // Missing `aTileUvOffset` generates a vec2(0) constant in r185 AttributeNode.
   // Room surface maps keep identity repeat/offset, so pre-transform UV replacement matches.
   material.contextNode = replaceDefaultUV(() => uv().add(tileUvOffset).mul(uvScale));
+  // colorNode replaces NodeMaterial's default diffuse path. `materialColor`
+  // already samples `material.map` × `material.color` (MaterialNode.COLOR).
   material.colorNode = materialColor.mul(dungeonSurfaceMacroVariation());
   material.customProgramCacheKey = () => DUNGEON_SURFACE_TSL_CACHE_KEY;
   material.needsUpdate = true;

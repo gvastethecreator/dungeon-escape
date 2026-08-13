@@ -4,6 +4,10 @@ describe("Play HUD structure (Ash Binding)", () => {
   test("keeps health left, timer top-center, and stones bottom-right", async () => {
     const host = await Bun.file(new URL("../index.html", import.meta.url)).text();
     expect(host).toContain('id="play-objective"');
+    expect(host).toContain('id="play-toast"');
+    expect(host).toContain('data-move="fire"');
+    expect(host).toContain("interaction-prompt__coarse");
+    expect(host).toContain('id="look-sensitivity"');
     expect(host).toContain('class="health-orb"');
     expect(host).toContain('id="resolve-fill"');
     expect(host).toContain('id="stamina-meter"');
@@ -90,6 +94,8 @@ describe("Play HUD structure (Ash Binding)", () => {
     expect(COPY.pickup.annihilationPulse).toBe("Pulse Relic");
     expect(COPY.status.annihilationPulse).toContain("13 seconds");
     expect(COPY.end.loseTitle).toBe("You Died");
+    expect(COPY.end.loseCopy).toBe("The stones remain unbound.");
+    expect(COPY.end.loseProgress(2, 4, 192)).toBe("2/4 stones · 03:12.00");
     expect(COPY.end.winTitle).toBe("You escaped the dungeon");
     expect(COPY.status.won).toBe("You escaped the dungeon");
     expect(COPY.end.winLead).toBe("All four stones are bound. The exit is open.");
@@ -382,6 +388,8 @@ describe("Play HUD structure (Ash Binding)", () => {
     expect(source).toContain('elements.optionsSettingsBack.addEventListener("click"');
     expect(source).toContain('elements.endHome.addEventListener("click"');
     expect(source).toContain("isPlayerFacingStatus");
+    expect(source).toContain("function showPlayToast");
+    expect(source).not.toContain("Press Enter to retry");
     expect(source).toContain("COPY.pause.restarted");
     expect(source).toContain("COPY.pause.returnedHome");
     expect(source).toContain("localRunSave.flush()");

@@ -258,6 +258,7 @@ export class FirstPersonController {
   private readonly airDeceleration: number;
   private readonly onLockChange: (locked: boolean, message: string) => void;
   private mouseSensitivity: number;
+  private lookFeelScale = 1;
   private cameraMotion: number;
   private criticalMovementDrift = 0;
   private surfaceSpeedScale = 1;
@@ -608,6 +609,15 @@ export class FirstPersonController {
     this.mouseSensitivity = THREE.MathUtils.clamp(value, 0.00045, 0.0032);
   }
 
+  /** 0.5–1.5 player look feel. Independent of curse sensitivityScale. */
+  setLookFeelScale(value: number): void {
+    this.lookFeelScale = THREE.MathUtils.clamp(
+      Number.isFinite(value) ? value : 1,
+      0.5,
+      1.5,
+    );
+  }
+
   setCameraMotion(value: number): void {
     this.cameraMotion = THREE.MathUtils.clamp(value, 0, 1);
   }
@@ -670,7 +680,7 @@ export class FirstPersonController {
     const result = this.domElement.requestPointerLock();
     if (result?.catch)
       void result.catch(() =>
-        this.onLockChange(false, "Could not capture the pointer. Press Enter to retry."),
+        this.onLockChange(false, "Could not capture the pointer. Click the scene to retry."),
       );
   }
 
@@ -723,7 +733,7 @@ export class FirstPersonController {
     this.elapsed += delta;
     const lookDelta = this.lookInput.consume();
     const lookSign = this.invertLook ? -1 : 1;
-    const lookSensitivity = this.mouseSensitivity * this.sensitivityScale;
+    const lookSensitivity = this.mouseSensitivity * this.sensitivityScale * this.lookFeelScale;
     this.targetYaw -= lookDelta.x * lookSensitivity * lookSign;
     this.targetPitch = clampLookPitch(
       this.targetPitch - lookDelta.y * lookSensitivity * 0.72 * lookSign,
@@ -1170,7 +1180,7 @@ export class FirstPersonController {
   };
 
   private readonly handlePointerLockError = (): void =>
-    this.onLockChange(false, "The browser blocked the pointer. Press Enter to retry.");
+    this.onLockChange(false, "The browser blocked the pointer. Click the scene to retry.");
   private readonly handleBlur = (): void => {
     this.keys.clear();
     this.justPressed.clear();

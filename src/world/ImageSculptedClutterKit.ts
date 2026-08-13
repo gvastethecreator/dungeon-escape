@@ -2,6 +2,7 @@ import * as THREE from "three";
 import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 
 import type { DungeonMaterials } from "./MaterialLibrary";
+import { normalizeGeometryForMerge } from "./MergeGeometryNormalize";
 import {
   addCarpentryMesh,
   addCarpentryRivets,
@@ -274,36 +275,8 @@ interface CrateMeshBatch {
 }
 
 function crateGeometryRelativeTo(mesh: THREE.Mesh, root: THREE.Object3D): THREE.BufferGeometry {
-  const geometry = mesh.geometry.index ? mesh.geometry.toNonIndexed() : mesh.geometry.clone();
   const relative = root.matrixWorld.clone().invert().multiply(mesh.matrixWorld);
-  geometry.applyMatrix4(relative);
-  if (!geometry.getAttribute("normal")) geometry.computeVertexNormals();
-  if (!geometry.getAttribute("uv")) {
-    geometry.setAttribute(
-      "uv",
-      new THREE.Float32BufferAttribute(
-        new Float32Array(geometry.getAttribute("position").count * 2),
-        2,
-      ),
-    );
-  }
-  if (!geometry.getAttribute("color")) {
-    const colors = new Float32Array(geometry.getAttribute("position").count * 3);
-    colors.fill(1);
-    geometry.setAttribute("color", new THREE.BufferAttribute(colors, 3));
-  }
-  for (const attribute of Object.keys(geometry.attributes)) {
-    if (
-      attribute !== "position" &&
-      attribute !== "normal" &&
-      attribute !== "uv" &&
-      attribute !== "color"
-    ) {
-      geometry.deleteAttribute(attribute);
-    }
-  }
-  geometry.clearGroups();
-  return geometry;
+  return normalizeGeometryForMerge(mesh.geometry, relative, { keepColor: true });
 }
 
 /**

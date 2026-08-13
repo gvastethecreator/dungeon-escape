@@ -2,6 +2,7 @@ import * as THREE from "three";
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
 
 import type { DungeonRenderer } from "./DungeonRenderer";
+import { createPmremAdapter } from "./EnvironmentBind";
 
 import {
   INTERIOR_LIGHT_TUNING,
@@ -102,21 +103,27 @@ export class LightingRig {
   /**
    * One-shot PMREM from a neutral RoomEnvironment so MeshStandard metals
    * leave flat gray. Safe to call once after the play renderer exists.
+   * WebGPU uses the node PMREM adapter; WebGL uses THREE.PMREMGenerator.
+   * Failures are reported and ignored so boot can continue without IBL.
    */
-  bindEnvironment(renderer: DungeonRenderer): void {
+  async bindEnvironment(renderer: DungeonRenderer): Promise<void> {
     if (this.envBound) return;
-    // PMREMGenerator's constructor is still typed against the concrete WebGL path.
-    const pmrem = new THREE.PMREMGenerator(renderer as unknown as THREE.WebGLRenderer);
-    pmrem.compileEquirectangularShader();
-    const envScene = new RoomEnvironment();
-    // Blur keeps reflections soft (interior grit, not chrome studio).
-    // Keep sigma below the PMREM 20-sample ceiling; larger blur logs on every reload.
-    const envMap = pmrem.fromScene(envScene, 0.035).texture;
-    this.scene.environment = envMap;
-    this.scene.environmentIntensity =
-      this.mood.environmentIntensity * this.mood.iblScale * INTERIOR_LIGHT_TUNING.iblScale;
-    pmrem.dispose();
-    this.envBound = true;
+    try {
+      const pmrem = await createPmremAdapter(renderer);
+      if (!pmrem) return;
+      await Promise.resolve(pmrem.compileEquirectangularShader());
+      const envScene = new RoomEnvironment();
+      // Blur keeps reflections soft (interior grit, not chrome studio).
+      // Keep sigma below the PMREM 20-sample ceiling; larger blur logs on every reload.
+      const envMap = pmrem.fromScene(envScene, 0.035).texture;
+      this.scene.environment = envMap;
+      this.scene.environmentIntensity =
+        this.mood.environmentIntensity * this.mood.iblScale * INTERIOR_LIGHT_TUNING.iblScale;
+      pmrem.dispose();
+      this.envBound = true;
+    } catch (error) {
+      console.warn("Environment bind failed; continuing without IBL", error);
+    }
   }
 
   /**

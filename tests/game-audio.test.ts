@@ -347,6 +347,7 @@ describe("GameAudio dungeon soundscape", () => {
     expect(main).toContain("renderer.info.autoReset = false");
     expect(main).not.toContain("renderer.compile(");
     expect(main).toContain("povPost.render(renderer, scene, camera)");
+    expect(main).toContain("povPost.warmup(renderer, scene, camera)");
     expect(main).not.toContain("compileRendererWarmupBatches");
     expect(main).not.toContain("compileAsync(deferredScene");
     expect(main).toContain("world.setPickupEffectsWarmupVisible(true)");
@@ -365,6 +366,11 @@ describe("GameAudio dungeon soundscape", () => {
     );
     expect(audio).toContain("this.assetLoads.delete(id)");
     expect(audio).toContain("await this.ensureAssets(this.startupAssetIds())");
+    const prefetch = audio.slice(
+      audio.indexOf("PLAY_AUDIO_PREFETCH_ASSETS"),
+      audio.indexOf("BACKGROUND_PREFETCH_YIELD_MS"),
+    );
+    expect(prefetch).not.toContain("shotgun");
     expect(audio).not.toContain("listAudioAssets()");
   });
 

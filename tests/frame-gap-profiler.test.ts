@@ -41,7 +41,10 @@ describe("frame gap profiler", () => {
     expect(simulationDelta).toBe(0.05);
     expect(profiler.snapshot().max).toBe(rawFrameGapMs);
 
-    const source = await Bun.file(new URL("../src/main.ts", import.meta.url)).text();
+    const source = (await Bun.file(new URL("../src/main.ts", import.meta.url)).text()).replaceAll(
+      "\r\n",
+      "\n",
+    );
     const frameStart = source.indexOf("function frame(now: number): void {");
     const frameEnd = source.indexOf("\n}\n\nwindow.addEventListener", frameStart);
     expect(frameStart).toBeGreaterThanOrEqual(0);

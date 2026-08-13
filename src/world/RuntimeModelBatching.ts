@@ -2,6 +2,7 @@ import * as THREE from "three";
 import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 
 import type { ForgeChestKit } from "./ForgePropFactory";
+import { normalizeGeometryForMerge } from "./MergeGeometryNormalize";
 
 export interface RuntimeChestBatchStats {
   sourceMeshes: number;
@@ -99,29 +100,12 @@ function geometriesRelativeTo(mesh: THREE.Mesh, anchor: THREE.Object3D): THREE.B
   const instance = new THREE.Matrix4();
   const count = mesh instanceof THREE.InstancedMesh ? mesh.count : 1;
   return Array.from({ length: count }, (_, index) => {
-    const geometry = mesh.geometry.index ? mesh.geometry.toNonIndexed() : mesh.geometry.clone();
     const relative = anchorInverse.clone().multiply(mesh.matrixWorld);
     if (mesh instanceof THREE.InstancedMesh) {
       mesh.getMatrixAt(index, instance);
       relative.multiply(instance);
     }
-    geometry.applyMatrix4(relative);
-    if (!geometry.getAttribute("normal")) geometry.computeVertexNormals();
-    if (!geometry.getAttribute("uv")) {
-      geometry.setAttribute(
-        "uv",
-        new THREE.Float32BufferAttribute(
-          new Float32Array(geometry.getAttribute("position").count * 2),
-          2,
-        ),
-      );
-    }
-    for (const attribute of Object.keys(geometry.attributes)) {
-      if (attribute !== "position" && attribute !== "normal" && attribute !== "uv")
-        geometry.deleteAttribute(attribute);
-    }
-    geometry.clearGroups();
-    return geometry;
+    return normalizeGeometryForMerge(mesh.geometry, relative);
   });
 }
 

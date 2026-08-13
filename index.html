@@ -263,6 +263,7 @@
         <p id="play-objective" class="play-objective" role="status" aria-live="polite" hidden>
           Find the four magic stones
         </p>
+        <p id="play-toast" class="play-toast" role="status" aria-live="polite" hidden></p>
 
         <section class="play-vitals" aria-label="Health and stamina">
           <div
@@ -720,7 +721,9 @@
         aria-label="Open chest"
         hidden
       >
-        <kbd>F</kbd><span>OPEN CHEST</span>
+        <kbd class="interaction-prompt__fine">F</kbd>
+        <kbd class="interaction-prompt__coarse">TAP</kbd>
+        <span>OPEN CHEST</span>
       </button>
 
       <!-- ESC pause overlay / editor chrome -->
@@ -849,6 +852,11 @@
                 <span>Effects volume</span>
                 <output id="effects-volume-value" for="effects-volume">100%</output>
                 <input id="effects-volume" type="range" min="0" max="100" step="5" value="100" />
+              </label>
+              <label class="options-volume" for="look-sensitivity">
+                <span>Look sensitivity</span>
+                <output id="look-sensitivity-value" for="look-sensitivity">100%</output>
+                <input id="look-sensitivity" type="range" min="50" max="150" step="5" value="100" />
               </label>
             </div>
             <button
@@ -1411,6 +1419,9 @@
           </button>
           <button type="button" data-move="turnRight" aria-label="Turn right">↷</button>
           <button type="button" data-move="interact" aria-label="Interact">F</button>
+          <button type="button" class="touch-fire" data-move="fire" aria-label="Fire shotgun">
+            FIRE
+          </button>
           <button type="button" data-move="jump" aria-label="Jump">SPACE</button>
           <button type="button" data-move="sprint" aria-label="Run: hold to sprint">RUN</button>
         </div>

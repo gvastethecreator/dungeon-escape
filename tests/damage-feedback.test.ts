@@ -57,12 +57,15 @@ describe("damage feedback — HUD markup and styles", () => {
 
   test("main wires knockback + orb splash on damage", async () => {
     const src = await Bun.file(new URL("../src/main.ts", import.meta.url)).text();
+    const presentation = await Bun.file(
+      new URL("../src/game/PlayStepPresentation.ts", import.meta.url),
+    ).text();
     expect(src).toContain("triggerDamageFeedback");
     expect(src).toContain("spawnOrbBloodSplash");
-    expect(src).toContain("worldUpdate.knockback");
     expect(src).toContain("DAMAGE_WASH_SECONDS");
-    expect(src).toContain("projectPlayStepDamage");
-    expect(src).toContain("damageIntent.washKind");
+    expect(presentation).toContain("worldUpdate.knockback");
+    expect(presentation).toContain("projectPlayStepDamage");
+    expect(presentation).toContain("damageIntent.washKind");
   });
 
   test("main arms hit trauma so the camera keeps shaking after a hit", async () => {

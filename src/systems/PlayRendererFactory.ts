@@ -2,7 +2,7 @@ import * as THREE from "three";
 
 import type { LaunchRendererPreference } from "../launch/LaunchConfiguration";
 import type { DungeonRenderer } from "./DungeonRenderer";
-import { detectWebGpuAvailability, type WebGpuAvailability } from "./WebGpuAvailability";
+import { detectWebGpuAvailability, skippedWebGpuAvailability, type WebGpuAvailability } from "./WebGpuAvailability";
 
 export type PlayRendererBackend = "webgl" | "webgpu";
 
@@ -23,6 +23,7 @@ export interface PlayRendererHandle {
   readonly fallbackReason: string | null;
   readonly initDurationMs: number;
   readonly isWebGpuRenderer: boolean;
+  readonly shaderProgramMode: "glsl" | "tsl";
   /** Concrete Three renderer for diagnostics that still need backend-specific fields. */
   readonly raw:
     | THREE.WebGLRenderer
@@ -74,14 +75,25 @@ async function createWebGpuRenderer(canvas: HTMLCanvasElement): Promise<{
   };
 }
 
+function withShaderMode(
+  handle: Omit<PlayRendererHandle, "shaderProgramMode">,
+): PlayRendererHandle {
+  return {
+    ...handle,
+    shaderProgramMode: handle.isWebGpuRenderer ? "tsl" : "glsl",
+  };
+}
+
 export async function createPlayRendererHandle(
   options: PlayRendererCreateOptions,
 ): Promise<PlayRendererHandle> {
   const startedAt = performance.now();
-  const availability = await detectWebGpuAvailability();
   const wantsWebGpu =
     options.preference === "webgpu" ||
     (options.preference === "auto" && options.preferWebGpuWhenAuto === true);
+  const availability = wantsWebGpu
+    ? await detectWebGpuAvailability()
+    : skippedWebGpuAvailability();
 
   if (wantsWebGpu) {
     if (!availability.hasAdapter) {
@@ -91,7 +103,7 @@ export async function createPlayRendererHandle(
         );
       }
       const webgl = createWebGlRenderer(options.canvas, options.preferDefaultGpu);
-      return {
+      return withShaderMode({
         renderer: webgl,
         backend: "webgl",
         requested: options.preference,
@@ -102,13 +114,13 @@ export async function createPlayRendererHandle(
         isWebGpuRenderer: false,
         raw: webgl,
         dispose: () => webgl.dispose(),
-      };
+      });
     }
 
     try {
       const created = await createWebGpuRenderer(options.canvas);
       const actuallyWebGpu = created.raw.backend?.isWebGPUBackend === true;
-      return {
+      return withShaderMode({
         renderer: created.renderer,
         backend: actuallyWebGpu ? "webgpu" : "webgl",
         requested: options.preference,
@@ -119,14 +131,14 @@ export async function createPlayRendererHandle(
         isWebGpuRenderer: actuallyWebGpu,
         raw: created.raw,
         dispose: () => created.raw.dispose(),
-      };
+      });
     } catch (error) {
       if (options.preference === "webgpu") {
         throw error instanceof Error ? error : new Error("WebGPU renderer failed to initialize.");
       }
       console.warn("WebGPU renderer init failed; falling back to WebGL", error);
       const webgl = createWebGlRenderer(options.canvas, options.preferDefaultGpu);
-      return {
+      return withShaderMode({
         renderer: webgl,
         backend: "webgl",
         requested: options.preference,
@@ -137,12 +149,12 @@ export async function createPlayRendererHandle(
         isWebGpuRenderer: false,
         raw: webgl,
         dispose: () => webgl.dispose(),
-      };
+      });
     }
   }
 
   const webgl = createWebGlRenderer(options.canvas, options.preferDefaultGpu);
-  return {
+  return withShaderMode({
     renderer: webgl,
     backend: "webgl",
     requested: options.preference,
@@ -153,7 +165,7 @@ export async function createPlayRendererHandle(
     isWebGpuRenderer: false,
     raw: webgl,
     dispose: () => webgl.dispose(),
-  };
+  });
 }
 
 export function readPlayRendererBackendName(handle: PlayRendererHandle): string {

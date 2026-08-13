@@ -36,13 +36,14 @@ describe("PlayStatusHud", () => {
     const swarmRoot = fakeElement();
     const phoenixRoot = fakeElement();
     let fogPulse = 0;
+    const shotgun = fakeChip();
     const hud = new PlayStatusHud({
       shell,
       timeFreeze: fakeChip(),
       luminousWard: fakeChip(),
       annihilationPulse: fakeChip(),
       cullBrand: fakeChip(),
-      shotgun: fakeChip(),
+      shotgun,
       fogClear: fakeChip(),
       mobility: fakeChip(),
       handTorch: fakeChip(),
@@ -77,6 +78,11 @@ describe("PlayStatusHud", () => {
 
     hud.sync({ shotgunShells: 0, shotgunPumpRemaining: 0.4 });
     expect(shell.dataset.shotgun).toBe("true");
+
+    hud.sync({ shotgunShells: 0, shotgunPumpRemaining: 0 });
+    expect(shell.dataset.shotgun).toBe("true");
+    expect(shotgun.root.hidden).toBe(false);
+    expect(shotgun.value.getAttribute("aria-label")).toBe("0 shotgun shells remaining");
 
     hud.reset();
     expect(shell.dataset.phoenix).toBe("false");

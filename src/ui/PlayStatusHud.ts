@@ -64,6 +64,7 @@ export class PlayStatusHud {
   private readonly mirrorCurse: TimedStatusChip;
   private readonly spinCurse: TimedStatusChip;
   private lastFogClearActive: boolean | null = null;
+  private shotgunSeen = false;
 
   constructor(private readonly ports: PlayStatusHudPorts) {
     const shell = ports.shell;
@@ -146,6 +147,7 @@ export class PlayStatusHud {
     this.luminousWard.reset();
     this.annihilationPulse.reset();
     this.cullBrand.reset();
+    this.shotgunSeen = false;
     this.syncShotgun(0, 0);
     this.fogClear.reset();
     this.mobility.reset();
@@ -198,13 +200,18 @@ export class PlayStatusHud {
 
   private syncShotgun(shells: number, pumpSeconds = 0): void {
     const remaining = Math.max(0, Math.floor(shells));
-    const equipped = remaining > 0 || pumpSeconds > 0.0001;
+    if (remaining > 0 || pumpSeconds > 0.0001) this.shotgunSeen = true;
+    const equipped = this.shotgunSeen;
     this.ports.shotgun.root.hidden = !equipped;
     this.ports.shell.dataset.shotgun = equipped ? "true" : "false";
     this.ports.shotgun.value.textContent = String(remaining);
     this.ports.shotgun.value.setAttribute(
       "aria-label",
-      equipped ? `${remaining} shotgun shells remaining` : "shotgun unequipped",
+      equipped
+        ? remaining > 0
+          ? `${remaining} shotgun shells remaining`
+          : "0 shotgun shells remaining"
+        : "shotgun unequipped",
     );
   }
 

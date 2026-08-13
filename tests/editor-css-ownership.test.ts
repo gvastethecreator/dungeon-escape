@@ -6,7 +6,7 @@ const mainUrl = new URL("../src/main.ts", import.meta.url);
 
 describe("editor stylesheet ownership", () => {
   test("loads editor rules after the shared root stylesheet", async () => {
-    const main = await Bun.file(mainUrl).text();
+    const main = (await Bun.file(mainUrl).text()).replaceAll("\r\n", "\n");
 
     expect(main).toContain('import "./styles.css";\nimport "./styles/editor.css";');
   });

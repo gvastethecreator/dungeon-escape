@@ -46,7 +46,7 @@ import {
   selectEnemyKindsForSpawns,
   totalEnemySeatBudget,
 } from "./EnemySpawnPlan";
-import { tickEnemySim, type EnemySimContext, type EnemySimResult } from "./EnemySim";
+import { tickEnemySim, type EnemySimBody, type EnemySimContext, type EnemySimResult } from "./EnemySim";
 import { ENEMY_ROSTER, enemyAnimationSetsForMood } from "./EnemySpriteAtlas";
 import {
   FloorOccupancyBit,
@@ -58,7 +58,7 @@ import { swarmTargetEnemies } from "../game/SwarmCurse";
 import type { ResidentFloorRuntime } from "./ResidentFloorRuntime";
 import { ThreeResourceDisposer } from "./ThreeResourceDisposer";
 
-export type ResidentEnemyActor = EnemyPresentationActor;
+export type ResidentEnemyActor = EnemySimBody & EnemyPresentationActor;
 
 export interface ResidentEnemyRuntime {
   readonly floorIndex: number;

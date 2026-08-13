@@ -39,11 +39,7 @@ import {
   readPlayRendererBackendName,
   type PlayRendererHandle,
 } from "./systems/PlayRendererFactory";
-import {
-  createShaderProgramModeRegistry,
-  setShaderProgramModeRegistry,
-} from "./systems/ShaderProgramMode";
-import { loadTslMaterialModules } from "./systems/TslMaterialModules";
+import { bootPlayShaderMode } from "./systems/PlayShaderBoot";
 import type { DungeonRenderer } from "./systems/DungeonRenderer";
 
 export const MODEL_QA_VIEWS = ["front", "right", "back", "left", "rear-left", "top"] as const;
@@ -1014,10 +1010,7 @@ export function startModelLab(loadTimeoutMs = MODEL_QA_LOAD_TIMEOUT_MS): ModelQa
         preference: query.renderer,
         preferDefaultGpu: false,
       });
-      setShaderProgramModeRegistry(
-        createShaderProgramModeRegistry(playRendererHandle.isWebGpuRenderer ? "tsl" : "glsl"),
-      );
-      if (playRendererHandle.isWebGpuRenderer) await loadTslMaterialModules();
+      await bootPlayShaderMode(playRendererHandle.shaderProgramMode);
       renderer = playRendererHandle.renderer as THREE.WebGLRenderer & DungeonRenderer;
       if ("setPixelRatio" in renderer) renderer.setPixelRatio(1);
       renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -1045,7 +1038,7 @@ export function startModelLab(loadTimeoutMs = MODEL_QA_LOAD_TIMEOUT_MS): ModelQa
         );
       } else {
         lighting = new LightingRig(scene);
-        lighting.bindEnvironment(renderer);
+        await lighting.bindEnvironment(renderer);
         lighting.applyMood(getDungeonMood(query.mood));
       }
       const camera = new THREE.PerspectiveCamera(35, 1, 0.01, 100);

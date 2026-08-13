@@ -229,7 +229,7 @@ export class ResidentFloorRuntimeOwner implements ResidentFloorRuntime {
   setMinimapProjection(projection: ResidentMinimapProjection): void {
     this.assertActive();
     if (this.mutableMinimapProjection && this.mutableMinimapProjection !== projection) {
-      throw new Error("ResidentFloorRuntime already owns a minimap projection.");
+      this.mutableMinimapProjection.clear();
     }
     this.mutableMinimapProjection = projection;
   }

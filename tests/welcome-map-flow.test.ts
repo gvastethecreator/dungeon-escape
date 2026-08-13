@@ -62,6 +62,7 @@ describe("welcome and map flow", () => {
 
   test("deferred Continue and Custom Run paint a busy state before their blocking build", async () => {
     const main = await Bun.file(new URL("../src/main.ts", import.meta.url)).text();
+    const css = await Bun.file(new URL("../src/styles.css", import.meta.url)).text();
     const continueAt = main.indexOf('elements.welcomeContinue.addEventListener("click"');
     const customAt = main.indexOf('elements.welcomeCustom.addEventListener("click"');
     const optionsAt = main.indexOf('elements.optionsResume.addEventListener("click"');
@@ -75,6 +76,7 @@ describe("welcome and map flow", () => {
     expect(customAt).toBeGreaterThan(continueAt);
     expect(optionsAt).toBeGreaterThan(customAt);
     expect(continueHandler).toContain('setWelcomeTransitionBusy(true, "Restoring saved dungeon…")');
+    expect(css).toContain(".welcome-card .welcome-status:empty");
     expect(continueHandler).toContain("await waitAnimationFrames(2)");
     expect(continueHandler).toContain("await waitForRendererWarmup(10_000)");
     expect(customHandler).toContain('setWelcomeTransitionBusy(true, "Creating custom dungeon…")');

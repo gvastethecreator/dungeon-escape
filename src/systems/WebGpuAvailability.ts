@@ -8,6 +8,7 @@ export type WebGpuFailureReason =
   | "no-adapter"
   | "request-failed"
   | "timeout"
+  | "not-requested"
   | null;
 
 export interface WebGpuAvailability {
@@ -51,6 +52,19 @@ function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
       },
     );
   });
+}
+
+export function skippedWebGpuAvailability(): WebGpuAvailability {
+  const hasNavigatorGpu =
+    typeof navigator !== "undefined" &&
+    Boolean(
+      (navigator as Navigator & { gpu?: { requestAdapter?: unknown } }).gpu?.requestAdapter,
+    );
+  return {
+    hasNavigatorGpu,
+    hasAdapter: false,
+    failureReason: "not-requested",
+  };
 }
 
 export async function detectWebGpuAvailability(
