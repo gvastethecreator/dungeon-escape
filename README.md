@@ -41,7 +41,7 @@ The map generator is a modified version of [Majid Manzarpour's threejs-procedura
 
 ## Status
 
-- The default renderer is WebGL. WebGPU is an optional path. See `docs/adr/0009-webgpu-renderer-and-tsl.md`.
+- The default renderer is WebGPU, with WebGL fallback when no adapter is available. See `docs/adr/0009-webgpu-renderer-and-tsl.md`.
 - Public deploys hide Map tools so players cannot rewrite seeds into the Hall path.
 
 ## License

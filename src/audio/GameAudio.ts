@@ -2,6 +2,7 @@
 
 import type { FootstepSurface } from "./FootstepSurface";
 import type { MusicTrack } from "./AudioMusicPolicy";
+import { SHOTGUN_PUMP_SOUND_DELAY } from "../game/Shotgun";
 import {
   audioAssetCount,
   audioAssetForBiomeAccent,
@@ -115,6 +116,9 @@ const PLAY_AUDIO_PREFETCH_ASSETS: readonly AudioAssetId[] = [
   "enemy-growl",
   "enemy-attack",
   "torch-crackle",
+  "shotgun-fire",
+  "shotgun-pump",
+  "shotgun-dry",
 ];
 
 const BACKGROUND_PREFETCH_YIELD_MS = 16;
@@ -228,7 +232,7 @@ export class GameAudio {
   private readonly assetLoads = new Map<AudioAssetId, Promise<boolean>>();
   private readonly pendingPlayback = new Map<
     AudioAssetId,
-    { position?: AudioPosition; gainScale: number }
+    { position?: AudioPosition; gainScale: number; delaySeconds: number }
   >();
   private readonly pendingPlaybackWaiters = new Set<AudioAssetId>();
   private readonly backgroundPrefetchQueue: AudioAssetId[] = [];
@@ -379,6 +383,9 @@ export class GameAudio {
       return;
     }
     this.playAsset(audioAssetForPickup(pickup.kind), pickup.position);
+    if (pickup.kind === "shotgun") {
+      void this.ensureAssets(["shotgun-fire", "shotgun-pump", "shotgun-dry"]);
+    }
   }
 
   playPortal(position: AudioPosition | null): void {
@@ -391,6 +398,15 @@ export class GameAudio {
 
   playCullBrandKill(position: AudioPosition): void {
     this.playAsset("power-cull-brand-kill", position);
+  }
+
+  playShotgunFire(position: AudioPosition, options: { pump?: boolean } = {}): void {
+    this.playAsset("shotgun-fire", position);
+    if (options.pump) this.playAsset("shotgun-pump", position, 0.92, SHOTGUN_PUMP_SOUND_DELAY);
+  }
+
+  playShotgunDry(position: AudioPosition): void {
+    this.playAsset("shotgun-dry", position);
   }
 
   playPhoenixRevive(position: AudioPosition): void {
@@ -903,7 +919,7 @@ export class GameAudio {
     this.musicTrack = null;
   }
 
-  private playAsset(id: AudioAssetId, position?: AudioPosition, gainScale = 1): void {
+  private playAsset(id: AudioAssetId, position?: AudioPosition, gainScale = 1, delaySeconds = 0): void {
     const context = this.context;
     const asset = getAudioAsset(id);
     const buffer = this.buffers.get(id);
@@ -921,6 +937,7 @@ export class GameAudio {
       this.pendingPlayback.set(id, {
         position: position ? { ...position } : undefined,
         gainScale,
+        delaySeconds,
       });
       if (!this.pendingPlaybackWaiters.has(id)) {
         this.pendingPlaybackWaiters.add(id);
@@ -929,7 +946,7 @@ export class GameAudio {
           this.pendingPlayback.delete(id);
           this.pendingPlaybackWaiters.delete(id);
           if (loaded && pending) {
-            this.playAsset(id, pending.position, pending.gainScale);
+            this.playAsset(id, pending.position, pending.gainScale, pending.delaySeconds);
           }
         });
       }
@@ -954,7 +971,8 @@ export class GameAudio {
     } else {
       gain.connect(destination);
     }
-    source.start();
+    const when = context.currentTime + Math.max(0, delaySeconds);
+    source.start(when);
     source.onended = () => {
       source.disconnect();
       gain.disconnect();

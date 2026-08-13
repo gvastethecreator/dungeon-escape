@@ -95,6 +95,7 @@ export function projectMinimapFeatures(input: ProjectMinimapFeaturesInput): Mini
     luminousWard: firstUncollected(input.pickups, "luminous-ward"),
     annihilationPulse: firstUncollected(input.pickups, "annihilation-pulse"),
     cullBrand: firstUncollected(input.pickups, "cull-brand"),
+    shotgun: firstUncollected(input.pickups, "shotgun"),
     phoenixEgg: firstUncollected(input.pickups, "phoenix-egg"),
     map: firstUncollected(input.pickups, "map"),
     mobility: firstUncollected(input.pickups, "mobility"),
@@ -146,6 +147,7 @@ type ResidentMinimapSingletonKey =
   | "luminousWard"
   | "annihilationPulse"
   | "cullBrand"
+  | "shotgun"
   | "phoenixEgg"
   | "map"
   | "mobility"
@@ -243,6 +245,7 @@ class ResidentMinimapProjectionOwner implements ResidentMinimapProjection {
     this.features.luminousWard = undefined;
     this.features.annihilationPulse = undefined;
     this.features.cullBrand = undefined;
+    this.features.shotgun = undefined;
     this.features.phoenixEgg = undefined;
     this.features.map = undefined;
     this.features.mobility = undefined;
@@ -294,6 +297,7 @@ class ResidentMinimapProjectionOwner implements ResidentMinimapProjection {
       ["luminousWard", "luminous-ward"],
       ["annihilationPulse", "annihilation-pulse"],
       ["cullBrand", "cull-brand"],
+      ["shotgun", "shotgun"],
       ["phoenixEgg", "phoenix-egg"],
       ["map", "map"],
       ["mobility", "mobility"],

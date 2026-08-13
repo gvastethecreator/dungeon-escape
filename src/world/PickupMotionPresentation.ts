@@ -68,6 +68,7 @@ export function updateCollectedPickupMotion(
   if (pickup.luminousWardSignal) pickup.luminousWardSignal.light.intensity = 0;
   if (pickup.annihilationPulseSignal) pickup.annihilationPulseSignal.light.intensity = 0;
   if (pickup.cullBrandSignal) pickup.cullBrandSignal.light.intensity = 0;
+  if (pickup.shotgunSignal) pickup.shotgunSignal.light.intensity = 0;
   if (progress >= 1) {
     setPickupDormant(pickup.object, true);
     return true;
@@ -81,7 +82,8 @@ export function updateIdlePickupMotion(pickup: StaticPickupActor, frame: PickupM
     pickup.timeFreezeSignal ||
     pickup.luminousWardSignal ||
     pickup.annihilationPulseSignal ||
-    pickup.cullBrandSignal;
+    pickup.cullBrandSignal ||
+    pickup.shotgunSignal;
   const motionScale = powerPickup ? 0.56 : 0.68;
   // Glow opacity is mutable presentation state. Detach shared reward
   // materials once, then let subsequent frames reuse the owned instances.
@@ -89,7 +91,8 @@ export function updateIdlePickupMotion(pickup: StaticPickupActor, frame: PickupM
     pickup.stoneSignal ||
     pickup.luminousWardSignal ||
     pickup.annihilationPulseSignal ||
-    pickup.cullBrandSignal
+    pickup.cullBrandSignal ||
+    pickup.shotgunSignal
   ) {
     ensurePickupMaterialOwnership(pickup.object);
   }
@@ -132,6 +135,14 @@ export function updateIdlePickupMotion(pickup: StaticPickupActor, frame: PickupM
     const glowMaterial = pickup.cullBrandSignal.glow.material;
     if (glowMaterial instanceof THREE.MeshBasicMaterial) {
       glowMaterial.opacity = pickup.cullBrandSignal.baseGlowOpacity * (0.9 + pulse * 0.1);
+    }
+  }
+  if (pickup.shotgunSignal) {
+    const pulse = 0.92 + Math.sin(frame.elapsed * 2.55 + pickup.object.id) * 0.08;
+    pickup.shotgunSignal.light.intensity = pickup.shotgunSignal.baseIntensity * pulse;
+    const glowMaterial = pickup.shotgunSignal.glow.material;
+    if (glowMaterial instanceof THREE.MeshBasicMaterial) {
+      glowMaterial.opacity = pickup.shotgunSignal.baseGlowOpacity * (0.9 + pulse * 0.1);
     }
   }
   if (pickup.stoneSignal) {

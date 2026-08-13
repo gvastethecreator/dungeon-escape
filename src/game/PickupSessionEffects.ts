@@ -38,6 +38,11 @@ const PICKUP_SESSION_EFFECTS: Readonly<Partial<Record<SessionPickupKind, PickupS
     pickup: { label: COPY.pickup.cullBrand, cullBrand: true },
     flash: "event",
   },
+  shotgun: {
+    status: COPY.status.shotgun,
+    pickup: { label: COPY.pickup.shotgun, shotgun: true },
+    flash: "event",
+  },
   map: {
     status: COPY.status.map,
     pickup: { label: COPY.pickup.map, mapReveal: true },

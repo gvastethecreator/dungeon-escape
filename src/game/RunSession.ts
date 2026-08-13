@@ -14,6 +14,7 @@ export interface SessionWorldUpdate {
     | "luminous-ward"
     | "annihilation-pulse"
     | "cull-brand"
+    | "shotgun"
     | "phoenix-egg"
     | "map"
     | "mobility"
@@ -68,6 +69,7 @@ export interface RunSessionEffects {
     luminousWard?: boolean;
     annihilationPulse?: boolean;
     cullBrand?: boolean;
+    shotgun?: boolean;
     mapReveal?: boolean;
     mobilityBoost?: boolean;
     fogClear?: boolean;

@@ -13,6 +13,7 @@ export type ChestRewardKind =
   | "luminous-ward"
   | "annihilation-pulse"
   | "cull-brand"
+  | "shotgun"
   | "phoenix-egg"
   | "map"
   | "mobility"
@@ -81,6 +82,12 @@ export interface StaticPickupActor {
     baseGlowOpacity: number;
   };
   cullBrandSignal?: {
+    light: THREE.PointLight;
+    glow: THREE.Mesh;
+    baseIntensity: number;
+    baseGlowOpacity: number;
+  };
+  shotgunSignal?: {
     light: THREE.PointLight;
     glow: THREE.Mesh;
     baseIntensity: number;

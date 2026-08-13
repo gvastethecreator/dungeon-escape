@@ -58,6 +58,10 @@ describe("GameAudio dungeon soundscape", () => {
     });
     audio.playAnnihilationPulse({ x: 1, y: 1, z: 0 });
     audio.playCullBrandKill({ x: 1, y: 1, z: 0 });
+    audio.playShotgunFire({ x: 1, y: 1, z: 0 });
+    audio.playShotgunFire({ x: 1, y: 1, z: 0 }, { pump: true });
+    audio.playShotgunDry({ x: 1, y: 1, z: 0 });
+    audio.playPickup({ kind: "shotgun", position: { x: 1, y: 1, z: 0 } });
     audio.playPhoenixRevive({ x: 1, y: 1, z: 0 });
     audio.playEnemyHit({ x: 1.2, y: 1, z: -2 });
     audio.setMusicTrack("menu");
@@ -105,6 +109,9 @@ describe("GameAudio dungeon soundscape", () => {
     expect(catalog).toContain("pickup-time-freeze.opus");
     expect(catalog).toContain("pickup-ward.opus");
     expect(catalog).toContain("chest-open.opus");
+    expect(catalog).toContain("shotgun-fire.opus");
+    expect(catalog).toContain("shotgun-pump.opus");
+    expect(catalog).toContain("pickup-shotgun-v2.opus");
     expect(catalog).toContain("win.opus");
     expect(catalog).toContain("lose.opus");
     expect(catalog).toContain("music-menu.opus");
@@ -119,6 +126,10 @@ describe("GameAudio dungeon soundscape", () => {
     expect(source).toContain("setMusicTrack");
     expect(source).toContain('group === "music"');
     expect(source).toContain("audioAssetForPickup");
+    expect(source).toContain("playShotgunFire");
+    expect(source).toContain("playShotgunDry");
+    expect(source).toContain('"shotgun-dry"');
+    expect(source).toContain('pickup.kind === "shotgun"');
     expect(source).toContain("CreatureTakeSelector");
     expect(source).toContain("creatureTakes.select");
     expect(source).not.toContain("lastCreatureTake");
@@ -456,7 +467,7 @@ describe("GameAudio dungeon soundscape", () => {
       expect(await audio.unlock()).toBe(true);
       expect(audio.isReady).toBe(false);
       expect(audio.getLoadDiagnostics()).toMatchObject({
-        catalogAssets: 248,
+        catalogAssets: 253,
         requestedAssets: 9,
         decodedAssets: 8,
         residentBuffers: 8,

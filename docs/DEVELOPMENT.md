@@ -4,7 +4,7 @@
 
 - Bun 1.3.14 or later
 - TypeScript 7 (installed through the project manifest)
-- A current Chrome, Edge, or Firefox browser (Safari untested). The default renderer is WebGL. WebGPU is an optional path. See `docs/adr/0009-webgpu-renderer-and-tsl.md`. Firefox uses a safer render path and a legacy Web Audio listener pose. See `RenderCapabilities` and `GameAudio.applyAudioListenerPose`.
+- A current Chrome, Edge, or Firefox browser (Safari untested). The default renderer is WebGPU, with WebGL fallback when no adapter is available. See `docs/adr/0009-webgpu-renderer-and-tsl.md`. Firefox uses a safer render path and a legacy Web Audio listener pose. See `RenderCapabilities` and `GameAudio.applyAudioListenerPose`.
 
 ## Run locally
 

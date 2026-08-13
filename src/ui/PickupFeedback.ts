@@ -11,6 +11,7 @@ export type PickupFeedbackKind =
   | "hand-torch"
   | "annihilation-pulse"
   | "cull-brand"
+  | "shotgun"
   | "phoenix-egg"
   | "luminous-ward"
   | "time-freeze"
@@ -33,6 +34,7 @@ export interface PickupFeedbackFlags {
   handTorch?: boolean;
   annihilationPulse?: boolean;
   cullBrand?: boolean;
+  shotgun?: boolean;
   phoenixEgg?: boolean;
   luminousWard?: boolean;
   timeFreeze?: boolean;
@@ -79,6 +81,9 @@ export function projectPickupFeedback(flags: PickupFeedbackFlags = {}): PickupFe
   }
   if (flags.cullBrand) {
     return { kind: "cull-brand", kickerKey: "itemFound", restoreResolve };
+  }
+  if (flags.shotgun) {
+    return { kind: "shotgun", kickerKey: "itemFound", restoreResolve };
   }
   if (flags.phoenixEgg) {
     return { kind: "phoenix-egg", kickerKey: "itemFound", restoreResolve };

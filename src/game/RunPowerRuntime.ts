@@ -29,6 +29,14 @@ import { armPhoenixCharge, clampPhoenixCharges, hasPhoenixCharge } from "./Phoen
 import { activateSlowCurse, isSlowCurseActive, tickSlowCurse } from "./SlowCurse";
 import { activateSpinCurse, isSpinCurseActive, tickSpinCurse } from "./SpinCurse";
 import { activateSwarmCurse, isSwarmCurseActive } from "./SwarmCurse";
+import {
+  activateShotgun,
+  createShotgunState,
+  isShotgunEquipped,
+  restoreShotgun,
+  tickShotgun,
+  type ShotgunState,
+} from "./Shotgun";
 import { activateTimeFreeze, isTimeFreezeActive, tickTimeFreeze } from "./TimeFreeze";
 
 /** Pickup kinds that only mutate this bag (not stones/resolve). */
@@ -37,6 +45,7 @@ export type RunPowerPickupKind =
   | "luminous-ward"
   | "annihilation-pulse"
   | "cull-brand"
+  | "shotgun"
   | "phoenix-egg"
   | "map"
   | "mobility"
@@ -61,6 +70,7 @@ export interface RunPowerRuntimeState {
   mirrorCurseSeconds: number;
   spinCurseSeconds: number;
   cullBrand: CullBrandState;
+  shotgun: ShotgunState;
   annihilationPulse: AnnihilationPulseClock;
   phoenixCharges: number;
   mapRevealed: boolean;
@@ -79,6 +89,8 @@ export interface RunPowerRuntimeProgress {
   gloomCurseRemaining?: number;
   swarmCurseActive?: boolean;
   cullBrandRemaining?: number;
+  shotgunShells?: number;
+  shotgunPumpRemaining?: number;
   mirrorCurseRemaining?: number;
   spinCurseRemaining?: number;
   phoenixCharges?: number;
@@ -103,6 +115,7 @@ export function createRunPowerRuntime(): RunPowerRuntimeState {
     mirrorCurseSeconds: 0,
     spinCurseSeconds: 0,
     cullBrand: createCullBrandState(),
+    shotgun: createShotgunState(),
     annihilationPulse: createAnnihilationPulseClock(),
     phoenixCharges: 0,
     mapRevealed: false,
@@ -126,6 +139,7 @@ export function resetRunPowerRuntime(
   state.mirrorCurseSeconds = 0;
   state.spinCurseSeconds = 0;
   restoreCullBrand(state.cullBrand, 0, 0);
+  restoreShotgun(state.shotgun, 0, 0);
   state.annihilationPulse.remaining = 0;
   state.annihilationPulse.timeSincePulse = 0;
   state.phoenixCharges = carryPhoenix;
@@ -147,6 +161,7 @@ export function tickRunPowerRuntime(
   state.mirrorCurseSeconds = tickMirrorCurse(state.mirrorCurseSeconds, delta);
   state.spinCurseSeconds = tickSpinCurse(state.spinCurseSeconds, delta);
   tickCullBrand(state.cullBrand, delta);
+  tickShotgun(state.shotgun, delta);
   const pulseCount = tickAnnihilationPulse(state.annihilationPulse, delta);
   return { pulseCount };
 }
@@ -171,6 +186,7 @@ export function restoreRunPowerRuntime(
   state.spinCurseSeconds = Math.max(0, progress.spinCurseRemaining ?? 0);
   const cullRemaining = Math.max(0, progress.cullBrandRemaining ?? 0);
   restoreCullBrand(state.cullBrand, cullRemaining, cullRemaining > 0 ? 1 : 0);
+  restoreShotgun(state.shotgun, progress.shotgunShells ?? 0, progress.shotgunPumpRemaining ?? 0);
   state.phoenixCharges = clampPhoenixCharges(progress.phoenixCharges ?? 0);
 }
 
@@ -189,6 +205,9 @@ export function applyPickupToRunPowers(state: RunPowerRuntimeState, kind: string
       return true;
     case "cull-brand":
       activateCullBrand(state.cullBrand);
+      return true;
+    case "shotgun":
+      activateShotgun(state.shotgun);
       return true;
     case "phoenix-egg":
       state.phoenixCharges = armPhoenixCharge(state.phoenixCharges);
@@ -285,6 +304,10 @@ export function isSwarmCurseOn(state: RunPowerRuntimeState): boolean {
 
 export function isCullBrandOn(state: RunPowerRuntimeState): boolean {
   return isCullBrandActive(state.cullBrand);
+}
+
+export function isShotgunOn(state: RunPowerRuntimeState): boolean {
+  return isShotgunEquipped(state.shotgun);
 }
 
 export function hasPhoenixOn(state: RunPowerRuntimeState): boolean {

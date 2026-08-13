@@ -30,6 +30,8 @@ describe("Play HUD structure (Ash Binding)", () => {
     expect(host).toContain('id="luminous-ward-value"');
     expect(host).toContain('id="annihilation-pulse-status"');
     expect(host).toContain('id="annihilation-pulse-value"');
+    expect(host).toContain('id="shotgun-status"');
+    expect(host).toContain('id="shotgun-value"');
     expect(host).toContain('id="mobility-status"');
     expect(host).toContain('id="mobility-value"');
     expect(host).toContain("/assets/ui/pickup-icons/mobility.webp");
@@ -195,6 +197,7 @@ describe("Play HUD structure (Ash Binding)", () => {
     expect(css).toContain("luminous-ward-pulse");
     expect(css).toContain(".annihilation-pulse-status");
     expect(css).toContain("annihilation-pulse-status-pulse");
+    expect(css).toContain(".shotgun-status");
     expect(css).toContain(".mobility-status");
     expect(css).toContain(".curse-status");
     expect(css).toContain(".curse-status--swarm");
@@ -210,7 +213,8 @@ describe("Play HUD structure (Ash Binding)", () => {
   test("copy mentions shift sprint", async () => {
     const { COPY } = await import("../src/ui/copy");
     expect(COPY.status.exploring.toLowerCase()).toContain("shift sprint");
-    expect(COPY.status.enterPlay.toLowerCase()).toContain("hold click");
+    expect(COPY.status.enterPlay.toLowerCase()).toContain("right-click");
+    expect(COPY.status.exploring.toLowerCase()).toContain("left-click or g fire");
   });
 
   test("won end-card never enables a content scrollbar", async () => {

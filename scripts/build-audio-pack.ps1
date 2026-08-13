@@ -93,6 +93,22 @@ $assets = @(
   [pscustomobject]@{
     Name = "portal-open"; Channels = 1; Bitrate = "64k"; TargetLufs = -20; Start = 0; Duration = 3.60
     Source = SourcePath "Magic\MagicSpells\MagicSpells\MAGSpel_Forbidden Magic, Powerful Crystal Spell Launch_Ocular Sounds_Magic Spells_The Complete Fantasy Collection.wav"
+  },
+  [pscustomobject]@{
+    Name = "shotgun-fire"; Channels = 1; Bitrate = "56k"; TargetLufs = -18; Start = 0; Duration = 1.18
+    Source = SourcePath "Weapons\GunsSoundFxPack\12gaPumpShotgun\Gunshots\12ga Pump Shotgun - Gunshot A 002.wav"
+  },
+  [pscustomobject]@{
+    Name = "shotgun-pump"; Channels = 1; Bitrate = "48k"; TargetLufs = -22; Start = 0; Duration = 0.72
+    Source = SourcePath "Weapons\GunsSoundFxPack\12gaPumpShotgun\Foley\12ga Pump Shotgun - Pump 001.wav"
+  },
+  [pscustomobject]@{
+    Name = "pickup-shotgun-v2"; Channels = 1; Bitrate = "56k"; TargetLufs = -20; Start = 0; Duration = 0.68
+    Source = SourcePath "Weapons\GunsSoundFxPack\12gaPumpShotgun\Foley\12ga Pump Shotgun - Load Shells 002.wav"
+  },
+  [pscustomobject]@{
+    Name = "shotgun-dry"; Channels = 1; Bitrate = "40k"; TargetLufs = -24; Start = 0; Duration = 0.42
+    Source = SourcePath "Weapons\GunsSoundFxPack\12gaPumpShotgun\Foley\12ga Pump Shotgun - Dry Trigger 001.wav"
   }
 )
 

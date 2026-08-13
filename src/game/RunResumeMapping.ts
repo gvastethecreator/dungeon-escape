@@ -35,6 +35,8 @@ export interface RunResumeCaptureInput {
     readonly gloomCurseRemaining: number;
     readonly swarmCurseActive: boolean;
     readonly cullBrandRemaining: number;
+    readonly shotgunShells: number;
+    readonly shotgunPumpRemaining: number;
     readonly mirrorCurseRemaining: number;
     readonly spinCurseRemaining: number;
     readonly phoenixCharges: number;
@@ -134,6 +136,8 @@ export function captureRunResume(input: RunResumeCaptureInput): LocalRunResumeSt
     gloomCurseRemaining: input.world.gloomCurseRemaining,
     swarmCurseActive: input.world.swarmCurseActive,
     cullBrandRemaining: input.world.cullBrandRemaining,
+    shotgunShells: input.world.shotgunShells,
+    shotgunPumpRemaining: input.world.shotgunPumpRemaining,
     mirrorCurseRemaining: input.world.mirrorCurseRemaining,
     spinCurseRemaining: input.world.spinCurseRemaining,
     phoenixCharges: input.world.phoenixCharges,
@@ -182,6 +186,8 @@ export function planRunResumeRestore(
         gloomCurseRemaining: resume.gloomCurseRemaining,
         swarmCurseActive: resume.swarmCurseActive,
         cullBrandRemaining: resume.cullBrandRemaining,
+        shotgunShells: resume.shotgunShells,
+        shotgunPumpRemaining: resume.shotgunPumpRemaining,
         mirrorCurseRemaining: resume.mirrorCurseRemaining,
         spinCurseRemaining: resume.spinCurseRemaining,
         phoenixCharges: resume.phoenixCharges,

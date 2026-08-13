@@ -50,6 +50,8 @@ export interface MinimapFeatures {
   annihilationPulse?: MinimapCell;
   /** Cull brand relic that has not yet been picked up. */
   cullBrand?: MinimapCell;
+  /** Pump shotgun that has not yet been picked up. */
+  shotgun?: MinimapCell;
   /** Phoenix egg that has not yet been picked up. */
   phoenixEgg?: MinimapCell;
   /** Full-map scroll pickup. */

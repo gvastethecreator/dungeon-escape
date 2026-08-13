@@ -143,7 +143,7 @@ A deterministic, time-bounded modifier for one biome that changes pressure, move
 The map or mobility item. Map reveals the active floor; mobility boosts speed and stamina while granting floor-trap immunity. Both persist in the active run.
 
 **Offense power pool**:
-The single positive kill/pressure chest slot per floor. Deterministically rolls among offense kinds (currently annihilation pulse and cull brand) so new kill tools can ship without raising the eight-chest budget.
+The single positive kill/pressure chest slot per floor. Deterministically rolls among offense kinds (annihilation pulse, cull brand, and shotgun) so new kill tools can ship without raising the eight-chest budget.
 
 **Control curse**:
 A timed cursed chest effect that remaps look and/or movement (mirror invert, spin yaw bias). Newest control curse clears the other so mirror and spin never stack.

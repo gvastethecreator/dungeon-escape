@@ -11,6 +11,7 @@ import {
   createResolveFlask,
   createTimeFreezeRelic,
 } from "./world/ItemFactory";
+import { createShotgunPickup } from "./world/ShotgunFactory";
 import {
   applyMoodToDungeonMaterials,
   createDungeonMaterials,
@@ -436,6 +437,11 @@ export const MODEL_QA_CATALOG = [
     id: "cull-brand",
     label: "Cull brand relic",
     factory: (materials) => createCullBrandRelic(materials),
+  },
+  {
+    id: "shotgun",
+    label: "Pump shotgun",
+    factory: (materials) => createShotgunPickup(materials),
   },
   {
     id: "phoenix-egg",

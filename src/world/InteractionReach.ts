@@ -95,11 +95,11 @@ export function canInteractWithChest(
 }
 
 /**
- * Chest open intent: explicit interact (F / UI) or hold-click auto-open.
- * Stairs must not use mouseForwardHeld.
+ * Chest open intent: explicit interact (F / UI) only.
+ * Left click is reserved for the equipped shotgun.
  */
-export function shouldOpenChest(interactPressed: boolean, mouseForwardHeld: boolean): boolean {
-  return Boolean(interactPressed || mouseForwardHeld);
+export function shouldOpenChest(interactPressed: boolean): boolean {
+  return Boolean(interactPressed);
 }
 
 /** Point-form of chest reach for callers that still have world positions. */

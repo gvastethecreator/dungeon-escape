@@ -38,6 +38,7 @@ export const COPY = {
     luminousWard: "Ward Stone",
     annihilationPulse: "Pulse Relic",
     cullBrand: "Cull Brand",
+    shotgun: "Pump Shotgun",
     phoenixEgg: "Phoenix Egg",
     map: "Dungeon Map",
     mobility: "Wayfinder Draught",
@@ -61,13 +62,13 @@ export const COPY = {
     verdant: "Verdant heart",
   } as const,
   status: {
-    enter: "Click the scene to lock the pointer. Hold click to walk.",
+    enter: "Click the scene to lock the pointer.",
     enterPlay:
-      "Click the scene to lock the pointer. Hold click to walk · right-click to jump · ESC options.",
+      "Click the scene to lock the pointer. Right-click to jump · ESC options.",
     forgingMap: "Forging the dungeon…",
     enteringDungeon: "Entering the depths…",
     exploring:
-      "WASD or hold click move · Right-click or SPACE jump · SHIFT sprint · Q/E snap 90° · F interact · ESC options.",
+      "WASD move · Left-click or G fire · Right-click or SPACE jump · SHIFT sprint · Q/E snap 90° · F interact · ESC options.",
     pointerReleased: "Paused. ESC or RESUME to continue.",
     pointerFailed: "Could not capture the pointer. Click the scene to retry.",
     pointerBlocked: "The browser blocked the pointer. Click the scene to retry.",
@@ -78,6 +79,7 @@ export const COPY = {
     luminousWard: `Ward active for ${LUMINOUS_WARD_DURATION_SECONDS} seconds.`,
     annihilationPulse: `Annihilation pulse active for ${ANNIHILATION_PULSE_DURATION_SECONDS} seconds.`,
     cullBrand: `Next enemy contact kills for ${CULL_BRAND_DURATION_SECONDS} seconds.`,
+    shotgun: "Pump shotgun equipped. Left-click or G to fire.",
     phoenixEgg: "Phoenix egg equipped. Survives one death.",
     phoenixRevive: `Reborn at ${PHOENIX_REVIVE_RESOLVE} health. Annihilation pulse ignited.`,
     map: "Dungeon map found. Every room and route is now visible.",

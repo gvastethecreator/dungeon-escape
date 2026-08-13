@@ -16,6 +16,7 @@ export interface PlayStatusHudPorts {
   luminousWard: PlayStatusChipElements;
   annihilationPulse: PlayStatusChipElements;
   cullBrand: PlayStatusChipElements;
+  shotgun: PlayStatusChipElements;
   fogClear: PlayStatusChipElements;
   mobility: PlayStatusChipElements;
   handTorch: PlayStatusChipElements;
@@ -35,6 +36,8 @@ export interface PlayStatusSnapshot {
   luminousWard?: number;
   annihilationPulse?: number;
   cullBrand?: number;
+  shotgunShells?: number;
+  shotgunPumpRemaining?: number;
   fogClear?: number;
   mobility?: number;
   handTorch?: number;
@@ -143,6 +146,7 @@ export class PlayStatusHud {
     this.luminousWard.reset();
     this.annihilationPulse.reset();
     this.cullBrand.reset();
+    this.syncShotgun(0, 0);
     this.fogClear.reset();
     this.mobility.reset();
     this.handTorch.reset();
@@ -163,6 +167,9 @@ export class PlayStatusHud {
     if (snapshot.annihilationPulse !== undefined)
       this.annihilationPulse.sync(snapshot.annihilationPulse);
     if (snapshot.cullBrand !== undefined) this.cullBrand.sync(snapshot.cullBrand);
+    if (snapshot.shotgunShells !== undefined || snapshot.shotgunPumpRemaining !== undefined) {
+      this.syncShotgun(snapshot.shotgunShells ?? 0, snapshot.shotgunPumpRemaining ?? 0);
+    }
     if (snapshot.fogClear !== undefined) {
       this.fogClear.sync(snapshot.fogClear);
       this.applyFogClearSideEffect(snapshot.fogClear > 0);
@@ -187,6 +194,18 @@ export class PlayStatusHud {
     const armed = charges > 0;
     this.ports.phoenixRoot.hidden = !armed;
     this.ports.shell.dataset.phoenix = armed ? "true" : "false";
+  }
+
+  private syncShotgun(shells: number, pumpSeconds = 0): void {
+    const remaining = Math.max(0, Math.floor(shells));
+    const equipped = remaining > 0 || pumpSeconds > 0.0001;
+    this.ports.shotgun.root.hidden = !equipped;
+    this.ports.shell.dataset.shotgun = equipped ? "true" : "false";
+    this.ports.shotgun.value.textContent = String(remaining);
+    this.ports.shotgun.value.setAttribute(
+      "aria-label",
+      equipped ? `${remaining} shotgun shells remaining` : "shotgun unequipped",
+    );
   }
 
   private applyFogClearSideEffect(active: boolean): void {

@@ -62,6 +62,7 @@ export type CollectedPickupKind =
   | "luminous-ward"
   | "annihilation-pulse"
   | "cull-brand"
+  | "shotgun"
   | "phoenix-egg"
   | "map"
   | "mobility"
@@ -283,6 +284,7 @@ const AUDIO_ASSETS: Readonly<Record<AudioAssetId, AudioAssetDefinition>> = {
   "pickup-luminous-ward-v2": pickupAsset("pickup-luminous-ward-v2.opus", 0.75),
   "pickup-annihilation-pulse-v2": pickupAsset("pickup-annihilation-pulse-v2.opus", 0.8),
   "pickup-cull-brand-v2": pickupAsset("pickup-cull-brand-v2.opus", 0.77),
+  "pickup-shotgun-v2": pickupAsset("pickup-shotgun-v2.opus", 0.82),
   "pickup-phoenix-egg-v2": pickupAsset("pickup-phoenix-egg-v2.opus", 0.8),
   "pickup-map-v2": pickupAsset("pickup-map-v2.opus", 0.66),
   "pickup-mobility-v2": pickupAsset("pickup-mobility-v2.opus", 0.72),
@@ -297,6 +299,9 @@ const AUDIO_ASSETS: Readonly<Record<AudioAssetId, AudioAssetDefinition>> = {
   "pickup-spin-curse-v2": pickupAsset("pickup-spin-curse-v2.opus", 0.7),
   "power-annihilation-pulse": pickupAsset("power-annihilation-pulse.opus", 0.9),
   "power-cull-brand-kill": pickupAsset("power-cull-brand-kill.opus", 0.84),
+  "shotgun-fire": pickupAsset("shotgun-fire.opus", 0.94),
+  "shotgun-pump": pickupAsset("shotgun-pump.opus", 0.78),
+  "shotgun-dry": pickupAsset("shotgun-dry.opus", 0.7),
   "power-phoenix-revive": pickupAsset("power-phoenix-revive.opus", 0.88),
   "enemy-growl": {
     file: "enemy-growl.opus",
@@ -431,6 +436,7 @@ const PICKUP_ASSETS: Readonly<Record<CollectedPickupKind, AudioAssetId>> = {
   "luminous-ward": "pickup-luminous-ward-v2",
   "annihilation-pulse": "pickup-annihilation-pulse-v2",
   "cull-brand": "pickup-cull-brand-v2",
+  shotgun: "pickup-shotgun-v2",
   "phoenix-egg": "pickup-phoenix-egg-v2",
   map: "pickup-map-v2",
   mobility: "pickup-mobility-v2",

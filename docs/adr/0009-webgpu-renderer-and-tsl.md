@@ -12,10 +12,10 @@ Three.js r185 exposes `three/webgpu` (`WebGPURenderer`, `RenderPipeline`) and `t
 
 ## Decision
 
-- One renderer factory (`PlayRendererFactory`) selects WebGPU or WebGL from launch preference. Default remains WebGL until a staged flip (WGP-23).
+- One renderer factory (`PlayRendererFactory`) selects WebGPU or WebGL from launch preference. Default is WebGPU when an adapter exists (WGP-23 armed); WebGL remains the fallback.
 - Custom look is authored in TSL. New code must not add `ShaderMaterial` or `onBeforeCompile`.
 - Migration is expand-contract: each VFX keeps a GLSL path and adds a TSL path behind `ShaderProgramMode` (`glsl` | `tsl`), then GLSL is deleted after the flip.
-- TSL halves live in `*.tsl.ts` siblings that self-register with `TslMaterialModules` and are imported only when the renderer resolves to WebGPU. No module on the WebGL path may import `three/webgpu` for its value, so the default boot keeps the node-material runtime (~650 kB) out of its critical path during the dual-mode window.
+- TSL halves live in `*.tsl.ts` siblings that self-register with `TslMaterialModules` and are imported only when the renderer resolves to WebGPU. No module on the WebGL path may import `three/webgpu` for its value, so the WebGL fallback boot keeps the node-material runtime (~650 kB) out of its critical path during the dual-mode window.
 - Post-processing moves to `RenderPipeline` (not `EffectComposer`, not deprecated `PostProcessing`).
 - `WebGPURenderer` with `forceWebGL` is the supported fallback for machines without a WebGPU adapter; both backends share TSL materials.
 
