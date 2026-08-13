@@ -64,7 +64,8 @@ describe("shotgun floor spawn", () => {
     };
     const roomSeat = dungeon.rooms.find((room) => room.role === "room")?.center;
     expect(roomSeat).toBeDefined();
-    const seats = selectShotgunFloorSeats(dungeon, 1, occupied, [roomSeat!]);
+    if (!roomSeat) return;
+    const seats = selectShotgunFloorSeats(dungeon, 1, occupied, [roomSeat]);
     expect(seats).toHaveLength(1);
     expect(seats[0]).toEqual(roomSeat);
   });
