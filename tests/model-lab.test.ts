@@ -79,6 +79,7 @@ describe("model QA lab", () => {
       "door-backrooms",
       "annihilation-pulse",
       "cull-brand",
+      "shotgun",
       "phoenix-egg",
       "swarm-curse",
       "slow-curse",

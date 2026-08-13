@@ -31,6 +31,11 @@ describe("PickupFeedback", () => {
       kickerKey: "itemFound",
       restoreResolve: false,
     });
+    expect(projectPickupFeedback({ shotgun: true })).toEqual({
+      kind: "shotgun",
+      kickerKey: "itemFound",
+      restoreResolve: false,
+    });
     expect(projectPickupFeedback({ luminousWard: true })).toEqual({
       kind: "luminous-ward",
       kickerKey: "itemFound",

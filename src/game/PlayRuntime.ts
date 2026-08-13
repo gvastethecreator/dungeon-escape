@@ -53,7 +53,8 @@ export interface PlayWorldPort<TDungeon, TMood, TPlayer, TWorldUpdate extends Pl
     player: TPlayer,
     atExit: boolean,
     interactPressed?: boolean,
-    mouseForwardHeld?: boolean,
+    firePressed?: boolean,
+    aim?: { x: number; y: number; z: number },
   ): TWorldUpdate;
   restoreSession(foundStoneIds: readonly StoneId[]): void;
   restoreRuntimeProgress(
@@ -77,6 +78,8 @@ export interface PlayRuntimeProgress {
     gloomCurseRemaining?: number;
     swarmCurseActive?: boolean;
     cullBrandRemaining?: number;
+    shotgunShells?: number;
+    shotgunPumpRemaining?: number;
     mirrorCurseRemaining?: number;
     spinCurseRemaining?: number;
     phoenixCharges?: number;
@@ -234,7 +237,8 @@ export class PlayRuntime<TDungeon, TMood, TPlayer, TWorldUpdate extends PlayWorl
     player: TPlayer;
     atExit: boolean;
     interactPressed?: boolean;
-    mouseForwardHeld?: boolean;
+    firePressed?: boolean;
+    aim?: { x: number; y: number; z: number };
   }): PlayRuntimeStep<TWorldUpdate> {
     this.assertActive();
     if (this.session.runMode !== "playing") {
@@ -246,7 +250,8 @@ export class PlayRuntime<TDungeon, TMood, TPlayer, TWorldUpdate extends PlayWorl
       input.player,
       input.atExit,
       input.interactPressed,
-      input.mouseForwardHeld,
+      input.firePressed,
+      input.aim,
     );
     this.gameplayClockMs += delta * 1_000;
     const effects = applyWorldUpdate(

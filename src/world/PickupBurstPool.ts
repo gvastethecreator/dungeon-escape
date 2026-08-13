@@ -14,6 +14,7 @@ export type PickupBurstKind =
   | "luminous-ward"
   | "annihilation-pulse"
   | "cull-brand"
+  | "shotgun"
   | "phoenix-egg"
   | "map"
   | "mobility"
@@ -87,6 +88,7 @@ export const BURST_COLORS: Readonly<Record<PickupBurstKind, number>> = {
   "luminous-ward": 0xb9e879,
   "annihilation-pulse": 0xff5d86,
   "cull-brand": 0xff7a3a,
+  shotgun: 0x8aa0b4,
   "phoenix-egg": 0xff9a3a,
   map: 0xd5bd7a,
   mobility: 0x72d45f,
@@ -195,6 +197,22 @@ export const BURST_PROFILES: Readonly<Record<PickupBurstKind, PickupBurstProfile
     echoTilt: -0.1,
     ringSpin: 1.8,
     echoDelay: 0.1,
+  },
+  shotgun: {
+    motion: "shockwave",
+    shape: "splinter",
+    duration: 0.82,
+    ringStart: 0.62,
+    ringEnd: 7.4,
+    ringPeakOpacity: 0.88,
+    echoPeakOpacity: 0.5,
+    sparkPeakOpacity: 1,
+    pointSize: 0.14,
+    rootLift: 1.7,
+    ringTilt: 0.04,
+    echoTilt: 0.08,
+    ringSpin: 1.55,
+    echoDelay: 0.09,
   },
   "phoenix-egg": {
     motion: "fountain",

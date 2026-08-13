@@ -55,6 +55,7 @@ import { resolveExplorationFogMultiplier } from "./systems/ExplorationFog";
 import { SceneTextureRegistry } from "./systems/SceneTextureRegistry";
 import { resolveDungeonExposure } from "./systems/LightTuning";
 import { createFirstPersonTorch } from "./player/FirstPersonTorch";
+import { createFirstPersonShotgun } from "./player/FirstPersonShotgun";
 import { PovPostFx } from "./systems/PovPostFx";
 import {
   DEFAULT_DISPLAY_POST_FX_TUNING,
@@ -313,6 +314,8 @@ const elements = {
   annihilationPulseValue: requireElement<HTMLTimeElement>("#annihilation-pulse-value"),
   cullBrandStatus: requireElement<HTMLElement>("#cull-brand-status"),
   cullBrandValue: requireElement<HTMLTimeElement>("#cull-brand-value"),
+  shotgunStatus: requireElement<HTMLElement>("#shotgun-status"),
+  shotgunValue: requireElement<HTMLElement>("#shotgun-value"),
   phoenixStatus: requireElement<HTMLElement>("#phoenix-status"),
   fogClearStatus: requireElement<HTMLElement>("#fog-clear-status"),
   fogClearValue: requireElement<HTMLTimeElement>("#fog-clear-value"),
@@ -538,7 +541,7 @@ const calibratedRenderPathCaps = recalibrateRenderCapabilitiesForBackend(
 );
 setShaderProgramModeRegistry(createShaderProgramModeRegistry(shaderProgramMode));
 if (shaderProgramMode === "tsl") {
-  // `three/webgpu` is only pulled in here; the WebGL default never loads it.
+  // `three/webgpu` is only pulled in here; the WebGL fallback never loads it.
   await loadTslMaterialModules();
 }
 const { registerDungeonSurfaceShaderFactory } = await import("./world/TextureTreatment");
@@ -694,6 +697,7 @@ const playStatusHud = new PlayStatusHud({
     value: elements.annihilationPulseValue,
   },
   cullBrand: { root: elements.cullBrandStatus, value: elements.cullBrandValue },
+  shotgun: { root: elements.shotgunStatus, value: elements.shotgunValue },
   fogClear: { root: elements.fogClearStatus, value: elements.fogClearValue },
   mobility: { root: elements.mobilityStatus, value: elements.mobilityValue },
   handTorch: { root: elements.handTorchStatus, value: elements.handTorchValue },
@@ -904,6 +908,11 @@ const handTorch = createFirstPersonTorch();
 handTorch.attach(camera, scene);
 handTorch.setVisible(false);
 
+/** Authored pump shotgun adapted as a left-hand FP viewmodel. */
+const handShotgun = createFirstPersonShotgun();
+handShotgun.attach(camera, scene);
+handShotgun.setVisible(false);
+
 const editorView = new LazyDungeonEditorView(elements.editorMap, {
   onSelectSpawn: selectEditorSpawn,
 });
@@ -1005,6 +1014,8 @@ function captureLocalRunResume(): LocalRunResumeState | undefined {
       gloomCurseRemaining: world.gloomCurseRemaining,
       swarmCurseActive: world.isSwarmCurseActive,
       cullBrandRemaining: world.cullBrandRemaining,
+      shotgunShells: world.shotgunShells,
+      shotgunPumpRemaining: world.shotgunPumpRemaining,
       mirrorCurseRemaining: world.mirrorCurseRemaining,
       spinCurseRemaining: world.spinCurseRemaining,
       phoenixCharges: world.phoenixChargeCount,
@@ -1944,6 +1955,7 @@ function beginRendererWarmup(): number {
   // clean sentinel and the stale frame exits on its sequence guard.
   world.setPickupEffectsWarmupVisible(false);
   handTorch.setWarmupVisible(false);
+  handShotgun.setWarmupVisible(false);
   return renderWarmupSequence;
 }
 
@@ -2037,6 +2049,7 @@ function startRendererWarmup(
         world.prepareVisibleZone(camera.position);
         world.setPickupEffectsWarmupVisible(true);
         handTorch.setWarmupVisible(true);
+        handShotgun.setWarmupVisible(true);
         const drawStartedAt = performance.now();
         povPost.render(renderer, scene, camera);
         warmupWorkMs += performance.now() - drawStartedAt;
@@ -2047,6 +2060,7 @@ function startRendererWarmup(
       try {
         world.setPickupEffectsWarmupVisible(false);
         handTorch.setWarmupVisible(false);
+        handShotgun.setWarmupVisible(false);
       } catch (error) {
         if (warmupError === null) warmupError = error;
       }
@@ -2435,6 +2449,8 @@ function syncPlayStatusHud(
     luminousWard?: number;
     annihilationPulse?: number;
     cullBrand?: number;
+    shotgunShells?: number;
+    shotgunPumpRemaining?: number;
     fogClear?: number;
     mobility?: number;
     handTorch?: number;
@@ -2452,6 +2468,8 @@ function syncPlayStatusHud(
     luminousWard: remaining.luminousWard ?? world.luminousWardRemaining,
     annihilationPulse: remaining.annihilationPulse ?? world.annihilationPulseRemaining,
     cullBrand: remaining.cullBrand ?? world.cullBrandRemaining,
+    shotgunShells: remaining.shotgunShells ?? world.shotgunShells,
+    shotgunPumpRemaining: remaining.shotgunPumpRemaining ?? world.shotgunPumpRemaining,
     fogClear: remaining.fogClear ?? world.fogClearRemaining,
     mobility: remaining.mobility ?? world.mobilityBoostRemaining,
     handTorch: remaining.handTorch ?? world.handTorchRemaining,
@@ -3920,6 +3938,7 @@ export interface DungeonRuntimeState {
   luminousWardRemaining?: number;
   annihilationPulseRemaining?: number;
   cullBrandRemaining?: number;
+  shotgunShells?: number;
   mirrorCurseRemaining?: number;
   spinCurseRemaining?: number;
   resolve?: number;
@@ -4171,6 +4190,7 @@ function getRuntimeState(): DungeonRuntimeState {
     luminousWardRemaining: Number(world.luminousWardRemaining.toFixed(2)),
     annihilationPulseRemaining: Number(world.annihilationPulseRemaining.toFixed(2)),
     cullBrandRemaining: Number(world.cullBrandRemaining.toFixed(2)),
+    shotgunShells: world.shotgunShells,
     mirrorCurseRemaining: Number(world.mirrorCurseRemaining.toFixed(2)),
     spinCurseRemaining: Number(world.spinCurseRemaining.toFixed(2)),
     resolve: Number(state.resolve.toFixed(1)),
@@ -5157,12 +5177,14 @@ function frame(now: number): void {
   }
   if (simulationActive && document.visibilityState === "visible") {
     world.setPlayerTraversalState({ jumpHeight: player.jumpHeight });
+    camera.getWorldDirection(audioForward);
     const step = playRuntime.step({
       delta,
       player: playerPosition,
       atExit: result.atExit,
       interactPressed: result.interactPressed || uiInteractQueued,
-      mouseForwardHeld: result.mouseForwardHeld,
+      firePressed: result.firePressed,
+      aim: { x: audioForward.x, y: audioForward.y, z: audioForward.z },
     });
     uiInteractQueued = false;
     const { worldUpdate, effects, state } = step;
@@ -5172,6 +5194,8 @@ function frame(now: number): void {
         luminousWard: worldUpdate.luminousWardRemaining,
         annihilationPulse: worldUpdate.annihilationPulseRemaining,
         cullBrand: worldUpdate.cullBrandRemaining,
+        shotgunShells: worldUpdate.shotgunShells,
+        shotgunPumpRemaining: world.shotgunPumpRemaining,
         fogClear: worldUpdate.fogClearRemaining,
         mobility: worldUpdate.mobilityBoostRemaining,
         handTorch: worldUpdate.handTorchRemaining,
@@ -5243,6 +5267,22 @@ function frame(now: number): void {
         audio.playCullBrandKill(worldUpdate.cullBrandKill.position);
         hitTrauma = Math.max(hitTrauma, 0.42);
         flash("event");
+      }
+      if (worldUpdate.shotgunFire) {
+        handShotgun.kick();
+        audio.playShotgunFire(worldUpdate.shotgunFire.position, {
+          pump: worldUpdate.shotgunFire.pump,
+        });
+        if (worldUpdate.shotgunFire.hits > 0) {
+          hitTrauma = Math.max(
+            hitTrauma,
+            Math.min(0.62, 0.16 + worldUpdate.shotgunFire.hits * 0.04),
+          );
+          flash("event");
+        }
+      }
+      if (worldUpdate.shotgunDryFire) {
+        audio.playShotgunDry(worldUpdate.shotgunDryFire.position);
       }
       if (effects.phoenixRevive) {
         world.applyPhoenixRevive(playerPosition);
@@ -5370,6 +5410,24 @@ function frame(now: number): void {
         velocityZ: player.velocityZ,
       },
       lanternMul * fuelFade,
+    );
+  }
+  const showShotgun =
+    simulationActive && playRuntime.state().runMode === "playing" && world.isShotgunEquipped;
+  handShotgun.setVisible(showShotgun);
+  if (showShotgun) {
+    handShotgun.update(
+      delta,
+      now * 0.001,
+      {
+        moving: player.moving,
+        sprinting: player.sprinting,
+        stridePhase: player.stridePhase,
+        grounded: player.grounded,
+        velocityX: player.velocityX,
+        velocityZ: player.velocityZ,
+      },
+      world.shotgunPumpRemaining,
     );
   }
 

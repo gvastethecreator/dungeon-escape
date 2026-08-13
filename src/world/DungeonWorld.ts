@@ -80,6 +80,11 @@ import {
 import { CULL_BRAND_MIN_PHASE_VISIBILITY, tryConsumeCullBrand } from "../game/CullBrand";
 import { clampPhoenixCharges, hasPhoenixCharge } from "../game/PhoenixEgg";
 import {
+  shotgunHitsEnemy,
+  shotgunMuzzleWorldOrigin,
+  tryFireShotgun,
+} from "../game/Shotgun";
+import {
   applyPickupToRunPowers,
   createRunPowerRuntime,
   equipHandTorchFromWall,
@@ -92,6 +97,7 @@ import {
   isLuminousWardOn,
   isMirrorCurseOn,
   isMobilityBoostOn,
+  isShotgunOn,
   isSlowCurseOn,
   isSpinCurseOn,
   isSwarmCurseOn,
@@ -103,6 +109,7 @@ import {
 import { CullBrandVfx } from "./CullBrandVfx";
 import { ControlCurseVfx } from "./ControlCurseVfx";
 import { PhoenixEggVfx } from "./PhoenixEggVfx";
+import { ShotgunBlastVfx } from "./ShotgunBlastVfx";
 import { StaticResourceCatalog, type StaticResourceCatalogSnapshot } from "./StaticResourceCatalog";
 import { type ResidentFloorRuntime, type ResidentFloorRuntimeOwner } from "./ResidentFloorRuntime";
 import { ENEMY_ROSTER } from "./EnemySpriteAtlas";
@@ -176,6 +183,19 @@ export interface WorldUpdate {
   cullBrandKill: {
     position: { x: number; y: number; z: number };
   } | null;
+  /** Shotgun blast this tick; hits are already removed from the enemy seats. */
+  shotgunFire: {
+    position: { x: number; y: number; z: number };
+    hits: number;
+    shells: number;
+    pump: boolean;
+  } | null;
+  /** Clicked fire while the tube is pumping. */
+  shotgunDryFire: {
+    position: { x: number; y: number; z: number };
+  } | null;
+  /** Equipped shotgun shells remaining after this update. */
+  shotgunShells: number;
   /** Armed phoenix charges (0 or 1) after this update. */
   phoenixCharges: number;
   stonesFound: number;
@@ -265,6 +285,7 @@ export class DungeonWorld {
   private luminousWardVfx: LuminousWardVfx | null = null;
   private mobilityBoostVfx: MobilityBoostVfx | null = null;
   private annihilationPulseVfx: AnnihilationPulseVfx | null = null;
+  private shotgunBlastVfx: ShotgunBlastVfx | null = null;
   private readonly pickupBurstWarmupPosition = new THREE.Vector3();
   /** Reused only for immediate world-coordinate reads from resident floor roots. */
   private readonly residentWorldPosition = new THREE.Vector3();
@@ -777,6 +798,8 @@ export class DungeonWorld {
     this.annihilationPulseVfx = new AnnihilationPulseVfx();
     this.detachVfxPointLights(this.annihilationPulseVfx.root);
     this.group.add(this.annihilationPulseVfx.root);
+    this.shotgunBlastVfx = new ShotgunBlastVfx(this.textureLifecycle.textureSink);
+    this.group.add(this.shotgunBlastVfx.root);
   }
 
   setDecorDensity(value: number): void {
@@ -852,7 +875,8 @@ export class DungeonWorld {
     player: THREE.Vector3,
     atExit: boolean,
     interactPressed = false,
-    mouseForwardHeld = false,
+    firePressed = false,
+    aim?: { x: number; y: number; z: number },
   ): WorldUpdate {
     this.lockedExitCooldown = Math.max(0, this.lockedExitCooldown - delta);
     const { pulseCount } = tickRunPowerRuntime(this.powers, delta);
@@ -932,6 +956,8 @@ export class DungeonWorld {
     let knockHits = sim.knockHits;
     let annihilationPulse: WorldUpdate["annihilationPulse"] = null;
     let cullBrandKill: WorldUpdate["cullBrandKill"] = null;
+    let shotgunFire: WorldUpdate["shotgunFire"] = null;
+    let shotgunDryFire: WorldUpdate["shotgunDryFire"] = null;
     if (pulseCount > 0) {
       let hits = 0;
       for (let pulse = 0; pulse < pulseCount; pulse += 1) {
@@ -967,6 +993,33 @@ export class DungeonWorld {
           z: attackerPosition.z,
         },
       };
+    }
+    if (firePressed && isShotgunOn(this.powers)) {
+      if (tryFireShotgun(this.powers.shotgun)) {
+        const aimLength = aim ? Math.hypot(aim.x, aim.y, aim.z) : 0;
+        const direction =
+          aim && aimLength > 1e-6
+            ? { x: aim.x / aimLength, y: aim.y / aimLength, z: aim.z / aimLength }
+            : { x: 0, y: 0, z: -1 };
+        const blast = this.applyShotgunBlast(player, direction);
+        const muzzle = shotgunMuzzleWorldOrigin(player, direction);
+        this.shotgunBlastVfx?.triggerBlast({
+          origin: muzzle,
+          direction,
+          impacts: blast.impacts,
+          seed: this.elapsed * 17.13 + player.x * 3.1 + player.z,
+        });
+        shotgunFire = {
+          position: { x: muzzle.x, y: muzzle.y, z: muzzle.z },
+          hits: blast.hits,
+          shells: this.powers.shotgun.shells,
+          pump: true,
+        };
+      } else {
+        shotgunDryFire = {
+          position: { x: player.x, y: player.y, z: player.z },
+        };
+      }
     }
     const attackerWorldPosition =
       sim.attacker && activeEnemyRuntime
@@ -1057,7 +1110,7 @@ export class DungeonWorld {
       (nearestTorch === null || nearestChestDistance <= nearestTorchDistance);
     if (preferChest && nearestChest) {
       interactionPrompt = "open-chest";
-      if (shouldOpenChest(interactPressed, mouseForwardHeld)) {
+      if (shouldOpenChest(interactPressed)) {
         nearestChest.opened = true;
         setPickupDormant(nearestChest.reward.object, false);
         beginChestRewardReveal(nearestChest);
@@ -1138,6 +1191,7 @@ export class DungeonWorld {
         } else if (applyPickupToRunPowers(this.powers, pickup.kind)) {
           if (pickup.annihilationPulseSignal) pickup.annihilationPulseSignal.light.intensity = 0;
           if (pickup.cullBrandSignal) pickup.cullBrandSignal.light.intensity = 0;
+          if (pickup.shotgunSignal) pickup.shotgunSignal.light.intensity = 0;
           if (pickup.phoenixEggSignal) pickup.phoenixEggSignal.light.intensity = 0;
           if (pickup.luminousWardSignal) pickup.luminousWardSignal.light.intensity = 0;
           if (pickup.kind === "swarm-curse") {
@@ -1187,6 +1241,9 @@ export class DungeonWorld {
       gloomCurseRemaining: this.powers.gloomCurseSeconds,
       swarmCurseActive: this.powers.swarmCurseActive,
       cullBrandRemaining: this.powers.cullBrand.remaining,
+      shotgunFire,
+      shotgunDryFire,
+      shotgunShells: this.powers.shotgun.shells,
       mirrorCurseRemaining: this.powers.mirrorCurseSeconds,
       spinCurseRemaining: this.powers.spinCurseSeconds,
       annihilationPulse,
@@ -1257,6 +1314,41 @@ export class DungeonWorld {
     return hits;
   }
 
+  private applyShotgunBlast(
+    origin: THREE.Vector3,
+    direction: { x: number; y: number; z: number },
+  ): { hits: number; impacts: { x: number; y: number; z: number }[] } {
+    const runtime = this.activeEnemyRuntime;
+    const impacts: { x: number; y: number; z: number }[] = [];
+    if (!runtime) return { hits: 0, impacts };
+    const localOrigin = runtime.localPlayerPosition(origin);
+    let hits = 0;
+    for (const enemy of runtime.actors) {
+      if (
+        !shotgunHitsEnemy(localOrigin, direction, {
+          defeated: enemy.defeated,
+          scaleX: enemy.scaleX,
+          scaleY: enemy.scaleY,
+          phaseVisibility: enemy.phaseVisibility,
+          position: enemy.position,
+          baseScaleX: enemy.baseScale.x,
+          baseScaleY: enemy.baseScale.y,
+        })
+      ) {
+        continue;
+      }
+      const worldPosition = runtime.worldPositionInto(enemy.position, this.residentWorldPosition);
+      impacts.push({
+        x: worldPosition.x,
+        y: worldPosition.y + 0.55,
+        z: worldPosition.z,
+      });
+      this.defeatEnemySeat(enemy);
+      hits += 1;
+    }
+    return { hits, impacts };
+  }
+
   updateEffects(delta: number, viewerPosition?: THREE.Vector3Like): void {
     this.elapsed += delta;
     const viewer = viewerPosition ?? { x: 0, y: 1.5, z: 0 };
@@ -1282,6 +1374,7 @@ export class DungeonWorld {
       viewer,
     );
     this.phoenixEggVfx?.update(this.powers.phoenixCharges, this.elapsed, delta, viewer);
+    this.shotgunBlastVfx?.update(delta, viewer);
     const runtime = this.activeFloorRuntime;
     // Gameplay and decorative state advance only on the active slab. Nearby
     // roots remain visible for stair continuity but are intentionally inert.
@@ -1332,6 +1425,7 @@ export class DungeonWorld {
     this.pickupBurstPool?.setWarmupVisible(visible, this.pickupBurstWarmupPosition);
     this.timeFreezeVfx?.setWarmupVisible(visible);
     this.annihilationPulseVfx?.setWarmupVisible(visible);
+    this.shotgunBlastVfx?.setWarmupVisible(visible, this.pickupBurstWarmupPosition);
     this.mobilityBoostVfx?.setWarmupVisible(visible, {
       x: this.pickupBurstWarmupPosition.x,
       y: 1.5,
@@ -1390,6 +1484,18 @@ export class DungeonWorld {
 
   get isCullBrandActive(): boolean {
     return isCullBrandOn(this.powers);
+  }
+
+  get shotgunShells(): number {
+    return this.powers.shotgun.shells;
+  }
+
+  get shotgunPumpRemaining(): number {
+    return this.powers.shotgun.pumpSeconds;
+  }
+
+  get isShotgunEquipped(): boolean {
+    return isShotgunOn(this.powers);
   }
 
   get phoenixChargeCount(): number {
@@ -1524,6 +1630,8 @@ export class DungeonWorld {
       gloomCurseRemaining?: number;
       swarmCurseActive?: boolean;
       cullBrandRemaining?: number;
+      shotgunShells?: number;
+      shotgunPumpRemaining?: number;
       mirrorCurseRemaining?: number;
       spinCurseRemaining?: number;
       phoenixCharges?: number;
@@ -1771,6 +1879,11 @@ export class DungeonWorld {
       this.group.remove(this.annihilationPulseVfx.root);
       this.annihilationPulseVfx.dispose();
       this.annihilationPulseVfx = null;
+    }
+    if (this.shotgunBlastVfx) {
+      this.group.remove(this.shotgunBlastVfx.root);
+      this.shotgunBlastVfx.dispose();
+      this.shotgunBlastVfx = null;
     }
     // The facade must release its borrowed build handles before the static
     // owner removes or disposes their scene nodes.

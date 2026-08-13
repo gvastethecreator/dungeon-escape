@@ -1,8 +1,8 @@
 /**
  * Staged WebGPU default-flip policy (WGP-23).
  *
- * Until HITL go/no-go (WGP-22) accepts WebGPU on the Chrome/Edge cohort,
- * `preferWebGpuWhenAuto` stays false so `?renderer=auto` remains WebGL.
+ * Armed: `?renderer=auto` prefers WebGPU when an adapter exists.
+ * PlayRendererFactory still falls back to WebGL when the probe or init fails.
  */
 
 export interface WebGpuFlipPolicy {
@@ -14,11 +14,11 @@ export interface WebGpuFlipPolicy {
   readonly stagedFlipArmed: boolean;
 }
 
-/** Compile-time / runtime switch — flip to chrome-edge after WGP-22 pass. */
+/** Compile-time / runtime switch — Chrome/Edge WebGPU cohort with WebGL fallback. */
 export const WEBGPU_FLIP_POLICY: WebGpuFlipPolicy = Object.freeze({
-  preferWebGpuWhenAuto: false,
-  cohort: "webgl-default",
-  stagedFlipArmed: false,
+  preferWebGpuWhenAuto: true,
+  cohort: "chrome-edge-webgpu",
+  stagedFlipArmed: true,
 });
 
 export function resolvePreferWebGpuWhenAuto(

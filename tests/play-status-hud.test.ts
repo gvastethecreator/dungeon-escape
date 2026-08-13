@@ -42,6 +42,7 @@ describe("PlayStatusHud", () => {
       luminousWard: fakeChip(),
       annihilationPulse: fakeChip(),
       cullBrand: fakeChip(),
+      shotgun: fakeChip(),
       fogClear: fakeChip(),
       mobility: fakeChip(),
       handTorch: fakeChip(),
@@ -61,20 +62,26 @@ describe("PlayStatusHud", () => {
       timeFreeze: 8.2,
       fogClear: 3,
       phoenixCharges: 1,
+      shotgunShells: 5,
       swarm: true,
       slow: 4,
     });
 
     expect(shell.dataset.timeFreeze).toBe("true");
     expect(shell.dataset.phoenix).toBe("true");
+    expect(shell.dataset.shotgun).toBe("true");
     expect(shell.dataset.swarmCurse).toBe("true");
     expect(phoenixRoot.hidden).toBe(false);
     expect(swarmRoot.hidden).toBe(false);
     expect(fogPulse).toBe(1);
 
+    hud.sync({ shotgunShells: 0, shotgunPumpRemaining: 0.4 });
+    expect(shell.dataset.shotgun).toBe("true");
+
     hud.reset();
     expect(shell.dataset.phoenix).toBe("false");
     expect(shell.dataset.swarmCurse).toBe("false");
+    expect(shell.dataset.shotgun).toBe("false");
     expect(fogPulse).toBe(0);
   });
 });

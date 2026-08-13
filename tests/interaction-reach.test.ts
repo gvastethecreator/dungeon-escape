@@ -58,10 +58,9 @@ describe("InteractionReach", () => {
     expect(nearestInRangeIndex({ x: 0, z: 0 }, [{ x: 3, z: 0 }], 1)).toBeNull();
   });
 
-  test("opens chests on interact or hold-click, not only by proximity", () => {
-    expect(shouldOpenChest(true, false)).toBe(true);
-    expect(shouldOpenChest(false, true)).toBe(true);
-    expect(shouldOpenChest(false, false)).toBe(false);
+  test("opens chests on interact only; left click does not open", () => {
+    expect(shouldOpenChest(true)).toBe(true);
+    expect(shouldOpenChest(false)).toBe(false);
   });
 
   test("rejects same-XZ targets on another slab", () => {

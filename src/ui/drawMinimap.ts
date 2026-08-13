@@ -28,6 +28,7 @@ export const MINIMAP_COLORS = {
   luminousWard: "#b9e879",
   annihilationPulse: "#ff5d86",
   cullBrand: "#ff7a3a",
+  shotgun: "#8aa0b4",
   phoenixEgg: "#ff9a3a",
   map: "#d5bd7a",
   mobility: "#72d45f",
@@ -454,6 +455,18 @@ function drawFeatures(
     context.lineTo(cx - r * 0.42, cy + r * 0.45);
     context.closePath();
     context.fill();
+  }
+
+  if (features.shotgun && isExplored(features.shotgun.x, features.shotgun.y)) {
+    const [cx, cy] = cellCenter(features.shotgun);
+    const r = Math.max(2, cellSize * 0.55);
+    context.strokeStyle = COLORS.shotgun;
+    context.lineWidth = Math.max(1, cellSize * 0.14);
+    context.beginPath();
+    context.arc(cx, cy, r, 0, Math.PI * 2);
+    context.stroke();
+    context.fillStyle = COLORS.shotgun;
+    context.fillRect(cx - r * 0.55, cy - r * 0.18, r * 1.1, r * 0.36);
   }
 
   if (features.phoenixEgg && isExplored(features.phoenixEgg.x, features.phoenixEgg.y)) {

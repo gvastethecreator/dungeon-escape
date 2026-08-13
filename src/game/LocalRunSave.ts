@@ -1,6 +1,7 @@
 import type { DungeonDomainState } from "../domain/bridge";
 import { ANNIHILATION_PULSE_DURATION_SECONDS } from "./AnnihilationPulse";
 import { CULL_BRAND_DURATION_SECONDS } from "./CullBrand";
+import { SHOTGUN_PUMP_SECONDS, SHOTGUN_SHELLS } from "./Shotgun";
 import { LUMINOUS_WARD_DURATION_SECONDS } from "./LuminousWard";
 import { FOG_CLEAR_DURATION_SECONDS } from "./FogClear";
 import { FRENZY_CURSE_DURATION_SECONDS } from "./FrenzyCurse";
@@ -54,6 +55,10 @@ export interface LocalRunResumeState {
   swarmCurseActive?: boolean;
   /** Cull brand window remaining while a charge is held. */
   cullBrandRemaining?: number;
+  /** Equipped shotgun shells remaining. */
+  shotgunShells?: number;
+  /** Pump delay remaining while the shotgun is equipped. */
+  shotgunPumpRemaining?: number;
   /** Timed look+move invert curse remaining. */
   mirrorCurseRemaining?: number;
   /** Timed yaw-bias curse remaining. */
@@ -244,6 +249,20 @@ function isLocalRunResumeState(value: unknown): value is LocalRunResumeState {
     (!isFiniteNumber(value.cullBrandRemaining) ||
       value.cullBrandRemaining < 0 ||
       value.cullBrandRemaining > CULL_BRAND_DURATION_SECONDS)
+  )
+    return false;
+  if (
+    value.shotgunShells !== undefined &&
+    (!Number.isInteger(value.shotgunShells) ||
+      (value.shotgunShells as number) < 0 ||
+      (value.shotgunShells as number) > SHOTGUN_SHELLS)
+  )
+    return false;
+  if (
+    value.shotgunPumpRemaining !== undefined &&
+    (!isFiniteNumber(value.shotgunPumpRemaining) ||
+      value.shotgunPumpRemaining < 0 ||
+      value.shotgunPumpRemaining > SHOTGUN_PUMP_SECONDS)
   )
     return false;
   if (

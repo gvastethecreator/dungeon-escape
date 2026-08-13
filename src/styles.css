@@ -3416,6 +3416,12 @@ kbd {
 .pickup-feedback[data-kind="annihilation-pulse"] strong {
   color: #ffb0bd;
 }
+.pickup-feedback[data-kind="cull-brand"] strong {
+  color: #ffc49a;
+}
+.pickup-feedback[data-kind="shotgun"] strong {
+  color: #c5d4e0;
+}
 .pickup-feedback[data-kind="hand-torch"] strong {
   color: #f0c48a;
 }
@@ -3784,6 +3790,13 @@ kbd {
   background: linear-gradient(90deg, transparent, rgb(40 16 8 / 90%) 26%);
   color: #ffc49a;
   text-shadow: 0 0 10px rgb(255 122 58 / 58%);
+}
+
+.shotgun-status {
+  border-right-color: rgb(138 160 180 / 86%);
+  background: linear-gradient(90deg, transparent, rgb(16 22 28 / 92%) 26%);
+  color: #c5d4e0;
+  text-shadow: 0 0 10px rgb(138 160 180 / 52%);
 }
 
 .phoenix-status {

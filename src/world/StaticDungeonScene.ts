@@ -95,6 +95,11 @@ import {
   setPickupDormant,
   TIME_FREEZE_PICKUP_LIGHT_INTENSITY,
 } from "./ItemFactory";
+import {
+  createShotgunPickup,
+  SHOTGUN_PICKUP_GLOW_OPACITY,
+  SHOTGUN_PICKUP_LIGHT_INTENSITY,
+} from "./ShotgunFactory";
 import { planCurseChestPlacements } from "../game/CurseChestPlan";
 import {
   planBiomeLootBudget,
@@ -2991,6 +2996,15 @@ export class StaticDungeonScene {
         baseIntensity: CULL_BRAND_PICKUP_LIGHT_INTENSITY,
         baseGlowOpacity: CULL_BRAND_PICKUP_GLOW_OPACITY,
       };
+    } else if (rewardKind === "shotgun") {
+      const light = item.getObjectByName("Shotgun pickup light") as THREE.PointLight;
+      light.intensity = 0;
+      reward.shotgunSignal = {
+        light,
+        glow: item.getObjectByName("Shotgun pickup halo") as THREE.Mesh,
+        baseIntensity: SHOTGUN_PICKUP_LIGHT_INTENSITY,
+        baseGlowOpacity: SHOTGUN_PICKUP_GLOW_OPACITY,
+      };
     } else if (rewardKind === "phoenix-egg") {
       const light = item.getObjectByName("Phoenix egg pickup light") as THREE.PointLight;
       light.intensity = 0;
@@ -5409,6 +5423,7 @@ export class StaticDungeonScene {
       } else if (rewardKind === "annihilation-pulse") {
         template = createAnnihilationPulseRelic(this.materials);
       } else if (rewardKind === "cull-brand") template = createCullBrandRelic(this.materials);
+      else if (rewardKind === "shotgun") template = createShotgunPickup(this.materials);
       else if (rewardKind === "phoenix-egg") template = createPhoenixEggRelic(this.materials);
       else if (rewardKind === "map") template = createDungeonMapPickup(this.materials);
       else if (rewardKind === "mobility") template = createMobilityDraught(this.materials);
@@ -5490,6 +5505,7 @@ export class StaticDungeonScene {
       rewardKind === "time-freeze" ||
       rewardKind === "annihilation-pulse" ||
       rewardKind === "cull-brand" ||
+      rewardKind === "shotgun" ||
       rewardKind === "phoenix-egg"
     ) {
       return 0.54;
@@ -5539,6 +5555,15 @@ export class StaticDungeonScene {
         glow: item.getObjectByName("Cull brand halo") as THREE.Mesh,
         baseIntensity: CULL_BRAND_PICKUP_LIGHT_INTENSITY,
         baseGlowOpacity: CULL_BRAND_PICKUP_GLOW_OPACITY,
+      };
+    } else if (rewardKind === "shotgun") {
+      const light = item.getObjectByName("Shotgun pickup light") as THREE.PointLight | null;
+      if (!light) return;
+      reward.shotgunSignal = {
+        light,
+        glow: item.getObjectByName("Shotgun pickup halo") as THREE.Mesh,
+        baseIntensity: SHOTGUN_PICKUP_LIGHT_INTENSITY,
+        baseGlowOpacity: SHOTGUN_PICKUP_GLOW_OPACITY,
       };
     } else if (rewardKind === "phoenix-egg") {
       const light = item.getObjectByName("Phoenix egg pickup light") as THREE.PointLight | null;

@@ -55,7 +55,8 @@ export type PlayerAction =
   | "turnRight"
   | "snapTurnLeft"
   | "snapTurnRight"
-  | "interact";
+  | "interact"
+  | "fire";
 
 /** Discrete keyboard Q/E facing change (radians). */
 const SNAP_TURN_YAW = Math.PI / 2;
@@ -79,6 +80,7 @@ const KEY_ACTIONS: Readonly<Record<string, PlayerAction>> = {
   KeyQ: "snapTurnLeft",
   KeyE: "snapTurnRight",
   KeyF: "interact",
+  KeyG: "fire",
 };
 const MAX_LOOK_PITCH = 1.18;
 const MOBILITY_STAMINA_CONFIG = Object.freeze({
@@ -197,6 +199,8 @@ export interface ControllerUpdate {
   cell: GridCell | null;
   atExit: boolean;
   interactPressed: boolean;
+  /** True on the frame LMB or G is pressed under pointer lock. */
+  firePressed: boolean;
   footstep: boolean;
   jumped: boolean;
   landed: boolean;
@@ -206,8 +210,6 @@ export interface ControllerUpdate {
   /** 0..1 fill for the stamina meter. */
   stamina: number;
   staminaExhausted: boolean;
-  /** True while LMB is held under pointer lock (click-to-walk). */
-  mouseForwardHeld: boolean;
 }
 
 interface ControllerOptions {
@@ -343,7 +345,6 @@ export class FirstPersonController {
   private locked = false;
   private enabled = true;
   /** LMB hold while pointer-locked → walk forward. */
-  private mouseForwardHeld = false;
   private distanceTravelled = 0;
   private readonly lastCell: GridCell = { x: 0, y: 0 };
   private hasLastCell = false;
@@ -453,7 +454,6 @@ export class FirstPersonController {
     this.vaultedColliderIds.clear();
     resetVerticalMotion(this.verticalState, this.eyeHeight, this.verticalConfig.maxAirJumps);
     resetStamina(this.staminaState, STAMINA_MAX);
-    this.mouseForwardHeld = false;
     this.landingDip = 0;
     this.distanceTravelled = 0;
     this.currentCell.x = dungeon.spawn.x;
@@ -572,7 +572,6 @@ export class FirstPersonController {
     if (!enabled) {
       this.keys.clear();
       this.virtualActions.clear();
-      this.mouseForwardHeld = false;
       this.velocity.set(0, 0);
       this.knockVel.set(0, 0);
       this.lookInput.clear();
@@ -711,6 +710,7 @@ export class FirstPersonController {
         cell: null,
         atExit: false,
         interactPressed: false,
+        firePressed: false,
         footstep: false,
         jumped: false,
         landed: false,
@@ -718,7 +718,6 @@ export class FirstPersonController {
         justExhausted: false,
         stamina: this.staminaState.value / STAMINA_MAX,
         staminaExhausted: this.staminaState.exhausted,
-        mouseForwardHeld: this.locked && this.mouseForwardHeld,
       };
 
     this.elapsed += delta;
@@ -775,11 +774,9 @@ export class FirstPersonController {
       delta,
     );
 
-    // Click-to-walk only while pointer-locked (never drive movement from a stale hold).
-    const mouseDrive = this.locked && this.mouseForwardHeld;
     const moveSign = this.invertMove ? -1 : 1;
     const forwardInput =
-      (Number(this.isActionActive("forward") || this.virtualPulse.has("forward") || mouseDrive) -
+      (Number(this.isActionActive("forward") || this.virtualPulse.has("forward")) -
         Number(this.isActionActive("backward") || this.virtualPulse.has("backward"))) *
       moveSign;
     const sidewaysInput =
@@ -788,7 +785,7 @@ export class FirstPersonController {
       moveSign;
     const hasIntent = forwardInput !== 0 || sidewaysInput !== 0;
     const movementAllowed =
-      this.locked || this.virtualActions.size > 0 || this.virtualPulse.size > 0 || mouseDrive;
+      this.locked || this.virtualActions.size > 0 || this.virtualPulse.size > 0;
     const stamina = stepStamina(
       this.staminaState,
       delta,
@@ -927,6 +924,7 @@ export class FirstPersonController {
     this.lastCell.y = cell.y;
     this.hasLastCell = true;
     const interactPressed = this.consumePressed("interact");
+    const firePressed = this.consumePressed("fire");
     this.justPressed.clear();
     this.virtualPulse.clear();
     return {
@@ -937,6 +935,7 @@ export class FirstPersonController {
       cell,
       atExit: cell.x === this.dungeon.exit.x && cell.y === this.dungeon.exit.y,
       interactPressed,
+      firePressed,
       footstep,
       jumped,
       landed,
@@ -944,7 +943,6 @@ export class FirstPersonController {
       justExhausted: stamina.justExhausted,
       stamina: this.staminaState.value / STAMINA_MAX,
       staminaExhausted: this.staminaState.exhausted,
-      mouseForwardHeld: mouseDrive,
     };
   }
 
@@ -986,7 +984,6 @@ export class FirstPersonController {
 
   dispose(): void {
     this.releasePointerLock();
-    this.mouseForwardHeld = false;
     document.removeEventListener("mousemove", this.handleMouseMove);
     document.removeEventListener("keydown", this.handleKeyDown);
     document.removeEventListener("keyup", this.handleKeyUp);
@@ -1163,12 +1160,11 @@ export class FirstPersonController {
     this.targetYaw = this.lookYaw;
     this.targetPitch = this.lookPitch;
     this.snapTurnLookResponse = 0;
-    if (!this.locked) this.mouseForwardHeld = false;
     if (this.locked) this.domElement.focus();
     this.onLockChange(
       this.locked,
       this.locked
-        ? "Pointer active. WASD or hold click moves. Right-click or SPACE jumps. SHIFT sprints. Q/E snap 90°. F interacts."
+        ? "Pointer active. WASD moves. Left-click or G fires. Right-click or SPACE jumps. SHIFT sprints. Q/E snap 90°. F interacts."
         : "Pointer released. The run is paused.",
     );
   };
@@ -1179,7 +1175,6 @@ export class FirstPersonController {
     this.keys.clear();
     this.justPressed.clear();
     this.virtualPulse.clear();
-    this.mouseForwardHeld = false;
     this.velocity.set(0, 0);
     this.knockVel.set(0, 0);
     this.lookInput.clear();
@@ -1197,7 +1192,7 @@ export class FirstPersonController {
   private readonly handlePointerDown = (event: PointerEvent): void => {
     if (!this.enabled || !this.locked) return;
     if (event.button === 0) {
-      this.mouseForwardHeld = true;
+      this.justPressed.add("fire");
       return;
     }
     if (event.button === 2) {
@@ -1205,11 +1200,8 @@ export class FirstPersonController {
       this.justPressed.add("jump");
     }
   };
-  private readonly handlePointerUp = (event: PointerEvent): void => {
-    // pointercancel may omit button 0; always release click-to-walk.
-    if (event.type === "pointercancel" || event.button === 0) {
-      this.mouseForwardHeld = false;
-    }
+  private readonly handlePointerUp = (_event: PointerEvent): void => {
+    /* Fire is edge-triggered on pointerdown; nothing to release. */
   };
   private syncCameraPosition(): void {
     this.camera.position.copy(this.position);

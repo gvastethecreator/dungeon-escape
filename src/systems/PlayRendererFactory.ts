@@ -10,7 +10,7 @@ export interface PlayRendererCreateOptions {
   readonly canvas: HTMLCanvasElement;
   readonly preference: LaunchRendererPreference;
   readonly preferDefaultGpu: boolean;
-  /** When true, force WebGPU even if preference is auto (unused until staged flip). */
+  /** When true, `?renderer=auto` selects WebGPU when an adapter exists. */
   readonly preferWebGpuWhenAuto?: boolean;
 }
 

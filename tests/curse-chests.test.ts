@@ -87,6 +87,7 @@ describe("curse chest placement plan", () => {
     expect(source).toContain("spin-curse");
     expect(source).toContain("planOffensePowerKind");
     expect(source).toContain("cull-brand");
+    expect(source).toContain("shotgun");
   });
 
   test("host wires curse HUD chips, floor swarm clear, and minimap markers", async () => {
@@ -101,6 +102,7 @@ describe("curse chest placement plan", () => {
     expect(html).toContain('id="mirror-curse-status"');
     expect(html).toContain('id="spin-curse-status"');
     expect(html).toContain('id="cull-brand-status"');
+    expect(html).toContain('id="shotgun-status"');
     expect(main).toContain("PlayStatusHud");
     expect(main).toContain("syncPlayStatusHud");
     expect(main).toContain("playStatusHud.reset");
@@ -111,5 +113,6 @@ describe("curse chest placement plan", () => {
     expect(minimap).toContain('firstUncollected(input.pickups, "gloom-curse")');
     expect(minimap).toContain('firstUncollected(input.pickups, "mirror-curse")');
     expect(minimap).toContain('firstUncollected(input.pickups, "cull-brand")');
+    expect(minimap).toContain('firstUncollected(input.pickups, "shotgun")');
   });
 });

@@ -5,13 +5,14 @@
 
 import { createSeededRandom } from "../core/random";
 
-export const OFFENSE_POWER_KINDS = ["annihilation-pulse", "cull-brand"] as const;
+export const OFFENSE_POWER_KINDS = ["annihilation-pulse", "cull-brand", "shotgun"] as const;
 export type OffensePowerKind = (typeof OFFENSE_POWER_KINDS)[number];
 
-/** Pulse stays slightly more common than the contact brand. */
+/** Pulse stays slightly more common; shotgun and brand share the rest. */
 export const OFFENSE_POWER_WEIGHTS: Readonly<Record<OffensePowerKind, number>> = {
-  "annihilation-pulse": 0.55,
-  "cull-brand": 0.45,
+  "annihilation-pulse": 0.4,
+  "cull-brand": 0.3,
+  shotgun: 0.3,
 };
 
 export const OFFENSE_POWER_DEPTH_FRACTION = 0.64;
