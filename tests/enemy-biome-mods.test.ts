@@ -4,6 +4,7 @@ import { ENEMY_ARCHETYPES, getEnemyMotion } from "../src/world/EnemyArchetypes";
 import {
   applyBiomeEnemyMods,
   BIOME_ENEMY_PROFILES,
+  ENEMY_SPEED_SCALE,
   getEnemyBiomeProfile,
   listEnemyBiomeProfiles,
   resolveEnemyBehavior,
@@ -103,11 +104,11 @@ describe("EnemyBiomeMods", () => {
     expect(hard.attackCooldown).toBeLessThan(easy.attackCooldown);
   });
 
-  test("ash at zero difficulty stays at authored base stats", () => {
+  test("ash at zero difficulty keeps catalog stats except the global speed scale", () => {
     for (const kind of ENEMY_ROSTER) {
       const resolved = applyBiomeEnemyMods(kind, "ash", 0);
       const base = ENEMY_ARCHETYPES[kind];
-      expect(resolved.speed).toBeCloseTo(base.speed, 5);
+      expect(resolved.speed).toBeCloseTo(base.speed * ENEMY_SPEED_SCALE, 5);
       expect(resolved.damage).toBeCloseTo(base.damage, 5);
       expect(resolved.attackCooldown).toBeCloseTo(base.attackCooldown, 5);
       expect(resolved.detectionRange).toBeCloseTo(base.detectionRange, 5);

@@ -743,7 +743,7 @@ describe("StaticDungeonScene", () => {
       });
       expect(runtimes.every((runtime) => runtime.root.children.length > 0)).toBe(true);
       expect(runtimes.map((runtime) => runtime.occupancy.diagnostics().occupiedCells)).toEqual([
-        245, 259, 235, 271,
+        251, 262, 239, 274,
       ]);
       expect(runtimes.map((runtime) => runtime.occupancy.memoryBytes)).toEqual([
         5329, 5329, 5329, 5329,
@@ -762,7 +762,7 @@ describe("StaticDungeonScene", () => {
         ambientBeams: handles.ambientBeams.length,
       }).toEqual({
         doors: 74,
-        pickups: 96,
+        pickups: 108,
         chests: 56,
         staircases: 3,
         fireEffects: 53,
@@ -774,7 +774,7 @@ describe("StaticDungeonScene", () => {
       });
       expect(runtimes.map((runtime) => runtime.doors.length)).toEqual([20, 18, 14, 22]);
       expect(runtimes.map((runtime) => runtime.chests.length)).toEqual([13, 15, 14, 14]);
-      expect(runtimes.map((runtime) => runtime.pickups.length)).toEqual([23, 25, 24, 24]);
+      expect(runtimes.map((runtime) => runtime.pickups.length)).toEqual([26, 28, 27, 27]);
       expect(runtimes.map((runtime) => runtime.staircases.length)).toEqual([1, 1, 1, 0]);
       expect(
         runtimes.every((runtime) =>
@@ -1211,10 +1211,10 @@ describe("StaticDungeonScene", () => {
         wallTiles: 459,
         ceilingTiles: 564,
         hazardTiles: 4,
-        pickups: 26,
+        pickups: 29,
         beams: 7,
         lights: 16,
-        props: 324,
+        props: 328,
       });
       expect(classic.ambientBeams).toHaveLength(2);
       expect(group.getObjectByName("Ambient godray 1")).toBeDefined();
@@ -1387,11 +1387,11 @@ describe("StaticDungeonScene", () => {
         ceilingTiles: 564,
         enemies: 8,
         hazardTiles: 4,
-        pickups: 26,
+        pickups: 29,
         beams: 7,
         lights: 16,
-        props: 324,
-        reserveEnemies: 20,
+        props: 328,
+        reserveEnemies: 22,
       });
       expect(world.getSolidCells()).toHaveLength(27);
       expect(world.getSolidColliders()).toHaveLength(27);

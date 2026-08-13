@@ -99,6 +99,8 @@ export interface ResidentEnemyActivationInput {
   readonly pulseActive: boolean;
   readonly wardRadius: number;
   readonly pulseRadius: number;
+  readonly torchActive: boolean;
+  readonly torchRadius: number;
 }
 
 export interface ResidentEnemyPresentationInput {
@@ -492,6 +494,8 @@ export class ResidentEnemyRuntimeOwner implements ResidentEnemyRuntime {
         pulseActive: false,
         wardRadius: 0,
         pulseRadius: 0,
+        torchActive: false,
+        torchRadius: 0,
       });
       this.built = true;
     } finally {
@@ -561,6 +565,8 @@ export class ResidentEnemyRuntimeOwner implements ResidentEnemyRuntime {
       pulseActive: input.pulseActive,
       wardRadius: input.wardRadius,
       pulseRadius: input.pulseRadius,
+      torchActive: input.torchActive,
+      torchRadius: input.torchRadius,
     });
     const activatedThisPulse: THREE.Vector3[] = [];
     const unlockedMaxTier = difficultyState.unlockedMaxTier;

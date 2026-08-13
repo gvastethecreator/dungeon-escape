@@ -42,12 +42,14 @@ export interface SafeSpawnDistanceInput {
   pulseActive?: boolean;
   wardRadius?: number;
   pulseRadius?: number;
+  torchActive?: boolean;
+  torchRadius?: number;
   pad?: number;
 }
 
 /**
- * Raise the play-mode safe spawn floor when a ward or pulse field is active.
- * Inactive fields leave the difficulty base distance unchanged.
+ * Raise the play-mode safe spawn floor when a ward, pulse, or held-torch
+ * field is active. Inactive fields leave the difficulty base distance unchanged.
  */
 export function resolveSafeSpawnDistance(input: SafeSpawnDistanceInput): number {
   const base = Number.isFinite(input.base) ? input.base : 0;
@@ -58,6 +60,9 @@ export function resolveSafeSpawnDistance(input: SafeSpawnDistanceInput): number 
   }
   if (input.pulseActive && input.pulseRadius !== undefined && Number.isFinite(input.pulseRadius)) {
     safe = Math.max(safe, input.pulseRadius + pad);
+  }
+  if (input.torchActive && input.torchRadius !== undefined && Number.isFinite(input.torchRadius)) {
+    safe = Math.max(safe, input.torchRadius + pad);
   }
   return safe;
 }

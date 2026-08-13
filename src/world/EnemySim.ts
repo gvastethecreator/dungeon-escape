@@ -64,6 +64,10 @@ export interface EnemySimContext {
   repelRadius?: number;
   /** Optional flee speed multiplier for stronger fields. */
   repelSpeedMultiplier?: number;
+  /** Wider ring where enemies still pursue, but slower (held torch). */
+  slowRadius?: number;
+  /** Pursuit speed inside `slowRadius` when not already fleeing. 0–1. */
+  slowSpeedMultiplier?: number;
   /** Active dungeon biome; drives EnemyBiomeMods. */
   moodId?: string | null;
   /** Run difficulty 0–1; scales biome mods. */
@@ -213,6 +217,8 @@ export function tickEnemySim(
   const { delta, elapsed, player, dungeon, solidColliders, tileSize } = ctx;
   const repelRadius = Math.max(0, ctx.repelRadius ?? 0);
   const repelSpeedMultiplier = Math.max(1, ctx.repelSpeedMultiplier ?? 1);
+  const slowRadius = Math.max(0, ctx.slowRadius ?? 0);
+  const slowSpeedMultiplier = clampScalar(ctx.slowSpeedMultiplier ?? 1, 0, 1);
   const pursuitSpeedMultiplier = Math.max(0.1, ctx.pursuitSpeedMultiplier ?? 1);
   const attackRateMultiplier = Math.max(0.1, ctx.attackRateMultiplier ?? 1);
   const detectionRangeMultiplier = Math.max(0.1, ctx.detectionRangeMultiplier ?? 1);
@@ -229,6 +235,7 @@ export function tickEnemySim(
     const dz = enemy.position.z - player.z;
     let distance = Math.hypot(dx, dz);
     let repelActive = repelRadius > 0 && distance < repelRadius;
+    let slowActive = !repelActive && slowRadius > 0 && distance < slowRadius;
     nearestThreat = Math.min(nearestThreat, distance);
     enemy.phaseVisibility = enemyPhaseVisibility(enemy.kind, elapsed, enemy.phase);
     if (isPhasingEnemy(enemy.kind) && !repelActive && dungeon && enemy.phaseVisibility <= 0.001) {
@@ -249,6 +256,7 @@ export function tickEnemySim(
         distance = Math.hypot(enemy.position.x - player.x, enemy.position.z - player.z);
         nearestThreat = Math.min(nearestThreat, distance);
         repelActive = repelRadius > 0 && distance < repelRadius;
+        slowActive = !repelActive && slowRadius > 0 && distance < slowRadius;
       }
     }
     let travelled = 0;
@@ -291,7 +299,7 @@ export function tickEnemySim(
         motion.speedMultiplier *
         delta *
         pursuitSpeedMultiplier *
-        (flee ? repelSpeedMultiplier : 1);
+        (flee ? repelSpeedMultiplier : slowActive ? slowSpeedMultiplier : 1);
       tempPos.x = enemy.position.x + tempMove.x * step;
       tempPos.y = enemy.position.y;
       tempPos.z = enemy.position.z + tempMove.z * step;

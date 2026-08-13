@@ -134,7 +134,10 @@ The four-stone objective state, stone timing, and portal readiness within a run.
 The fixed scene, collision, occupied seats, and cleanup produced from a `Dungeon floor stack`. Play updates start after this scene exists.
 
 **Enemy biome mods**:
-Live combat stats and pursuit behavior resolved from the base enemy archetype, active biome profile, and run difficulty (`applyBiomeEnemyMods`). Presentation size stays on the base archetype.
+Live combat stats and pursuit behavior resolved from the base enemy archetype, active biome profile, and run difficulty (`applyBiomeEnemyMods`). Presentation size stays on the base archetype. Live pursuit then applies a global 0.8 speed scale so rooms read slower than the authored catalog.
+
+**Hand torch**:
+A taken wall sconce that burns for a short fuel window. Close enemies reverse pursuit and cannot strike; a wider ring still approaches, but much slower. Left-click in reach takes a wall torch or opens a chest instead of firing.
 
 **Biome event**:
 A deterministic, time-bounded modifier for one biome that changes pressure, movement, or floor-hazard damage and exposes one HUD/visual state.
@@ -149,10 +152,10 @@ The single positive kill/pressure chest slot per floor. Deterministically rolls 
 A timed cursed chest effect that remaps look and/or movement (mirror invert, spin yaw bias). Newest control curse clears the other so mirror and spin never stack.
 
 **Biome loot plan**:
-Deterministic per-floor budgets for health chests, free corridor/room flasks, free support powers, extra support chests on high ranks, and whether a phoenix egg may spawn. Scales with campaign biome rank.
+Deterministic per-floor budgets for health chests, free corridor/room flasks, free support powers, extra support chests on high ranks, guaranteed pump shotguns, and whether a phoenix egg may spawn. Scales with campaign biome rank. Every floor places at least two shotguns; harder biomes place more.
 
 **Floor free pickup**:
-A collectible reward placed on the floor without a chest (resolve flasks and ranked support powers such as time-freeze, ward, clarity).
+A collectible reward placed on the floor without a chest (resolve flasks, ranked support powers such as time-freeze, ward, clarity, and guaranteed pump shotguns).
 
 **Phoenix egg**:
 A map-found floor pickup (never inside a chest). Placed in a free room corner when possible, far from player spawn, and never stacked on props, chests, stones, or other loot. Picking it up only equips a silent HUD state (no ambient particles). Lethal damage spends the charge to revive at fixed resolve and ignite an annihilation pulse for the rebirth visuals. At most one charge; a second egg does not spawn while armed. New runs never start with the egg active.

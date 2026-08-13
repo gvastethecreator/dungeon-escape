@@ -95,11 +95,11 @@ export function canInteractWithChest(
 }
 
 /**
- * Chest open intent: explicit interact (F / UI) only.
- * Left click is reserved for the equipped shotgun.
+ * Chest open intent: F, on-screen prompt, or left-click while in reach.
+ * Click still fires the shotgun when no chest/torch is in range.
  */
-export function shouldOpenChest(interactPressed: boolean): boolean {
-  return Boolean(interactPressed);
+export function shouldOpenChest(interactPressed: boolean, firePressed = false): boolean {
+  return Boolean(interactPressed || firePressed);
 }
 
 /** Point-form of chest reach for callers that still have world positions. */

@@ -43,6 +43,8 @@ export default defineConfig(({ mode }) => {
           forge: resolve(import.meta.dirname, "forge.html"),
           reliquary: resolve(import.meta.dirname, "reliquary.html"),
           modelLab: resolve(import.meta.dirname, "model-lab.html"),
+          modelPlayground: resolve(import.meta.dirname, "model-playground.html"),
+          spritePlayground: resolve(import.meta.dirname, "sprite-playground.html"),
         },
       },
     },

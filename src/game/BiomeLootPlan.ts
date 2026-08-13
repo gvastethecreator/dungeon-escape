@@ -1,6 +1,7 @@
 /**
  * Deterministic per-floor loot budgets scaled by campaign biome rank.
- * Harder biomes get more health and free support pickups without raising offense power.
+ * Harder biomes get more health, free support, and pump shotguns without
+ * raising the offense chest slot.
  */
 
 import { createSeededRandom } from "../core/random";
@@ -9,6 +10,10 @@ import type { BiomeId } from "../systems/BiomeIdentity";
 import { isBiomeId } from "../systems/BiomeIdentity";
 
 export const FLOOR_LOOT_HARD_CAP = 40;
+/** Every procedural floor places at least this many pump shotguns. */
+export const FLOOR_SHOTGUN_MIN = 2;
+/** Hardest biomes cap guaranteed floor shotguns here. */
+export const FLOOR_SHOTGUN_MAX = 4;
 
 export type FloorSupportPowerKind = "time-freeze" | "luminous-ward" | "clarity";
 export type FloorFreePowerKind = FloorSupportPowerKind;
@@ -26,6 +31,8 @@ export interface BiomeLootBudget {
   freePowers: readonly FloorFreePowerKind[];
   /** Extra support power chests beyond the base eight. */
   extraSupportChests: readonly FloorSupportPowerKind[];
+  /** Guaranteed floor shotguns (not the offense chest). */
+  shotguns: number;
   /** Place one phoenix egg when the run does not already hold a charge. */
   placePhoenix: boolean;
 }
@@ -91,6 +98,7 @@ export function planBiomeLootBudget(
 
   const extraSupportCount = rank >= 10 ? 2 : rank >= 7 ? 1 : 0;
   const extraSupportChests = pickSupportPowers(extraSupportCount, seed, "extra-support");
+  const shotguns = clamp(2 + Math.floor(rank / 4), FLOOR_SHOTGUN_MIN, FLOOR_SHOTGUN_MAX);
 
   const placePhoenix = options.phoenixArmed !== true;
 
@@ -100,9 +108,10 @@ export function planBiomeLootBudget(
     freeFlasks +
     freePowers.length +
     extraSupportChests.length +
+    shotguns +
     (placePhoenix ? 1 : 0);
   if (projected > FLOOR_LOOT_HARD_CAP) {
-    // Prefer keeping phoenix and free powers; trim free flasks first.
+    // Prefer keeping phoenix, shotguns, and free powers; trim free flasks first.
     const overflow = projected - FLOOR_LOOT_HARD_CAP;
     const trimmedFlasks = Math.max(1, freeFlasks - overflow);
     const trimmedCorridor = Math.min(corridorFlasks, trimmedFlasks);
@@ -113,6 +122,7 @@ export function planBiomeLootBudget(
       corridorFlasks: trimmedCorridor,
       freePowers,
       extraSupportChests,
+      shotguns,
       placePhoenix,
     };
   }
@@ -124,6 +134,7 @@ export function planBiomeLootBudget(
     corridorFlasks,
     freePowers,
     extraSupportChests,
+    shotguns,
     placePhoenix,
   };
 }

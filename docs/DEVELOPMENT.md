@@ -21,6 +21,8 @@ Available entries:
 - `/forge.html` — procedural map Forge.
 - `/reliquary.html` — reliquary preview.
 - `/model-lab.html` — deterministic model QA captures (`?model=` and `?view=`).
+- `/model-playground.html` — interactive orbit viewer for the same runtime models.
+- `/sprite-playground.html` — interactive viewer for sprites and animated enemies.
 
 ## Checks
 

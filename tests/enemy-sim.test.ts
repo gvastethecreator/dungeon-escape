@@ -18,6 +18,11 @@ import {
   getEnemyVisualBodySize,
 } from "../src/world/EnemyArchetypes";
 import { LUMINOUS_WARD_REPEL_RADIUS } from "../src/game/LuminousWard";
+import {
+  HAND_TORCH_REPEL_RADIUS,
+  HAND_TORCH_SLOW_MULTIPLIER,
+  HAND_TORCH_SLOW_RADIUS,
+} from "../src/game/HandTorch";
 
 function body(kind: EnemySimBody["kind"], x: number, z: number): EnemySimBody {
   const arch = ENEMY_ARCHETYPES[kind];
@@ -209,6 +214,49 @@ describe("EnemySim", () => {
     });
 
     expect(pulseEnemy.position.x - 0.7).toBeGreaterThan(wardEnemy.position.x - 0.7);
+  });
+
+  test("held torch makes close enemies flee and blocks contact", () => {
+    const dungeon = generateDungeon("SIM-WARD", { roomTarget: 10 });
+    const enemy = body("zombie-orc", 0.7, 0);
+    const result = tickEnemySim([enemy], {
+      delta: 0.016,
+      elapsed: 1,
+      player: { x: 0, y: 1.6, z: 0 },
+      dungeon,
+      solidColliders: [],
+      tileSize: 2.4,
+      repelRadius: HAND_TORCH_REPEL_RADIUS,
+    });
+    expect(HAND_TORCH_REPEL_RADIUS).toBeLessThan(LUMINOUS_WARD_REPEL_RADIUS);
+    expect(result.damage).toBe(0);
+    expect(enemy.position.x).toBeGreaterThan(0.7);
+    expect(enemy.hitCooldown).toBe(0);
+  });
+
+  test("held torch slows approaching enemies inside the slow ring", () => {
+    const dungeon = generateDungeon("SIM-WARD", { roomTarget: 10 });
+    const player = { x: 0, y: 1.6, z: 0 };
+    const startX = 2.6;
+    const full = body("zombie-orc", startX, 0);
+    const slowed = body("zombie-orc", startX, 0);
+    const ctx = {
+      delta: 0.05,
+      elapsed: 1,
+      player,
+      dungeon,
+      solidColliders: [],
+      tileSize: 2.4,
+    };
+    tickEnemySim([full], ctx);
+    tickEnemySim([slowed], {
+      ...ctx,
+      slowRadius: HAND_TORCH_SLOW_RADIUS,
+      slowSpeedMultiplier: HAND_TORCH_SLOW_MULTIPLIER,
+    });
+    expect(full.position.x).toBeLessThan(startX);
+    expect(slowed.position.x).toBeLessThan(startX);
+    expect(startX - slowed.position.x).toBeLessThan((startX - full.position.x) * 0.7);
   });
 
   test("skips defeated instanced seats in later simulation ticks", () => {

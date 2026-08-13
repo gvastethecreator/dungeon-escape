@@ -83,6 +83,8 @@ async function sourceAssetUrls(): Promise<Set<string>> {
     join(PROJECT_ROOT, "index.html"),
     join(PROJECT_ROOT, "forge.html"),
     join(PROJECT_ROOT, "model-lab.html"),
+    join(PROJECT_ROOT, "model-playground.html"),
+    join(PROJECT_ROOT, "sprite-playground.html"),
     join(PROJECT_ROOT, "reliquary.html"),
   ];
   for (const root of roots) files.push(...(await walkFiles(root)));

@@ -54,6 +54,14 @@ describe("resident dungeon plan", () => {
     expect(firstPlan.floors.every((floor) => floor.openVerticalCells instanceof Uint32Array)).toBe(
       true,
     );
+    expect(
+      firstPlan.floors.every(
+        (floor) =>
+          floor.rewards.shotguns >= 2 &&
+          floor.rewards.freePickups.filter((pickup) => pickup.kind === "shotgun").length ===
+            floor.rewards.shotguns,
+      ),
+    ).toBe(true);
     const decoded = JSON.parse(serializeResidentDungeonPlan(firstPlan)) as {
       floors: Array<{ floorCells: number[]; stairs: Array<{ footprint: number[] }> }>;
       shafts: Array<{ footprint: number[] }>;

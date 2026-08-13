@@ -69,6 +69,11 @@ import {
   ANNIHILATION_PULSE_REPEL_SPEED_MULTIPLIER,
 } from "../game/AnnihilationPulse";
 import { AnnihilationPulseVfx } from "./AnnihilationPulseVfx";
+import {
+  HAND_TORCH_REPEL_RADIUS,
+  HAND_TORCH_SLOW_MULTIPLIER,
+  HAND_TORCH_SLOW_RADIUS,
+} from "../game/HandTorch";
 import { LUMINOUS_WARD_REPEL_RADIUS } from "../game/LuminousWard";
 import { LuminousWardVfx } from "./LuminousWardVfx";
 import { MobilityBoostVfx } from "./MobilityBoostVfx";
@@ -893,8 +898,10 @@ export class DungeonWorld {
       swarmCurseActive: this.powers.swarmCurseActive,
       wardActive: isLuminousWardOn(this.powers),
       pulseActive: isAnnihilationPulseOn(this.powers),
+      torchActive: isHandTorchOn(this.powers),
       wardRadius: LUMINOUS_WARD_REPEL_RADIUS,
       pulseRadius: ANNIHILATION_PULSE_REPEL_RADIUS,
+      torchRadius: HAND_TORCH_SLOW_RADIUS,
     };
   }
 
@@ -912,6 +919,7 @@ export class DungeonWorld {
     const enemiesFrozen = isTimeFreezeOn(this.powers);
     const luminousWardActive = isLuminousWardOn(this.powers);
     const annihilationPulseActive = isAnnihilationPulseOn(this.powers);
+    const handTorchActive = isHandTorchOn(this.powers);
     const frenzyActive = isFrenzyCurseOn(this.powers);
     const activeEnemyRuntime = this.activeEnemyRuntime;
     const enemyPlayer = activeEnemyRuntime?.localPlayerPosition(player) ?? player;
@@ -952,10 +960,13 @@ export class DungeonWorld {
             repelRadius: Math.max(
               luminousWardActive ? LUMINOUS_WARD_REPEL_RADIUS : 0,
               annihilationPulseActive ? ANNIHILATION_PULSE_REPEL_RADIUS : 0,
+              handTorchActive ? HAND_TORCH_REPEL_RADIUS : 0,
             ),
             repelSpeedMultiplier: annihilationPulseActive
               ? ANNIHILATION_PULSE_REPEL_SPEED_MULTIPLIER
               : 1,
+            slowRadius: handTorchActive ? HAND_TORCH_SLOW_RADIUS : 0,
+            slowSpeedMultiplier: handTorchActive ? HAND_TORCH_SLOW_MULTIPLIER : 1,
             moodId: this.activeMood.id,
             difficulty: composeDifficultyWithBiomeEvent(
               this.difficulty,
@@ -1023,33 +1034,6 @@ export class DungeonWorld {
           z: attackerPosition.z,
         },
       };
-    }
-    if (firePressed && isShotgunOn(this.powers)) {
-      if (tryFireShotgun(this.powers.shotgun)) {
-        const aimLength = aim ? Math.hypot(aim.x, aim.y, aim.z) : 0;
-        const direction =
-          aim && aimLength > 1e-6
-            ? { x: aim.x / aimLength, y: aim.y / aimLength, z: aim.z / aimLength }
-            : { x: 0, y: 0, z: -1 };
-        const blast = this.applyShotgunBlast(player, direction);
-        const muzzle = shotgunMuzzleWorldOrigin(player, direction);
-        this.shotgunBlastVfx?.triggerBlast({
-          origin: muzzle,
-          direction,
-          impacts: blast.impacts,
-          seed: this.elapsed * 17.13 + player.x * 3.1 + player.z,
-        });
-        shotgunFire = {
-          position: { x: muzzle.x, y: muzzle.y, z: muzzle.z },
-          hits: blast.hits,
-          shells: this.powers.shotgun.shells,
-          pump: true,
-        };
-      } else {
-        shotgunDryFire = {
-          position: { x: player.x, y: player.y, z: player.z },
-        };
-      }
     }
     const attackerWorldPosition =
       sim.attacker && activeEnemyRuntime
@@ -1138,9 +1122,10 @@ export class DungeonWorld {
     const preferChest =
       nearestChest !== null &&
       (nearestTorch === null || nearestChestDistance <= nearestTorchDistance);
+    let consumedFireAsInteract = false;
     if (preferChest && nearestChest) {
       interactionPrompt = "open-chest";
-      if (shouldOpenChest(interactPressed)) {
+      if (shouldOpenChest(interactPressed, firePressed)) {
         nearestChest.opened = true;
         this.invalidateInteractAnchor(nearestChest.root);
         setPickupDormant(nearestChest.reward.object, false);
@@ -1154,10 +1139,11 @@ export class DungeonWorld {
           },
         };
         interactionPrompt = null;
+        consumedFireAsInteract = firePressed;
       }
     } else if (nearestTorch) {
       interactionPrompt = "take-torch";
-      if (shouldTakeWallTorch(interactPressed)) {
+      if (shouldTakeWallTorch(interactPressed, firePressed)) {
         extinguishTakenWallTorch(nearestTorch);
         this.invalidateInteractAnchor(nearestTorch.root);
         equipHandTorchFromWall(this.powers);
@@ -1171,6 +1157,35 @@ export class DungeonWorld {
           },
         };
         interactionPrompt = null;
+        consumedFireAsInteract = firePressed;
+      }
+    }
+
+    if (firePressed && !consumedFireAsInteract && isShotgunOn(this.powers)) {
+      if (tryFireShotgun(this.powers.shotgun)) {
+        const aimLength = aim ? Math.hypot(aim.x, aim.y, aim.z) : 0;
+        const direction =
+          aim && aimLength > 1e-6
+            ? { x: aim.x / aimLength, y: aim.y / aimLength, z: aim.z / aimLength }
+            : { x: 0, y: 0, z: -1 };
+        const blast = this.applyShotgunBlast(player, direction);
+        const muzzle = shotgunMuzzleWorldOrigin(player, direction);
+        this.shotgunBlastVfx?.triggerBlast({
+          origin: muzzle,
+          direction,
+          impacts: blast.impacts,
+          seed: this.elapsed * 17.13 + player.x * 3.1 + player.z,
+        });
+        shotgunFire = {
+          position: { x: muzzle.x, y: muzzle.y, z: muzzle.z },
+          hits: blast.hits,
+          shells: this.powers.shotgun.shells,
+          pump: true,
+        };
+      } else {
+        shotgunDryFire = {
+          position: { x: player.x, y: player.y, z: player.z },
+        };
       }
     }
 

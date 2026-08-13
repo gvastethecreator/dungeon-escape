@@ -45,6 +45,20 @@ describe("EnemyActivation", () => {
         pulseRadius: 11.5,
       }),
     ).toBe(12.5);
+    expect(
+      resolveSafeSpawnDistance({
+        base: 6,
+        torchActive: true,
+        torchRadius: 7.4,
+      }),
+    ).toBe(8.4);
+    expect(
+      resolveSafeSpawnDistance({
+        base: 6,
+        torchActive: false,
+        torchRadius: 7.4,
+      }),
+    ).toBe(6);
   });
 
   test("filters by mode, tier, distance, and LOS", () => {

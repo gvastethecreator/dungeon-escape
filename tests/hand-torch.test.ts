@@ -5,6 +5,9 @@ import {
   activateHandTorch,
   HAND_TORCH_DURATION_SECONDS,
   HAND_TORCH_LIT_LANTERN_MUL,
+  HAND_TORCH_REPEL_RADIUS,
+  HAND_TORCH_SLOW_MULTIPLIER,
+  HAND_TORCH_SLOW_RADIUS,
   HAND_TORCH_UNLIT_LANTERN_MUL,
   handTorchFogMultiplier,
   handTorchLanternMultiplier,
@@ -29,6 +32,9 @@ import {
 describe("hand torch fuel", () => {
   test("equips a full 15 second window and burns out", () => {
     expect(HAND_TORCH_DURATION_SECONDS).toBe(15);
+    expect(HAND_TORCH_REPEL_RADIUS).toBeLessThan(HAND_TORCH_SLOW_RADIUS);
+    expect(HAND_TORCH_SLOW_MULTIPLIER).toBeGreaterThan(0);
+    expect(HAND_TORCH_SLOW_MULTIPLIER).toBeLessThan(1);
     expect(activateHandTorch()).toBe(15);
     expect(isHandTorchActive(activateHandTorch())).toBe(true);
     expect(tickHandTorch(15, 4)).toBeCloseTo(11);
@@ -56,9 +62,10 @@ describe("hand torch fuel", () => {
 });
 
 describe("wall torch take", () => {
-  test("requires F interact inside reach and extinguishes the sconce", () => {
+  test("takes wall torches on F or left-click and extinguishes the sconce", () => {
     expect(shouldTakeWallTorch(true)).toBe(true);
     expect(shouldTakeWallTorch(false)).toBe(false);
+    expect(shouldTakeWallTorch(false, true)).toBe(true);
     expect(
       canTakeWallTorch(WALL_TORCH_INTERACTION_DISTANCE, { takeable: true, taken: false }),
     ).toBe(true);

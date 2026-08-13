@@ -4,6 +4,12 @@ import { isTimedSecondsActive, replaceTimedSeconds, tickTimedSeconds } from "./T
 
 /** Held torch burns out after this many gameplay seconds. */
 export const HAND_TORCH_DURATION_SECONDS = 15;
+/** Close flame: enemies reverse pursuit and cannot strike. */
+export const HAND_TORCH_REPEL_RADIUS = 4.8;
+/** Wider ring where enemies still approach, but much slower. */
+export const HAND_TORCH_SLOW_RADIUS = 7.4;
+/** Pursuit speed inside the slow ring (outside the flee radius). */
+export const HAND_TORCH_SLOW_MULTIPLIER = 0.45;
 /** Player lantern while unarmed — just enough to read adjacent masonry. */
 export const HAND_TORCH_UNLIT_LANTERN_MUL = 0.16;
 /** Player lantern + forward beam while the held torch is burning. */

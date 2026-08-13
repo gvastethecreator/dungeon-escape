@@ -99,7 +99,19 @@ describe("RunSession applyWorldUpdate", () => {
     expect(session.resolve).toBe(0);
     expect(session.runMode).toBe("dead");
     expect(fx.endOverlay).toBe("dead");
+    expect(fx.status).toBeUndefined();
     expect(quest.isRunning).toBe(false);
+  });
+
+  test("damage feedback does not emit a status toast", () => {
+    const session = createRunSession(40);
+    const quest = new QuestState();
+    quest.start(0);
+    const fx = applyWorldUpdate(session, quest, emptyUpdate({ damage: 9 }));
+    expect(session.resolve).toBe(31);
+    expect(fx.damageHit).toBe(true);
+    expect(fx.flash).toBe("damage");
+    expect(fx.status).toBeUndefined();
   });
 
   test("fatal damage wins over an open exit in the same update", () => {

@@ -665,13 +665,13 @@ const PREMIGRATION_CLASSIC_BASELINE = Object.freeze({
     "Static prop contact shadows|1|18",
   ],
   doors: 22,
-  objectOccupied: 256,
+  objectOccupied: 265,
   solid: 33,
   wallSprite: 73,
   colliders: 33,
-  reservationsFingerprint: "fnv1a-95609fbe",
+  reservationsFingerprint: "fnv1a-a6505bfd",
   // Spatial chunks split instanced dressing; rigid batches remain shared.
-  fingerprint: "fnv1a-512889ee",
+  fingerprint: "fnv1a-ec94b165",
 });
 const PREMIGRATION_FORGE_BASELINE = Object.freeze({
   version: "rdl05-runtime-batching-v2",
@@ -1055,7 +1055,7 @@ describe("RDL-05 rigid prop catalog", () => {
         materials: materialDisposals.size,
       }).toEqual({
         assetTextures: 37,
-        catalogGeometries: 130,
+        catalogGeometries: 155,
         doorGeometries: 5,
         materials: 42,
       });
