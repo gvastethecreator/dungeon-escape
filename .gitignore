@@ -5,6 +5,7 @@ docs/codemap/
 .scratch/
 .proof-*
 .code-review-graph/
+.img2threejs/
 .local/
 .cache/
 .vite/

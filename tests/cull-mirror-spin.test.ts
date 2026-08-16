@@ -23,7 +23,6 @@ import {
 import { OFFENSE_POWER_KINDS, planOffensePowerKind } from "../src/game/OffensePowerPlan";
 import { CURSE_CHEST_KINDS, planCurseChestPlacements } from "../src/game/CurseChestPlan";
 import { projectPickupFeedback } from "../src/ui/PickupFeedback";
-import { COPY } from "../src/ui/copy";
 import { applyWorldUpdate, createRunSession } from "../src/game/RunSession";
 import { QuestState } from "../src/game/QuestState";
 
@@ -109,7 +108,7 @@ describe("pickup feedback and session effects", () => {
       reachedOpenExit: false,
     });
     expect(cull.pickup?.cullBrand).toBe(true);
-    expect(cull.status).toBe(COPY.status.cullBrand);
+    expect(cull.status).toBeUndefined();
 
     const mirror = applyWorldUpdate(session, quest, {
       collectedPickupKind: "mirror-curse",

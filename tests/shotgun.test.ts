@@ -101,9 +101,9 @@ describe("shotgun", () => {
     expect(shotgunHitsEnemy(origin, forward, live)).toBe(true);
     expect(shotgunHitsEnemy(origin, forward, { ...live, defeated: true })).toBe(false);
     expect(shotgunHitsEnemy(origin, forward, { ...live, phaseVisibility: 0.02 })).toBe(false);
-    expect(
-      shotgunHitsEnemy(origin, forward, { ...live, position: { x: 0, y: 1.6, z: 4 } }),
-    ).toBe(false);
+    expect(shotgunHitsEnemy(origin, forward, { ...live, position: { x: 0, y: 1.6, z: 4 } })).toBe(
+      false,
+    );
     expect(
       shotgunHitsEnemy(origin, forward, {
         ...live,

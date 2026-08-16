@@ -22,15 +22,16 @@ describe("biome picker icons", () => {
     expect(existsSync(join(iconRoot, "biome-icons-sheet.webp"))).toBe(true);
   });
 
-  test.skipIf(
-    !hasLocalSourceAssets("runtime-metadata", "ui", "biome-icons", "manifest.json"),
-  )("keeps the local biome-icon production manifest", () => {
-    expect(
-      existsSync(
-        join(import.meta.dir, "../assets-source/runtime-metadata/ui/biome-icons/manifest.json"),
-      ),
-    ).toBe(true);
-  });
+  test.skipIf(!hasLocalSourceAssets("runtime-metadata", "ui", "biome-icons", "manifest.json"))(
+    "keeps the local biome-icon production manifest",
+    () => {
+      expect(
+        existsSync(
+          join(import.meta.dir, "../assets-source/runtime-metadata/ui/biome-icons/manifest.json"),
+        ),
+      ).toBe(true);
+    },
+  );
 
   test("picker render wires icon and hover color", async () => {
     const source = await Bun.file(new URL("../src/main.ts", import.meta.url)).text();

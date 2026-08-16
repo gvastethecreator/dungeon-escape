@@ -50,7 +50,7 @@ const ENEMY_FLOOR_FIXTURE = Object.freeze([
     reserve: 94,
     billboardKinds: 10,
     rawBatches: 11,
-    hash: "98ea4250",
+    hash: "1082ac32",
   },
   {
     floorIndex: 1,

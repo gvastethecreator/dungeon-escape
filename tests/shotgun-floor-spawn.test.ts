@@ -49,9 +49,7 @@ describe("shotgun floor spawn", () => {
       );
     }
     expect(chebyshev(seats[0]!, seats[1]!)).toBeGreaterThanOrEqual(SHOTGUN_FLOOR_MIN_SEPARATION);
-    const distances = seats.map(
-      (seat) => dungeon.distances[seat.y * dungeon.width + seat.x] ?? -1,
-    );
+    const distances = seats.map((seat) => dungeon.distances[seat.y * dungeon.width + seat.x] ?? -1);
     expect(Math.min(...distances)).toBeGreaterThan(0);
     expect(Math.max(...distances) - Math.min(...distances)).toBeGreaterThanOrEqual(4);
   });
@@ -71,7 +69,9 @@ describe("shotgun floor spawn", () => {
   });
 
   test("scene prefers the corridor shotgun selector", async () => {
-    const scene = await Bun.file(new URL("../src/world/StaticDungeonScene.ts", import.meta.url)).text();
+    const scene = await Bun.file(
+      new URL("../src/world/StaticDungeonScene.ts", import.meta.url),
+    ).text();
     expect(scene).toContain("selectShotgunFloorSeats");
     expect(scene).not.toContain("preferCorridor");
   });

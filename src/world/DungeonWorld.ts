@@ -84,11 +84,7 @@ import {
 } from "../game/FrenzyCurse";
 import { CULL_BRAND_MIN_PHASE_VISIBILITY, tryConsumeCullBrand } from "../game/CullBrand";
 import { clampPhoenixCharges, hasPhoenixCharge } from "../game/PhoenixEgg";
-import {
-  shotgunHitsEnemy,
-  shotgunMuzzleWorldOrigin,
-  tryFireShotgun,
-} from "../game/Shotgun";
+import { shotgunHitsEnemy, shotgunMuzzleWorldOrigin, tryFireShotgun } from "../game/Shotgun";
 import {
   applyPickupToRunPowers,
   createRunPowerRuntime,

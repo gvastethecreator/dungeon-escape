@@ -717,6 +717,7 @@ describe("FloorOccupancyGrid", () => {
       const catalogBeforeFailure = catalog.snapshot();
       const constructionError = new Error("RDL10 early construction failure");
       internals.buildFloorContents = function* () {
+        yield* [];
         throw constructionError;
       };
 

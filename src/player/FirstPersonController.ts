@@ -630,11 +630,7 @@ export class FirstPersonController {
 
   /** 0.5–1.5 player look feel. Independent of curse sensitivityScale. */
   setLookFeelScale(value: number): void {
-    this.lookFeelScale = THREE.MathUtils.clamp(
-      Number.isFinite(value) ? value : 1,
-      0.5,
-      1.5,
-    );
+    this.lookFeelScale = THREE.MathUtils.clamp(Number.isFinite(value) ? value : 1, 0.5, 1.5);
   }
 
   setCameraMotion(value: number): void {

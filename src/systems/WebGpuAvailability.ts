@@ -57,9 +57,7 @@ function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
 export function skippedWebGpuAvailability(): WebGpuAvailability {
   const hasNavigatorGpu =
     typeof navigator !== "undefined" &&
-    Boolean(
-      (navigator as Navigator & { gpu?: { requestAdapter?: unknown } }).gpu?.requestAdapter,
-    );
+    Boolean((navigator as Navigator & { gpu?: { requestAdapter?: unknown } }).gpu?.requestAdapter);
   return {
     hasNavigatorGpu,
     hasAdapter: false,

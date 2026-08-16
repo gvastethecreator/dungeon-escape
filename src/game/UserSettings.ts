@@ -46,7 +46,10 @@ export function readUserSettings(storage: SettingsStorage = localStorage): UserS
           : DEFAULT_USER_SETTINGS.textureSmoothing,
       audioMuted: typeof value.audioMuted === "boolean" ? value.audioMuted : false,
       crtEnabled: typeof value.crtEnabled === "boolean" ? value.crtEnabled : null,
-      lookSensitivity: lookSensitivity(value.lookSensitivity, DEFAULT_USER_SETTINGS.lookSensitivity),
+      lookSensitivity: lookSensitivity(
+        value.lookSensitivity,
+        DEFAULT_USER_SETTINGS.lookSensitivity,
+      ),
     };
   } catch {
     return { ...DEFAULT_USER_SETTINGS };

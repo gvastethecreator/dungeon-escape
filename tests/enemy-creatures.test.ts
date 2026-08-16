@@ -135,34 +135,36 @@ describe("enemy roster v8", () => {
   test.skipIf(!hasLocalSourceAssets("enemies", "biomes-v2", "runtime-size-catalog.json"))(
     "locks all 121 biome bodies to their approved base sprites and idle frames",
     async () => {
-    const catalog = (await Bun.file(
-      new URL("../assets-source/enemies/biomes-v2/runtime-size-catalog.json", import.meta.url),
-    ).json()) as {
-      counts: { entries: number };
-      entries: Array<{
-        biome: string;
-        enemy: (typeof ENEMY_ROSTER)[number];
-        body_size_meters: { width: number; height: number };
-        base_source: { foreground_bounds: [number, number, number, number] };
-        runtime_idle: { cell: number; opaque_width: number; opaque_height: number };
-      }>;
-    };
+      const catalog = (await Bun.file(
+        new URL("../assets-source/enemies/biomes-v2/runtime-size-catalog.json", import.meta.url),
+      ).json()) as {
+        counts: { entries: number };
+        entries: Array<{
+          biome: string;
+          enemy: (typeof ENEMY_ROSTER)[number];
+          body_size_meters: { width: number; height: number };
+          base_source: { foreground_bounds: [number, number, number, number] };
+          runtime_idle: { cell: number; opaque_width: number; opaque_height: number };
+        }>;
+      };
 
-    expect(catalog.counts.entries).toBe(121);
-    expect(new Set(catalog.entries.map((entry) => `${entry.biome}/${entry.enemy}`)).size).toBe(121);
-    for (const entry of catalog.entries) {
-      const body = getEnemyVisualBodySize(entry.enemy, entry.biome);
-      const render = getEnemySpriteRenderMetrics(entry.enemy, entry.biome);
-      const [left, top, right, bottom] = entry.base_source.foreground_bounds;
-      const sourceAspect = (right - left) / (bottom - top);
-      expect(body).toEqual(entry.body_size_meters);
-      expect(body.width).toBeCloseTo(body.height * sourceAspect, 3);
-      expect(render.planeWidth).toBeCloseTo(render.planeHeight, 5);
-      expect(
-        render.planeHeight * (entry.runtime_idle.opaque_height / entry.runtime_idle.cell),
-      ).toBeCloseTo(body.height, 5);
-    }
-  },
+      expect(catalog.counts.entries).toBe(121);
+      expect(new Set(catalog.entries.map((entry) => `${entry.biome}/${entry.enemy}`)).size).toBe(
+        121,
+      );
+      for (const entry of catalog.entries) {
+        const body = getEnemyVisualBodySize(entry.enemy, entry.biome);
+        const render = getEnemySpriteRenderMetrics(entry.enemy, entry.biome);
+        const [left, top, right, bottom] = entry.base_source.foreground_bounds;
+        const sourceAspect = (right - left) / (bottom - top);
+        expect(body).toEqual(entry.body_size_meters);
+        expect(body.width).toBeCloseTo(body.height * sourceAspect, 3);
+        expect(render.planeWidth).toBeCloseTo(render.planeHeight, 5);
+        expect(
+          render.planeHeight * (entry.runtime_idle.opaque_height / entry.runtime_idle.cell),
+        ).toBeCloseTo(body.height, 5);
+      }
+    },
   );
 
   test("corrects the reported goblin, ghost, shadow, and carrion proportions", () => {

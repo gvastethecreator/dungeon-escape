@@ -250,17 +250,27 @@ describe("minimap marker layer", () => {
       const dungeon = makeDungeon();
       const explored = new Set([cellKey(2, 2)]);
       const viewport = { width: 200, height: 120, pixelRatio: 1 };
-      drawMinimap(canvas, dungeon, { x: 2, y: 2 }, {
-        explored,
-        staticLayerKey: 1,
-        viewport,
-      });
+      drawMinimap(
+        canvas,
+        dungeon,
+        { x: 2, y: 2 },
+        {
+          explored,
+          staticLayerKey: 1,
+          viewport,
+        },
+      );
       explored.add(cellKey(3, 2));
-      drawMinimap(canvas, dungeon, { x: 3, y: 2 }, {
-        explored,
-        staticLayerKey: 2,
-        viewport,
-      });
+      drawMinimap(
+        canvas,
+        dungeon,
+        { x: 3, y: 2 },
+        {
+          explored,
+          staticLayerKey: 2,
+          viewport,
+        },
+      );
       expect(created).toBe(1);
     } finally {
       globalThis.document = previous;

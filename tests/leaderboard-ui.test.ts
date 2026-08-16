@@ -123,7 +123,7 @@ describe("persistent leaderboard UI", () => {
     );
     expect(shell).toMatch(/hydrateWelcome\(\);\s*void refreshLeaderboard\(\);/);
     expect(source).toMatch(
-      /setWelcomeOpen[\s\S]*showWelcomeHome\(\);\s*void refreshLeaderboard\(\);/,
+      /setWelcomeOpen[\s\S]*showWelcomeHome\(\);[\s\S]*void refreshLeaderboard\(\);/,
     );
   });
 

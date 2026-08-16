@@ -1,6 +1,6 @@
 # Dependencies
 
-Last reviewed: 2026-08-09.
+Last reviewed: 2026-08-15.
 
 ## Package manager
 
@@ -14,6 +14,18 @@ bun run deps:outdated
 bun run deps:audit
 ```
 
+## 2026-08-15 update
+
+| Package                     | From         | To           | Project impact                                                                         |
+| --------------------------- | ------------ | ------------ | -------------------------------------------------------------------------------------- |
+| `@cloudflare/workers-types` | 5.20260809.1 | 5.20260815.1 | Refreshes the Worker runtime declarations used by the checked server and Worker graph. |
+| `oxfmt`                     | 0.62.0       | 0.63.0       | Applies the current formatter contract and closes the remote CI formatting failure.    |
+| `oxlint`                    | 1.77.0       | 1.78.0       | Refreshes diagnostics without changing the repository lint policy.                     |
+| `sharp`                     | 0.35.2       | 0.35.3       | Keeps image audits and asset optimization on the current patch.                        |
+| `wrangler`                  | 4.120.0      | 4.123.0      | Updates the local Worker and D1 toolchain without changing deployment configuration.   |
+
+`three`, Vite, Playwright, TypeScript, `@types/three`, and `@types/bun` were already current. The frozen install succeeds, `bun outdated` is empty, and `bun audit` reports no known vulnerabilities after this update.
+
 ## 2026-08-09 update
 
 | Package                     | From         | To           | Relevant release note                                                                                                                                            | Project impact                                                                          |
@@ -26,4 +38,4 @@ bun run deps:audit
 | `@cloudflare/workers-types` | 5.20260730.1 | 5.20260809.1 | Date-pinned Cloudflare runtime type refresh.                                                                                                                     | Server and Worker type checks pass without source migration.                            |
 | `@types/three`              | 0.185.1      | 0.185.4      | Patch-level type corrections for Three.js r185.                                                                                                                  | The browser type check passes without source migration.                                 |
 
-`three`, `@types/bun`, and TypeScript were already current. `bun outdated` is empty and `bun audit` reports no vulnerabilities after the update.
+This historical update remains documented for traceability; the current status is recorded above.

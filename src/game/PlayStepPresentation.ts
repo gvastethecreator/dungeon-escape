@@ -188,10 +188,7 @@ export interface PlayStepPresentationHost {
   flash(kind?: "event" | "damage"): void;
   playDoor(kind: "open" | "close", position: { x: number; y: number; z: number }): void;
   playChest(position: { x: number; y: number; z: number }): void;
-  playEnemyHit(
-    position: { x: number; y: number; z: number },
-    voice: unknown,
-  ): void;
+  playEnemyHit(position: { x: number; y: number; z: number }, voice: unknown): void;
   playHazardDamage(): void;
   triggerDamageFeedback(knockback: { x: number; z: number } | null, washKind: DamageWashKind): void;
   updateResolve(): void;

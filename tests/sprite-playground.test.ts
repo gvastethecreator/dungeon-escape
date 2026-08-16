@@ -47,6 +47,15 @@ describe("sprite playground", () => {
     expect(byId.uncanny?.entries).toHaveLength(uncannyWallAnimations("ancient").length);
     expect(byId.item?.entries).toHaveLength(SPRITE_PLAYGROUND_ITEM_ENTRIES.length);
     expect(spritePlaygroundEnemyLabel("white-eyed-shadow")).toBe("White Eyed Shadow");
+    expect(byId.uncanny?.entries.map((entry) => entry.label)).toContain(
+      "Watching ancestor portrait",
+    );
+    expect(
+      byId.uncanny?.entries.every(
+        (entry) =>
+          !/\b(del|que|bajo|una?|con|para|rostro|ojos?|máscara|corazón|reloj)\b/i.test(entry.label),
+      ),
+    ).toBe(true);
   });
 
   test("filters catalog entries by id, label, or group name", () => {

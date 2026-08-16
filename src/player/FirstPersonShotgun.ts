@@ -30,7 +30,12 @@ export interface FirstPersonShotgunHandle {
   setWarmupVisible(visible: boolean): void;
   /** 1 while a shot just fired; drives recoil + muzzle flash. */
   kick(strength?: number): void;
-  update(delta: number, elapsed: number, motion: FirstPersonShotgunMotion, pumpSeconds: number): void;
+  update(
+    delta: number,
+    elapsed: number,
+    motion: FirstPersonShotgunMotion,
+    pumpSeconds: number,
+  ): void;
   dispose(): void;
 }
 
@@ -233,7 +238,12 @@ export function createFirstPersonShotgun(materials?: DungeonMaterials): FirstPer
       }
       sparks.visible = true;
     },
-    update(delta: number, elapsed: number, motion: FirstPersonShotgunMotion, pumpSeconds: number): void {
+    update(
+      delta: number,
+      elapsed: number,
+      motion: FirstPersonShotgunMotion,
+      pumpSeconds: number,
+    ): void {
       if (!grip.visible) return;
       const pace = motion.sprinting ? 1.35 : motion.moving ? 1 : 0.35;
       const stride = motion.grounded ? motion.stridePhase : elapsed * 2.4;

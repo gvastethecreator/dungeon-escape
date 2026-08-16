@@ -50,11 +50,7 @@ const digest = (path: string) =>
     .update(readFileSync(projectPath(path)))
     .digest("hex");
 
-const hasDoorSources = hasLocalSourceAssets(
-  "imagegen",
-  "biome-door-textures-v2",
-  "manifest.json",
-);
+const hasDoorSources = hasLocalSourceAssets("imagegen", "biome-door-textures-v2", "manifest.json");
 const manifest = (
   hasDoorSources
     ? JSON.parse(
@@ -74,7 +70,6 @@ const runtimeImages = hasDoorSources
   : [];
 
 describe.skipIf(!hasDoorSources)("biome door texture v2 contract", () => {
-
   test("covers every biome with a centered full double-leaf plate", () => {
     expect(manifest.doors.map(({ id }) => id)).toEqual([...listBiomeIds()]);
     expect(manifest.contract.layout).toContain("U=0.5");

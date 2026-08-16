@@ -15,12 +15,16 @@ describe("normalizeGeometryForMerge", () => {
     expect(normalized.getAttribute("uv")).toBeDefined();
     expect(normalized.getAttribute("normal")).toBeDefined();
     expect(normalized.getAttribute("skinIndex")).toBeUndefined();
-    expect(normalized.getAttribute("position").array[0]).not.toBe(geometry.getAttribute("position").array[0]);
+    expect(normalized.getAttribute("position").array[0]).not.toBe(
+      geometry.getAttribute("position").array[0],
+    );
   });
 
   test("keeps vertex color when requested", () => {
     const geometry = new THREE.BoxGeometry(1, 1, 1);
-    const normalized = normalizeGeometryForMerge(geometry, new THREE.Matrix4(), { keepColor: true });
+    const normalized = normalizeGeometryForMerge(geometry, new THREE.Matrix4(), {
+      keepColor: true,
+    });
     expect(normalized.getAttribute("color")).toBeDefined();
     expect(normalized.getAttribute("color").array[0]).toBe(1);
   });

@@ -78,7 +78,6 @@ const runtimeImages = hasMaterialSources
   : [];
 
 describe.skipIf(!hasMaterialSources)("model material texture v2 contract", () => {
-
   test("covers every shared role with an intact authored interior and explicit wrap policy", () => {
     expect(manifest.materials.map(({ id }) => id)).toEqual([
       "aged-oak",

@@ -263,15 +263,7 @@ function getStaticLayer(
   ) {
     const context = cached.canvas.getContext("2d");
     if (context) {
-      paintNewExploredCells(
-        context,
-        dungeon,
-        explored,
-        cached.painted,
-        originX,
-        originY,
-        cellSize,
-      );
+      paintNewExploredCells(context, dungeon, explored, cached.painted, originX, originY, cellSize);
       cached.explored = explored;
       cached.key = key;
       return cached.canvas;

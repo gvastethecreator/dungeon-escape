@@ -20,7 +20,10 @@ export function normalizeGeometryForMerge(
   if (!next.getAttribute("uv")) {
     next.setAttribute(
       "uv",
-      new THREE.Float32BufferAttribute(new Float32Array(next.getAttribute("position").count * 2), 2),
+      new THREE.Float32BufferAttribute(
+        new Float32Array(next.getAttribute("position").count * 2),
+        2,
+      ),
     );
   }
   if (options.keepColor && !next.getAttribute("color")) {

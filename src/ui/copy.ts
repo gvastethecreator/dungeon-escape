@@ -64,8 +64,7 @@ export const COPY = {
   } as const,
   status: {
     enter: "Click the scene to lock the pointer.",
-    enterPlay:
-      "Click the scene to lock the pointer. Right-click to jump · ESC options.",
+    enterPlay: "Click the scene to lock the pointer. Right-click to jump · ESC options.",
     pleaseWait: "Please wait",
     preparingDungeon: "Preparing the dungeon…",
     restoringDungeon: "Restoring saved dungeon…",

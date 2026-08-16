@@ -23,7 +23,7 @@ pwsh -File scripts/build-audio-pack.ps1
 | wet footsteps   | 0.84 group; 0.14–0.16 per asset |        -32 LUFS |             soft bed | Water masks (left soft)   |
 | threat          |                            0.72 | -24 to -18 LUFS |     ~-30 to -27 LUFS | Enemy voices              |
 | ui              |                            0.28 |        -32 LUFS |             soft bed | Soft menu clicks/ticks    |
-| music           |                           0.288 |        -16 LUFS |             under SFX | Scene and biome beds      |
+| music           |                           0.288 |        -16 LUFS |            under SFX | Scene and biome beds      |
 
 Master defaults to `0.76`. Effective level ≈ file LUFS + asset gain + group gain + master. Per-asset gains in `GameAudio` were matched to measured Opus loudness; footsteps stay intentionally quiet.
 

@@ -4,20 +4,20 @@ GitHub Issues use one category label and one triage label. Local mirrors record 
 
 ## Categories
 
-| Canonical category | GitHub label  | Meaning                    |
-| ------------------ | ------------- | -------------------------- |
-| `bug`              | `bug`         | Existing behavior is wrong |
+| Canonical category | GitHub label  | Meaning                     |
+| ------------------ | ------------- | --------------------------- |
+| `bug`              | `bug`         | Existing behavior is wrong  |
 | `enhancement`      | `enhancement` | New behavior or improvement |
 
 ## Statuses
 
-| Canonical status   | GitHub label       | Meaning                                   |
-| ------------------ | ------------------ | ----------------------------------------- |
-| `needs-triage`     | `needs-triage`     | Maintainer evaluation required            |
-| `needs-info`       | `needs-info`       | Waiting for missing information           |
-| `ready-for-agent`  | `ready-for-agent`  | Fully specified, ready for an AFK agent   |
-| `ready-for-human`  | `ready-for-human`  | Requires human implementation or judgment |
-| `wontfix`          | `wontfix`          | Deliberately not actioned                 |
+| Canonical status  | GitHub label      | Meaning                                   |
+| ----------------- | ----------------- | ----------------------------------------- |
+| `needs-triage`    | `needs-triage`    | Maintainer evaluation required            |
+| `needs-info`      | `needs-info`      | Waiting for missing information           |
+| `ready-for-agent` | `ready-for-agent` | Fully specified, ready for an AFK agent   |
+| `ready-for-human` | `ready-for-human` | Requires human implementation or judgment |
+| `wontfix`         | `wontfix`         | Deliberately not actioned                 |
 
 ## Project status
 

@@ -32,27 +32,27 @@ describe("enemy atlas runtime contract", () => {
   test.skipIf(!hasLocalSourceAssets("enemies", "v8", "manifest.json"))(
     "runtime frame data matches the shipped manifest",
     async () => {
-    const manifestFile = Bun.file(
-      new URL("../assets-source/enemies/v8/manifest.json", import.meta.url),
-    );
-    const manifest = JSON.parse(await manifestFile.text()) as AtlasManifest;
+      const manifestFile = Bun.file(
+        new URL("../assets-source/enemies/v8/manifest.json", import.meta.url),
+      );
+      const manifest = JSON.parse(await manifestFile.text()) as AtlasManifest;
 
-    expect(manifest.frame_layout).toMatchObject({
-      sheetWidth: 640,
-      sheetHeight: 1760,
-      cellWidth: 160,
-      cellHeight: 160,
-    });
-    expect(Object.keys(manifest.frame_layout.rows)).toEqual([...ENEMY_ROSTER]);
+      expect(manifest.frame_layout).toMatchObject({
+        sheetWidth: 640,
+        sheetHeight: 1760,
+        cellWidth: 160,
+        cellHeight: 160,
+      });
+      expect(Object.keys(manifest.frame_layout.rows)).toEqual([...ENEMY_ROSTER]);
 
-    for (const kind of ENEMY_ROSTER) {
-      const animation = ENEMY_ANIMATIONS[kind];
-      const manifestAnimation = manifest.animation.rows[kind];
-      expect(animation.src).toBe(ENEMY_ATLAS_SRC);
-      expect(animation.frames).toEqual(manifest.frame_layout.rows[kind]);
-      expect(manifestAnimation).toMatchObject({ fps: 8, frames: 4, loop: true });
-    }
-  },
+      for (const kind of ENEMY_ROSTER) {
+        const animation = ENEMY_ANIMATIONS[kind];
+        const manifestAnimation = manifest.animation.rows[kind];
+        expect(animation.src).toBe(ENEMY_ATLAS_SRC);
+        expect(animation.frames).toEqual(manifest.frame_layout.rows[kind]);
+        expect(manifestAnimation).toMatchObject({ fps: 8, frames: 4, loop: true });
+      }
+    },
   );
 
   test("four-frame walk loop advances at eight frames per second", () => {

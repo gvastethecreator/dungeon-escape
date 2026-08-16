@@ -16,9 +16,7 @@ describe("gameplay hitch recovery", () => {
     expect(scene).toContain("this.scatterCobwebs(dungeon, atmosphereRandom)");
     expect(scene).toContain("this.scatterRoomAtmosphereProps(dungeon, atmosphereRandom)");
     expect(scene).toContain("this.scatterBiomeSpriteProps(dungeon)");
-    expect(scene).not.toMatch(
-      /this\.addAtmosphereProps\([^)]+\);\s*this\.scatterBiomeSpriteProps/,
-    );
+    expect(scene).not.toMatch(/this\.addAtmosphereProps\([^)]+\);\s*this\.scatterBiomeSpriteProps/);
     expect(world).toContain("PLAY_DRESSING_PUMP_SKIP_DELTA");
     expect(world).toContain("if (delta < PLAY_DRESSING_PUMP_SKIP_DELTA)");
   });

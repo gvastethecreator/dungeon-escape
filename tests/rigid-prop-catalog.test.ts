@@ -665,13 +665,13 @@ const PREMIGRATION_CLASSIC_BASELINE = Object.freeze({
     "Static prop contact shadows|1|18",
   ],
   doors: 22,
-  objectOccupied: 265,
+  objectOccupied: 257,
   solid: 33,
-  wallSprite: 73,
+  wallSprite: 72,
   colliders: 33,
-  reservationsFingerprint: "fnv1a-a6505bfd",
+  reservationsFingerprint: "fnv1a-0e1bac0a",
   // Spatial chunks split instanced dressing; rigid batches remain shared.
-  fingerprint: "fnv1a-ec94b165",
+  fingerprint: "fnv1a-d20b7064",
 });
 const PREMIGRATION_FORGE_BASELINE = Object.freeze({
   version: "rdl05-runtime-batching-v2",

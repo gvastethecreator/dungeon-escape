@@ -59,36 +59,37 @@ describe("model QA lab", () => {
   test.skipIf(!hasLocalSourceAssets("imagegen", "model-references-v2", "manifest.json"))(
     "lists every accepted reference before optional runtime variants",
     async () => {
-    const manifest = (await Bun.file(
-      new URL("../assets-source/imagegen/model-references-v2/manifest.json", import.meta.url),
-    ).json()) as { objects: Array<{ id: string }> };
-    const rosterIds = MODEL_QA_CATALOG.slice(0, MODEL_QA_REFERENCE_COUNT).map(({ id }) => id);
-    expect(MODEL_QA_REFERENCE_COUNT).toBe(55);
-    expect(JSON.stringify(rosterIds)).toBe(JSON.stringify(manifest.objects.map(({ id }) => id)));
-    expect(MODEL_QA_CATALOG.slice(MODEL_QA_REFERENCE_COUNT).map(({ id }) => id)).toEqual([
-      "door-ancient",
-      "door-molten",
-      "door-frost",
-      "door-grim",
-      "door-verdant",
-      "door-ash",
-      "door-iron",
-      "door-obsidian",
-      "door-sunken",
-      "door-fungal",
-      "door-backrooms",
-      "annihilation-pulse",
-      "cull-brand",
-      "shotgun",
-      "phoenix-egg",
-      "swarm-curse",
-      "slow-curse",
-      "frenzy-curse",
-      "gloom-curse",
-      "mirror-curse",
-      "spin-curse",
-    ]);
-  });
+      const manifest = (await Bun.file(
+        new URL("../assets-source/imagegen/model-references-v2/manifest.json", import.meta.url),
+      ).json()) as { objects: Array<{ id: string }> };
+      const rosterIds = MODEL_QA_CATALOG.slice(0, MODEL_QA_REFERENCE_COUNT).map(({ id }) => id);
+      expect(MODEL_QA_REFERENCE_COUNT).toBe(55);
+      expect(JSON.stringify(rosterIds)).toBe(JSON.stringify(manifest.objects.map(({ id }) => id)));
+      expect(MODEL_QA_CATALOG.slice(MODEL_QA_REFERENCE_COUNT).map(({ id }) => id)).toEqual([
+        "door-ancient",
+        "door-molten",
+        "door-frost",
+        "door-grim",
+        "door-verdant",
+        "door-ash",
+        "door-iron",
+        "door-obsidian",
+        "door-sunken",
+        "door-fungal",
+        "door-backrooms",
+        "annihilation-pulse",
+        "cull-brand",
+        "shotgun",
+        "phoenix-egg",
+        "swarm-curse",
+        "slow-curse",
+        "frenzy-curse",
+        "gloom-curse",
+        "mirror-curse",
+        "spin-curse",
+      ]);
+    },
+  );
 
   test("parses canonical model and view queries with safe fallbacks", () => {
     expect(parseModelQaQuery("?model=crypt-stone&view=top")).toEqual({

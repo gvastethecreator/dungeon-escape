@@ -20,7 +20,7 @@ const CATALOGS: Record<DungeonMoodId, readonly UncannyWallAnimationDefinition[]>
     {
       slot: 0,
       id: "ancestor-portrait-eye-drift",
-      label: "Retrato del ancestro que mira",
+      label: "Watching ancestor portrait",
       worldSize: { width: 1.45, height: 1.9 },
       anchor: { x: 0.5, y: 0.5 },
       heightRange: [1.3, 2.25],
@@ -29,7 +29,7 @@ const CATALOGS: Record<DungeonMoodId, readonly UncannyWallAnimationDefinition[]>
     {
       slot: 1,
       id: "barred-watch-slit-approach",
-      label: "Mirilla enrejada ocupada",
+      label: "Occupied barred peephole",
       worldSize: { width: 1.55, height: 1.25 },
       anchor: { x: 0.5, y: 0.5 },
       heightRange: [1.35, 2.2],
@@ -38,7 +38,7 @@ const CATALOGS: Record<DungeonMoodId, readonly UncannyWallAnimationDefinition[]>
     {
       slot: 2,
       id: "tarnished-mirror-visitor",
-      label: "Visitante del espejo opaco",
+      label: "Visitor in the tarnished mirror",
       worldSize: { width: 1.25, height: 1.75 },
       anchor: { x: 0.5, y: 0.5 },
       heightRange: [1.25, 2.3],
@@ -47,7 +47,7 @@ const CATALOGS: Record<DungeonMoodId, readonly UncannyWallAnimationDefinition[]>
     {
       slot: 3,
       id: "masonry-eyelid-blister",
-      label: "Párpado incrustado en la piedra",
+      label: "Stone-set eyelid",
       worldSize: { width: 1.5, height: 1.15 },
       anchor: { x: 0.5, y: 0.5 },
       heightRange: [1.2, 2.15],
@@ -58,7 +58,7 @@ const CATALOGS: Record<DungeonMoodId, readonly UncannyWallAnimationDefinition[]>
     {
       slot: 0,
       id: "ash-shadow-peeling",
-      label: "Silueta de ceniza que se despega",
+      label: "Peeling ash silhouette",
       worldSize: { width: 1.65, height: 1.65 },
       anchor: { x: 0.5, y: 0.5 },
       heightRange: [1.15, 2.35],
@@ -67,7 +67,7 @@ const CATALOGS: Record<DungeonMoodId, readonly UncannyWallAnimationDefinition[]>
     {
       slot: 1,
       id: "melted-bronze-mask-mouth",
-      label: "Máscara de bronce que se derrite",
+      label: "Melting bronze mask",
       worldSize: { width: 1.65, height: 1.65 },
       anchor: { x: 0.5, y: 0.5 },
       heightRange: [1.15, 2.35],
@@ -76,7 +76,7 @@ const CATALOGS: Record<DungeonMoodId, readonly UncannyWallAnimationDefinition[]>
     {
       slot: 2,
       id: "cinder-sieve-visage",
-      label: "Rostro de brasas en el tamiz",
+      label: "Ember face in the sieve",
       worldSize: { width: 1.65, height: 1.65 },
       anchor: { x: 0.5, y: 0.5 },
       heightRange: [1.15, 2.35],
@@ -85,7 +85,7 @@ const CATALOGS: Record<DungeonMoodId, readonly UncannyWallAnimationDefinition[]>
     {
       slot: 3,
       id: "basalt-fissure-teeth",
-      label: "Grieta de basalto dentada",
+      label: "Toothed basalt fissure",
       worldSize: { width: 1.65, height: 1.65 },
       anchor: { x: 0.5, y: 0.5 },
       heightRange: [1.15, 2.35],
@@ -96,7 +96,7 @@ const CATALOGS: Record<DungeonMoodId, readonly UncannyWallAnimationDefinition[]>
     {
       slot: 0,
       id: "smiling-face-ice-core",
-      label: "Rostro sonriente bajo el hielo",
+      label: "Smiling face beneath the ice",
       worldSize: { width: 1.65, height: 1.65 },
       anchor: { x: 0.5, y: 0.5 },
       heightRange: [1.15, 2.35],
@@ -105,7 +105,7 @@ const CATALOGS: Record<DungeonMoodId, readonly UncannyWallAnimationDefinition[]>
     {
       slot: 1,
       id: "breathing-rime-membrane",
-      label: "Membrana de escarcha que respira",
+      label: "Breathing rime membrane",
       worldSize: { width: 1.65, height: 1.65 },
       anchor: { x: 0.5, y: 0.5 },
       heightRange: [1.15, 2.35],
@@ -114,7 +114,7 @@ const CATALOGS: Record<DungeonMoodId, readonly UncannyWallAnimationDefinition[]>
     {
       slot: 2,
       id: "random-gaze-frost-eye",
-      label: "Ojo congelado de mirada errante",
+      label: "Wandering frozen eye",
       worldSize: { width: 1.65, height: 1.65 },
       anchor: { x: 0.5, y: 0.5 },
       heightRange: [1.15, 2.35],
@@ -123,7 +123,7 @@ const CATALOGS: Record<DungeonMoodId, readonly UncannyWallAnimationDefinition[]>
     {
       slot: 3,
       id: "frost-drain-teeth",
-      label: "Drenaje de dientes bajo la escarcha",
+      label: "Toothed drain beneath the frost",
       worldSize: { width: 1.65, height: 1.65 },
       anchor: { x: 0.5, y: 0.5 },
       heightRange: [1.15, 2.35],
@@ -134,7 +134,7 @@ const CATALOGS: Record<DungeonMoodId, readonly UncannyWallAnimationDefinition[]>
     {
       slot: 0,
       id: "funerary-effigy-face",
-      label: "Efigie funeraria deformada",
+      label: "Warped funerary effigy",
       worldSize: { width: 1.65, height: 1.65 },
       anchor: { x: 0.5, y: 0.5 },
       heightRange: [1.15, 2.35],
@@ -143,7 +143,7 @@ const CATALOGS: Record<DungeonMoodId, readonly UncannyWallAnimationDefinition[]>
     {
       slot: 1,
       id: "raven-feather-eyes",
-      label: "Abanico de plumas vigilantes",
+      label: "Fan of watchful feathers",
       worldSize: { width: 1.65, height: 1.65 },
       anchor: { x: 0.5, y: 0.5 },
       heightRange: [1.15, 2.35],
@@ -152,7 +152,7 @@ const CATALOGS: Record<DungeonMoodId, readonly UncannyWallAnimationDefinition[]>
     {
       slot: 2,
       id: "hangman-knot",
-      label: "Nudo para un cuello ausente",
+      label: "Noose for an absent neck",
       worldSize: { width: 1.65, height: 1.65 },
       anchor: { x: 0.5, y: 0.5 },
       heightRange: [1.15, 2.35],
@@ -161,7 +161,7 @@ const CATALOGS: Record<DungeonMoodId, readonly UncannyWallAnimationDefinition[]>
     {
       slot: 3,
       id: "mourning-bell-tongue",
-      label: "Campana con lengua viva",
+      label: "Bell with a living tongue",
       worldSize: { width: 1.65, height: 1.65 },
       anchor: { x: 0.5, y: 0.5 },
       heightRange: [1.15, 2.35],
@@ -172,7 +172,7 @@ const CATALOGS: Record<DungeonMoodId, readonly UncannyWallAnimationDefinition[]>
     {
       slot: 0,
       id: "bark-burl-face",
-      label: "Rostro en agalla de corteza",
+      label: "Face in a bark burl",
       worldSize: { width: 1.65, height: 1.65 },
       anchor: { x: 0.5, y: 0.5 },
       heightRange: [1.15, 2.35],
@@ -181,7 +181,7 @@ const CATALOGS: Record<DungeonMoodId, readonly UncannyWallAnimationDefinition[]>
     {
       slot: 1,
       id: "eye-seed-pods",
-      label: "Vainas de semillas oculares",
+      label: "Eye-seed pods",
       worldSize: { width: 1.65, height: 1.65 },
       anchor: { x: 0.5, y: 0.5 },
       heightRange: [1.15, 2.35],
@@ -190,7 +190,7 @@ const CATALOGS: Record<DungeonMoodId, readonly UncannyWallAnimationDefinition[]>
     {
       slot: 2,
       id: "root-caged-heart",
-      label: "Corazón enjaulado por raíces",
+      label: "Root-caged heart",
       worldSize: { width: 1.65, height: 1.65 },
       anchor: { x: 0.5, y: 0.5 },
       heightRange: [1.15, 2.35],
@@ -219,7 +219,7 @@ const CATALOGS: Record<DungeonMoodId, readonly UncannyWallAnimationDefinition[]>
     {
       slot: 1,
       id: "charred-nest-eyes",
-      label: "Nido carbonizado de ojos",
+      label: "Charred nest of eyes",
       worldSize: { width: 1.65, height: 1.65 },
       anchor: { x: 0.5, y: 0.5 },
       heightRange: [1.15, 2.35],
@@ -228,7 +228,7 @@ const CATALOGS: Record<DungeonMoodId, readonly UncannyWallAnimationDefinition[]>
     {
       slot: 2,
       id: "reversed-hourglass",
-      label: "Reloj de ceniza invertida",
+      label: "Reversed ash hourglass",
       worldSize: { width: 1.65, height: 1.65 },
       anchor: { x: 0.5, y: 0.5 },
       heightRange: [1.15, 2.35],
@@ -248,7 +248,7 @@ const CATALOGS: Record<DungeonMoodId, readonly UncannyWallAnimationDefinition[]>
     {
       slot: 0,
       id: "pressure-hatch-face",
-      label: "Máscara mortuoria bajo el acero",
+      label: "Death mask beneath steel",
       worldSize: { width: 1.65, height: 1.65 },
       anchor: { x: 0.5, y: 0.5 },
       heightRange: [1.15, 2.35],
@@ -257,7 +257,7 @@ const CATALOGS: Record<DungeonMoodId, readonly UncannyWallAnimationDefinition[]>
     {
       slot: 1,
       id: "inspection-lens-eyes",
-      label: "Panel de lentes oculares",
+      label: "Panel of ocular lenses",
       worldSize: { width: 1.65, height: 1.65 },
       anchor: { x: 0.5, y: 0.5 },
       heightRange: [1.15, 2.35],
@@ -266,7 +266,7 @@ const CATALOGS: Record<DungeonMoodId, readonly UncannyWallAnimationDefinition[]>
     {
       slot: 2,
       id: "living-chainmail",
-      label: "Cota de malla habitada",
+      label: "Haunted chainmail",
       worldSize: { width: 1.65, height: 1.65 },
       anchor: { x: 0.5, y: 0.5 },
       heightRange: [1.15, 2.35],
@@ -275,7 +275,7 @@ const CATALOGS: Record<DungeonMoodId, readonly UncannyWallAnimationDefinition[]>
     {
       slot: 3,
       id: "organic-machine-heart",
-      label: "Corazón de máquina orgánica",
+      label: "Organic machine heart",
       worldSize: { width: 1.65, height: 1.65 },
       anchor: { x: 0.5, y: 0.5 },
       heightRange: [1.15, 2.35],
@@ -286,7 +286,7 @@ const CATALOGS: Record<DungeonMoodId, readonly UncannyWallAnimationDefinition[]>
     {
       slot: 0,
       id: "shard-reflection-face",
-      label: "Rostro alineado en esquirlas",
+      label: "Face aligned in shards",
       worldSize: { width: 1.65, height: 1.65 },
       anchor: { x: 0.5, y: 0.5 },
       heightRange: [1.15, 2.35],
@@ -295,7 +295,7 @@ const CATALOGS: Record<DungeonMoodId, readonly UncannyWallAnimationDefinition[]>
     {
       slot: 1,
       id: "eye-geode",
-      label: "Geoda de ojos cristalinos",
+      label: "Geode of crystal eyes",
       worldSize: { width: 1.65, height: 1.65 },
       anchor: { x: 0.5, y: 0.5 },
       heightRange: [1.15, 2.35],
@@ -304,7 +304,7 @@ const CATALOGS: Record<DungeonMoodId, readonly UncannyWallAnimationDefinition[]>
     {
       slot: 2,
       id: "glass-nervous-system",
-      label: "Sistema nervioso tras vidrio",
+      label: "Nervous system behind glass",
       worldSize: { width: 1.65, height: 1.65 },
       anchor: { x: 0.5, y: 0.5 },
       heightRange: [1.15, 2.35],
@@ -313,7 +313,7 @@ const CATALOGS: Record<DungeonMoodId, readonly UncannyWallAnimationDefinition[]>
     {
       slot: 3,
       id: "sutured-glass-wound",
-      label: "Herida de vidrio suturada",
+      label: "Sutured glass wound",
       worldSize: { width: 1.65, height: 1.65 },
       anchor: { x: 0.5, y: 0.5 },
       heightRange: [1.15, 2.35],
@@ -333,7 +333,7 @@ const CATALOGS: Record<DungeonMoodId, readonly UncannyWallAnimationDefinition[]>
     {
       slot: 1,
       id: "barnacle-eyes",
-      label: "Colonia de percebes oculares",
+      label: "Colony of ocular barnacles",
       worldSize: { width: 1.65, height: 1.65 },
       anchor: { x: 0.5, y: 0.5 },
       heightRange: [1.15, 2.35],
@@ -418,7 +418,7 @@ const CATALOGS: Record<DungeonMoodId, readonly UncannyWallAnimationDefinition[]>
     {
       slot: 2,
       id: "worm-clock",
-      label: "Reloj con segundero parásito",
+      label: "Clock with a parasitic second hand",
       worldSize: { width: 1.65, height: 1.65 },
       anchor: { x: 0.5, y: 0.5 },
       heightRange: [1.15, 2.35],
@@ -427,7 +427,7 @@ const CATALOGS: Record<DungeonMoodId, readonly UncannyWallAnimationDefinition[]>
     {
       slot: 3,
       id: "screaming-intercom",
-      label: "Intercomunicador que grita",
+      label: "Screaming intercom",
       worldSize: { width: 1.65, height: 1.65 },
       anchor: { x: 0.5, y: 0.5 },
       heightRange: [1.15, 2.35],
