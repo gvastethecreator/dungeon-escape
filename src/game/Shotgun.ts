@@ -49,7 +49,10 @@ export function activateShotgun(state: ShotgunState): void {
 export function tickShotgun(state: ShotgunState, delta: number): void {
   if (!Number.isFinite(state.shells) || state.shells < 0) state.shells = 0;
   const safeDelta = Number.isFinite(delta) ? Math.max(0, delta) : 0;
-  state.pumpSeconds = Math.max(0, (Number.isFinite(state.pumpSeconds) ? state.pumpSeconds : 0) - safeDelta);
+  state.pumpSeconds = Math.max(
+    0,
+    (Number.isFinite(state.pumpSeconds) ? state.pumpSeconds : 0) - safeDelta,
+  );
 }
 
 export function isShotgunEquipped(state: ShotgunState): boolean {
@@ -277,8 +280,7 @@ export function shotgunPelletDirection(
   const upX = right.y * fz - right.z * fy;
   const upY = right.z * fx - right.x * fz;
   const upZ = right.x * fy - right.y * fx;
-  const radius =
-    SHOTGUN_CONE_HALF_ANGLE * Math.sqrt(shotgunHash01(seed * 1.91 + index * 19.17));
+  const radius = SHOTGUN_CONE_HALF_ANGLE * Math.sqrt(shotgunHash01(seed * 1.91 + index * 19.17));
   const angle = shotgunHash01(seed * 0.73 + index * 7.91) * Math.PI * 2;
   const ox = Math.cos(angle) * Math.tan(radius);
   const oy = Math.sin(angle) * Math.tan(radius);

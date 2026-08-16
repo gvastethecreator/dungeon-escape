@@ -95,10 +95,7 @@ import { resolvePreferWebGpuWhenAuto, WEBGPU_FLIP_POLICY } from "./systems/WebGp
 import { collectVisibleRenderInventory } from "./systems/RenderInventory";
 import { resolveRenderPixelRatio } from "./systems/RenderScale";
 import { bootPlayShaderMode } from "./systems/PlayShaderBoot";
-import {
-  applyCreationParamsToForm,
-  readCreationParams,
-} from "./editor/CreationParamsAdapter";
+import { applyCreationParamsToForm, readCreationParams } from "./editor/CreationParamsAdapter";
 import {
   applyPlayStepPresentation,
   collectPlayStepPresentation,
@@ -2485,7 +2482,7 @@ function syncPlayStatusHud(
     annihilationPulse: remaining.annihilationPulse ?? world.annihilationPulseRemaining,
     cullBrand: remaining.cullBrand ?? world.cullBrandRemaining,
     shotgunShells: remaining.shotgunShells ?? world.shotgunShells,
-        shotgunPumpRemaining: remaining.shotgunPumpRemaining ?? lastShotgunPumpRemaining,
+    shotgunPumpRemaining: remaining.shotgunPumpRemaining ?? lastShotgunPumpRemaining,
     fogClear: remaining.fogClear ?? world.fogClearRemaining,
     mobility: remaining.mobility ?? world.mobilityBoostRemaining,
     handTorch: remaining.handTorch ?? world.handTorchRemaining,
@@ -4687,7 +4684,10 @@ function syncLookSensitivityUi(): void {
 }
 
 function applyLookSensitivityInput(): void {
-  const lookSensitivity = Math.max(0.5, Math.min(1.5, Number(elements.lookSensitivity.value) / 100));
+  const lookSensitivity = Math.max(
+    0.5,
+    Math.min(1.5, Number(elements.lookSensitivity.value) / 100),
+  );
   controller.setLookFeelScale(lookSensitivity);
   updateUserSettings({ lookSensitivity });
   syncLookSensitivityUi();
@@ -5291,8 +5291,7 @@ function frame(now: number): void {
         setPhoenixCharges: (charges) => world.setPhoenixCharges(charges),
         syncPhoenixHud,
         playPhoenixRevive: () => audio.playPhoenixRevive(playerPosition),
-        showPhoenixBanner: () =>
-          showObjectiveBanner(COPY.status.phoenixRevive, "hunt", 2800, 1200),
+        showPhoenixBanner: () => showObjectiveBanner(COPY.status.phoenixRevive, "hunt", 2800, 1200),
         addHitTrauma: (amount) => {
           hitTrauma = Math.max(hitTrauma, amount);
         },

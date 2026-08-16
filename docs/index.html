@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      name="description"
+      content="Dungeon Escape is a first-person generated dungeon with seeded campaigns, eleven biomes, and a visual map Forge."
+    />
+    <meta name="theme-color" content="#0d0d0c" />
+    <title>Dungeon Escape — Forge the maze. Survive the descent.</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header class="site-header">
+      <a class="mark" href="#top" aria-label="Dungeon Escape home"
+        ><span aria-hidden="true">DE</span> Dungeon Escape</a
+      >
+      <nav aria-label="Primary navigation">
+        <a href="#route">The route</a>
+        <a href="#field-notes">Field notes</a>
+        <a href="https://github.com/gvastethecreator/dungeon-escape">GitHub</a>
+      </nav>
+    </header>
+
+    <main id="top">
+      <section class="hero" aria-labelledby="hero-title">
+        <div class="hero-copy">
+          <p class="eyebrow">First-person procedural dungeon</p>
+          <h1 id="hero-title">Forge the maze.<br /><em>Survive the descent.</em></h1>
+          <p class="lede">
+            Eleven biome identities, seeded campaigns, four stones, one exit—and a map Forge that
+            lets you read the trap before you enter it.
+          </p>
+          <div class="actions">
+            <a class="button primary" href="https://dungeon.gvaste.ar">Enter the dungeon</a>
+            <a class="button" href="https://github.com/gvastethecreator/dungeon-escape#quick-start"
+              >Run it locally</a
+            >
+          </div>
+        </div>
+        <figure class="hero-frame">
+          <img
+            src="assets/screenshots/gameplay.webp"
+            width="1440"
+            height="900"
+            alt="First-person Frost dungeon run"
+          />
+          <figcaption><span>FIELD CAPTURE / FROST</span><span>WEBGL2</span></figcaption>
+        </figure>
+      </section>
+
+      <section class="route" id="route" aria-labelledby="route-title">
+        <div class="route-heading">
+          <p class="eyebrow">One run, four decisions</p>
+          <h2 id="route-title">The dungeon is a route, not a backdrop.</h2>
+        </div>
+        <ol>
+          <li>
+            <span>01</span><strong>SEED</strong>
+            <p>Start a reproducible campaign or choose a fresh descent.</p>
+          </li>
+          <li>
+            <span>02</span><strong>FORGE</strong>
+            <p>Inspect the generated topology before the first door opens.</p>
+          </li>
+          <li>
+            <span>03</span><strong>DESCEND</strong>
+            <p>Collect four stones across a hostile biome identity.</p>
+          </li>
+          <li>
+            <span>04</span><strong>ESCAPE</strong>
+            <p>Reach the portal and leave the run in the Hall.</p>
+          </li>
+        </ol>
+      </section>
+
+      <section class="field-notes" id="field-notes" aria-labelledby="field-title">
+        <div class="field-copy">
+          <p class="eyebrow">Field notes</p>
+          <h2 id="field-title">Built for the path you actually take.</h2>
+          <p>
+            Keyboard, mouse, and touch share the same rules. Local saves keep the run private. The
+            public renderer remains WebGL2 while WebGPU stays an explicit opt-in until its parity
+            gates close.
+          </p>
+          <a href="https://github.com/gvastethecreator/dungeon-escape#renderer-boundary"
+            >Read the renderer boundary →</a
+          >
+        </div>
+        <div class="capture-grid">
+          <figure>
+            <img
+              src="assets/screenshots/welcome.webp"
+              width="1440"
+              height="900"
+              alt="Player profile and Hall of Escapes"
+            />
+            <figcaption>WELCOME / HALL</figcaption>
+          </figure>
+          <figure>
+            <img
+              src="assets/screenshots/forge.webp"
+              width="1440"
+              height="900"
+              alt="Procedural dungeon in the Forge"
+            />
+            <figcaption>FORGE / MAP</figcaption>
+          </figure>
+          <figure>
+            <img
+              src="assets/screenshots/pause.webp"
+              width="1440"
+              height="900"
+              alt="Pause menu and run ledger"
+            />
+            <figcaption>PAUSE / LEDGER</figcaption>
+          </figure>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <p>
+        MIT licensed · maintained by
+        <a href="https://github.com/gvastethecreator">gvastethecreator</a>
+      </p>
+      <p>
+        <a href="https://github.com/sponsors/gvastethecreator">GitHub Sponsors</a> ·
+        <a href="https://ko-fi.com/gvaste">Ko-fi</a>
+      </p>
+    </footer>
+  </body>
+</html>

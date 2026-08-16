@@ -603,11 +603,7 @@ export class ShotgunBlastVfx {
       const u = randomTwo - Math.floor(randomTwo);
       const angle = t * Math.PI * 2;
       const smoke = kill ? particle % 5 === 0 : particle % 5 === 0;
-      const speed = smoke
-        ? 0.7 + u * 0.8
-        : kill
-          ? 3.4 + t * 4.2
-          : 2.4 + t * 3.2;
+      const speed = smoke ? 0.7 + u * 0.8 : kill ? 3.4 + t * 4.2 : 2.4 + t * 3.2;
       slot.active = true;
       slot.age = 0;
       slot.life = smoke ? 0.38 + u * 0.22 : kill ? 0.28 + t * 0.32 : 0.12 + t * 0.16;

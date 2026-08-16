@@ -916,7 +916,12 @@ export class GameAudio {
     this.musicTrack = null;
   }
 
-  private playAsset(id: AudioAssetId, position?: AudioPosition, gainScale = 1, delaySeconds = 0): void {
+  private playAsset(
+    id: AudioAssetId,
+    position?: AudioPosition,
+    gainScale = 1,
+    delaySeconds = 0,
+  ): void {
     const context = this.context;
     const asset = getAudioAsset(id);
     const buffer = this.buffers.get(id);

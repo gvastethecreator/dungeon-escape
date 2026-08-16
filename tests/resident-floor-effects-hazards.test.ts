@@ -786,16 +786,12 @@ describe("resident floor effects, hazards, and minimap projections", () => {
       // Neighbor slabs (±1) stay mounted for shaft continuity; only farther
       // floors drop out of the practical-light graph.
       expect(
-        runtimes.map((runtime) =>
-          runtime.root.visible ? runtime.dynamicFireLights.length : 0,
-        ),
+        runtimes.map((runtime) => (runtime.root.visible ? runtime.dynamicFireLights.length : 0)),
       ).toEqual([0, 0, DYNAMIC_FIRE_LIGHTS_PER_FLOOR, DYNAMIC_FIRE_LIGHTS_PER_FLOOR]);
 
       world.rebindActiveDungeon(floorSet.floors[1]!);
       expect(
-        runtimes.map((runtime) =>
-          runtime.root.visible ? runtime.dynamicFireLights.length : 0,
-        ),
+        runtimes.map((runtime) => (runtime.root.visible ? runtime.dynamicFireLights.length : 0)),
       ).toEqual([
         DYNAMIC_FIRE_LIGHTS_PER_FLOOR,
         DYNAMIC_FIRE_LIGHTS_PER_FLOOR,

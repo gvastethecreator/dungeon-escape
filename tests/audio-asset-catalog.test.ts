@@ -25,10 +25,10 @@ const PICKUP_KINDS = [
   "resolve",
   "time-freeze",
   "luminous-ward",
-      "annihilation-pulse",
-      "cull-brand",
-      "shotgun",
-      "phoenix-egg",
+  "annihilation-pulse",
+  "cull-brand",
+  "shotgun",
+  "phoenix-egg",
   "map",
   "mobility",
   "clarity",
@@ -82,24 +82,24 @@ describe("AudioAssetCatalog", () => {
   test.skipIf(!hasLocalSourceAssets("audio", "library-sfx-catalog.json"))(
     "links every personal-library source record to a runtime file",
     async () => {
-    const manifest = (await Bun.file(
-      new URL("../assets-source/audio/library-sfx-catalog.json", import.meta.url),
-    ).json()) as {
-      licenseStatus: string;
-      assets: Array<{ id: string; output: string }>;
-    };
-    expect(manifest.licenseStatus).toBe("user-review-required");
-    expect(manifest.assets).toHaveLength(41);
-    expect(new Set(manifest.assets.map((asset) => asset.output)).size).toBe(41);
-    for (const asset of manifest.assets) {
-      expect(getAudioAsset(asset.id).file).toBe(asset.output);
-      const runtime = Bun.file(
-        new URL(`../public/assets/audio/dungeon/${asset.output}`, import.meta.url),
-      );
-      expect(await runtime.exists()).toBe(true);
-      expect(runtime.size).toBeGreaterThan(800);
-    }
-  },
+      const manifest = (await Bun.file(
+        new URL("../assets-source/audio/library-sfx-catalog.json", import.meta.url),
+      ).json()) as {
+        licenseStatus: string;
+        assets: Array<{ id: string; output: string }>;
+      };
+      expect(manifest.licenseStatus).toBe("user-review-required");
+      expect(manifest.assets).toHaveLength(41);
+      expect(new Set(manifest.assets.map((asset) => asset.output)).size).toBe(41);
+      for (const asset of manifest.assets) {
+        expect(getAudioAsset(asset.id).file).toBe(asset.output);
+        const runtime = Bun.file(
+          new URL(`../public/assets/audio/dungeon/${asset.output}`, import.meta.url),
+        );
+        expect(await runtime.exists()).toBe(true);
+        expect(runtime.size).toBeGreaterThan(800);
+      }
+    },
   );
 
   test("covers all creature base takes and biome tone assets", () => {

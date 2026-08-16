@@ -12,8 +12,12 @@ describe("pointer-lock click actions", () => {
   });
 
   test("controller listens for locked clicks on document capture, not only the canvas", async () => {
-    const source = await Bun.file(new URL("../src/player/FirstPersonController.ts", import.meta.url)).text();
-    expect(source).toContain('document.addEventListener("pointerdown", this.handlePointerDown, true)');
+    const source = await Bun.file(
+      new URL("../src/player/FirstPersonController.ts", import.meta.url),
+    ).text();
+    expect(source).toContain(
+      'document.addEventListener("pointerdown", this.handlePointerDown, true)',
+    );
     expect(source).toContain('document.addEventListener("mousedown", this.handleMouseDown, true)');
   });
 });

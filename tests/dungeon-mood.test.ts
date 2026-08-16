@@ -222,9 +222,9 @@ describe("dungeon mood tints", () => {
   test.skipIf(!hasLocalSourceAssets("imagegen", "biome-doors-v1.png"))(
     "keeps ImageGen door and wall-decor masters locally",
     () => {
-      expect(existsSync(join(import.meta.dir, "../assets-source/imagegen/biome-doors-v1.png"))).toBe(
-        true,
-      );
+      expect(
+        existsSync(join(import.meta.dir, "../assets-source/imagegen/biome-doors-v1.png")),
+      ).toBe(true);
       expect(
         existsSync(join(import.meta.dir, "../assets-source/imagegen/uncanny-wall-decor-v1.png")),
       ).toBe(true);

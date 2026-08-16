@@ -126,12 +126,7 @@ export const ENEMY_AUDIO_SOURCES: readonly EnemyAudioSource[] = [
   ...skin(
     "carrion",
     "molten",
-    g(
-      "",
-      hc3("Hellboar", "ESM_HC3_cinematic_fx_voice_hellboar_alert_throaty_growl.wav"),
-      1.7,
-      -20,
-    ),
+    g("", hc3("Hellboar", "ESM_HC3_cinematic_fx_voice_hellboar_alert_throaty_growl.wav"), 1.7, -20),
     g("", hc3("Hellboar", "ESM_HC3_cinematic_fx_voice_hellboar_attack_aggressive.wav"), 1.35, -17),
   ),
   ...skin(
@@ -415,12 +410,7 @@ export const ENEMY_AUDIO_SOURCES: readonly EnemyAudioSource[] = [
   ...skin(
     "ghost",
     "ash",
-    f(
-      "",
-      es("Specter", "ESM_HC4_Cinematic_FX_specter_ghost_alert_scream_summon_04.wav"),
-      2.0,
-      -22,
-    ),
+    f("", es("Specter", "ESM_HC4_Cinematic_FX_specter_ghost_alert_scream_summon_04.wav"), 2.0, -22),
     f(
       "",
       es("Specter", "ESM_HC4_Cinematic_FX_specter_ghost_attack_aggressive_screech_04.wav"),
@@ -438,7 +428,12 @@ export const ENEMY_AUDIO_SOURCES: readonly EnemyAudioSource[] = [
     "ghost",
     "obsidian",
     g("", hc3("Void_Beast", "ESM_HC3_cinematic_fx_voice_void_beast_alert_low_growl.wav"), 1.8, -21),
-    g("", hc3("Void_Beast", "ESM_HC3_cinematic_fx_voice_void_beast_attack_big_roar.wav"), 1.45, -18),
+    g(
+      "",
+      hc3("Void_Beast", "ESM_HC3_cinematic_fx_voice_void_beast_attack_big_roar.wav"),
+      1.45,
+      -18,
+    ),
   ),
   ...skin(
     "ghost",
@@ -523,12 +518,7 @@ export const ENEMY_AUDIO_SOURCES: readonly EnemyAudioSource[] = [
   ...skin(
     "ratling",
     "backrooms",
-    g(
-      "",
-      hc3("Crabman", "ESM_HC3_cinematic_fx_voice_crabman_alert_pitchy_screech.wav"),
-      1.55,
-      -22,
-    ),
+    g("", hc3("Crabman", "ESM_HC3_cinematic_fx_voice_crabman_alert_pitchy_screech.wav"), 1.55, -22),
     g("", hc3("Crabman", "ESM_HC3_cinematic_fx_voice_crabman_attack_screech_claw.wav"), 1.15, -19),
   ),
 
@@ -600,12 +590,7 @@ export const ENEMY_AUDIO_SOURCES: readonly EnemyAudioSource[] = [
       1.75,
       -20,
     ),
-    g(
-      "",
-      hc3("Revenant", "ESM_HC3_cinematic_fx_voice_revenant_attack_swing_yell.wav"),
-      1.35,
-      -18,
-    ),
+    g("", hc3("Revenant", "ESM_HC3_cinematic_fx_voice_revenant_attack_swing_yell.wav"), 1.35, -18),
   ),
   ...skin(
     "husk",
@@ -622,12 +607,7 @@ export const ENEMY_AUDIO_SOURCES: readonly EnemyAudioSource[] = [
       1.65,
       -20,
     ),
-    f(
-      "",
-      es("Zombie", "ESM_HC4_Cinematic_FX_zombie_undead_attack_swing_bite_04.wav"),
-      1.55,
-      -18,
-    ),
+    f("", es("Zombie", "ESM_HC4_Cinematic_FX_zombie_undead_attack_swing_bite_04.wav"), 1.55, -18),
   ),
   ...skin(
     "husk",
@@ -699,12 +679,7 @@ export const ENEMY_AUDIO_SOURCES: readonly EnemyAudioSource[] = [
   ...skin(
     "husk",
     "backrooms",
-    g(
-      "",
-      hc3("Revenant", "ESM_HC3_cinematic_fx_voice_revenant_alert_warning_hiss.wav"),
-      1.7,
-      -20,
-    ),
+    g("", hc3("Revenant", "ESM_HC3_cinematic_fx_voice_revenant_alert_warning_hiss.wav"), 1.7, -20),
     g(
       "",
       hc3("Revenant", "ESM_HC3_cinematic_fx_voice_revenant_attack_frenzy_combo_hit.wav"),
@@ -798,12 +773,7 @@ export const ENEMY_AUDIO_SOURCES: readonly EnemyAudioSource[] = [
       1.6,
       -22,
     ),
-    g(
-      "",
-      hc3("Alien_Parasite", "ESM_HC3_cinematic_fx_voice_alien_attack_wet_gross.wav"),
-      1.2,
-      -18,
-    ),
+    g("", hc3("Alien_Parasite", "ESM_HC3_cinematic_fx_voice_alien_attack_wet_gross.wav"), 1.2, -18),
   ),
 
   // ===== zombie-orc: orc; verdant ape, sunken sewer, molten lava =====
@@ -1178,8 +1148,18 @@ export const ENEMY_AUDIO_SOURCES: readonly EnemyAudioSource[] = [
   ...skin(
     "bone-slime",
     "molten",
-    f("", es("Blob", "ESM_HC4_Cinematic_FX_blob_creature_attack_deep_gravely_combat_07.wav"), 1.2, -21),
-    f("", es("Blob", "ESM_HC4_Cinematic_FX_blob_creature_attack_deep_gravely_combat_08.wav"), 1.2, -19),
+    f(
+      "",
+      es("Blob", "ESM_HC4_Cinematic_FX_blob_creature_attack_deep_gravely_combat_07.wav"),
+      1.2,
+      -21,
+    ),
+    f(
+      "",
+      es("Blob", "ESM_HC4_Cinematic_FX_blob_creature_attack_deep_gravely_combat_08.wav"),
+      1.2,
+      -19,
+    ),
   ),
   ...skin(
     "bone-slime",
@@ -1207,7 +1187,12 @@ export const ENEMY_AUDIO_SOURCES: readonly EnemyAudioSource[] = [
     "bone-slime",
     "ash",
     f("", es("Blob", "ESM_HC4_Cinematic_FX_blob_creature_alerted_growl_notice_04.wav"), 1.32, -22),
-    f("", es("Blob", "ESM_HC4_Cinematic_FX_blob_creature_attack_deep_gravely_combat_06.wav"), 1.15, -19),
+    f(
+      "",
+      es("Blob", "ESM_HC4_Cinematic_FX_blob_creature_attack_deep_gravely_combat_06.wav"),
+      1.15,
+      -19,
+    ),
   ),
   ...skin(
     "bone-slime",
@@ -1235,7 +1220,12 @@ export const ENEMY_AUDIO_SOURCES: readonly EnemyAudioSource[] = [
     "bone-slime",
     "sunken",
     f("", es("Blob", "ESM_HC4_Cinematic_FX_blob_creature_alerted_growl_notice_05.wav"), 1.32, -22),
-    f("", es("Blob", "ESM_HC4_Cinematic_FX_blob_creature_attack_deep_gravely_combat_01.wav"), 1.4, -19),
+    f(
+      "",
+      es("Blob", "ESM_HC4_Cinematic_FX_blob_creature_attack_deep_gravely_combat_01.wav"),
+      1.4,
+      -19,
+    ),
   ),
   ...skin(
     "bone-slime",
@@ -1248,7 +1238,10 @@ export const ENEMY_AUDIO_SOURCES: readonly EnemyAudioSource[] = [
     ),
     g(
       "",
-      hc3("Mutant_Growth", "ESM_HC3_cinematic_fx_voice_mutant_growth_attack_low_hissing_throaty.wav"),
+      hc3(
+        "Mutant_Growth",
+        "ESM_HC3_cinematic_fx_voice_mutant_growth_attack_low_hissing_throaty.wav",
+      ),
       1.3,
       -19,
     ),
@@ -1390,7 +1383,12 @@ export const ENEMY_AUDIO_SOURCES: readonly EnemyAudioSource[] = [
       1.7,
       -22,
     ),
-    g("", hc3("Psycho", "ESM_HC3_cinematic_fx_voice_psycho_attack_high_effort_swing.wav"), 1.2, -18),
+    g(
+      "",
+      hc3("Psycho", "ESM_HC3_cinematic_fx_voice_psycho_attack_high_effort_swing.wav"),
+      1.2,
+      -18,
+    ),
   ),
 
   // ===== carrion-stalker: lycan, never the hyena carrion =====
@@ -1433,23 +1431,18 @@ export const ENEMY_AUDIO_SOURCES: readonly EnemyAudioSource[] = [
   ...skin(
     "carrion-stalker",
     "frost",
-    g(
-      "",
-      hc3("Lycan", "ESM_HC3_cinematic_fx_voice_lycan_alert_heavy_breath_snarl.wav"),
-      1.7,
-      -21,
-    ),
-    g(
-      "",
-      hc3("Lycan", "ESM_HC3_cinematic_fx_voice_lycan_attack_barking_snarl.wav"),
-      1.3,
-      -18,
-    ),
+    g("", hc3("Lycan", "ESM_HC3_cinematic_fx_voice_lycan_alert_heavy_breath_snarl.wav"), 1.7, -21),
+    g("", hc3("Lycan", "ESM_HC3_cinematic_fx_voice_lycan_attack_barking_snarl.wav"), 1.3, -18),
   ),
   ...skin(
     "carrion-stalker",
     "molten",
-    f("", es("Draconid", "ESM_HC4_Cinematic_FX_draconid_creature_alert_roar_aggressive_01.wav"), 1.7, -20),
+    f(
+      "",
+      es("Draconid", "ESM_HC4_Cinematic_FX_draconid_creature_alert_roar_aggressive_01.wav"),
+      1.7,
+      -20,
+    ),
     f(
       "",
       es("Draconid", "ESM_HC4_Cinematic_FX_draconid_creature_attack_aggressive_yell_roar_01.wav"),
@@ -1476,18 +1469,8 @@ export const ENEMY_AUDIO_SOURCES: readonly EnemyAudioSource[] = [
   ...skin(
     "carrion-stalker",
     "verdant",
-    g(
-      "",
-      hc3("Basalisk", "ESM_HC3_cinematic_fx_voice_basalisk_alert_enemy_spotted.wav"),
-      1.7,
-      -21,
-    ),
-    g(
-      "",
-      hc3("Basalisk", "ESM_HC3_cinematic_fx_voice_basalisk_attack_intense_roar.wav"),
-      1.4,
-      -18,
-    ),
+    g("", hc3("Basalisk", "ESM_HC3_cinematic_fx_voice_basalisk_alert_enemy_spotted.wav"), 1.7, -21),
+    g("", hc3("Basalisk", "ESM_HC3_cinematic_fx_voice_basalisk_attack_intense_roar.wav"), 1.4, -18),
   ),
   ...skin(
     "carrion-stalker",
@@ -1525,7 +1508,12 @@ export const ENEMY_AUDIO_SOURCES: readonly EnemyAudioSource[] = [
     "carrion-stalker",
     "obsidian",
     f("", es("Draconid", "ESM_HC4_Cinematic_FX_draconid_creature_alert_02.wav"), 1.7, -20),
-    f("", es("Draconid", "ESM_HC4_Cinematic_FX_draconid_creature_attack_growl_roar_hit_01.wav"), 1.4, -17),
+    f(
+      "",
+      es("Draconid", "ESM_HC4_Cinematic_FX_draconid_creature_attack_growl_roar_hit_01.wav"),
+      1.4,
+      -17,
+    ),
   ),
   ...skin(
     "carrion-stalker",
@@ -1561,4 +1549,3 @@ export const ENEMY_AUDIO_SOURCES: readonly EnemyAudioSource[] = [
     g("", hc3("Psycho", "ESM_HC3_cinematic_fx_voice_psycho_attack_heave_throw.wav"), 1.25, -18),
   ),
 ];
-

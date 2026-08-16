@@ -101,11 +101,32 @@ export interface RuntimeAssetAudit {
   ok: boolean;
   fileCount: number;
   bytes: number;
+  optimizationManifest: "verified" | "unavailable";
   missing: string[];
   sourceLeaks: string[];
   enemyAtlasOrphans: string[];
   unoptimizedRasters: string[];
   optimizationIssues: string[];
+}
+
+type RuntimeOptimizationManifest = {
+  images: Array<{
+    target: string;
+    sourceDimensions: [number, number];
+    targetDimensions: [number, number];
+    targetBytes: number;
+    targetSha256: string;
+    resample?: string;
+  }>;
+};
+
+async function readOptimizationManifest(path: string): Promise<RuntimeOptimizationManifest | null> {
+  try {
+    return JSON.parse(await readFile(path, "utf8")) as RuntimeOptimizationManifest;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
+    throw error;
+  }
 }
 
 export async function auditRuntimeAssets(
@@ -131,19 +152,11 @@ export async function auditRuntimeAssets(
     .sort();
   const unoptimizedRasters = relativeFiles.filter((file) => /\.(?:jpe?g|png)$/i.test(file));
   const manifestPath = join(PROJECT_ROOT, "assets-source", "runtime-optimization-manifest.json");
-  const manifest = JSON.parse(await readFile(manifestPath, "utf8")) as {
-    images: Array<{
-      target: string;
-      sourceDimensions: [number, number];
-      targetDimensions: [number, number];
-      targetBytes: number;
-      targetSha256: string;
-      resample?: string;
-    }>;
-  };
+  const manifest = await readOptimizationManifest(manifestPath);
+  const optimizationManifest = manifest ? "verified" : "unavailable";
   const optimizationIssues: string[] = [];
   const optimizedTargets = new Set<string>();
-  for (const entry of manifest.images) {
+  for (const entry of manifest?.images ?? []) {
     const targetRelative = entry.target.replace(/^public\//, "");
     optimizedTargets.add(targetRelative);
     const target = join(publicRoot, ...targetRelative.split("/"));
@@ -183,7 +196,14 @@ export async function auditRuntimeAssets(
     }
   }
   for (const file of relativeFiles.filter((file) => file.endsWith(".webp"))) {
-    if (!optimizedTargets.has(file)) optimizationIssues.push(`${file}: missing manifest record`);
+    if (manifest && !optimizedTargets.has(file)) {
+      optimizationIssues.push(`${file}: missing manifest record`);
+      continue;
+    }
+    if (!manifest) {
+      const bytes = await readFile(join(publicRoot, ...file.split("/")));
+      if (!webpDimensions(bytes)) optimizationIssues.push(`${file}: invalid WebP dimensions`);
+    }
   }
   let bytes = 0;
   for (const file of files) bytes += (await stat(file)).size;
@@ -196,6 +216,7 @@ export async function auditRuntimeAssets(
       optimizationIssues.length === 0,
     fileCount: files.length,
     bytes,
+    optimizationManifest,
     missing,
     sourceLeaks,
     enemyAtlasOrphans,

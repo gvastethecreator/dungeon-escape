@@ -180,7 +180,9 @@ describe("texture seam treatment", () => {
     enableDungeonSurfaceShaderTsl(again);
     expect(again.userData.dungeonSurfaceShader).toBe(true);
 
-    const tsl = await Bun.file(new URL("../src/world/TextureTreatment.tsl.ts", import.meta.url)).text();
+    const tsl = await Bun.file(
+      new URL("../src/world/TextureTreatment.tsl.ts", import.meta.url),
+    ).text();
     expect(tsl).toContain("material.colorNode = materialColor.mul(dungeonSurfaceMacroVariation())");
     expect(tsl).toContain('attribute("aTileUvOffset", "vec2" as const)');
     expect(tsl).toContain("materialColor");

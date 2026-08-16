@@ -2,7 +2,11 @@ import * as THREE from "three";
 
 import type { LaunchRendererPreference } from "../launch/LaunchConfiguration";
 import type { DungeonRenderer } from "./DungeonRenderer";
-import { detectWebGpuAvailability, skippedWebGpuAvailability, type WebGpuAvailability } from "./WebGpuAvailability";
+import {
+  detectWebGpuAvailability,
+  skippedWebGpuAvailability,
+  type WebGpuAvailability,
+} from "./WebGpuAvailability";
 
 export type PlayRendererBackend = "webgl" | "webgpu";
 
@@ -75,9 +79,7 @@ async function createWebGpuRenderer(canvas: HTMLCanvasElement): Promise<{
   };
 }
 
-function withShaderMode(
-  handle: Omit<PlayRendererHandle, "shaderProgramMode">,
-): PlayRendererHandle {
+function withShaderMode(handle: Omit<PlayRendererHandle, "shaderProgramMode">): PlayRendererHandle {
   return {
     ...handle,
     shaderProgramMode: handle.isWebGpuRenderer ? "tsl" : "glsl",
@@ -91,9 +93,7 @@ export async function createPlayRendererHandle(
   const wantsWebGpu =
     options.preference === "webgpu" ||
     (options.preference === "auto" && options.preferWebGpuWhenAuto === true);
-  const availability = wantsWebGpu
-    ? await detectWebGpuAvailability()
-    : skippedWebGpuAvailability();
+  const availability = wantsWebGpu ? await detectWebGpuAvailability() : skippedWebGpuAvailability();
 
   if (wantsWebGpu) {
     if (!availability.hasAdapter) {

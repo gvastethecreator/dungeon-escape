@@ -46,7 +46,12 @@ import {
   selectEnemyKindsForSpawns,
   totalEnemySeatBudget,
 } from "./EnemySpawnPlan";
-import { tickEnemySim, type EnemySimBody, type EnemySimContext, type EnemySimResult } from "./EnemySim";
+import {
+  tickEnemySim,
+  type EnemySimBody,
+  type EnemySimContext,
+  type EnemySimResult,
+} from "./EnemySim";
 import { ENEMY_ROSTER, enemyAnimationSetsForMood } from "./EnemySpriteAtlas";
 import {
   FloorOccupancyBit,

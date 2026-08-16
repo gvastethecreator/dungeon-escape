@@ -112,7 +112,11 @@ export function createPumpShotgun(materials: DungeonMaterials): PumpShotgunAssem
     "Shotgun loading port",
   );
   const guard = mesh(
-    transformed(new THREE.TorusGeometry(0.028, 0.005, 5, 10, Math.PI), [0, -0.048, -0.02], [0, 0, Math.PI]),
+    transformed(
+      new THREE.TorusGeometry(0.028, 0.005, 5, 10, Math.PI),
+      [0, -0.048, -0.02],
+      [0, 0, Math.PI],
+    ),
     metalDark,
     "Shotgun trigger guard",
   );
@@ -127,7 +131,11 @@ export function createPumpShotgun(materials: DungeonMaterials): PumpShotgunAssem
   barrelAssembly.name = "Shotgun barrel assembly";
   barrelAssembly.userData.sculptPartId = "barrel-assembly";
   const barrel = mesh(
-    transformed(new THREE.CylinderGeometry(0.016, 0.016, 0.4, TUBE_SIDES), [0, 0.028, 0.3], [Math.PI / 2, 0, 0]),
+    transformed(
+      new THREE.CylinderGeometry(0.016, 0.016, 0.4, TUBE_SIDES),
+      [0, 0.028, 0.3],
+      [Math.PI / 2, 0, 0],
+    ),
     metal,
     "Shotgun barrel",
   );
@@ -137,17 +145,29 @@ export function createPumpShotgun(materials: DungeonMaterials): PumpShotgunAssem
     "Shotgun barrel rib",
   );
   const magTube = mesh(
-    transformed(new THREE.CylinderGeometry(0.014, 0.014, 0.34, TUBE_SIDES), [0, -0.022, 0.28], [Math.PI / 2, 0, 0]),
+    transformed(
+      new THREE.CylinderGeometry(0.014, 0.014, 0.34, TUBE_SIDES),
+      [0, -0.022, 0.28],
+      [Math.PI / 2, 0, 0],
+    ),
     metal,
     "Shotgun magazine tube",
   );
   const magCap = mesh(
-    transformed(new THREE.CylinderGeometry(0.016, 0.016, 0.018, TUBE_SIDES), [0, -0.022, 0.458], [Math.PI / 2, 0, 0]),
+    transformed(
+      new THREE.CylinderGeometry(0.016, 0.016, 0.018, TUBE_SIDES),
+      [0, -0.022, 0.458],
+      [Math.PI / 2, 0, 0],
+    ),
     metal,
     "Shotgun magazine cap",
   );
   const muzzleRing = mesh(
-    transformed(new THREE.CylinderGeometry(0.018, 0.018, 0.016, TUBE_SIDES), [0, 0.028, 0.498], [Math.PI / 2, 0, 0]),
+    transformed(
+      new THREE.CylinderGeometry(0.018, 0.018, 0.016, TUBE_SIDES),
+      [0, 0.028, 0.498],
+      [Math.PI / 2, 0, 0],
+    ),
     metal,
     "Shotgun muzzle ring",
   );
@@ -167,7 +187,11 @@ export function createPumpShotgun(materials: DungeonMaterials): PumpShotgunAssem
   pump.name = "Shotgun pump";
   pump.userData.sculptPartId = "pump";
   const forend = mesh(
-    transformed(new THREE.CylinderGeometry(0.032, 0.034, 0.16, PUMP_SIDES), [0, -0.02, 0.22], [Math.PI / 2, 0, 0]),
+    transformed(
+      new THREE.CylinderGeometry(0.032, 0.034, 0.16, PUMP_SIDES),
+      [0, -0.02, 0.22],
+      [Math.PI / 2, 0, 0],
+    ),
     wood,
     "Shotgun pump forend",
   );
@@ -175,7 +199,11 @@ export function createPumpShotgun(materials: DungeonMaterials): PumpShotgunAssem
   for (let index = 0; index < 6; index += 1) {
     const z = 0.155 + index * 0.026;
     const ribRing = mesh(
-      transformed(new THREE.TorusGeometry(0.033, 0.0035, 4, PUMP_SIDES), [0, -0.02, z], [Math.PI / 2, 0, 0]),
+      transformed(
+        new THREE.TorusGeometry(0.033, 0.0035, 4, PUMP_SIDES),
+        [0, -0.02, z],
+        [Math.PI / 2, 0, 0],
+      ),
       woodDark,
       `Shotgun pump rib ${index + 1}`,
     );
@@ -228,7 +256,11 @@ export function createShotgunPickup(materials: DungeonMaterials): THREE.Group {
     side: THREE.DoubleSide,
   });
 
-  const pedestal = mesh(new THREE.CylinderGeometry(0.34, 0.42, 0.12, 8), base, "Shotgun pickup pedestal");
+  const pedestal = mesh(
+    new THREE.CylinderGeometry(0.34, 0.42, 0.12, 8),
+    base,
+    "Shotgun pickup pedestal",
+  );
   pedestal.position.y = 0.06;
   const rest = mesh(new THREE.BoxGeometry(0.5, 0.05, 0.16), iron, "Shotgun pickup rest");
   rest.position.set(0, 0.16, 0);

@@ -14,9 +14,7 @@ describe("campaign New Game seeds", () => {
     const mint = (): string => "ASH-FRESH";
     const urlSeed = parseLaunchConfiguration("?seed=LONG-RUN").visualQa;
     const auditSeed = parseLaunchConfiguration("?perfAudit=1&seed=PINNED").visualQa;
-    const qaSeed = parseLaunchConfiguration(
-      "?perfAudit=1&qaState=portal&seed=QA-MAP",
-    ).visualQa;
+    const qaSeed = parseLaunchConfiguration("?perfAudit=1&qaState=portal&seed=QA-MAP").visualQa;
 
     expect(urlSeed.seed).toBeNull();
     expect(nextCampaignSeed(urlSeed, mint)).toBe("ASH-FRESH");

@@ -222,9 +222,9 @@ describe("biome sprite decor atlas", () => {
     expect(BIOME_CORRIDOR_HANGER_MAX_TURN).toBeLessThan(Math.PI / 4);
     expect(clampBiomeSpriteYaw(0, Math.PI)).toBeCloseTo(BIOME_CORNER_PROP_MAX_TURN);
     expect(clampBiomeSpriteYaw(0, -Math.PI)).toBeCloseTo(-BIOME_CORNER_PROP_MAX_TURN);
-    expect(
-      clampBiomeSpriteYaw(0, Math.PI, BIOME_EDGE_PROP_MAX_TURN),
-    ).toBeCloseTo(BIOME_EDGE_PROP_MAX_TURN);
+    expect(clampBiomeSpriteYaw(0, Math.PI, BIOME_EDGE_PROP_MAX_TURN)).toBeCloseTo(
+      BIOME_EDGE_PROP_MAX_TURN,
+    );
     expect(staticSceneSource).toContain("collectRoomCornerSeats");
     expect(staticSceneSource).toContain("cornerHugWorldOffset");
     expect(staticSceneSource).toContain("corridorHangerFacing");
@@ -261,7 +261,7 @@ describe("biome sprite decor atlas", () => {
     expect(atmosphereBody).toContain("this.scatterCobwebs(dungeon, random)");
     expect(atmosphereBody).not.toContain("this.scatterWallDecor(");
     expect(atmosphereBody).toContain("this.scatterRoomAtmosphereProps(dungeon, random)");
-    expect(staticSceneSource).toContain("collectDecorCorridorCells(dungeon)");
+    expect(staticSceneSource).toContain("collectCorridorFloorSeats(dungeon)");
     expect(staticSceneSource).toContain('surface: "floor" | "ceiling" = "floor"');
   });
 
@@ -287,32 +287,39 @@ describe("biome sprite decor atlas", () => {
   test.skipIf(!hasLocalSourceAssets("runtime-metadata", "sprites", "biome-props", "manifest.json"))(
     "ships every processed atlas and a complete alpha manifest",
     async () => {
-    const root = new URL("../assets-source/runtime-metadata/sprites/biome-props/", import.meta.url);
-    const manifest = (await Bun.file(new URL("manifest.json", root)).json()) as {
-      sheets: Array<{
-        biome: string;
-        size: [number, number];
-        grid: { columns: number; rows: number; cell: number; border: number };
-        model: string;
-        frames: Array<{ bbox: number[]; edge_nonzero: number }>;
-      }>;
-    };
-    expect(manifest.sheets).toHaveLength(listDungeonMoodIds().length);
-    expect(manifest.sheets.map((sheet) => sheet.biome)).toEqual([...listDungeonMoodIds()]);
-    for (const sheet of manifest.sheets) {
-      const file = Bun.file(
-        new URL(`../public/assets/sprites/biome-props/${sheet.biome}-props.webp`, import.meta.url),
+      const root = new URL(
+        "../assets-source/runtime-metadata/sprites/biome-props/",
+        import.meta.url,
       );
-      expect(await file.exists()).toBe(true);
-      expect(file.size).toBeGreaterThan(4_000);
-      expect(sheet.size).toEqual([1536, 1024]);
-      expect(sheet.grid).toEqual({ columns: 3, rows: 2, cell: 512, border: 4 });
-      expect(sheet.model).toBe("ZhengPeng7/BiRefNet");
-      expect(sheet.frames).toHaveLength(6);
-      expect(sheet.frames.every((frame) => frame.bbox.length === 4)).toBe(true);
-      expect(sheet.frames.every((frame) => frame.edge_nonzero === 0)).toBe(true);
-    }
-  });
+      const manifest = (await Bun.file(new URL("manifest.json", root)).json()) as {
+        sheets: Array<{
+          biome: string;
+          size: [number, number];
+          grid: { columns: number; rows: number; cell: number; border: number };
+          model: string;
+          frames: Array<{ bbox: number[]; edge_nonzero: number }>;
+        }>;
+      };
+      expect(manifest.sheets).toHaveLength(listDungeonMoodIds().length);
+      expect(manifest.sheets.map((sheet) => sheet.biome)).toEqual([...listDungeonMoodIds()]);
+      for (const sheet of manifest.sheets) {
+        const file = Bun.file(
+          new URL(
+            `../public/assets/sprites/biome-props/${sheet.biome}-props.webp`,
+            import.meta.url,
+          ),
+        );
+        expect(await file.exists()).toBe(true);
+        expect(file.size).toBeGreaterThan(4_000);
+        expect(sheet.size).toEqual([1536, 1024]);
+        expect(sheet.grid).toEqual({ columns: 3, rows: 2, cell: 512, border: 4 });
+        expect(sheet.model).toBe("ZhengPeng7/BiRefNet");
+        expect(sheet.frames).toHaveLength(6);
+        expect(sheet.frames.every((frame) => frame.bbox.length === 4)).toBe(true);
+        expect(sheet.frames.every((frame) => frame.edge_nonzero === 0)).toBe(true);
+      }
+    },
+  );
 
   test.skipIf(
     !hasLocalSourceAssets("runtime-metadata", "sprites", "biome-props-v2", "manifest.json"),

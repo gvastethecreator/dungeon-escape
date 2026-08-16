@@ -641,7 +641,10 @@ export class StaticDungeonScene {
   }
 
   private isBorrowedStaticGeometry(geometry: THREE.BufferGeometry): boolean {
-    if (this.resourceCatalog.ownsGeometry(geometry) || this.runtimeDoorTemplateGeometries.has(geometry)) {
+    if (
+      this.resourceCatalog.ownsGeometry(geometry) ||
+      this.runtimeDoorTemplateGeometries.has(geometry)
+    ) {
       return true;
     }
     for (const batches of this.runtimeClassicPropBatches.values()) {
@@ -1603,7 +1606,10 @@ export class StaticDungeonScene {
     return best;
   }
 
-  private pumpDeferredFloorHydration(maxSteps: number, deadline = Number.POSITIVE_INFINITY): number {
+  private pumpDeferredFloorHydration(
+    maxSteps: number,
+    deadline = Number.POSITIVE_INFINITY,
+  ): number {
     let remaining = Math.max(0, maxSteps);
     let ran = 0;
     const skipped = new Set<ResidentFloorRuntimeOwner>();
@@ -2756,60 +2762,65 @@ export class StaticDungeonScene {
     };
 
     const commit = (): void => {
-    const artGeometry = this.resourceCatalog.borrowGeometry(
-      "rigid-prop/v2:family:classic-wall-art:topology:plane:width:2.3000:height:2.3000",
-      () => new THREE.PlaneGeometry(2.3, 2.3),
-      "classic-wall-art-geometry/v2",
-    );
-    const wallSpriteRoughness = getBiomeDecorationProfile(this.activeMood.id).doorRoughness + 0.04;
-    for (const [mapIndex, artEntries] of classicWallArtPlacements) {
-      const material = createWallSpriteMaterial(
-        this.assets.wallArtPbr(mapIndex),
-        this.activeMood,
-        wallSpriteRoughness,
+      const artGeometry = this.resourceCatalog.borrowGeometry(
+        "rigid-prop/v2:family:classic-wall-art:topology:plane:width:2.3000:height:2.3000",
+        () => new THREE.PlaneGeometry(2.3, 2.3),
+        "classic-wall-art-geometry/v2",
       );
-      for (const [chunkKey, chunkEntries] of groupBySpatialChunk(
-        artEntries,
-        (entry) => entry.cell,
-      )) {
-        const batch = new THREE.InstancedMesh(artGeometry, material, chunkEntries.length);
-        batch.name = `Room wall artwork ${mapIndex + 1} chunk ${chunkKey}`;
-        batch.castShadow = false;
-        batch.receiveShadow = true;
-        batch.userData.distanceLod = "disabled";
-        chunkEntries.forEach((entry, index) => batch.setMatrixAt(index, entry.matrix));
-        batch.instanceMatrix.needsUpdate = true;
-        this.finalizeSpatialInstancedBatch(batch, chunkKey, "dressing");
-        this.add(batch);
-      }
-    }
-
-    // Keep InstancedMesh per classic family:variant, then split by spatial chunk
-    // so frustum culling can discard off-screen dressing (PERF-35).
-    for (const [groupKey, placement] of classicPropPlacements) {
-      let templateBatches: readonly StaticPropTemplateBatch[];
-      try {
-        templateBatches = this.getClassicPropTemplateBatches(groupKey, placement.source);
-      } finally {
-        // Final normalized batches belong to the catalog. Source templates are recipes only.
-        this.disposeClassicPropSource(placement.source);
-      }
-      for (const [chunkKey, chunkEntries] of groupBySpatialChunk(
-        placement.entries,
-        (entry) => entry.cell,
-      )) {
-        for (const [partIndex, part] of templateBatches.entries()) {
-          const batch = new THREE.InstancedMesh(part.geometry, part.material, chunkEntries.length);
-          batch.name = `Classic ${groupKey} chunk ${chunkKey} batch ${partIndex + 1}`;
-          batch.castShadow = part.castShadow;
-          batch.receiveShadow = part.receiveShadow;
+      const wallSpriteRoughness =
+        getBiomeDecorationProfile(this.activeMood.id).doorRoughness + 0.04;
+      for (const [mapIndex, artEntries] of classicWallArtPlacements) {
+        const material = createWallSpriteMaterial(
+          this.assets.wallArtPbr(mapIndex),
+          this.activeMood,
+          wallSpriteRoughness,
+        );
+        for (const [chunkKey, chunkEntries] of groupBySpatialChunk(
+          artEntries,
+          (entry) => entry.cell,
+        )) {
+          const batch = new THREE.InstancedMesh(artGeometry, material, chunkEntries.length);
+          batch.name = `Room wall artwork ${mapIndex + 1} chunk ${chunkKey}`;
+          batch.castShadow = false;
+          batch.receiveShadow = true;
+          batch.userData.distanceLod = "disabled";
           chunkEntries.forEach((entry, index) => batch.setMatrixAt(index, entry.matrix));
           batch.instanceMatrix.needsUpdate = true;
           this.finalizeSpatialInstancedBatch(batch, chunkKey, "dressing");
           this.add(batch);
         }
       }
-    }
+
+      // Keep InstancedMesh per classic family:variant, then split by spatial chunk
+      // so frustum culling can discard off-screen dressing (PERF-35).
+      for (const [groupKey, placement] of classicPropPlacements) {
+        let templateBatches: readonly StaticPropTemplateBatch[];
+        try {
+          templateBatches = this.getClassicPropTemplateBatches(groupKey, placement.source);
+        } finally {
+          // Final normalized batches belong to the catalog. Source templates are recipes only.
+          this.disposeClassicPropSource(placement.source);
+        }
+        for (const [chunkKey, chunkEntries] of groupBySpatialChunk(
+          placement.entries,
+          (entry) => entry.cell,
+        )) {
+          for (const [partIndex, part] of templateBatches.entries()) {
+            const batch = new THREE.InstancedMesh(
+              part.geometry,
+              part.material,
+              chunkEntries.length,
+            );
+            batch.name = `Classic ${groupKey} chunk ${chunkKey} batch ${partIndex + 1}`;
+            batch.castShadow = part.castShadow;
+            batch.receiveShadow = part.receiveShadow;
+            chunkEntries.forEach((entry, index) => batch.setMatrixAt(index, entry.matrix));
+            batch.instanceMatrix.needsUpdate = true;
+            this.finalizeSpatialInstancedBatch(batch, chunkKey, "dressing");
+            this.add(batch);
+          }
+        }
+      }
     };
 
     return { dressRoom, commit };

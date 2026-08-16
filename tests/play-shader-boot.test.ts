@@ -5,7 +5,9 @@ import { skippedWebGpuAvailability } from "../src/systems/WebGpuAvailability";
 
 describe("play shader boot", () => {
   test("owns one factory loader list and does not value-import three/webgpu", async () => {
-    const boot = await Bun.file(new URL("../src/systems/PlayShaderBoot.ts", import.meta.url)).text();
+    const boot = await Bun.file(
+      new URL("../src/systems/PlayShaderBoot.ts", import.meta.url),
+    ).text();
     const main = await Bun.file(new URL("../src/main.ts", import.meta.url)).text();
     expect(PLAY_SHADER_FACTORY_LOADERS).toHaveLength(14);
     expect(boot).toContain("await Promise.all(PLAY_SHADER_FACTORY_LOADERS.map");

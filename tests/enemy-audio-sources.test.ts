@@ -42,9 +42,9 @@ describe("enemy audio sources", () => {
   });
 
   test("library files exist for every mapped clip", () => {
-    const missing = ENEMY_AUDIO_SOURCES.filter((asset) => !existsSync(resolveEnemyAudioPath(asset))).map(
-      (asset) => `${asset.name} -> ${resolveEnemyAudioPath(asset)}`,
-    );
+    const missing = ENEMY_AUDIO_SOURCES.filter(
+      (asset) => !existsSync(resolveEnemyAudioPath(asset)),
+    ).map((asset) => `${asset.name} -> ${resolveEnemyAudioPath(asset)}`);
     expect(missing).toEqual([]);
   }, 60_000);
 });

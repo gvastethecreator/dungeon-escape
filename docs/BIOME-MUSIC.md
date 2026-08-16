@@ -4,29 +4,29 @@ Dungeon Escape uses original Neo-SPC looping beds that stay behind play: low ene
 
 ## Screen beds
 
-| Screen            | Cue                 | Runtime asset             | Job                                      |
-| ----------------- | ------------------- | ------------------------- | ---------------------------------------- |
-| Welcome home      | Threshold Ember     | `music-menu.ogg`          | Invite, then hush under the menu         |
-| Hall of Escapes   | Names in Stone      | `music-hall.ogg`          | Honor recorded names without a march     |
-| Biome picker      | Choose the Descent  | `music-biome-select.ogg`  | Curious, still behind the list           |
-| Win               | Open Air            | `music-win.ogg`           | Relief after escape, not a fanfare       |
-| Lose              | Last Wick           | `music-lose.ogg`          | Lantern failing; death SFX stay in front |
+| Screen          | Cue                | Runtime asset            | Job                                      |
+| --------------- | ------------------ | ------------------------ | ---------------------------------------- |
+| Welcome home    | Threshold Ember    | `music-menu.ogg`         | Invite, then hush under the menu         |
+| Hall of Escapes | Names in Stone     | `music-hall.ogg`         | Honor recorded names without a march     |
+| Biome picker    | Choose the Descent | `music-biome-select.ogg` | Curious, still behind the list           |
+| Win             | Open Air           | `music-win.ogg`          | Relief after escape, not a fanfare       |
+| Lose            | Last Wick          | `music-lose.ogg`         | Lantern failing; death SFX stay in front |
 
 ## Exploration beds
 
-| Biome     | Cue                  | Runtime asset               |
-| --------- | -------------------- | --------------------------- |
-| Ancient   | Dust Litany          | `music-biome-ancient.ogg`   |
-| Molten    | Slag Breath          | `music-biome-molten.ogg`    |
-| Frost     | Still Glass          | `music-biome-frost.ogg`     |
-| Grim      | Bone Interval        | `music-biome-grim.ogg`      |
-| Verdant   | Root Hum             | `music-biome-verdant.ogg`   |
-| Ash       | Cinder Veil          | `music-biome-ash.ogg`       |
-| Iron      | Bolt Murmur          | `music-biome-iron.ogg`      |
-| Obsidian  | Mirror Undercurrent  | `music-biome-obsidian.ogg`  |
-| Sunken    | Pressure Drift       | `music-biome-sunken.ogg`    |
-| Fungal    | Spore Drift          | `music-biome-fungal.ogg`    |
-| Backrooms | Fluorescent Hum      | `music-biome-backrooms.ogg` |
+| Biome     | Cue                 | Runtime asset               |
+| --------- | ------------------- | --------------------------- |
+| Ancient   | Dust Litany         | `music-biome-ancient.ogg`   |
+| Molten    | Slag Breath         | `music-biome-molten.ogg`    |
+| Frost     | Still Glass         | `music-biome-frost.ogg`     |
+| Grim      | Bone Interval       | `music-biome-grim.ogg`      |
+| Verdant   | Root Hum            | `music-biome-verdant.ogg`   |
+| Ash       | Cinder Veil         | `music-biome-ash.ogg`       |
+| Iron      | Bolt Murmur         | `music-biome-iron.ogg`      |
+| Obsidian  | Mirror Undercurrent | `music-biome-obsidian.ogg`  |
+| Sunken    | Pressure Drift      | `music-biome-sunken.ogg`    |
+| Fungal    | Spore Drift         | `music-biome-fungal.ogg`    |
+| Backrooms | Fluorescent Hum     | `music-biome-backrooms.ogg` |
 
 ## Portal beds (four stones bound)
 
