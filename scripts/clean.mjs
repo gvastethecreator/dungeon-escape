@@ -9,7 +9,6 @@ const generatedPaths = [
   "test-results",
   ".scratch/build",
   ".code-review-graph",
-  ".local",
   ".wrangler/tmp",
 ];
 
@@ -37,9 +36,9 @@ async function removeScratchResidue(directory) {
       } else {
         await removeScratchResidue(target);
       }
-    } else if (directory === projectPath(".scratch") && entry.name.endsWith(".log")) {
+    } else if (entry.name.endsWith(".log") || entry.name.endsWith(".pid")) {
       await rm(target, { force: true });
-      console.log(`removed .scratch/${entry.name}`);
+      console.log(`removed ${target.slice(projectRoot.length + 1)}`);
     }
   }
 }

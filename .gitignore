@@ -1,5 +1,6 @@
 node_modules/
 dist/
+logs/
 assets-source/
 docs/codemap/
 .scratch/

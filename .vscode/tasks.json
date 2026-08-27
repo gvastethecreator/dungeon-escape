@@ -2,125 +2,125 @@
   "version": "2.0.0",
   "tasks": [
     {
-      "label": "📥 install",
-      "type": "shell",
-      "command": "bun run install:check",
-      "problemMatcher": []
-    },
-    {
-      "label": "⚡ dev",
+      "label": "▶️ Dev",
       "type": "shell",
       "command": "bun run dev",
-      "group": { "kind": "build", "isDefault": true },
       "isBackground": true,
       "problemMatcher": []
     },
     {
-      "label": "📦 build",
-      "type": "shell",
-      "command": "bun run build",
-      "group": "build",
-      "problemMatcher": []
-    },
-    {
-      "label": "💻 code",
-      "type": "shell",
-      "command": "bun run build:code",
-      "problemMatcher": []
-    },
-    {
-      "label": "👁️ preview",
-      "type": "shell",
-      "command": "bun run preview",
-      "problemMatcher": []
-    },
-    {
-      "label": "✅ check",
-      "type": "shell",
-      "command": "bun run check",
-      "problemMatcher": []
-    },
-    {
-      "label": "🧪 test",
+      "label": "🧪 Test",
       "type": "shell",
       "command": "bun run test",
       "group": { "kind": "test", "isDefault": true },
       "problemMatcher": []
     },
     {
-      "label": "🏷️ types",
-      "type": "shell",
-      "command": "bun run typecheck:all",
-      "problemMatcher": []
-    },
-    {
-      "label": "🧹 lint",
+      "label": "🧹 Lint",
       "type": "shell",
       "command": "bun run lint",
       "problemMatcher": []
     },
     {
-      "label": "🎨 format",
+      "label": "🎨 Format",
       "type": "shell",
       "command": "bun run fmt",
       "problemMatcher": []
     },
     {
-      "label": "🗑️ clean",
+      "label": "🏷️ Types",
       "type": "shell",
-      "command": "bun run clean",
+      "command": "bun run typecheck:all",
       "problemMatcher": []
     },
     {
-      "label": "⬆️ outdated",
+      "label": "🏗️ Build",
       "type": "shell",
-      "command": "bun run deps:outdated",
+      "command": "bun run build",
+      "group": { "kind": "build", "isDefault": true },
       "problemMatcher": []
     },
     {
-      "label": "🛡️ audit",
+      "label": "💻 Code",
       "type": "shell",
-      "command": "bun run deps:audit",
+      "command": "bun run build:code",
       "problemMatcher": []
     },
     {
-      "label": "🖼️ assets",
+      "label": "✅ Check",
+      "type": "shell",
+      "command": "bun run check",
+      "problemMatcher": []
+    },
+    {
+      "label": "👁️ Preview",
+      "type": "shell",
+      "command": "bun run preview",
+      "problemMatcher": []
+    },
+    {
+      "label": "🖼️ Assets",
       "type": "shell",
       "command": "bun run audit:runtime-assets",
       "problemMatcher": []
     },
     {
-      "label": "🪜 smoke",
+      "label": "🪜 Smoke",
       "type": "shell",
       "command": "bun run smoke:multi-floor",
       "problemMatcher": []
     },
     {
-      "label": "📱 mobile",
+      "label": "📱 Mobile",
       "type": "shell",
       "command": "bun run smoke:mobile",
       "problemMatcher": []
     },
     {
-      "label": "🗄️ db local",
+      "label": "📥 Install",
+      "type": "shell",
+      "command": "bun run install:check",
+      "problemMatcher": []
+    },
+    {
+      "label": "🗑️ Clean",
+      "type": "shell",
+      "command": "bun run clean",
+      "problemMatcher": []
+    },
+    {
+      "label": "⬆️ Outdated",
+      "type": "shell",
+      "command": "bun run deps:outdated",
+      "problemMatcher": []
+    },
+    {
+      "label": "🛡️ Audit",
+      "type": "shell",
+      "command": "bun run deps:audit",
+      "problemMatcher": []
+    },
+    {
+      "label": "☁️ CF dev",
+      "type": "shell",
+      "command": "bun run cloudflare:dev",
+      "isBackground": true,
+      "problemMatcher": []
+    },
+    {
+      "label": "🗄️ DB local",
       "type": "shell",
       "command": "bun run db:migrate:local",
       "problemMatcher": []
     },
     {
-      "label": "☁️ cf dev",
-      "type": "shell",
-      "command": "bun run cloudflare:dev",
-      "problemMatcher": []
-    },
-    {
-      "label": "⚠️ db remote",
+      "label": "⚠️ DB remote",
       "type": "shell",
       "command": "bun run db:migrate:remote",
       "problemMatcher": []
     },
     {
-      "label": "🚀 deploy",
+      "label": "🚀 Deploy",
       "type": "shell",
       "command": "bun run cloudflare:deploy",
       "problemMatcher": []

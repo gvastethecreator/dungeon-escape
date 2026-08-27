@@ -1,10 +1,10 @@
 # Dependencies
 
-Last reviewed: 2026-08-15.
+Last reviewed: 2026-08-27.
 
 ## Package manager
 
-Bun 1.3.14 is intentional in this repository. The test suite uses `bun:test`, operational scripts use Bun APIs such as `Bun.spawn`, and `@types/bun` is part of the checked TypeScript graph. This is an explicit Bun runtime exception; migrating only the installer to pnpm would create two package-manager contracts without removing the Bun dependency.
+Bun 1.3.14 is the committed contract (`packageManager` and CI `bun-version`). The test suite uses `bun:test`, operational scripts use Bun APIs such as `Bun.spawn`, and `@types/bun` 1.3.14 is part of the checked TypeScript graph. This is an explicit Bun runtime exception; migrating only the installer to pnpm would create two package-manager contracts without removing the Bun dependency.
 
 Use the committed `bun.lock` and verify it with:
 
@@ -13,6 +13,19 @@ bun run install:check
 bun run deps:outdated
 bun run deps:audit
 ```
+
+## 2026-08-27 update
+
+| Package                     | From         | To           | Project impact                                                                                        |
+| --------------------------- | ------------ | ------------ | ----------------------------------------------------------------------------------------------------- |
+| `@cloudflare/workers-types` | 5.20260815.1 | 5.20260827.1 | Refreshes the Worker runtime declarations used by the checked server and Worker graph.                |
+| `oxlint`                    | 1.78.0       | 1.80.0       | Refreshes diagnostics. No lint-policy change.                                                         |
+| `oxfmt`                     | 0.63.0       | 0.65.0       | Applies the current formatter. Decorator-suppression formatting is the only noted formatter fix.      |
+| `sharp`                     | 0.35.3       | 0.35.4       | Keeps image audits and asset optimization on the current patch.                                       |
+| `vite`                      | 8.2.1        | 8.2.2        | Windows path, CSS, bundled-dev, and optimizer fixes. No config migration.                             |
+| `wrangler`                  | 4.123.0      | 4.126.0      | Updates the local Worker and D1 toolchain. No Wrangler config change is required for this repository. |
+
+`three`, Playwright, TypeScript, `@types/three`, and `@types/bun` stay on the committed Bun 1.3.14 line. A Bun 1.4 pin is deferred so CI and `packageManager` stay aligned.
 
 ## 2026-08-15 update
 

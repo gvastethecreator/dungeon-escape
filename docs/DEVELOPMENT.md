@@ -44,7 +44,7 @@ bun run smoke:mobile
 bun run smoke:multi-floor
 ```
 
-Use `bun run clean` to remove generated build and test output. It intentionally keeps authored work and review evidence under `.scratch/`.
+Use `bun run clean` to remove generated build and test output. It keeps unique notes under `.local/` and authored review evidence under `.scratch/`. Nested scratch `.log` and `.pid` files are residue and are removed.
 
 `build:code` checks browser, server, and worker types and builds every HTML entry into
 `.scratch/build/code` without copying the large runtime asset catalog. Use it for normal code
