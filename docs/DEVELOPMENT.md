@@ -62,7 +62,9 @@ bun run audit:runtime-assets
 
 The optimizer converts runtime rasters to WebP and writes each image at `floor(source / 2)` on both axes. Pixel-art families use nearest-neighbor sampling; continuous art uses Lanczos. Published animation atlases and generated pickup or stone icons keep their authored runtime dimensions. The generated manifest is `assets-source/runtime-optimization-manifest.json`. Re-running the command is idempotent when the published files match that manifest. `bun run optimize:runtime-assets` needs that local tree. `bun run audit:runtime-assets` always audits the tracked runtime package and adds manifest hash and dimension verification when the local manifest is available.
 
-The audit rejects source-only folders, orphan enemy atlases, PNG/JPEG runtime files, broken concrete URLs, and any output whose dimensions, byte size, or SHA-256 differ from the manifest. `cloudflare:deploy` runs this audit before the production build.
+The audit rejects source-only folders, orphan enemy atlases, PNG/JPEG runtime files, broken concrete URLs, and any output whose dimensions, byte size, or SHA-256 differ from the manifest. `cloudflare:deploy` runs this audit before the production build. A push to `main` runs the same command and serves the game at `https://dungeon.gvaste.dev`.
+
+GitHub Actions authenticates with repository secrets `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`. Create the token from the Edit Cloudflare Workers template and scope it to this account.
 
 ## Optional authority service
 

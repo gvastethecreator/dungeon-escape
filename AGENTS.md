@@ -10,6 +10,8 @@ WebGL2 is the automatic renderer default. WebGPU is opt-in only through `?render
 
 `public/` is the deploy runtime package. `assets-source/` is local and untracked.
 
+Production play URL is `https://dungeon.gvaste.dev`. `bun run cloudflare:deploy` publishes it. A push to `main` runs the same command in GitHub Actions.
+
 Generated logs belong under `logs/` (gitignored). Do not leave `*.log` files in source trees.
 
 The code map under `docs/codemap/` is generated local output and is gitignored. Refresh it with the maintain-code-map skill. Do not hand-edit those artifacts.

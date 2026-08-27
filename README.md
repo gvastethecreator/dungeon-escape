@@ -9,14 +9,14 @@
 
 <p align="center">
   <a href="https://github.com/gvastethecreator/dungeon-escape/actions/workflows/ci.yml"><img alt="CI status" src="https://shieldcn.dev/github/ci/gvastethecreator/dungeon-escape.svg?workflow=ci&branch=main&variant=secondary&size=xs" /></a>
-  <a href="https://dungeon.gvaste.ar"><img alt="Play live" src="https://shieldcn.dev/badge/play-live-b76b32.svg?logo=googlechrome&variant=branded&size=xs" /></a>
+  <a href="https://dungeon.gvaste.dev"><img alt="Play live" src="https://shieldcn.dev/badge/play-live-b76b32.svg?logo=googlechrome&variant=branded&size=xs" /></a>
   <a href="https://gvastethecreator.github.io/dungeon-escape/"><img alt="Project site" src="https://shieldcn.dev/badge/site-pages-8f6b37.svg?logo=githubpages&variant=secondary&size=xs" /></a>
   <a href="#renderer-boundary"><img alt="WebGL2 default" src="https://shieldcn.dev/badge/renderer-WebGL2-2c6d85.svg?variant=secondary&size=xs" /></a>
   <a href="https://github.com/gvastethecreator/dungeon-escape/stargazers"><img alt="GitHub stars" src="https://shieldcn.dev/github/stars/gvastethecreator/dungeon-escape.svg?variant=secondary&size=xs" /></a>
   <a href="LICENSE"><img alt="MIT license" src="https://shieldcn.dev/github/license/gvastethecreator/dungeon-escape.svg?variant=secondary&size=xs" /></a>
 </p>
 
-[Play now](https://dungeon.gvaste.ar) · [Project site](https://gvastethecreator.github.io/dungeon-escape/) · [Development](docs/DEVELOPMENT.md) · [Contributing](CONTRIBUTING.md)
+[Play now](https://dungeon.gvaste.dev) · [Project site](https://gvastethecreator.github.io/dungeon-escape/) · [Development](docs/DEVELOPMENT.md) · [Contributing](CONTRIBUTING.md)
 
 ## Tour
 

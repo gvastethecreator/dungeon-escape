@@ -2,7 +2,7 @@
   "$schema": "./node_modules/wrangler/config-schema.json",
   "name": "dungeon-escape",
   "main": "./worker/index.ts",
-  "compatibility_date": "2026-07-27",
+  "compatibility_date": "2026-08-27",
   "assets": {
     "directory": "./dist",
     "binding": "ASSETS",
@@ -18,6 +18,10 @@
     },
   ],
   "routes": [
+    {
+      "pattern": "dungeon.gvaste.dev",
+      "custom_domain": true,
+    },
     {
       "pattern": "dungeon.gvaste.ar",
       "custom_domain": true,

@@ -56,7 +56,7 @@ Wrangler serves `dist/`, runs `/api/*` through the Worker and keeps its local D1
 2. Create the DB: `bunx wrangler d1 create dungeon-escape-leaderboard`.
 3. Copy the returned `database_id` into the `LEADERBOARD_DB` entry in `wrangler.jsonc`.
 4. Apply schema: `bun run db:migrate:remote`.
-5. Deploy: `bun run cloudflare:deploy`.
+5. Deploy: `bun run cloudflare:deploy`. Push to `main` also runs this command in GitHub Actions and publishes `https://dungeon.gvaste.dev`. The previous hostname `https://dungeon.gvaste.ar` stays attached.
 
 Remote migration and deployment require Cloudflare account access. Keep `wrangler.jsonc` as the binding source of truth.
 
