@@ -56,7 +56,7 @@ Open `http://127.0.0.1:24211/`. Use **New Game** for a campaign run or **Custom 
 
 ## Renderer boundary
 
-WebGL2 remains the automatic default and the public visual baseline. WebGPU is available only through `?renderer=webgpu` while its TSL parity and human acceptance gates remain open. Do not infer a default flip from an opt-in capture or focused test result; see [ADR 0009](docs/adr/0009-webgpu-renderer-and-tsl.md).
+WebGL2 remains the automatic default and the public visual baseline. WebGPU is available only through `?renderer=webgpu` while its TSL parity and human acceptance gates remain open. Do not infer a default flip from an opt-in capture or focused test result.
 
 ## Documentation
 

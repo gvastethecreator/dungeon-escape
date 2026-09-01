@@ -84,7 +84,7 @@ Kinds: `carrion`, `goblin`, `ghost`, `ratling`, `husk`, `imp`, `zombie-orc`, `sp
 | ancient           | base          | only v0–v2 (canonical species)            |
 | every other biome | that biome id | skin clips double-weighted into take pool |
 
-Sources live in `scripts/enemy-audio-sources.ts` (personal libraries under `F:\# AUDIO\# SAMPLES\#SFX\` and `G:\#SAMPLES\# SFX\`). Rebuild with `build-audio-pack.ps1 -EnemyOnly`.
+Sources live in `scripts/enemy-audio-sources.ts`. Rebuild with `build-audio-pack.ps1 -EnemyOnly`.
 
 ## Spatial behavior
 
