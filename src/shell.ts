@@ -7,6 +7,9 @@ import { loadLeaderboard } from "./leaderboard/client";
 import { renderWelcomeLeaderboard } from "./leaderboard/render";
 import { hashSeed } from "./core/random";
 import { canContinueLocalRun, readLocalRunSave } from "./game/LocalRunSave";
+import { readMusicMuted, writeMusicMuted } from "./game/MusicMutePreference";
+import { readPlayerProfile } from "./game/PlayerProfile";
+import { applyWelcomeMusicToggle } from "./ui/WelcomeMusicToggle";
 import { shouldLoadDungeonRuntime } from "./shellRoute";
 import { getBiomeIdentity, isBiomeId } from "./systems/BiomeIdentity";
 import { resolveDungeonMood } from "./systems/DungeonMood";
@@ -46,28 +49,8 @@ let runtimeStarted = false;
 let avatarDraft = randomPortraitIndex();
 
 function readShellProfile(): { name: string; avatarIndex: number } | null {
-  try {
-    const value = JSON.parse(localStorage.getItem("blackflag.dungeon.player.v1") ?? "null") as {
-      version?: unknown;
-      name?: unknown;
-      avatarIndex?: unknown;
-    } | null;
-    const name = typeof value?.name === "string" ? value.name.trim().slice(0, 20) : "";
-    const avatarIndex = value?.avatarIndex;
-    if (
-      value?.version !== 1 ||
-      !name ||
-      typeof avatarIndex !== "number" ||
-      !Number.isInteger(avatarIndex) ||
-      avatarIndex < 0 ||
-      avatarIndex >= LEADERBOARD_PORTRAIT_COUNT
-    ) {
-      return null;
-    }
-    return { name, avatarIndex };
-  } catch {
-    return null;
-  }
+  const profile = readPlayerProfile();
+  return profile ? { name: profile.name, avatarIndex: profile.avatarIndex } : null;
 }
 
 function showHome(): void {
@@ -162,16 +145,8 @@ function hydrateWelcome(): void {
     status.textContent = "";
   }
   const musicButton = element<HTMLButtonElement>("welcome-music-toggle");
-  let musicEnabled = true;
-  try {
-    musicEnabled = localStorage.getItem("dungeon-escape:music-muted") !== "1";
-  } catch {
-    // Preference storage is optional.
-  }
-  musicButton.setAttribute("aria-pressed", String(musicEnabled));
-  musicButton.setAttribute("aria-label", musicEnabled ? "Disable music" : "Enable music");
-  musicButton.classList.toggle("is-active", musicEnabled);
-  musicButton.classList.toggle("is-muted", !musicEnabled);
+  const muted = readMusicMuted();
+  applyWelcomeMusicToggle(musicButton, muted, muted ? "Enable music" : "Disable music");
 }
 
 async function loadRuntime(intent?: Window["__DUNGEON_SHELL_INTENT__"]): Promise<void> {
@@ -231,16 +206,9 @@ element<HTMLButtonElement>("welcome-hall-toggle").addEventListener("click", () =
 });
 element<HTMLButtonElement>("welcome-music-toggle").addEventListener("click", (event) => {
   const button = event.currentTarget as HTMLButtonElement;
-  const musicEnabled = button.getAttribute("aria-pressed") !== "true";
-  button.setAttribute("aria-pressed", String(musicEnabled));
-  button.setAttribute("aria-label", musicEnabled ? "Disable music" : "Enable music");
-  button.classList.toggle("is-active", musicEnabled);
-  button.classList.toggle("is-muted", !musicEnabled);
-  try {
-    localStorage.setItem("dungeon-escape:music-muted", musicEnabled ? "0" : "1");
-  } catch {
-    // Preference storage is optional.
-  }
+  const muted = !readMusicMuted();
+  writeMusicMuted(muted);
+  applyWelcomeMusicToggle(button, muted, muted ? "Enable music" : "Disable music");
 });
 
 if (shouldLoadDungeonRuntime(window.location.search)) {

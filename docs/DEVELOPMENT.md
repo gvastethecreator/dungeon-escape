@@ -33,6 +33,8 @@ bun run check
 
 The combined check covers types, lint, formatting, tests, the runtime asset boundary, and the code-only build. Individual commands remain available:
 
+Tests use `bun:test`. There is no Vitest config in this repository.
+
 ```bash
 bun run test
 bun run typecheck:all

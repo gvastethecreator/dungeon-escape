@@ -112,4 +112,28 @@ describe("HazardTraversal", () => {
     });
     expect(high.effect.damage).toBe(HAZARD_SPIKE_DAMAGE);
   });
+
+  test("writes clocks and effect into a provided result object", () => {
+    const out = tickHazardTraversal(createHazardClockState(), {
+      delta: 0.016,
+      contactKind: "fire",
+      spikeExposure: 0,
+      airborne: false,
+      immune: false,
+    });
+    const same = tickHazardTraversal(
+      createHazardClockState(),
+      {
+        delta: 0.016,
+        contactKind: "ice",
+        spikeExposure: 0,
+        airborne: false,
+        immune: false,
+      },
+      out,
+    );
+    expect(same).toBe(out);
+    expect(out.effect.kind).toBe("ice");
+    expect(out.effect.damage).toBe(0);
+  });
 });

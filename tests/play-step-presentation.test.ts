@@ -40,4 +40,13 @@ describe("play step presentation", () => {
       "flash",
     ]);
   });
+
+  test("reuses a provided event list", () => {
+    const out: ReturnType<typeof collectPlayStepPresentation> = [];
+    const events = collectPlayStepPresentation(quietUpdate, { status: "Bound." }, out);
+    expect(events).toBe(out);
+    expect(events.map((event) => event.kind)).toEqual(["status"]);
+    collectPlayStepPresentation(quietUpdate, {}, out);
+    expect(out).toHaveLength(0);
+  });
 });

@@ -109,8 +109,10 @@ export type PlayStepPresentationEvent =
 export function collectPlayStepPresentation(
   worldUpdate: PlayStepPresentationUpdate,
   effects: PlayStepPresentationEffects,
+  out: PlayStepPresentationEvent[] = [],
 ): PlayStepPresentationEvent[] {
-  const events: PlayStepPresentationEvent[] = [];
+  const events = out;
+  events.length = 0;
   if (effects.status) events.push({ kind: "status", text: effects.status });
   if (effects.playPickup && effects.pickup && worldUpdate.collectedPickup) {
     events.push({

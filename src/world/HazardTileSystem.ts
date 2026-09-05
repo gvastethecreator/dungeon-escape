@@ -12,9 +12,11 @@ import {
   type CellOccupancyQuery,
 } from "./FloorOccupancyGrid";
 import {
+  createHazardClockState,
   HAZARD_CONTACT_RADIUS,
   spikeExposure as computeSpikeExposure,
   tickHazardTraversal,
+  type HazardTraversalResult,
 } from "./HazardTraversal";
 
 export type HazardTileKind = "fire" | "ice" | "toxin" | "spikes";
@@ -891,6 +893,10 @@ export class HazardTileSystem {
   private spikeCooldown = 0;
   private toxinTickCooldown = 0;
   private toxinRemaining = 0;
+  private readonly traversalResult: HazardTraversalResult = {
+    clocks: createHazardClockState(),
+    effect: { kind: null, label: "", damage: 0, movementScale: 1, traction: 1 },
+  };
   private readonly textureLifecycle: HazardTextureLifecycle;
   private disposed = false;
 
@@ -1213,6 +1219,7 @@ export class HazardTileSystem {
         airborne: Boolean(traversal.airborne),
         immune: Boolean(traversal.immune),
       },
+      this.traversalResult,
     );
     this.fireCooldown = result.clocks.fireCooldown;
     this.spikeCooldown = result.clocks.spikeCooldown;

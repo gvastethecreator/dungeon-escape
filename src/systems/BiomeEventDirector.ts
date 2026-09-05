@@ -155,6 +155,7 @@ export function sampleBiomeEvent(
   elapsedSeconds: number,
   seedHash: number,
   previousCycle = -1,
+  out?: BiomeEventSnapshot,
 ): BiomeEventSnapshot {
   const profile = BIOME_EVENT_PROFILES[biomeId];
   const elapsed = Math.max(0, elapsedSeconds);
@@ -164,15 +165,15 @@ export function sampleBiomeEvent(
   const phase =
     cycle >= 0 ? scheduled - cycle * profile.intervalSeconds : profile.durationSeconds + 1;
   const active = cycle >= 0 && phase < profile.durationSeconds;
-  return {
-    id: profile.id,
-    label: profile.label,
-    active,
-    started: active && cycle !== previousCycle,
-    remainingSeconds: active ? Math.max(0, profile.durationSeconds - phase) : 0,
-    movementScale: active ? profile.movementScale : 1,
-    hazardDamageScale: active ? profile.hazardDamageScale : 1,
-    enemyPressureScale: active ? profile.enemyPressureScale : 1,
-    cycle,
-  };
+  const snapshot = out ?? ({} as BiomeEventSnapshot);
+  snapshot.id = profile.id;
+  snapshot.label = profile.label;
+  snapshot.active = active;
+  snapshot.started = active && cycle !== previousCycle;
+  snapshot.remainingSeconds = active ? Math.max(0, profile.durationSeconds - phase) : 0;
+  snapshot.movementScale = active ? profile.movementScale : 1;
+  snapshot.hazardDamageScale = active ? profile.hazardDamageScale : 1;
+  snapshot.enemyPressureScale = active ? profile.enemyPressureScale : 1;
+  snapshot.cycle = cycle;
+  return snapshot;
 }

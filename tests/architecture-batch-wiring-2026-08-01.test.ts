@@ -53,6 +53,7 @@ describe("architecture batch wiring 2026-08-01", () => {
     expect(main).toContain("projectPickupFeedback");
     expect(main).toContain("applyPlayStepPresentation");
     expect(main).toContain("collectPlayStepPresentation");
+    expect(main).toContain("playStepPresentationHost");
     expect(main).toContain("stepAdaptiveCrt");
     expect(main).toContain("renderCaps.adaptiveCrtDisableMs");
     expect(main).not.toContain("adaptiveCrtDisableMs - 8");

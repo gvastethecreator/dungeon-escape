@@ -2,7 +2,7 @@
 
 ## Runtime
 
-Bun 1.3.14 owns install, scripts, and tests. Match CI: `bun-version: 1.3.14`.
+Bun 1.3.14 owns install, scripts, and tests (`bun:test`, not Vitest). Match CI: `bun-version: 1.3.14`.
 
 `bun run check` is the local integration gate: types, lint, format, tests, runtime-asset audit, and `build:code`.
 

@@ -33,4 +33,12 @@ describe("biome event director", () => {
     expect(sampleBiomeEvent("molten", 19, 0, first.cycle).started).toBe(false);
     expect(sampleBiomeEvent("molten", 18, 0, -1)).toEqual(first);
   });
+
+  test("writes into a provided snapshot object", () => {
+    const out = sampleBiomeEvent("molten", 0, 0);
+    const same = sampleBiomeEvent("molten", 18, 0, -1, out);
+    expect(same).toBe(out);
+    expect(out.active).toBe(true);
+    expect(out.started).toBe(true);
+  });
 });

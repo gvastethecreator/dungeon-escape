@@ -1,6 +1,6 @@
 # Game music
 
-Dungeon Escape uses original Neo-SPC looping beds that stay behind play. They are low energy, with long rests, and no chase or fanfare writing. `GameAudio` resolves the active cue from the screen, biome, and portal state. Music group gain is 40% below the previous mix (`0.48` → `0.288`).
+Dungeon Escape uses original Neo-SPC looping beds that stay behind play. They are low energy, with long rests, and no chase or fanfare writing. `GameAudio` resolves the active cue from the screen, biome, and portal state. Music group gain is `0.288`.
 
 ## Screen beds
 

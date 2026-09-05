@@ -120,6 +120,7 @@ import {
   type ResidentEnemyActor,
   type ResidentEnemyRuntime,
 } from "./ResidentEnemyRuntime";
+import { IDLE_ENEMY_SIM_RESULT, type EnemySimResult } from "./EnemySim";
 import {
   clearStaticPropTemplateBatchCache,
   PLAY_DRESSING_PUMP_SKIP_DELTA,
@@ -297,6 +298,65 @@ export class DungeonWorld {
   private interactAnchorCache = new WeakMap<THREE.Object3D, { x: number; y: number; z: number }>();
   private readonly collectedStoneIdsScratch: StoneId[] = [];
   private readonly worldUpdateScratch = {} as WorldUpdate;
+  private readonly biomeEventScratch = {} as BiomeEventSnapshot;
+  private readonly idleEnemySim: EnemySimResult = {
+    damage: 0,
+    nearestThreat: Number.POSITIVE_INFINITY,
+    knockX: 0,
+    knockZ: 0,
+    knockHits: 0,
+    attacker: null,
+  };
+  private readonly idleHazardSurface: HazardSurfaceEffect = {
+    kind: null,
+    label: "",
+    damage: 0,
+    movementScale: 1,
+    traction: 1,
+  };
+  private readonly composedHazardSurface: HazardSurfaceEffect = {
+    kind: null,
+    label: "",
+    damage: 0,
+    movementScale: 1,
+    traction: 1,
+  };
+  private readonly shotgunImpactsScratch: { x: number; y: number; z: number }[] = [];
+  private readonly shotgunBlastResult = {
+    hits: 0,
+    impacts: this.shotgunImpactsScratch,
+  };
+  private readonly annihilationPulseScratch: NonNullable<WorldUpdate["annihilationPulse"]> = {
+    position: { x: 0, y: 0, z: 0 },
+    hits: 0,
+  };
+  private readonly cullBrandKillScratch: NonNullable<WorldUpdate["cullBrandKill"]> = {
+    position: { x: 0, y: 0, z: 0 },
+  };
+  private readonly damageSourceScratch: NonNullable<WorldUpdate["damageSource"]> = {
+    position: { x: 0, y: 0, z: 0 },
+    voice: "carrion",
+  };
+  private readonly shotgunFireScratch: NonNullable<WorldUpdate["shotgunFire"]> = {
+    position: { x: 0, y: 0, z: 0 },
+    hits: 0,
+    shells: 0,
+    pump: false,
+  };
+  private readonly shotgunDryFireScratch: NonNullable<WorldUpdate["shotgunDryFire"]> = {
+    position: { x: 0, y: 0, z: 0 },
+  };
+  private readonly doorSoundScratch: NonNullable<WorldUpdate["doorSound"]> = {
+    kind: "open",
+    position: { x: 0, y: 0, z: 0 },
+  };
+  private readonly knockbackScratch = { x: 0, z: 0 };
+  private readonly idleViewer = { x: 0, y: 1.5, z: 0 };
+  private readonly pickupMotionFrame = {
+    player: new THREE.Vector3(),
+    elapsed: 0,
+    delta: 0,
+  };
   private dungeon: DungeonData | null = null;
   private readonly emptyMinimapFeatures: MinimapFeatures = {
     doors: [],
@@ -973,56 +1033,51 @@ export class DungeonWorld {
       activeEnemyRuntime?.difficultyElapsed ?? 0,
       this.dungeon?.seedHash ?? 0,
       activeEnemyRuntime?.biomeEventCycle ?? -1,
+      this.biomeEventScratch,
     );
     if (biomeEvent.started) activeEnemyRuntime?.setBiomeEventCycle(biomeEvent.cycle);
 
     // Combat + locomotion (sim) separate from instanced matrix writes (view).
-    const sim =
-      enemiesFrozen || !activeEnemyRuntime
-        ? {
-            damage: 0,
-            nearestThreat: this.nearestThreatDistance(player),
-            knockX: 0,
-            knockZ: 0,
-            knockHits: 0,
-            attacker: null,
-          }
-        : activeEnemyRuntime.tick({
-            delta,
-            player: enemyPlayer,
-            tileSize: this.tileSize,
-            repelRadius: Math.max(
-              luminousWardActive ? LUMINOUS_WARD_REPEL_RADIUS : 0,
-              annihilationPulseActive ? ANNIHILATION_PULSE_REPEL_RADIUS : 0,
-              handTorchActive ? HAND_TORCH_REPEL_RADIUS : 0,
-            ),
-            repelSpeedMultiplier: annihilationPulseActive
-              ? ANNIHILATION_PULSE_REPEL_SPEED_MULTIPLIER
-              : 1,
-            slowRadius: handTorchActive ? HAND_TORCH_SLOW_RADIUS : 0,
-            slowSpeedMultiplier: handTorchActive ? HAND_TORCH_SLOW_MULTIPLIER : 1,
-            moodId: this.activeMood.id,
-            difficulty: composeDifficultyWithBiomeEvent(
-              this.difficulty,
-              biomeEvent.enemyPressureScale,
-            ),
-            pursuitSpeedMultiplier: frenzyActive ? FRENZY_CURSE_SPEED_MULTIPLIER : 1,
-            attackRateMultiplier: frenzyActive ? FRENZY_CURSE_ATTACK_RATE_MULTIPLIER : 1,
-            detectionRangeMultiplier: frenzyActive ? FRENZY_CURSE_DETECTION_MULTIPLIER : 1,
-          });
-    const sampledSurfaceEffect = this.activeFloorRuntime?.hazardTileSystem?.sample(delta, player, {
-      airborne: this.playerAirborne,
-      immune: isMobilityBoostOn(this.powers),
-    }) ?? {
-      kind: null,
-      label: "",
-      damage: 0,
-      movementScale: 1,
-      traction: 1,
-    };
+    let sim: EnemySimResult;
+    if (enemiesFrozen || !activeEnemyRuntime) {
+      this.idleEnemySim.damage = IDLE_ENEMY_SIM_RESULT.damage;
+      this.idleEnemySim.knockX = IDLE_ENEMY_SIM_RESULT.knockX;
+      this.idleEnemySim.knockZ = IDLE_ENEMY_SIM_RESULT.knockZ;
+      this.idleEnemySim.knockHits = IDLE_ENEMY_SIM_RESULT.knockHits;
+      this.idleEnemySim.attacker = IDLE_ENEMY_SIM_RESULT.attacker;
+      this.idleEnemySim.nearestThreat = this.nearestThreatDistance(player);
+      sim = this.idleEnemySim;
+    } else {
+      sim = activeEnemyRuntime.tick({
+        delta,
+        player: enemyPlayer,
+        tileSize: this.tileSize,
+        repelRadius: Math.max(
+          luminousWardActive ? LUMINOUS_WARD_REPEL_RADIUS : 0,
+          annihilationPulseActive ? ANNIHILATION_PULSE_REPEL_RADIUS : 0,
+          handTorchActive ? HAND_TORCH_REPEL_RADIUS : 0,
+        ),
+        repelSpeedMultiplier: annihilationPulseActive
+          ? ANNIHILATION_PULSE_REPEL_SPEED_MULTIPLIER
+          : 1,
+        slowRadius: handTorchActive ? HAND_TORCH_SLOW_RADIUS : 0,
+        slowSpeedMultiplier: handTorchActive ? HAND_TORCH_SLOW_MULTIPLIER : 1,
+        moodId: this.activeMood.id,
+        difficulty: composeDifficultyWithBiomeEvent(this.difficulty, biomeEvent.enemyPressureScale),
+        pursuitSpeedMultiplier: frenzyActive ? FRENZY_CURSE_SPEED_MULTIPLIER : 1,
+        attackRateMultiplier: frenzyActive ? FRENZY_CURSE_ATTACK_RATE_MULTIPLIER : 1,
+        detectionRangeMultiplier: frenzyActive ? FRENZY_CURSE_DETECTION_MULTIPLIER : 1,
+      });
+    }
+    const sampledSurfaceEffect =
+      this.activeFloorRuntime?.hazardTileSystem?.sample(delta, player, {
+        airborne: this.playerAirborne,
+        immune: isMobilityBoostOn(this.powers),
+      }) ?? this.idleHazardSurface;
     const surfaceEffect: HazardSurfaceEffect = composeHazardWithBiomeEvent(
       sampledSurfaceEffect,
       biomeEvent,
+      this.composedHazardSurface,
     );
     let damage = sim.damage + surfaceEffect.damage;
     const nearestThreat = sim.nearestThreat;
@@ -1039,10 +1094,11 @@ export class DungeonWorld {
         this.annihilationPulseVfx?.triggerPulse(player, this.activeMood.id);
         hits += this.applyAnnihilationPulse(player);
       }
-      annihilationPulse = {
-        position: { x: player.x, y: player.y, z: player.z },
-        hits,
-      };
+      this.annihilationPulseScratch.position.x = player.x;
+      this.annihilationPulseScratch.position.y = player.y;
+      this.annihilationPulseScratch.position.z = player.z;
+      this.annihilationPulseScratch.hits = hits;
+      annihilationPulse = this.annihilationPulseScratch;
     }
     // Contact brand: first hostile strike spends the charge and kills the attacker.
     if (
@@ -1061,29 +1117,23 @@ export class DungeonWorld {
         sim.attacker.position,
         this.residentWorldPosition,
       );
-      cullBrandKill = {
-        position: {
-          x: attackerPosition.x,
-          y: attackerPosition.y,
-          z: attackerPosition.z,
-        },
-      };
+      this.cullBrandKillScratch.position.x = attackerPosition.x;
+      this.cullBrandKillScratch.position.y = attackerPosition.y;
+      this.cullBrandKillScratch.position.z = attackerPosition.z;
+      cullBrandKill = this.cullBrandKillScratch;
     }
     const attackerWorldPosition =
       sim.attacker && activeEnemyRuntime
         ? activeEnemyRuntime.worldPositionInto(sim.attacker.position, this.residentWorldPosition)
         : null;
-    const damageSource: WorldUpdate["damageSource"] =
-      sim.attacker && damage > surfaceEffect.damage
-        ? {
-            position: {
-              x: attackerWorldPosition?.x ?? sim.attacker.position.x,
-              y: attackerWorldPosition?.y ?? sim.attacker.position.y,
-              z: attackerWorldPosition?.z ?? sim.attacker.position.z,
-            },
-            voice: creatureVoiceForEnemy(sim.attacker.kind),
-          }
-        : null;
+    let damageSource: WorldUpdate["damageSource"] = null;
+    if (sim.attacker && damage > surfaceEffect.damage) {
+      this.damageSourceScratch.position.x = attackerWorldPosition?.x ?? sim.attacker.position.x;
+      this.damageSourceScratch.position.y = attackerWorldPosition?.y ?? sim.attacker.position.y;
+      this.damageSourceScratch.position.z = attackerWorldPosition?.z ?? sim.attacker.position.z;
+      this.damageSourceScratch.voice = creatureVoiceForEnemy(sim.attacker.kind);
+      damageSource = this.damageSourceScratch;
+    }
     activeEnemyRuntime?.present({
       player: enemyPlayer,
       revealSeconds: activeEnemyRuntime.difficultyState.revealSeconds,
@@ -1109,14 +1159,11 @@ export class DungeonWorld {
         if (targetOpen !== door.targetOpen) {
           door.targetOpen = targetOpen;
           if (!doorSound && verticalDelta <= 2.2) {
-            doorSound = {
-              kind: targetOpen ? "open" : "close",
-              position: {
-                x: doorPosition.x,
-                y: doorPosition.y + 1.2,
-                z: doorPosition.z,
-              },
-            };
+            this.doorSoundScratch.kind = targetOpen ? "open" : "close";
+            this.doorSoundScratch.position.x = doorPosition.x;
+            this.doorSoundScratch.position.y = doorPosition.y + 1.2;
+            this.doorSoundScratch.position.z = doorPosition.z;
+            doorSound = this.doorSoundScratch;
           }
         }
         updateDoorLeafPresentation(door, delta);
@@ -1210,22 +1257,27 @@ export class DungeonWorld {
           impacts: blast.impacts,
           seed: this.elapsed * 17.13 + player.x * 3.1 + player.z,
         });
-        shotgunFire = {
-          position: { x: muzzle.x, y: muzzle.y, z: muzzle.z },
-          hits: blast.hits,
-          shells: this.powers.shotgun.shells,
-          pump: true,
-        };
+        this.shotgunFireScratch.position.x = muzzle.x;
+        this.shotgunFireScratch.position.y = muzzle.y;
+        this.shotgunFireScratch.position.z = muzzle.z;
+        this.shotgunFireScratch.hits = blast.hits;
+        this.shotgunFireScratch.shells = this.powers.shotgun.shells;
+        this.shotgunFireScratch.pump = true;
+        shotgunFire = this.shotgunFireScratch;
       } else {
-        shotgunDryFire = {
-          position: { x: player.x, y: player.y, z: player.z },
-        };
+        this.shotgunDryFireScratch.position.x = player.x;
+        this.shotgunDryFireScratch.position.y = player.y;
+        this.shotgunDryFireScratch.position.z = player.z;
+        shotgunDryFire = this.shotgunDryFireScratch;
       }
     }
 
     // Stairs are walkable geometry only — no interact prompt or floor transition.
 
-    const pickupMotionFrame = { player, elapsed: this.elapsed, delta };
+    this.pickupMotionFrame.player = player;
+    this.pickupMotionFrame.elapsed = this.elapsed;
+    this.pickupMotionFrame.delta = delta;
+    const pickupMotionFrame = this.pickupMotionFrame;
     if (activeFloorRuntime) {
       for (const pickup of activeFloorRuntime.pickups) {
         if (pickup.collected) {
@@ -1303,7 +1355,14 @@ export class DungeonWorld {
     let knockback: WorldUpdate["knockback"] = null;
     if (knockHits > 0) {
       const len = Math.hypot(knockX, knockZ);
-      knockback = len > 1e-4 ? { x: knockX / len, z: knockZ / len } : { x: 0, z: 1 };
+      if (len > 1e-4) {
+        this.knockbackScratch.x = knockX / len;
+        this.knockbackScratch.z = knockZ / len;
+      } else {
+        this.knockbackScratch.x = 0;
+        this.knockbackScratch.z = 1;
+      }
+      knockback = this.knockbackScratch;
     }
     const out = this.worldUpdateScratch;
     out.collectedRelic =
@@ -1402,8 +1461,12 @@ export class DungeonWorld {
     direction: { x: number; y: number; z: number },
   ): { hits: number; impacts: { x: number; y: number; z: number }[] } {
     const runtime = this.activeEnemyRuntime;
-    const impacts: { x: number; y: number; z: number }[] = [];
-    if (!runtime) return { hits: 0, impacts };
+    const impacts = this.shotgunImpactsScratch;
+    this.shotgunBlastResult.hits = 0;
+    if (!runtime) {
+      impacts.length = 0;
+      return this.shotgunBlastResult;
+    }
     const localOrigin = runtime.localPlayerPosition(origin);
     let hits = 0;
     for (const enemy of runtime.actors) {
@@ -1421,20 +1484,25 @@ export class DungeonWorld {
         continue;
       }
       const worldPosition = runtime.worldPositionInto(enemy.position, this.residentWorldPosition);
-      impacts.push({
-        x: worldPosition.x,
-        y: worldPosition.y + 0.55,
-        z: worldPosition.z,
-      });
+      let impact = impacts[hits];
+      if (!impact) {
+        impact = { x: 0, y: 0, z: 0 };
+        impacts[hits] = impact;
+      }
+      impact.x = worldPosition.x;
+      impact.y = worldPosition.y + 0.55;
+      impact.z = worldPosition.z;
       this.defeatEnemySeat(enemy);
       hits += 1;
     }
-    return { hits, impacts };
+    impacts.length = hits;
+    this.shotgunBlastResult.hits = hits;
+    return this.shotgunBlastResult;
   }
 
   updateEffects(delta: number, viewerPosition?: THREE.Vector3Like): void {
     this.elapsed += delta;
-    const viewer = viewerPosition ?? { x: 0, y: 1.5, z: 0 };
+    const viewer = viewerPosition ?? this.idleViewer;
     this.timeFreezeVfx?.update(
       this.powers.timeFreezeSeconds,
       this.elapsed,

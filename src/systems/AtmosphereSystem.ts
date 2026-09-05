@@ -317,7 +317,9 @@ export class AtmosphereSystem {
       };
       sprite.onBeforeRender = () => {
         const material = this.mistBankMaterial;
-        if (material) material.opacity = bank.currentOpacity;
+        if (material && material.opacity !== bank.currentOpacity) {
+          material.opacity = bank.currentOpacity;
+        }
       };
       this.group.add(sprite);
       this.mistBanks.push(bank);
@@ -358,8 +360,8 @@ export class AtmosphereSystem {
   /**
    * @param viewerPosition Player/camera XZ follow target for the local fog volume.
    */
-  update(delta: number, viewerPosition?: THREE.Vector3Like): void {
-    this.elapsed += delta;
+  update(delta: number, viewerPosition?: THREE.Vector3Like, animate = true): void {
+    if (animate) this.elapsed += delta;
     if (viewerPosition) {
       this.viewer.set(viewerPosition.x, viewerPosition.y, viewerPosition.z);
       if (this.softGroundFog) {
@@ -372,6 +374,18 @@ export class AtmosphereSystem {
         const fogHandles = softGroundFogHandles(this.softGroundFog.material);
         fogHandles?.uBoxCenter.value.set(viewerPosition.x, viewerPosition.z);
       }
+    }
+    if (!animate) {
+      for (const material of [
+        this.supportParticleMaterial,
+        this.signatureParticleMaterial,
+        this.ceilingParticleMaterial,
+      ]) {
+        if (!material) continue;
+        const handles = biomeParticleHandles(material);
+        if (handles) handles.uViewer.value.copy(this.viewer);
+      }
+      return;
     }
     const clearFade = 1 - this.fogClearPulse * 0.94;
     for (const bank of this.mistBanks) {

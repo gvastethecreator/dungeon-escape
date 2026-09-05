@@ -30,19 +30,32 @@ function clamp(value: number, min: number, max: number): number {
 export function composeHazardWithBiomeEvent<T extends ComposableHazardSurface>(
   surface: T,
   event: BiomeEventSurfaceScales,
+  out?: T,
 ): T {
   const damageScale = Number.isFinite(event.hazardDamageScale) ? event.hazardDamageScale : 1;
   const movementScale = Number.isFinite(event.movementScale) ? event.movementScale : 1;
-  if (damageScale === 1 && movementScale === 1) return surface;
-  return {
-    ...surface,
-    damage: surface.damage * damageScale,
-    movementScale: clamp(
-      surface.movementScale * movementScale,
-      BIOME_EVENT_MOVEMENT_MIN,
-      BIOME_EVENT_MOVEMENT_MAX,
-    ),
-  };
+  if (damageScale === 1 && movementScale === 1) {
+    if (!out || out === surface) return surface;
+    out.kind = surface.kind;
+    out.label = surface.label;
+    out.damage = surface.damage;
+    out.movementScale = surface.movementScale;
+    out.traction = surface.traction;
+    return out;
+  }
+  const target = out ?? ({ ...surface } as T);
+  if (target !== surface) {
+    target.kind = surface.kind;
+    target.label = surface.label;
+    target.traction = surface.traction;
+  }
+  target.damage = surface.damage * damageScale;
+  target.movementScale = clamp(
+    surface.movementScale * movementScale,
+    BIOME_EVENT_MOVEMENT_MIN,
+    BIOME_EVENT_MOVEMENT_MAX,
+  );
+  return target;
 }
 
 /** Scale run difficulty by biome-event enemy pressure, clamped to 0..1. */

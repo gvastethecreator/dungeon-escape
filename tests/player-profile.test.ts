@@ -104,6 +104,12 @@ describe("persistent player profile and ordered campaign", () => {
     expect(readPlayerProfile(storage)).toBeNull();
   });
 
+  test("welcome shell reads PlayerProfile instead of a private parser", async () => {
+    const shell = await Bun.file(new URL("../src/shell.ts", import.meta.url)).text();
+    expect(shell).toContain("readPlayerProfile");
+    expect(shell).not.toContain("blackflag.dungeon.player.v1");
+  });
+
   test("profile name unlock grants every campaign biome on create and rename", () => {
     const unlocked = createPlayerProfile("Unlock", 1, 100);
     expect(unlocked).not.toBeNull();

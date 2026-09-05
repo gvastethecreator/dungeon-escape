@@ -96,11 +96,14 @@ import { collectVisibleRenderInventory } from "./systems/RenderInventory";
 import { resolveRenderPixelRatio } from "./systems/RenderScale";
 import { bootPlayShaderMode } from "./systems/PlayShaderBoot";
 import { applyCreationParamsToForm, readCreationParams } from "./editor/CreationParamsAdapter";
+import { readMusicMuted, writeMusicMuted } from "./game/MusicMutePreference";
 import {
   applyPlayStepPresentation,
   collectPlayStepPresentation,
+  type PlayStepPresentationEvent,
   type PlayStepPresentationHost,
 } from "./game/PlayStepPresentation";
+import { applyWelcomeMusicToggle } from "./ui/WelcomeMusicToggle";
 
 /** Play renderer surface used by the host after backend selection. */
 type PlayHostRenderer = DungeonRenderer & {
@@ -763,7 +766,6 @@ let optionsOpenGuardToken = 0;
 let suppressPauseOnPointerUnlock = false;
 let welcomeOpen = true;
 const LAST_LEADERBOARD_NAME_KEY = "dungeon-escape:leaderboard-name";
-const MUSIC_MUTED_KEY = "dungeon-escape:music-muted";
 let playerProfile: PlayerProfile | null = readPlayerProfile();
 let profileAvatarDraft = playerProfile?.avatarIndex ?? 0;
 let campaignClearRecordedForRun = false;
@@ -1413,19 +1415,11 @@ function setActiveBiomeMusic(): void {
 }
 
 function readStoredMusicMuted(): boolean {
-  try {
-    return localStorage.getItem(MUSIC_MUTED_KEY) === "1";
-  } catch {
-    return false;
-  }
+  return readMusicMuted();
 }
 
 function writeStoredMusicMuted(muted: boolean): void {
-  try {
-    localStorage.setItem(MUSIC_MUTED_KEY, muted ? "1" : "0");
-  } catch {
-    // Private mode / blocked storage: preference stays in memory for this session.
-  }
+  writeMusicMuted(muted);
 }
 
 function syncMusicToggleUi(): void {
@@ -1434,12 +1428,7 @@ function syncMusicToggleUi(): void {
   setToggleValue(elements.musicToggle, !muted, COPY.hud.musicOn, COPY.hud.musicOff);
   elements.musicToggle.title = title;
 
-  // Welcome uses a note icon; keep the glyph and only update a11y state.
-  elements.welcomeMusicToggle.setAttribute("aria-pressed", String(!muted));
-  elements.welcomeMusicToggle.setAttribute("aria-label", title);
-  elements.welcomeMusicToggle.classList.toggle("is-active", !muted);
-  elements.welcomeMusicToggle.classList.toggle("is-muted", muted);
-  elements.welcomeMusicToggle.title = title;
+  applyWelcomeMusicToggle(elements.welcomeMusicToggle, muted, title);
 }
 
 function setMusicMutedPreference(muted: boolean, options: { playClick?: boolean } = {}): void {
@@ -5070,6 +5059,59 @@ const locomotionModsScratch = {
   slowActive: false,
   mobilityActive: false,
 };
+const playStepPresentationEvents: PlayStepPresentationEvent[] = [];
+const playStatusHudRemainingScratch: NonNullable<Parameters<typeof syncPlayStatusHud>[0]> = {
+  timeFreeze: 0,
+  luminousWard: 0,
+  annihilationPulse: 0,
+  cullBrand: 0,
+  shotgunShells: 0,
+  shotgunPumpRemaining: 0,
+  fogClear: 0,
+  mobility: 0,
+  handTorch: 0,
+  phoenixCharges: 0,
+  slow: 0,
+  frenzy: 0,
+  gloom: 0,
+  swarm: false,
+  mirror: 0,
+  spin: 0,
+};
+let playStepWorldUpdate: {
+  collectedPickup: Parameters<GameAudio["playPickup"]>[0];
+} | null = null;
+let playStepPhoenixCharges: number | undefined;
+const playStepPresentationHost: PlayStepPresentationHost = {
+  setStatus,
+  playPickup: () => audio.playPickup(playStepWorldUpdate?.collectedPickup ?? null),
+  playPortal: () => audio.playPortal(world.getAudioFrame().portal),
+  showPickupFeedback,
+  playAnnihilationPulse: (position) => audio.playAnnihilationPulse(position),
+  playCullBrandKill: (position) => audio.playCullBrandKill(position),
+  playShotgunFire: (position, pump) => audio.playShotgunFire(position, { pump }),
+  playShotgunDry: (position) => audio.playShotgunDry(position),
+  kickShotgun: () => handShotgun.kick(),
+  applyPhoenixRevive: () => {
+    world.applyPhoenixRevive(playerPosition);
+    if (playStepPhoenixCharges !== undefined) world.setPhoenixCharges(playStepPhoenixCharges);
+  },
+  setPhoenixCharges: (charges) => world.setPhoenixCharges(charges),
+  syncPhoenixHud,
+  playPhoenixRevive: () => audio.playPhoenixRevive(playerPosition),
+  showPhoenixBanner: () => showObjectiveBanner(COPY.status.phoenixRevive, "hunt", 2800, 1200),
+  addHitTrauma: (amount) => {
+    hitTrauma = Math.max(hitTrauma, amount);
+  },
+  flash,
+  playDoor: (kind, position) => audio.playDoor(kind, position),
+  playChest: (position) => audio.playChest(position),
+  playEnemyHit: (position, voice) =>
+    audio.playEnemyHit(position, voice as Parameters<GameAudio["playEnemyHit"]>[1]),
+  playHazardDamage: () => audio.play("damage"),
+  triggerDamageFeedback,
+  updateResolve,
+};
 
 function shouldRunThreeRenderLoop(): boolean {
   return shouldRunGameRenderLoop({
@@ -5139,8 +5181,13 @@ function frame(now: number): void {
   const result = controller.update(delta);
   const player = controller.getState();
   playerPosition.set(player.position.x, player.position.y, player.position.z);
+  const simulationActive =
+    engineMode === "play" &&
+    !optionsOpen &&
+    !elements.displayPostFxLab.open &&
+    (player.locked || touchSessionActive);
   // Local fog volume follows the player (smooth height gradient around the view).
-  atmosphere.update(delta, playerPosition);
+  atmosphere.update(delta, playerPosition, simulationActive);
   // Fire LOD + LOS is play-path cost; skip full torch budget work in editor/debug chrome.
   if (engineMode === "play") {
     world.updateEffects(delta, playerPosition);
@@ -5177,11 +5224,6 @@ function frame(now: number): void {
     if (exploration.cellChanged) syncDomainExplore();
   }
 
-  const simulationActive =
-    engineMode === "play" &&
-    !optionsOpen &&
-    !elements.displayPostFxLab.open &&
-    (player.locked || touchSessionActive);
   if (simulationActive !== profileSimulationActive) {
     profileSimulationActive = simulationActive;
     frameGapProfiler.reset();
@@ -5212,37 +5254,25 @@ function frame(now: number): void {
     uiInteractQueued = false;
     const { worldUpdate, effects, state } = step;
     if (worldUpdate) {
-      playStatusHudRemaining = {
-        timeFreeze: worldUpdate.timeFreezeRemaining,
-        luminousWard: worldUpdate.luminousWardRemaining,
-        annihilationPulse: worldUpdate.annihilationPulseRemaining,
-        cullBrand: worldUpdate.cullBrandRemaining,
-        shotgunShells: worldUpdate.shotgunShells,
-        shotgunPumpRemaining: worldUpdate.shotgunPumpRemaining,
-        fogClear: worldUpdate.fogClearRemaining,
-        mobility: worldUpdate.mobilityBoostRemaining,
-        handTorch: worldUpdate.handTorchRemaining,
-        phoenixCharges: worldUpdate.phoenixCharges,
-        slow: worldUpdate.slowCurseRemaining,
-        frenzy: worldUpdate.frenzyCurseRemaining,
-        gloom: worldUpdate.gloomCurseRemaining,
-        swarm: worldUpdate.swarmCurseActive,
-        mirror: worldUpdate.mirrorCurseRemaining,
-        spin: worldUpdate.spinCurseRemaining,
-      };
+      playStatusHudRemainingScratch.timeFreeze = worldUpdate.timeFreezeRemaining;
+      playStatusHudRemainingScratch.luminousWard = worldUpdate.luminousWardRemaining;
+      playStatusHudRemainingScratch.annihilationPulse = worldUpdate.annihilationPulseRemaining;
+      playStatusHudRemainingScratch.cullBrand = worldUpdate.cullBrandRemaining;
+      playStatusHudRemainingScratch.shotgunShells = worldUpdate.shotgunShells;
+      playStatusHudRemainingScratch.shotgunPumpRemaining = worldUpdate.shotgunPumpRemaining;
+      playStatusHudRemainingScratch.fogClear = worldUpdate.fogClearRemaining;
+      playStatusHudRemainingScratch.mobility = worldUpdate.mobilityBoostRemaining;
+      playStatusHudRemainingScratch.handTorch = worldUpdate.handTorchRemaining;
+      playStatusHudRemainingScratch.phoenixCharges = worldUpdate.phoenixCharges;
+      playStatusHudRemainingScratch.slow = worldUpdate.slowCurseRemaining;
+      playStatusHudRemainingScratch.frenzy = worldUpdate.frenzyCurseRemaining;
+      playStatusHudRemainingScratch.gloom = worldUpdate.gloomCurseRemaining;
+      playStatusHudRemainingScratch.swarm = worldUpdate.swarmCurseActive;
+      playStatusHudRemainingScratch.mirror = worldUpdate.mirrorCurseRemaining;
+      playStatusHudRemainingScratch.spin = worldUpdate.spinCurseRemaining;
+      playStatusHudRemaining = playStatusHudRemainingScratch;
       syncBiomeEvent(worldUpdate.biomeEvent);
       floorExploration.setMapRevealed(worldUpdate.mapRevealed);
-      controller.setLocomotionMods(
-        projectLocomotionMods(
-          {
-            mirrorCurseRemaining: worldUpdate.mirrorCurseRemaining,
-            spinCurseRemaining: worldUpdate.spinCurseRemaining,
-            slowCurseRemaining: worldUpdate.slowCurseRemaining,
-            mobilityBoostRemaining: worldUpdate.mobilityBoostRemaining,
-          },
-          locomotionModsScratch,
-        ),
-      );
       controller.setSurfaceMovement(
         worldUpdate.surfaceEffect.movementScale,
         worldUpdate.surfaceEffect.traction,
@@ -5274,39 +5304,11 @@ function frame(now: number): void {
       if (effects.playEnemyHit) {
         elements.shell.dataset.resolve = String(Math.ceil(state.resolve));
       }
-      const presentationHost: PlayStepPresentationHost = {
-        setStatus,
-        playPickup: () => audio.playPickup(worldUpdate.collectedPickup),
-        playPortal: () => audio.playPortal(world.getAudioFrame().portal),
-        showPickupFeedback,
-        playAnnihilationPulse: (position) => audio.playAnnihilationPulse(position),
-        playCullBrandKill: (position) => audio.playCullBrandKill(position),
-        playShotgunFire: (position, pump) => audio.playShotgunFire(position, { pump }),
-        playShotgunDry: (position) => audio.playShotgunDry(position),
-        kickShotgun: () => handShotgun.kick(),
-        applyPhoenixRevive: () => {
-          world.applyPhoenixRevive(playerPosition);
-          if (effects.phoenixCharges !== undefined) world.setPhoenixCharges(effects.phoenixCharges);
-        },
-        setPhoenixCharges: (charges) => world.setPhoenixCharges(charges),
-        syncPhoenixHud,
-        playPhoenixRevive: () => audio.playPhoenixRevive(playerPosition),
-        showPhoenixBanner: () => showObjectiveBanner(COPY.status.phoenixRevive, "hunt", 2800, 1200),
-        addHitTrauma: (amount) => {
-          hitTrauma = Math.max(hitTrauma, amount);
-        },
-        flash,
-        playDoor: (kind, position) => audio.playDoor(kind, position),
-        playChest: (position) => audio.playChest(position),
-        playEnemyHit: (position, voice) =>
-          audio.playEnemyHit(position, voice as Parameters<GameAudio["playEnemyHit"]>[1]),
-        playHazardDamage: () => audio.play("damage"),
-        triggerDamageFeedback,
-        updateResolve,
-      };
+      playStepWorldUpdate = worldUpdate;
+      playStepPhoenixCharges = effects.phoenixCharges;
       applyPlayStepPresentation(
-        collectPlayStepPresentation(worldUpdate, effects),
-        presentationHost,
+        collectPlayStepPresentation(worldUpdate, effects, playStepPresentationEvents),
+        playStepPresentationHost,
         effects.pickup ?? null,
       );
       if (

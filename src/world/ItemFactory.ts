@@ -18,6 +18,20 @@ function mesh(geometry: THREE.BufferGeometry, material: THREE.Material, name: st
   return result;
 }
 
+function createPickupPointLight(
+  name: string,
+  color: number,
+  intensity: number,
+  distance: number,
+  decay: number,
+  y: number,
+): THREE.PointLight {
+  const light = new THREE.PointLight(color, intensity, distance, decay);
+  light.name = name;
+  light.position.y = y;
+  return light;
+}
+
 function mergeGeometryParts(parts: THREE.BufferGeometry[], name: string): THREE.BufferGeometry {
   const merged = mergeGeometries(parts, false);
   parts.forEach((part) => part.dispose());
@@ -799,9 +813,14 @@ export function createTimeFreezeRelic(materials: DungeonMaterials): THREE.Group 
   verticalHalo.rotation.x = Math.PI / 2;
   verticalHalo.rotation.z = Math.PI / 2;
   verticalHalo.position.y = 0.75;
-  const pickupLight = new THREE.PointLight(0x72e7ef, TIME_FREEZE_PICKUP_LIGHT_INTENSITY, 4.4, 2.1);
-  pickupLight.name = "Time freeze pickup light";
-  pickupLight.position.y = 0.75;
+  const pickupLight = createPickupPointLight(
+    "Time freeze pickup light",
+    0x72e7ef,
+    TIME_FREEZE_PICKUP_LIGHT_INTENSITY,
+    4.4,
+    2.1,
+    0.75,
+  );
 
   const pickupAnchor = new THREE.Object3D();
   pickupAnchor.name = "Time freeze pickup anchor";
@@ -1090,9 +1109,14 @@ export function createLuminousWardStone(
   runeStrokes.userData.instanceCount = 8;
   runeStrokes.castShadow = false;
 
-  const pickupLight = new THREE.PointLight(0xe6c66f, LUMINOUS_WARD_PICKUP_LIGHT_INTENSITY, 6.4, 2);
-  pickupLight.name = "Luminous ward pickup light";
-  pickupLight.position.y = 0.78;
+  const pickupLight = createPickupPointLight(
+    "Luminous ward pickup light",
+    0xe6c66f,
+    LUMINOUS_WARD_PICKUP_LIGHT_INTENSITY,
+    6.4,
+    2,
+    0.78,
+  );
   const pickupAnchor = new THREE.Object3D();
   pickupAnchor.name = "Luminous ward pickup anchor";
   pickupAnchor.position.y = 0.7;
@@ -1226,14 +1250,14 @@ export function createAnnihilationPulseRelic(materials: DungeonMaterials): THREE
   );
   halo.rotation.x = Math.PI / 2;
   halo.position.y = 0.58;
-  const pulseLight = new THREE.PointLight(
+  const pulseLight = createPickupPointLight(
+    "Annihilation pulse pickup light",
     0xff5d86,
     ANNIHILATION_PULSE_PICKUP_LIGHT_INTENSITY,
     7.2,
     2,
+    0.62,
   );
-  pulseLight.name = "Annihilation pulse pickup light";
-  pulseLight.position.y = 0.62;
 
   const pickupAnchor = new THREE.Object3D();
   pickupAnchor.name = "Annihilation pulse pickup anchor";
@@ -1560,9 +1584,14 @@ export function createCullBrandRelic(materials: DungeonMaterials): THREE.Group {
   const halo = mesh(new THREE.TorusGeometry(0.34, 0.014, 5, 22), glow, "Cull brand halo");
   halo.rotation.x = Math.PI / 2;
   halo.position.y = 0.52;
-  const light = new THREE.PointLight(0xff7a3a, CULL_BRAND_PICKUP_LIGHT_INTENSITY, 6.4, 2);
-  light.name = "Cull brand pickup light";
-  light.position.y = 0.55;
+  const light = createPickupPointLight(
+    "Cull brand pickup light",
+    0xff7a3a,
+    CULL_BRAND_PICKUP_LIGHT_INTENSITY,
+    6.4,
+    2,
+    0.55,
+  );
   const pickupAnchor = new THREE.Object3D();
   pickupAnchor.name = "Cull brand pickup anchor";
   pickupAnchor.position.y = 0.52;
@@ -1633,9 +1662,14 @@ export function createPhoenixEggRelic(materials: DungeonMaterials): THREE.Group 
   const halo = mesh(new THREE.TorusGeometry(0.38, 0.014, 5, 22), glow, "Phoenix egg halo");
   halo.rotation.x = Math.PI / 2;
   halo.position.y = 0.48;
-  const light = new THREE.PointLight(0xff9a3a, PHOENIX_EGG_PICKUP_LIGHT_INTENSITY, 6.8, 2);
-  light.name = "Phoenix egg pickup light";
-  light.position.y = 0.55;
+  const light = createPickupPointLight(
+    "Phoenix egg pickup light",
+    0xff9a3a,
+    PHOENIX_EGG_PICKUP_LIGHT_INTENSITY,
+    6.8,
+    2,
+    0.55,
+  );
 
   root.add(pedestal, ring, egg, seam, core, halo, light);
   root.userData.pickupKind = "phoenix-egg";

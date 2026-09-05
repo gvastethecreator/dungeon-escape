@@ -31,49 +31,48 @@ A compressor at -12 dB / 12:1 limits overlap. Encode uses loudnorm plus a pre-Op
 
 ## Asset map
 
-| Asset            | Role                          |
-| ---------------- | ----------------------------- |
-| `ambience-cave`  | Looping dungeon room tone     |
-| `torch-crackle`  | Nearby fire one-shot          |
-| `step-stone-a/b` | Dry footstep variants         |
-| `step-water-a/b` | Wet footstep variants         |
-| `ui-metal`       | Forge / heavy UI confirm      |
-| `ui-click`       | Default interface click       |
-| `ui-tick`        | Slider ticks / seed chips     |
-| `ui-hover`       | Soft menu hover blip          |
-| `ui-select`      | Primary menu / biome select   |
-| `ui-back`        | Back / secondary actions      |
-| `ui-toggle`      | Mute / CRT / checkbox toggles |
-| `ui-deny`        | Disabled control feedback     |
+| Asset                          | Role                                                        |
+| ------------------------------ | ----------------------------------------------------------- |
+| `ambience-cave`                | Looping dungeon room tone                                   |
+| `torch-crackle`                | Nearby fire one-shot                                        |
+| `step-stone-a/b`               | Dry footstep variants                                       |
+| `step-water-a/b`               | Wet footstep variants                                       |
+| `ui-metal`                     | Forge / heavy UI confirm                                    |
+| `ui-click`                     | Default interface click                                     |
+| `ui-tick`                      | Slider ticks / seed chips                                   |
+| `ui-hover`                     | Soft menu hover blip                                        |
+| `ui-select`                    | Primary menu / biome select                                 |
+| `ui-back`                      | Back / secondary actions                                    |
+| `ui-toggle`                    | Mute / CRT / checkbox toggles                               |
+| `ui-deny`                      | Disabled control feedback                                   |
+| `pickup-stone`                 | Magic stone bind                                            |
+| `pickup-resolve`               | Health flask                                                |
+| `pickup-time-freeze`           | Time freeze power                                           |
+| `pickup-ward`                  | Luminous ward power                                         |
+| `enemy-growl` / `enemy-attack` | Generic threat fallbacks                                    |
+| `enemy-{kind}-v0..v2`          | Three presence takes per kind (random, no immediate repeat) |
+| `enemy-{kind}-attack-v0..v2`   | Three attack takes per kind                                 |
+| `enemy-{kind}-{biome}`         | Biome subspecies presence (one clip per non-ancient biome)  |
+| `enemy-{kind}-attack-{biome}`  | Biome subspecies attack                                     |
+| `door-open` / `door-close`     | Dungeon doors                                               |
+| `chest-open` / `chest-reward`  | Chest lid + shimmer                                         |
+| `damage`                       | Player hit                                                  |
+| `lose`                         | Death end SFX (sting)                                       |
+| `win`                          | Escape end                                                  |
+| `portal-open`                  | Portal unlock / spawn                                       |
+| `music-biome-*`                | Exploration bed per biome (see `docs/BIOME-MUSIC.md`)       |
+| `music-biome-*-portal`         | Raised bed after four stones bind                           |
+| `music-lose`                   | Death bed (`Last Wick`)                                     |
+| `music-win`                    | Escape bed (`Open Air`)                                     |
+| `music-menu`                   | Welcome home bed (`Threshold Ember`)                        |
+| `music-hall`                   | Hall of Escapes bed (`Names in Stone`)                      |
+| `music-biome-select`           | Biome picker bed (`Choose the Descent`)                     |
 
 Regenerate synthetic UI clicks with:
 
 ```powershell
 python scripts/generate-ui-sounds.py
 ```
-
-| `pickup-stone` | Magic stone bind |
-| `pickup-resolve` | Health flask |
-| `pickup-time-freeze` | Time freeze power |
-| `pickup-ward` | Luminous ward power |
-| `enemy-growl` / `enemy-attack` | Generic threat fallbacks |
-| `enemy-{kind}-v0..v2` | Three presence takes per kind (random, no immediate repeat) |
-| `enemy-{kind}-attack-v0..v2` | Three attack takes per kind |
-| `enemy-{kind}-{biome}` | Biome subspecies presence (one clip per non-ancient biome) |
-| `enemy-{kind}-attack-{biome}` | Biome subspecies attack |
-| `door-open` / `door-close` | Dungeon doors |
-| `chest-open` / `chest-reward` | Chest lid + shimmer |
-| `damage` | Player hit |
-| `lose` | Death end SFX (sting) |
-| `win` | Escape end |
-| `portal-open` | Portal unlock / spawn |
-| `music-biome-*` | Exploration bed per biome (see `docs/BIOME-MUSIC.md`) |
-| `music-biome-*-portal` | Quietly raised bed after four stones bind |
-| `music-lose` | Melancholic death bed (`Last Wick`) |
-| `music-win` | Relief bed after escape (`Open Air`) |
-| `music-menu` | Welcome home bed (`Threshold Ember`) |
-| `music-hall` | Hall of Escapes bed (`Names in Stone`) |
-| `music-biome-select` | Biome picker bed (`Choose the Descent`) |
 
 Kinds: `carrion`, `goblin`, `ghost`, `ratling`, `husk`, `imp`, `zombie-orc`, `spider`, `bone-slime`, `white-eyed-shadow`, `carrion-stalker`.
 

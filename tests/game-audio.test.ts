@@ -336,7 +336,11 @@ describe("GameAudio dungeon soundscape", () => {
     expect(main).toContain("audio.setMusicTrack");
     expect(main).toContain("setMusicMutedPreference");
     expect(main).toContain("welcomeMusicToggle");
-    expect(main).toContain("MUSIC_MUTED_KEY");
+    expect(main).toContain("readMusicMuted");
+    const mute = await Bun.file(
+      new URL("../src/game/MusicMutePreference.ts", import.meta.url),
+    ).text();
+    expect(mute).toContain("MUSIC_MUTED_KEY");
   });
 
   test("html exposes music mute controls on welcome and options", async () => {

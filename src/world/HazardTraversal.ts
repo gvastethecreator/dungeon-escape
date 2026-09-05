@@ -85,9 +85,18 @@ export function createHazardClockState(): HazardClockState {
  * Tick cooldowns and residue, then apply one frame of contact damage policy.
  * Mutates no external state; returns next clocks + surface effect.
  */
+export const IDLE_HAZARD_SURFACE: HazardSurfaceEffect = {
+  kind: null,
+  label: "",
+  damage: 0,
+  movementScale: 1,
+  traction: 1,
+};
+
 export function tickHazardTraversal(
   clocks: HazardClockState,
   input: HazardTraversalInput,
+  out?: HazardTraversalResult,
 ): HazardTraversalResult {
   const delta = Math.max(0, input.delta);
   let fireCooldown = Math.max(0, clocks.fireCooldown - delta);
@@ -118,19 +127,15 @@ export function tickHazardTraversal(
   }
 
   const kind = contact ?? (toxinRemaining > 0 ? "toxin" : null);
-  return {
-    clocks: {
-      fireCooldown,
-      spikeCooldown,
-      toxinTickCooldown,
-      toxinRemaining,
-    },
-    effect: {
-      kind,
-      label: kind ? HAZARD_LABELS[kind] : "",
-      damage,
-      movementScale: kind === "ice" ? HAZARD_ICE_MOVEMENT_SCALE : 1,
-      traction: kind === "ice" ? HAZARD_ICE_TRACTION : 1,
-    },
-  };
+  const result = out ?? { clocks: createHazardClockState(), effect: { ...IDLE_HAZARD_SURFACE } };
+  result.clocks.fireCooldown = fireCooldown;
+  result.clocks.spikeCooldown = spikeCooldown;
+  result.clocks.toxinTickCooldown = toxinTickCooldown;
+  result.clocks.toxinRemaining = toxinRemaining;
+  result.effect.kind = kind;
+  result.effect.label = kind ? HAZARD_LABELS[kind] : "";
+  result.effect.damage = damage;
+  result.effect.movementScale = kind === "ice" ? HAZARD_ICE_MOVEMENT_SCALE : 1;
+  result.effect.traction = kind === "ice" ? HAZARD_ICE_TRACTION : 1;
+  return result;
 }

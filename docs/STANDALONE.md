@@ -14,7 +14,7 @@ Dungeon Escape is a self-contained Bun and Vite app. The game runtime, assets, t
 
 ## Runtime boundary
 
-The game starts with local state. Map Tools and Server Runs are **local developer chrome only** (`vite` dev or localhost). See `src/game/LocalDevTools.ts`. Public deploys hide that panel and ignore `?authority=` so players cannot rewrite seeds into the leaderboard path.
+The game starts with local state. Map Tools and Server Runs are local developer chrome only (`vite` dev or localhost). See `src/game/LocalDevTools.ts`. Public deploys hide that panel and ignore `?authority=` so players cannot rewrite seeds into the leaderboard path.
 
 When local tools are on, the optional `authority` URL parameter enables a compatible HTTP service. The client boundary stays in `src/authority/client.ts`. Three.js presentation code does not own game-state rules.
 

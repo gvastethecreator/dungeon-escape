@@ -52,6 +52,16 @@ export interface EnemySimResult {
   attacker: EnemySimBody | null;
 }
 
+/** Idle combat receipt. Callers may mutate `nearestThreat` on a private copy. */
+export const IDLE_ENEMY_SIM_RESULT: Readonly<EnemySimResult> = {
+  damage: 0,
+  nearestThreat: Number.POSITIVE_INFINITY,
+  knockX: 0,
+  knockZ: 0,
+  knockHits: 0,
+  attacker: null,
+};
+
 export interface EnemySimContext {
   delta: number;
   elapsed: number;

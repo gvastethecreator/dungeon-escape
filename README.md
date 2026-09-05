@@ -63,6 +63,7 @@ WebGL2 remains the automatic default and the public visual baseline. WebGPU is a
 - [Development](docs/DEVELOPMENT.md)
 - [Standalone architecture](docs/STANDALONE.md)
 - [Audio runtime](docs/AUDIO.md)
+- [Game music](docs/BIOME-MUSIC.md)
 - [Hall of Escapes](docs/LEADERBOARD.md)
 - [Dependencies](docs/DEPENDENCIES.md)
 - [Security policy](SECURITY.md)
